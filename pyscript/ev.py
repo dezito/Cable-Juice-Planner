@@ -3342,12 +3342,12 @@ def cheap_grid_charge_hours():
     
     todays_max_battery_level = max(sum(charging_plan[0]["battery_level_before_work"]), sum(charging_plan[0]["battery_level_at_midnight"]), sum(charging_plan[0]["battery_level_after_work"]))
     tomorrow_max_battery_level = max(sum(charging_plan[1]["battery_level_before_work"]), sum(charging_plan[1]["battery_level_at_midnight"]), sum(charging_plan[1]["battery_level_after_work"]))
+    chargeHours['MaxChargingLevelToday'] = round(max(todays_max_battery_level, tomorrow_max_battery_level, charging_plan[day]['total_needed_battery_level'], get_min_charge_limit_battery_level()), 2)
     '''_LOGGER.error(f"todays_max_battery_level:{todays_max_battery_level}")
     _LOGGER.error(f"tomorrow_max_battery_level:{tomorrow_max_battery_level}")
     _LOGGER.error(f"charging_plan[day]['total_needed_battery_level']:{charging_plan[day]['total_needed_battery_level']}")
-    _LOGGER.error(f"get_min_charge_limit_battery_level:{get_min_charge_limit_battery_level()}")'''
-    chargeHours['MaxChargingLevelToday'] = max(todays_max_battery_level, tomorrow_max_battery_level, charging_plan[day]['total_needed_battery_level'], get_min_charge_limit_battery_level())
-    
+    _LOGGER.error(f"get_min_charge_limit_battery_level:{get_min_charge_limit_battery_level()}")
+    _LOGGER.error(f"chargeHours['MaxChargingLevelToday']:{chargeHours['MaxChargingLevelToday']}")'''
     overview = []
     
     charging_plan_list = {}
