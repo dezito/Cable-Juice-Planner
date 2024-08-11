@@ -170,16 +170,6 @@ def set_attr(entity_id=None, attr=None):
         if entity_id == "":
             entity_id == None
         _LOGGER.error(f"Can't set attribute for {entity_id} with {attr}\n{e}")
-
-def send_command(entity_id=None, command=None):
-    """
-    Sends a command to a specified Home Assistant entity by setting its state.
-
-    Parameters:
-    - entity_id (str): The entity ID to send the command to.
-    - command (str): The command to send.
-    """
-    set_state(entity_id=entity_id, new_state=command)
     
 def get_manufacturer(entity_id):
     _LOGGER = globals()['_LOGGER'].getChild("get_manufacturer")
