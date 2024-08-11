@@ -1,7 +1,12 @@
 #!/bin/bash
 
-# Define the local directory where the repository will be cloned
-REPO_DIR="/config"
+# Check if /config directory exists, if not, use /mnt/data/supervisor/homeassistant
+if [ -d "/config" ]; then
+  REPO_DIR="/config"
+else
+  REPO_DIR="/mnt/data/supervisor/homeassistant"
+fi
+
 # Define the GitHub repository URL
 REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
 
