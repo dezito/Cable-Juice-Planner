@@ -3,12 +3,16 @@
 # Check if /config directory exists, if not, use /mnt/data/supervisor/homeassistant
 if [ -d "/config" ]; then
   REPO_DIR="/config"
+  FOLDER_NAME="config"
 else
   REPO_DIR="/mnt/data/supervisor/homeassistant"
+  FOLDER_NAME="homeassistant"
 fi
 
 # Define the GitHub repository URL
 REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
+
+git $FOLDER_NAME --global --add safe.directory $REPO_DIR
 
 # Clone the repo if it doesn't exist
 if [ ! -d "$REPO_DIR/.git" ]; then
