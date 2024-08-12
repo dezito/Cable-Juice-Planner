@@ -1016,12 +1016,12 @@ def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
     global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE
 
-    def handle_yaml(file_path, default_content, key_renaming=None, check_first_run=False, prompt_restart=False):
+    def handle_yaml(file_path, default_content, key_renaming, comment_db, check_first_run=False, prompt_restart=False):
         """
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
         if not file_exists(file_path):
-            save_yaml(file_path, default_content)
+            save_yaml(file_path, default_content, comment_db)
             _LOGGER.error(f"File has been created: {file_path}")
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
 
@@ -1035,13 +1035,13 @@ def init():
         if key_renaming:
             was_updated = update_keys_recursive(content, key_renaming)
             if was_updated:
-                save_yaml(file_path, content)
+                save_yaml(file_path, content, comment_db)
 
         updated, content = update_dict_with_new_keys(content, default_content)
         if updated:
             if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True
-            save_yaml(file_path, content)
+            save_yaml(file_path, content, comment_db)
 
         if was_updated or updated:
             msg = f"Config updated."
@@ -1065,8 +1065,7 @@ def init():
     welcome()
     try:
         set_charging_rule(f"📟Indlæser konfigurationen")
-        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, check_first_run=True, prompt_restart=False)
-        save_yaml(f"{__name__}_config.yaml", CONFIG, COMMENT_DB_YAML)
+        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
         if is_ev_configured():
             if f"{__name__}_battery_level" in DEFAULT_ENTITIES['input_number']:
                 del DEFAULT_ENTITIES['input_number'][f'{__name__}_battery_level']
@@ -1107,7 +1106,7 @@ def init():
                     if key in DEFAULT_ENTITIES['sensor'][0]['sensors']:
                         del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, prompt_restart=True)
         
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
