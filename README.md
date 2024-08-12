@@ -1,3 +1,14 @@
+---
+### Installation:
+1. Kopiere al teksten i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh)
+2. Navigere til Home Assistant config/scripts mappen 
+3. Lav en fil ved navn "update_cable_juice_planner.sh"
+4. Sæt teksten ind du har kopieret
+5. SSH ind i Home Assistant
+6. Navigerer til scripts mappen
+7. Start update_cable_juice_planner.sh
+---
+
 > [!Note]
 > ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
 > #### Docker:
