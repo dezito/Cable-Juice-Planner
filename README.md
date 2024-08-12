@@ -9,6 +9,13 @@
 7. Start update_cable_juice_planner.sh
 ---
 
+### Todo
+1. Monta understøttelse
+2. Kia UVO understøttelse
+---
+### Fremtiden
+- Konvertere scriptet til en integration
+---
 > [!Note]
 > ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
 > #### Docker:
