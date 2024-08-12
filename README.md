@@ -45,3 +45,14 @@
 > description: ""
 > icon: mdi:cloud-download
 > ```
+| Emoji beskrivelse | Historik | Oversigt |
+| --- | --- | --- |
+| ![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png) | ![Historik](Cable-Juice-Planner-Readme/history.png) | ![Oversigt](Cable-Juice-Planner-Readme/overview.png) |
+
+| Manuel ladning | Tur ladning |
+| --- | --- | 
+| ![Manuel](Cable-Juice-Planner-Readme/manual.png) | ![Tur](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/trip.png) |
+
+| Manuel ladning |
+| --- |
+| ![Indstillinger](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/settings.png) |
