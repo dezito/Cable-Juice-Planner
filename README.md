@@ -53,6 +53,6 @@
 | --- | --- | 
 | ![Manuel](Cable-Juice-Planner-Readme/manual.png) | ![Tur](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/trip.png) |
 
-| Manuel ladning |
+| Indstillinger |
 | --- |
 | ![Indstillinger](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/settings.png) |
