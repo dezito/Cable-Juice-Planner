@@ -7,6 +7,12 @@
 5. SSH ind i Home Assistant
 6. Navigerer til scripts mappen
 7. Start update_cable_juice_planner.sh
+8. update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
+9. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
+10. Genstart Home Assistant eller åben og gem ev.py filen
+11. Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
+    - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
+    - Alle entitier navne starter med ev_ der laves
 ---
 
 ### Todo
