@@ -33,7 +33,9 @@ from logging import getLogger
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
+
 INITIALIZATION_COMPLETE = False
+TESTING = False
 PREHEATING = False
 
 EV_CONFIGURED = None
