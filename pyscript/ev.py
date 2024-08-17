@@ -2569,6 +2569,9 @@ def cheap_grid_charge_hours():
             elif very_cheap_price:
                 rules.append("under_min_avg_price")
                 
+            if rules == []:
+                rules.append("no_rule")
+                
             for rule in rules:
                 if rule not in chargeHours[hour]:
                     chargeHours[hour][rule] = True
@@ -3358,7 +3361,7 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
         
     _LOGGER.info(f"charging_plan:\n{pformat(charging_plan)}")
-    _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours)}")
+    _LOGGER.info(f"chargeHours:\n{pformat(chargeHours)}")
     
     overview = []
     
@@ -4124,6 +4127,11 @@ def trip_charging():
     if is_trip_planned() and charger_port in ("open", "on"):
         _LOGGER.debug("trip_charging:True")
         return True
+    
+def trip_activate_reminder():
+    if get_trip_date_time() == resetDatetime(): return
+    if get_trip_homecoming_date_time() == resetDatetime(): return
+    
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
     _LOGGER = globals()['_LOGGER'].getChild("preheat_ev")
