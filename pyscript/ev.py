@@ -23,7 +23,7 @@ from filesystem import file_exists, create_yaml, load_yaml, save_yaml
 from hass_manager import get_state, get_attr, set_state, set_attr, get_manufacturer, get_identifiers, get_integration, reload_integration
 from history import get_values, get_average_value, get_max_value, get_min_value
 from mynotify import my_notify
-from mytime import getTime, getTimePlusDays, daysBetween, hoursBetween, minutesBetween, inBetween, getMinute, getHour, getMonth, getYear, getTimeStartOfDay, getTimeEndOfDay, getDayOfWeekText, date_to_string, toDateTime, resetDatetime, reset_time_to_hour
+from mytime import getTime, getTimePlusDays, daysBetween, hoursBetween, minutesBetween, getMinute, getHour, getMonth, getYear, getTimeStartOfDay, getTimeEndOfDay, getDayOfWeekText, date_to_string, toDateTime, resetDatetime, reset_time_to_hour
 from utils import in_between, round_up, average, get_specific_values, get_closest_key, update_keys_recursive, compare_dicts_unique_to_dict1, update_dict_with_new_keys, limit_dict_size
 
 import homeassistant.helpers.sun as sun
@@ -59,6 +59,7 @@ CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
 
 LAST_WAKE_UP_DATETIME = resetDatetime()
+LAST_TRIP_CHANGE_DATETIME = getTime()
 
 CONFIG = {}
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
@@ -2490,10 +2491,10 @@ def cheap_grid_charge_hours():
         
         try:
             if charging_plan[day]['workday']:
-                working = inBetween(h.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['homecoming'].hour)
+                working = in_between(h.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['homecoming'].hour)
 
             if trip_datetime:
-                if inBetween(h, trip_datetime, trip_homecoming_datetime):
+                if in_between(h, trip_datetime, trip_homecoming_datetime):
                     on_trip = True
         except Exception as e:
             _LOGGER.error(e)
@@ -2623,7 +2624,7 @@ def cheap_grid_charge_hours():
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
             
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
-            if charging_plan[day]["trip"] and inBetween(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
+            if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
                 max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
             
             what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
@@ -3205,7 +3206,7 @@ def cheap_grid_charge_hours():
             work_goto = midnight_datetime.replace(hour=get_state(f'input_datetime.{__name__}_days_to_charge_{day_text}').hour, minute=get_state(f'input_datetime.{__name__}_days_to_charge_{day_text}').minute, second=0)
                 
             diff = minutesBetween(now, work_goto)
-            if day == 0 and ready_to_charge() and inBetween(diff, CHARGING_ALLOWED_AFTER_GOTO_TIME, 0):
+            if day == 0 and ready_to_charge() and in_between(diff, CHARGING_ALLOWED_AFTER_GOTO_TIME, 0):
                 work_goto = work_goto + datetime.timedelta(hours=1)
 
             if (day == 0 and now < work_goto) or day > 0:
@@ -3240,7 +3241,7 @@ def cheap_grid_charge_hours():
             charging_plan[day]['trip_homecoming'] = trip_homecoming_date_time
             
             diff = minutesBetween(now, charging_plan[day]['trip_goto'])
-            if day == 0 and ready_to_charge() and inBetween(diff, CHARGING_ALLOWED_AFTER_GOTO_TIME, 0):
+            if day == 0 and ready_to_charge() and in_between(diff, CHARGING_ALLOWED_AFTER_GOTO_TIME, 0):
                 charging_plan[day]['trip_goto'] = charging_plan[day]['trip_goto'] + datetime.timedelta(hours=1)
                 
             hours_before = max(1, min(2, hoursBetween(now, charging_plan[day]['trip_goto'])))
@@ -4061,10 +4062,10 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     if forecast is None:
                         continue
                     
-                    if work_last_charging and inBetween(loop_datetime, work_last_charging, end_work):
+                    if work_last_charging and in_between(loop_datetime, work_last_charging, end_work):
                         continue
                     
-                    if trip_last_charging and inBetween(loop_datetime, trip_last_charging, end_trip):
+                    if trip_last_charging and in_between(loop_datetime, trip_last_charging, end_trip):
                         continue
                     
                     if hour in expensive_hours and using_grid_price:
@@ -4135,9 +4136,16 @@ def trip_charging():
         return True
     
 def trip_activate_reminder():
-    if get_trip_date_time() == resetDatetime(): return
-    if get_trip_homecoming_date_time() == resetDatetime(): return
-    
+    _LOGGER = globals()['_LOGGER'].getChild("trip_activate_reminder")
+    if not is_trip_planned() and (get_trip_range() > 0.0 or get_trip_target_level() > 0.0):
+        minutes_since_change = minutesBetween(LAST_TRIP_CHANGE_DATETIME, getTime())
+
+        reminder_times = [10, 60, 90, 360, 1440, 1440*2]
+        
+        for i in reminder_times:
+            if in_between(minutes_since_change, i, i+5):
+                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+ 
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
     _LOGGER = globals()['_LOGGER'].getChild("preheat_ev")
@@ -5089,6 +5097,8 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"input_button.{__name__}_trip_reset")
     def state_trigger_ev_trips(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_trips")
+        global LAST_TRIP_CHANGE_DATETIME
+        
         if var_name == f"input_boolean.{__name__}_trip_charging":
             if value == "on":
                 if ready_to_charge():
@@ -5151,6 +5161,8 @@ if INITIALIZATION_COMPLETE:
                     
         elif var_name == f"input_button.{__name__}_trip_reset":
             trip_reset()
+            
+        LAST_TRIP_CHANGE_DATETIME = getTime()
             
     @state_trigger(f"{CONFIG['charger']['entity_ids']['power_consumtion_entity_id']}")
     def state_trigger_charger_power(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -5219,6 +5231,12 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("cron_is_charging")
         if is_charging():
             wake_up_ev()
+            
+    @time_trigger("startup")
+    @time_trigger(f"cron(0/5 * * * *)")
+    def trip_cron_five_every_minute(trigger_type=None, var_name=None, value=None, old_value=None):
+        _LOGGER = globals()['_LOGGER'].getChild("trip_cron_five_every_minute")
+        trip_activate_reminder()
         
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
