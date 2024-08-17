@@ -1016,12 +1016,12 @@ def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
     global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE
 
-    def handle_yaml(file_path, default_content, key_renaming=None, check_first_run=False, prompt_restart=False):
+    def handle_yaml(file_path, default_content, key_renaming, comment_db, check_first_run=False, prompt_restart=False):
         """
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
         if not file_exists(file_path):
-            save_yaml(file_path, default_content)
+            save_yaml(file_path, default_content, comment_db)
             _LOGGER.error(f"File has been created: {file_path}")
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
 
@@ -1035,13 +1035,13 @@ def init():
         if key_renaming:
             was_updated = update_keys_recursive(content, key_renaming)
             if was_updated:
-                save_yaml(file_path, content)
+                save_yaml(file_path, content, comment_db)
 
         updated, content = update_dict_with_new_keys(content, default_content)
         if updated:
             if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True
-            save_yaml(file_path, content)
+            save_yaml(file_path, content, comment_db)
 
         if was_updated or updated:
             msg = f"Config updated."
@@ -1065,8 +1065,7 @@ def init():
     welcome()
     try:
         set_charging_rule(f"📟Indlæser konfigurationen")
-        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, check_first_run=True, prompt_restart=False)
-        save_yaml(f"{__name__}_config.yaml", CONFIG, COMMENT_DB_YAML)
+        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
         if is_ev_configured():
             if f"{__name__}_battery_level" in DEFAULT_ENTITIES['input_number']:
                 del DEFAULT_ENTITIES['input_number'][f'{__name__}_battery_level']
@@ -1107,7 +1106,7 @@ def init():
                     if key in DEFAULT_ENTITIES['sensor'][0]['sensors']:
                         del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, prompt_restart=True)
         
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
@@ -2441,13 +2440,6 @@ def cheap_grid_charge_hours():
     charging_plan = {
         "workday_in_week": False
     }
-    workday_rules =["first_workday_preparation", "second_workday_preparation", "third_workday_preparation", "fourth_workday_preparation", "fifth_workday_preparation", "sixth_workday_preparation", "seventh_workday_preparation"]
-    workday_labels =["Første arbejdsdag", "Anden arbejdsdag", "Tredje arbejdsdag", "Fjerde arbejdsdag", "Femte arbejdsdag", "Sjette arbejdsdag", "Syvende arbejdsdag"]
-    workday_emoji = []
-    
-    for i, rule in enumerate(workday_rules):
-        workday_labels[i] =  f"{emoji_parse({rule: True})} {workday_labels[i]}"
-        workday_emoji.append(f"{emoji_parse({rule: True})}")
     
     hourPrices = {}
     combinedHourPrices = {}
@@ -3168,6 +3160,13 @@ def cheap_grid_charge_hours():
     set_state(f"sensor.{__name__}_charge_very_cheap_battery_level", f"{ev_charge_very_cheap_battery_level}%")
     set_state(f"sensor.{__name__}_charge_ultra_cheap_battery_level", f"{ev_charge_ultra_cheap_battery_level}%")
     
+    workday_rules =["first_workday_preparation", "second_workday_preparation", "third_workday_preparation", "fourth_workday_preparation", "fifth_workday_preparation", "sixth_workday_preparation", "seventh_workday_preparation"]
+    workday_labels =["Første arbejdsdag", "Anden arbejdsdag", "Tredje arbejdsdag", "Fjerde arbejdsdag", "Femte arbejdsdag", "Sjette arbejdsdag", "Syvende arbejdsdag"]
+    workday_emoji = []
+    
+    for i, rule in enumerate(workday_rules):
+        workday_labels[i] =  f"{emoji_parse({rule: True})} {workday_labels[i]}"
+        workday_emoji.append(f"{emoji_parse({rule: True})}")
     
     for day in range(8):
         midnight_datetime = getTimeEndOfDay() + datetime.timedelta(days=day)
@@ -3321,6 +3320,9 @@ def cheap_grid_charge_hours():
         charging_plan[day]['solar_prediction'] = round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
         charging_plan[day]['solar_kwh_prediction'] = round(total_solar_available, 2)
         charging_plan[day]['solar_cost_prediction'] = round((total_solar_available * average(total_solar_available_price)), 2)
+        
+        if not charging_plan[day]['rules']:
+            charging_plan[day]['rules'].append("no_rule")
 
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     
@@ -3348,114 +3350,6 @@ def cheap_grid_charge_hours():
     _LOGGER.error(f"charging_plan[day]['total_needed_battery_level']:{charging_plan[day]['total_needed_battery_level']}")
     _LOGGER.error(f"get_min_charge_limit_battery_level:{get_min_charge_limit_battery_level()}")
     _LOGGER.error(f"chargeHours['MaxChargingLevelToday']:{chargeHours['MaxChargingLevelToday']}")'''
-    overview = []
-    
-    charging_plan_list = {}
-    
-    for hour, value in sorted({k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
-        if type(hour) is datetime.datetime:
-            charging_plan_list[hour] = {
-                "when": f"{hour.strftime('%d/%m %H:%M')}",
-                "type": f"{emoji_parse(chargeHours[hour])}",
-                "percentage": f"{int(round(chargeHours[hour]['battery_level'],0))}",
-                'kWh': f"{round(chargeHours[hour]['kWh'], 2):.2f}",
-                "cost": f"{round(chargeHours[hour]['Cost'], 2):.2f}",
-                "unit": f"{round(chargeHours[hour]['Price'], 2):.2f}"
-            }
-    
-    if charging_plan_list:
-        overview.append("## Lade oversigt ##")
-        overview.append("<center>\n")
-        
-        if charging_plan_list:
-            overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
-            overview.append("|---:|:---:|---:|---:|:---:|---:|")
-            
-            for d in charging_plan_list.values():
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['type'] = f"**{d['type']}**" if d['type'] else ""
-                d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
-                d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
-                d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
-                d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
-                overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
-        else:
-            overview.append(f"**Ingen kommende ladning planlagt**")
-        
-        if totalkWh > 0.0:
-            
-            overview.append(f"\n**Ialt {int(round(chargeHours['TotalProcent'],0))}% {chargeHours['TotalkWh']} kWh {chargeHours['TotalCost']:.2f} kr ({round(chargeHours['TotalCost'] / chargeHours['TotalkWh'],2)} kr)**")
-        
-        if USING_OFFLINE_PRICES:
-            overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
-        
-        if work_overview:
-            overview.append("***")
-        overview.append("</center>\n")
-    
-    if work_overview:
-        overview.append("## Afgangsplan ##")
-        overview.append("<center>\n")
-        
-        work_overview_total_kwh = 0.0
-        work_overview_total_cost = 0.0
-        
-        if work_overview:
-            solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
-            overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
-            overview.append(f"|:---|:---:|:---:|:---:|:---:|")
-            
-            
-            for d in work_overview.values():
-                work_overview_total_kwh += d['kwh_needed']
-                work_overview_total_cost += d['cost']
-                
-                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
-                d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
-                d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
-                d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
-        else:
-            overview.append(f"**Ingen kommende arbejdsdag**")
-            
-        if work_overview_total_kwh > 0.0 and totalkWh_alternative > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh, 1)}kWh {round(work_overview_total_cost, 2)}kr ({round(work_overview_total_cost / work_overview_total_kwh,2)} kr/kwh)**<br>Skøn ved daglig opladning {round((totalCost_alternative / totalkWh_alternative) * max(work_overview_total_kwh, totalkWh_alternative),2)}kr {round(totalCost_alternative / totalkWh_alternative,2)}kr/kwh")
-        
-        if solar_over_production:
-            overview.append("***")
-        overview.append("</center>\n")
-
-    if solar_over_production:
-        overview.append("## Solcelle over produktion ##")
-        overview.append("<center>\n")
-        
-        if solar_over_production:
-            overview.append("| Tid |  |  |  | % |  | kWh |")
-            overview.append("|---|---:|:---|---:|---:|---|---:|")
-            
-            for d in solar_over_production.values():
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['date'] = f"**{d['date']}**" if d['date'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
-                d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
-                overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
-        else:
-            overview.append(f"**Ingen kommende arbejdsdag**")
-            
-        overview.append("</center>\n")
-        
-    if overview:
-        overview.append("<center>\n")
-        overview.append(f"##### Sidst planlagt {getTime()} #####")
-        overview.append("</center>\n")
-        
-    set_attr(f"sensor.{__name__}_overview.overview", "\n".join(overview))
 
     for day in charging_plan.keys():
         if not isinstance(day, int): continue
@@ -3465,6 +3359,128 @@ def cheap_grid_charge_hours():
         
     _LOGGER.info(f"charging_plan:\n{pformat(charging_plan)}")
     _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours)}")
+    
+    overview = []
+    
+    try:
+        charging_plan_list = {}
+        
+        for hour, value in sorted({k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
+            if type(hour) is datetime.datetime:
+                charging_plan_list[hour] = {
+                    "when": f"{hour.strftime('%d/%m %H:%M')}",
+                    "type": f"{emoji_parse(chargeHours[hour])}",
+                    "percentage": f"{int(round(chargeHours[hour]['battery_level'],0))}",
+                    'kWh': f"{round(chargeHours[hour]['kWh'], 2):.2f}",
+                    "cost": f"{round(chargeHours[hour]['Cost'], 2):.2f}",
+                    "unit": f"{round(chargeHours[hour]['Price'], 2):.2f}"
+                }
+        
+        if charging_plan_list:
+            overview.append("## Lade oversigt ##")
+            overview.append("<center>\n")
+            
+            if charging_plan_list:
+                overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
+                overview.append("|---:|:---:|---:|---:|:---:|---:|")
+                
+                for d in charging_plan_list.values():
+                    d['when'] = f"**{d['when']}**" if d['when'] else ""
+                    d['type'] = f"**{d['type']}**" if d['type'] else ""
+                    d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
+                    d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
+                    d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
+                    d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
+                    overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
+            else:
+                overview.append(f"**Ingen kommende ladning planlagt**")
+            
+            if totalkWh > 0.0:
+                overview.append(f"\n**Ialt {int(round(chargeHours['TotalProcent'],0))}% {chargeHours['TotalkWh']} kWh {chargeHours['TotalCost']:.2f} kr ({round(chargeHours['TotalCost'] / chargeHours['TotalkWh'],2)} kr)**")
+            
+            if USING_OFFLINE_PRICES:
+                overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
+            
+            if work_overview:
+                overview.append("***")
+            overview.append("</center>\n")
+    except Exception as e:
+        _LOGGER.error(f"Failed to create charging plan overview: {e}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
+    
+    try:
+        if work_overview:
+            overview.append("## Afgangsplan ##")
+            overview.append("<center>\n")
+            
+            work_overview_total_kwh = 0.0
+            work_overview_total_cost = 0.0
+            
+            if work_overview:
+                solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
+                overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
+                overview.append(f"|:---|:---:|:---:|:---:|:---:|")
+                
+                
+                for d in work_overview.values():
+                    work_overview_total_kwh += d['kwh_needed']
+                    work_overview_total_cost += d['cost']
+                    
+                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                    d['day'] = f"**{d['day']}**" if d['day'] else ""
+                    d['when'] = f"**{d['when']}**" if d['when'] else ""
+                    d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
+                    d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
+                    d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
+                    d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
+                    
+                    overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
+            else:
+                overview.append(f"**Ingen kommende arbejdsdag**")
+                
+            if work_overview_total_kwh > 0.0 and totalkWh_alternative > 0.0:
+                overview.append(f"\n**Ialt {round(work_overview_total_kwh, 1)}kWh {round(work_overview_total_cost, 2)}kr ({round(work_overview_total_cost / work_overview_total_kwh,2)} kr/kwh)**<br>Skøn ved daglig opladning {round((totalCost_alternative / totalkWh_alternative) * max(work_overview_total_kwh, totalkWh_alternative),2)}kr {round(totalCost_alternative / totalkWh_alternative,2)}kr/kwh")
+            
+            if solar_over_production:
+                overview.append("***")
+            overview.append("</center>\n")
+    except Exception as e:
+        _LOGGER.error(f"Failed to create work overview: {e}")
+    
+    try:
+        if solar_over_production:
+            overview.append("## Solcelle over produktion ##")
+            overview.append("<center>\n")
+            
+            if solar_over_production:
+                overview.append("| Tid |  |  |  | % |  | kWh |")
+                overview.append("|---|---:|:---|---:|---:|---|---:|")
+                
+                for d in solar_over_production.values():
+                    d['day'] = f"**{d['day']}**" if d['day'] else ""
+                    d['date'] = f"**{d['date']}**" if d['date'] else ""
+                    d['when'] = f"**{d['when']}**" if d['when'] else ""
+                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                    d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
+                    d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
+                    overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
+            else:
+                overview.append(f"**Ingen kommende arbejdsdag**")
+                
+            overview.append("</center>\n")
+    except Exception as e:
+        _LOGGER.error(f"Failed to create solar over production overview: {e}")
+    
+    
+    if overview:
+        overview.append("<center>\n")
+        overview.append(f"##### Sidst planlagt {getTime()} #####")
+        overview.append("</center>\n")
+        
+        set_attr(f"sensor.{__name__}_overview.overview", "\n".join(overview))
+    else:
+        set_attr(f"sensor.{__name__}_overview.overview", "Ingen data")
+        
     return chargeHours
 
 def calc_charging_amps(power = 0.0, report = False):
@@ -3747,11 +3763,11 @@ def max_solar_watts_available_remaining_hour():
         }
 
     predictedSolarPower = returnDict['predictedSolarPower']['watt']
-    multiple = 1 + round(getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes'], 2)
-    extra_watt = max((returnDict['total']['watt'] * multiple), 0.0)
-    
     solar_threadhold = CONFIG['charger']['power_voltage'] * CONFIG['solar']['charging_single_phase_min_amp'] / 5
     allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predictedSolarPower >= solar_threadhold else 0.0
+    
+    multiple = 1 + round(getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes'], 2)
+    extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
     
     returnDict['output'] = {
         "period": f"predictedSolarPower:{predictedSolarPower} + {allowed_above_under_solar_available} + {returnDict['total']['period']}:{returnDict['total']['watt']} multiple:{multiple} extra_watt:{extra_watt} (min 0.0)",
