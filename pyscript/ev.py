@@ -33,8 +33,6 @@ from logging import getLogger
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-TESTING = False #Edit to True when testing script, to not call EV
-
 INITIALIZATION_COMPLETE = False
 PREHEATING = False
 
@@ -1122,7 +1120,7 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
 
 set_charging_rule(f"📟Starter scriptet op")
-TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else TESTING
+TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
 init()
 
 if INITIALIZATION_COMPLETE:
