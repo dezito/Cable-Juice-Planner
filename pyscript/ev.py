@@ -9,7 +9,6 @@ Home Assistant integration requirement:
     - Easee EV charger
     - Sun
 """
-__version__ = "1.0.3"
 
 import datetime
 from pprint import pformat
@@ -33,9 +32,9 @@ from logging import getLogger
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-TESTING = False #Edit to True when testing script, to not call EV
 
 INITIALIZATION_COMPLETE = False
+TESTING = False
 PREHEATING = False
 
 EV_CONFIGURED = None
@@ -798,7 +797,6 @@ def welcome():
     _LOGGER.info(f'''
 -------------------------------------------------------------------
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
-Version: {__version__}
 -------------------------------------------------------------------
 ''')
 
@@ -1014,7 +1012,7 @@ def set_charging_rule(text=""):
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
-    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE
+    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_first_run=False, prompt_restart=False):
         """
@@ -1064,8 +1062,9 @@ def init():
 
     welcome()
     try:
-        set_charging_rule(f"📟Indlæser konfigurationen")
         CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
+        TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
+        set_charging_rule(f"📟Indlæser konfigurationen")
         if is_ev_configured():
             if f"{__name__}_battery_level" in DEFAULT_ENTITIES['input_number']:
                 del DEFAULT_ENTITIES['input_number'][f'{__name__}_battery_level']
@@ -1122,7 +1121,6 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
 
 set_charging_rule(f"📟Starter scriptet op")
-TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else TESTING
 init()
 
 if INITIALIZATION_COMPLETE:
@@ -2569,6 +2567,9 @@ def cheap_grid_charge_hours():
             elif very_cheap_price:
                 rules.append("under_min_avg_price")
                 
+            if rules == []:
+                rules.append("no_rule")
+                
             for rule in rules:
                 if rule not in chargeHours[hour]:
                     chargeHours[hour][rule] = True
@@ -3358,7 +3359,7 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
         
     _LOGGER.info(f"charging_plan:\n{pformat(charging_plan)}")
-    _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours)}")
+    _LOGGER.info(f"chargeHours:\n{pformat(chargeHours)}")
     
     overview = []
     
@@ -3406,6 +3407,8 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan overview: {e}")
+        _LOGGER.error(f"USING_OFFLINE_PRICES: {USING_OFFLINE_PRICES}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     try:
@@ -3446,6 +3449,9 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create work overview: {e}")
+        _LOGGER.error(f"work_overview: {work_overview}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     try:
         if solar_over_production:
@@ -3470,6 +3476,9 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e}")
+        _LOGGER.error(f"solar_over_production: {solar_over_production}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     
     if overview:
@@ -4124,6 +4133,11 @@ def trip_charging():
     if is_trip_planned() and charger_port in ("open", "on"):
         _LOGGER.debug("trip_charging:True")
         return True
+    
+def trip_activate_reminder():
+    if get_trip_date_time() == resetDatetime(): return
+    if get_trip_homecoming_date_time() == resetDatetime(): return
+    
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
     _LOGGER = globals()['_LOGGER'].getChild("preheat_ev")
