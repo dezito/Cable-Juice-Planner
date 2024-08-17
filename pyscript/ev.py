@@ -3407,6 +3407,8 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan overview: {e}")
+        _LOGGER.error(f"USING_OFFLINE_PRICES: {USING_OFFLINE_PRICES}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     try:
@@ -3447,6 +3449,9 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create work overview: {e}")
+        _LOGGER.error(f"work_overview: {work_overview}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     try:
         if solar_over_production:
@@ -3471,6 +3476,9 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e}")
+        _LOGGER.error(f"solar_over_production: {solar_over_production}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
     
     
     if overview:
