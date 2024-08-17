@@ -22,10 +22,10 @@ if [ ! -d "$REPO_DIR/.git" ]; then
   git clone $REPO_URL $REPO_DIR/cjp_temp
   mv cjp_temp/.git $REPO_DIR/.git
   rm -rf cjp_temp
-  git pull
+  git pull --force
 else
   # Pull the latest changes if the repo already exists
   echo "Pulling latest changes in $REPO_DIR"
-  cd $REPO_DIR
-  git pull
+  git fetch --all && git reset --hard
+  git pull --force
 fi
