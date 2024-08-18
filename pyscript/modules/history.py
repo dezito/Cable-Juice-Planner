@@ -13,10 +13,24 @@ _LOGGER = getLogger(BASENAME)
 def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
     # Omdan sensordata til en sorteret liste af (timestamp, value) tuples
     sorted_data = sorted(sensor_data.items())
-    existing_timestamps, existing_values = zip(*sorted_data)
     
-    # Konverter værdierne til float
-    existing_values = list(map(float, existing_values))
+    numeric_data = []
+    non_numeric_data = {}
+
+    # Filtrér og konverter værdierne til float, men behold ikke-numeriske data
+    for timestamp, value in sorted_data:
+        try:
+            float_value = float(value)
+            numeric_data.append((timestamp, float_value))
+        except ValueError:
+            non_numeric_data[timestamp] = value  # Behold de ikke-konvertible værdier
+    
+    # Hvis der er ingen numeriske data, returnér kun de ikke-numeriske data
+    if not numeric_data:
+        return non_numeric_data
+    
+    # Adskil timestamps og værdier efter filtrering
+    existing_timestamps, existing_values = zip(*numeric_data)
     
     # Lav en liste med lige fordelte timestamps mellem from_time og to_time
     timestamps = np.linspace(from_time, to_time, num_points)
@@ -26,6 +40,9 @@ def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
     
     # Kombiner de nye timestamps med de interpolerede værdier som en dictionary
     interpolated_dict = {timestamp: value for timestamp, value in zip(timestamps, interpolated_values)}
+    
+    # Tilføj de ikke-numeriske data til den interpolerede dictionary
+    interpolated_dict.update(non_numeric_data)
     
     return interpolated_dict
 
