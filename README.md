@@ -37,7 +37,7 @@
 > ```
 ---
 > [!Note]
-> ### Lav et script og modtag result i en notifikation
+> ### Lav et script og modtag resultat i en notifikation
 > 1. Indstillinger
 > 2. Automatiseringer & Scener
 > 3. Scripts
