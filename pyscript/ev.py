@@ -2246,9 +2246,9 @@ def charging_power_to_emulated_battery_level():
     now = getTime()
     past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
     
-    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=None)
-    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=None)
-    value_avg = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=None)
+    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", include_current_state=True, error_state=0.0)
+    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", include_current_state=True, error_state=0.0)
+    value_avg = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
     _LOGGER.debug(f"charger_changed value_max:{value_max}")
     _LOGGER.debug(f"charger_changed value_min:{value_min}")
     _LOGGER.debug(f"charger_changed value_avg:{value_avg}")
@@ -3677,7 +3677,7 @@ def power_from_powerwall(from_time_stamp, to_time_stamp):
     
     try:
         if is_powerwall_configured():
-            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
+            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", include_current_state=True, error_state=[0.0])
             powerwall_charging = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
@@ -3784,16 +3784,19 @@ def max_solar_watts_available_remaining_hour():
             "watt": 0.0
         }
 
-    predictedSolarPower = returnDict['predictedSolarPower']['watt']
     solar_threadhold = CONFIG['charger']['power_voltage'] * CONFIG['solar']['charging_single_phase_min_amp'] / 5
-    allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predictedSolarPower >= solar_threadhold else 0.0
+    allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if returnDict['predictedSolarPower']['watt'] >= solar_threadhold else 0.0
+    predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
-    multiple = 1 + round(getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes'], 2)
+    multiple = 1 + round((getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes']) * 0.5, 2)
     extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
+    
+    if extra_watt == 0.0:
+        multiple = 1.0
     
     returnDict['output'] = {
         "period": f"predictedSolarPower:{predictedSolarPower} + {allowed_above_under_solar_available} + {returnDict['total']['period']}:{returnDict['total']['watt']} multiple:{multiple} extra_watt:{extra_watt} (min 0.0)",
-        "watt": predictedSolarPower + allowed_above_under_solar_available + extra_watt
+        "watt": predictedSolarPower * multiple
     }
         
     _LOGGER.debug(f"max_solar_watts_available_remaining_hour returnDict:{returnDict}")
@@ -4718,7 +4721,7 @@ def kwh_charged_by_solar():
     now = getTime()
     past = now - datetime.timedelta(minutes=60)
     
-    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=None))), 3)
+    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
     solar_watt = round(max(solar_production_available(period = 60, withoutEV = True), 0.0), 3)
     
     if not ev_watt:
@@ -4795,7 +4798,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     now = getTime()
     past = now - datetime.timedelta(minutes=minutes)
     
-    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=None))), 3)
+    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
     solar_watt_available = round(max(solar_production_available(period = minutes, withoutEV = True), 0.0), 3)
     
     if ev_watt == 0.0:
@@ -4816,10 +4819,10 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
     except:
         pass
-    _LOGGER.debug(f"ev_watt {ev_watt}")
-    _LOGGER.debug(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
-    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.debug(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt})*{solar_kwh_price} = {ev_solar_price_kwh}")
+    _LOGGER.info(f"ev_watt {ev_watt}")
+    _LOGGER.info(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
+    _LOGGER.info(f"solar_kwh_price: {solar_kwh_price}kr")
+    _LOGGER.info(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
     
     grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
     
@@ -4830,11 +4833,11 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
     except:
         pass
-    _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.debug(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt})*{grid_kwh_price} = {ev_grid_price_kwh}")
+    _LOGGER.warning(f"grid_kwh_price: {grid_kwh_price}kr")
+    _LOGGER.warning(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
     
     ev_total_price_kwh = round(ev_solar_price_kwh + ev_grid_price_kwh, 3)
-    _LOGGER.debug(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
+    _LOGGER.warning(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
     
     if update_entities:
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
@@ -4874,7 +4877,7 @@ def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False
         now = getTime()
         past = now - datetime.timedelta(minutes=minutes)
         
-        ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="kW", error_state=None))), 3)
+        ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="kW", error_state=0.0))), 3)
         
     solar_kwh_available = round(max(solar_production_available(period = minutes, withoutEV = True), 0.0) / 1000, 3)
     
