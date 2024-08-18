@@ -1,20 +1,38 @@
-__version__ = "1.0.0"
 import datetime
-import pytz
+import numpy as np
 
 from homeassistant.components.recorder import history
 from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
+from homeassistant.util import dt as dt_util
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
+def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
+    # Omdan sensordata til en sorteret liste af (timestamp, value) tuples
+    sorted_data = sorted(sensor_data.items())
+    existing_timestamps, existing_values = zip(*sorted_data)
+    
+    # Konverter værdierne til float
+    existing_values = list(map(float, existing_values))
+    
+    # Lav en liste med lige fordelte timestamps mellem from_time og to_time
+    timestamps = np.linspace(from_time, to_time, num_points)
+    
+    # Interpoler værdierne ved de ønskede timestamps
+    interpolated_values = np.interp(timestamps, existing_timestamps, existing_values)
+    
+    # Kombiner de nye timestamps med de interpolerede værdier som en dictionary
+    interpolated_dict = {timestamp: value for timestamp, value in zip(timestamps, interpolated_values)}
+    
+    return interpolated_dict
+
 def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime, end_time: datetime):
     _LOGGER = globals()['_LOGGER'].getChild("fetch_history_data")
-    utc = pytz.UTC  # Tidszone
-    start_time = utc.localize(start_time)
-    end_time = utc.localize(end_time)
+    start_time = dt_util.as_utc(start_time)
+    end_time = dt_util.as_utc(end_time)
     
     state_values = []
     
@@ -46,9 +64,15 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
         )'''
         
     if entity_id in hist_data:
-        state_values = [state.state for state in hist_data[entity_id] if state.state not in (None, "unknown")]
+        entity_state_dict = {d.last_reported_timestamp: d.state for d in hist_data[entity_id]}
+        
+        start_timestamp = datetime.datetime.timestamp(start_time)
+        end_timestamp = datetime.datetime.timestamp(end_time)
+        interpolated_data = interpolate_sensor_data(entity_state_dict, start_timestamp, end_timestamp, 100)
+        
+        state_values = list(interpolated_data.values())
     else:
-        _LOGGER.warning(f"No data found for entity_id: {entity_id}")
+        _LOGGER.debug(f"No data found for entity_id: {entity_id}")
             
     return state_values
 
@@ -93,10 +117,6 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     # Calculate the average value of the entity
     if states:
         return states
-    else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time} float_type:{float_type} convert_to:{convert_to} len(history_data):{len(history_data)}")
-        _LOGGER.warning(f"states: {states}")
-        _LOGGER.warning(f"history_data: {history_data}")
         
     return error_state
 
@@ -126,7 +146,7 @@ def get_min_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
         _LOGGER.debug(f"The min value of {entity_id} between {from_time} and {to_time} is {min_value}: {states}")
         return min_value
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
         
     return error_state
 
@@ -156,7 +176,7 @@ def get_max_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
         _LOGGER.debug(f"The max value of {entity_id} between {from_time} and {to_time} is {max_value}: {states}")
         return max_value
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
         
     return error_state
 
@@ -187,7 +207,7 @@ def get_average_value(entity_id, from_datetime, to_datetime, convert_to=None, er
         _LOGGER.debug(f"The average value of {entity_id} between {from_time} and {to_time} is {avg_value}")
         return avg_value
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
         
     return error_state
 
@@ -220,7 +240,7 @@ def get_delta_value(entity_id, from_datetime, to_datetime, convert_to=None, erro
         _LOGGER.debug(f"The delta value of {entity_id} between {from_time} and {to_time} is {delta}")
         return delta
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
 
     return error_state
 
@@ -249,7 +269,7 @@ def get_last_value(entity_id, float_type=False, convert_to=None, error_state="un
         _LOGGER.debug(f"The last value of {entity_id} between {from_time} and {to_time} is {last_value}")
         return last_value
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time} returning {error_state}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time} returning {error_state}")
         
     return error_state
 
@@ -280,12 +300,12 @@ def get_previous_value(entity_id, float_type=False, convert_to=None, error_state
                 _LOGGER.debug(f"The previous value of {entity_id} between {from_time} and {to_time} is {value}")
                 return value
     else:
-        _LOGGER.warning(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
         
     try:
         if float_type is True:
             return float(error_state)
     except:
-        _LOGGER.error(f"entity_id: float_type is True, but error_state is {error_state}. Returning 0.0 as failsafe")
+        _LOGGER.debug(f"entity_id: float_type is True, but error_state is {error_state}. Returning 0.0 as failsafe")
         return 0.0
     return error_state
