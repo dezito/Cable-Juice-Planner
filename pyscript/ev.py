@@ -904,7 +904,7 @@ def create_integration_dict():
         if "hourly_limit" in value
     }
     _LOGGER.info(f"Entity integration daily limit buffer: {INTEGRATION_DAILY_LIMIT_BUFFER}")
-    _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT)}")
+    _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
 
 def reload_entity_integration(entity_id):
     global ENTITY_INTEGRATION_DICT
@@ -922,7 +922,7 @@ def reset_counter_entity_integration():
     _LOGGER = globals()['_LOGGER'].getChild("reset_counter_entity_integration")
     global ENTITY_INTEGRATION_DICT
     
-    _LOGGER.info(f"ENTITY_INTEGRATION_DICT before reset:\n{pformat(ENTITY_INTEGRATION_DICT)}")
+    _LOGGER.info(f"ENTITY_INTEGRATION_DICT before reset:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
     
     for integration in ENTITY_INTEGRATION_DICT["counter"].keys():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
@@ -1025,7 +1025,7 @@ def init():
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
 
         content = load_yaml(file_path)
-        _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content)}")
+        _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content, width=200, compact=True)}")
 
         if not content:
             raise Exception(f"Failed to load {file_path}")
@@ -1922,10 +1922,10 @@ def load_charging_history():
                 CHARGING_HISTORY_DB[last_item[0]]["kWh"] = CURRENT_CHARGING_SESSION["data"]["kWh"]
                 CHARGING_HISTORY_DB[last_item[0]]["percentage"] = CURRENT_CHARGING_SESSION["data"]["battery_level"]'''
                 CHARGING_HISTORY_DB[last_item[0]]["ended"] = ">"
-                _LOGGER.info(f"Adding last charging session to CURRENT_CHARGING_SESSION:\n {pformat(CURRENT_CHARGING_SESSION)}")
+                _LOGGER.info(f"Adding last charging session to CURRENT_CHARGING_SESSION:\n {pformat(CURRENT_CHARGING_SESSION, width=200, compact=True)}")
             except Exception as e:
                 _LOGGER.error(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}\n  ({last_item})")
-                _LOGGER.error(f"Last item:\n {pformat(last_item)}")
+                _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
     
     set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
     charging_history_combine_and_set()
@@ -2019,7 +2019,7 @@ def charging_history_recalc_price():
                 if last_session != CHARGING_HISTORY_DB[start]:
                     _LOGGER.info(f"Last charging session to: {last_session}")
                     _LOGGER.info(f"Recalculated current hour charging sessions to: {CHARGING_HISTORY_DB[start]}")
-                    _LOGGER.info(f"{pformat(CHARGING_HISTORY_DB[start])}")
+                    _LOGGER.info(f"{pformat(CHARGING_HISTORY_DB[start], width=200, compact=True)}")
                     return True
             except Exception as e:
                 _LOGGER.error(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}")
@@ -3371,8 +3371,8 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_after_work_sum'] = sum(charging_plan[day]['battery_level_after_work'])
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
         
-    _LOGGER.info(f"charging_plan:\n{pformat(charging_plan)}")
-    _LOGGER.info(f"chargeHours:\n{pformat(chargeHours)}")
+    _LOGGER.info(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+    _LOGGER.info(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     overview = []
     
@@ -3421,8 +3421,8 @@ def cheap_grid_charge_hours():
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan overview: {e}")
         _LOGGER.error(f"USING_OFFLINE_PRICES: {USING_OFFLINE_PRICES}")
-        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
-        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
         if work_overview:
@@ -3463,8 +3463,8 @@ def cheap_grid_charge_hours():
     except Exception as e:
         _LOGGER.error(f"Failed to create work overview: {e}")
         _LOGGER.error(f"work_overview: {work_overview}")
-        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
-        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
         if solar_over_production:
@@ -3490,8 +3490,8 @@ def cheap_grid_charge_hours():
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e}")
         _LOGGER.error(f"solar_over_production: {solar_over_production}")
-        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan)}")
-        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours)}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+        _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     
     if overview:
@@ -5227,7 +5227,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
             global ENTITY_INTEGRATION_DICT
             preheat_ev()
-            _LOGGER.warning(f"DEBUG ENTITY_INTEGRATION_DICT:\n{pformat(ENTITY_INTEGRATION_DICT)}")
+            _LOGGER.warning(f"DEBUG ENTITY_INTEGRATION_DICT:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
             
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
         def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
