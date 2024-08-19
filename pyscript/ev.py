@@ -3788,15 +3788,12 @@ def max_solar_watts_available_remaining_hour():
     allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if returnDict['predictedSolarPower']['watt'] >= solar_threadhold else 0.0
     predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
-    multiple = 1 + round((getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes']) * 0.5, 2)
+    multiple = 1 + round((getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes']) * 0.75, 2)
     extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
-    
-    if extra_watt == 0.0:
-        multiple = 1.0
     
     returnDict['output'] = {
         "period": f"predictedSolarPower:{predictedSolarPower} + {allowed_above_under_solar_available} + {returnDict['total']['period']}:{returnDict['total']['watt']} multiple:{multiple} extra_watt:{extra_watt} (min 0.0)",
-        "watt": predictedSolarPower * multiple
+        "watt": predictedSolarPower + extra_watt
     }
         
     _LOGGER.debug(f"max_solar_watts_available_remaining_hour returnDict:{returnDict}")
@@ -4801,9 +4798,11 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
     solar_watt_available = round(max(solar_production_available(period = minutes, withoutEV = True), 0.0), 3)
     
-    if ev_watt == 0.0:
+    min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
+        
+    if ev_watt < min_watt:
         _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
-        ev_watt = MAX_WATT_CHARGING
+        ev_watt = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
     else:
         solar_watt_available = round(min(solar_watt_available, ev_watt), 3)
     
