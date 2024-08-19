@@ -2246,8 +2246,8 @@ def charging_power_to_emulated_battery_level():
     now = getTime()
     past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
     
-    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", include_current_state=True, error_state=0.0)
-    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", include_current_state=True, error_state=0.0)
+    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
     value_avg = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
     _LOGGER.debug(f"charger_changed value_max:{value_max}")
     _LOGGER.debug(f"charger_changed value_min:{value_min}")
@@ -3677,7 +3677,7 @@ def power_from_powerwall(from_time_stamp, to_time_stamp):
     
     try:
         if is_powerwall_configured():
-            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", include_current_state=True, error_state=[0.0])
+            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
             powerwall_charging = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
