@@ -4158,7 +4158,7 @@ def trip_activate_reminder():
         
         for i in reminder_times:
             if in_between(minutes_since_change, i, i+5):
-                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
  
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
@@ -4387,7 +4387,7 @@ def is_charging():
                         CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_error, emoji_charging_problem)
                         charging_history_combine_and_set()
             
-            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{__name__.capitalize()} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{__name__.capitalize()} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
         reset()
         
         if charger_status in ("charging"):
@@ -4416,7 +4416,7 @@ def is_charging():
         if RESTARTING_CHARGER:
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter laderen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
             _LOGGER.warning(f"Starting charger (attempts {RESTARTING_CHARGER_COUNT}): Starting charger again")
-            my_notify(message = f"Starter laderen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Starter laderen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
             send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
             RESTARTING_CHARGER = False
@@ -4466,7 +4466,7 @@ def is_charging():
             restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
             #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
             send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
-        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
     _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit}")
@@ -5027,7 +5027,7 @@ def notify_battery_under_daily_battery_level():
                 }
             ]
         }
-        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau", title = f"{__name__.capitalize()} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau\nLader ikke i de 3 dyreste timer", title = f"{__name__.capitalize()} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
@@ -5335,7 +5335,7 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
-            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{__name__.capitalize()} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{__name__.capitalize()} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
