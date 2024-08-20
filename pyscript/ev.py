@@ -851,12 +851,14 @@ def is_ev_configured():
 
 def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
+    global COMMENT_DB_YAML
     db_disk = load_yaml(file)
     
+    comment_db = COMMENT_DB_YAML if f"{__name__}_config" in file else None
     if db != db_disk or db == {}:
         try:
             _LOGGER.info(f"Saving {file} to disk")
-            save_yaml(file, db)
+            save_yaml(file, db, comment_db=comment_db)
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
             
