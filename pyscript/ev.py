@@ -735,11 +735,11 @@ DEFAULT_ENTITIES = {
 }
 
 COMMENT_DB_YAML = {
-    "testing_mode": "In testing mode, no commands are sent to charger or ev",
+    "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
     "first_run": "**Required** After editing the file set this to false",
     "cron_interval": "**Required** Interval between state check and function runs",
-    "wake_up_entity_id": "Force wake up (Leave blank if using Hyundai-Kia-Connect)",
-    "climate_entity_id": "",
+    "wake_up_entity_id": "Force wake up (Leave blank if using Hyundai-Kia-Connect, using wake up serive instead)",
+    "climate_entity_id": "Used to preheat ev",
     "odometer_entity_id": "**Required**",
     "estimated_battery_range_entity_id": "**Required** Must precise battery range",
     "usable_battery_level_entity_id": "**Required** Must precise battery level",
@@ -750,48 +750,49 @@ COMMENT_DB_YAML = {
     "charging_amps_entity_id": "Setting charging amps on EV",
     "location_entity_id": "**Required**",
     "last_update_entity_id": "Used to determine sending wake up call",
-    "battery_size": "**Required** Usable battery capacity, check with OBD2 unit for precise value",
-    "min_daily_battery_level": "**Required** Also updates via WebGUI",
-    "min_trip_battery_level": "**Required** Also updates via WebGUI",
-    "min_charge_limit_battery_level": "**Required** Also updates via WebGUI",
-    "max_recommended_charge_limit_battery_level": "**Required** Also updates via WebGUI",
-    "very_cheap_grid_charging_max_battery_level": "**Required** Also updates via WebGUI",
-    "ultra_cheap_grid_charging_max_battery_level": "**Required** Also updates via WebGUI",
-    "daily_drive_distance": "**Required** Also updates via WebGUI",
+    "battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
+    "min_daily_battery_level": "**Required** Also editable via WebGUI",
+    "min_trip_battery_level": "**Required** Also editable via WebGUI",
+    "min_charge_limit_battery_level": "**Required** Also editable via WebGUI",
+    "max_recommended_charge_limit_battery_level": "**Required** Also editable via WebGUI",
+    "very_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
+    "ultra_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
+    "daily_drive_distance": "**Required** Also editable via WebGUI",
     "status_entity_id": "**Required** Charger status",
     "power_consumtion_entity_id": "**Required** Charging power in Watt",
-    "kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor else the chargers lifetime kwh meter",
+    "kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
     "lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
     "enabled_entity_id": "**Required** Turn Charger unit ON/OFF, NOT for start/stop charging",
     "dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
     "co2_entity_id": "Energi Data Service CO2 entity_id",
     "cable_connected_entity_id": "If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger",
-    "start_stop_charging_entity_id": "If using other integration than Easee to start stop charging",
+    "start_stop_charging_entity_id": "If using other integration than Easee to start stop charging, like Monta",
     "power_voltage": "**Required** Grid power voltage",
-    "charging_phases": "**Required** Phases available for the charger",
-    "charging_max_amp": "**Required** Maximum amps for the charger",
+    "charging_phases": "**Required** Phases available for the ev",
+    "charging_max_amp": "**Required** Maximum amps for the ev",
     "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
-    "power_consumption_entity_id": "Home power consumption, not grid power consumption",
-    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Plus value for discharging, negative for charging)",
+    "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
+    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Entity setup plus value for discharging, negative for charging)",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
-    "production_entity_id": "Solar power production",
-    "solarpower_use_before_minutes": "Minutes back u can use overproduced power",
-    "max_to_current_hour": "Must use overproduced power current hour",
-    "allow_grid_charging_above_solar_available": "Voltage above(+)/under(-) overproduction available",
+    "production_entity_id": "Solar power production Watt",
+    "solarpower_use_before_minutes": "Minutes back u can use solar overproduction available",
+    "max_to_current_hour": "Must use solar overproduction available in current hour",
+    "allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
     "charging_single_phase_min_amp": "Minimum allowed amps the car can charge",
     "charging_single_phase_max_amp": "Maximum allowed amps the car can charge",
-    "charging_three_phase_min_amp": "Minimum allowed amps the car can charge",
-    "production_price": "Set to -1.0 if using raw hour price, also updates via WebGUI",
+    "charging_three_phase_min_amp": "Minimum allowed amps the car can charge, uses charger.charging_phases config for max",
+    "production_price": "Set to -1.0 if using raw hour sell price, also editable via WebGUI",
     "power_prices_entity_id": "**Required** Energi Data Service price entity_id",
-    "hourly_service_entity_id": "**Required** (OpenWeatherMap) hourly forecast entity_id",
-    "daily_service_entity_id": "**Required** (AccuWeather) daily forecast entity_id",
-    "outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev",
-    "solar_available_db_data_to_save": "",
-    "kwh_avg_prices_db_data_to_save": "",
-    "drive_efficiency_db_data_to_save": "",
-    "km_kwh_efficiency_db_data_to_save": "",
-    "charging_history_db_data_to_save": "Save X month back"
+    "hourly_service_entity_id": "**Required if using solar** hourly forecast entity_id",
+    "daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
+    "outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
+    "solar_available_db_data_to_save": "Amount to save, per cloud coverage density",
+    "kwh_avg_prices_db_data_to_save": "Amount to save",
+    "drive_efficiency_db_data_to_save": "Amount to save",
+    "km_kwh_efficiency_db_data_to_save": "Amount to save",
+    "charging_history_db_data_to_save": "Save X month back",
+    "refund": "Refund amount given by the state/country/nation/energy-provider"
 }
 
 def welcome():
@@ -851,12 +852,14 @@ def is_ev_configured():
 
 def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
+    global COMMENT_DB_YAML
     db_disk = load_yaml(file)
     
+    comment_db = COMMENT_DB_YAML if f"{__name__}_config" in file else None
     if db != db_disk or db == {}:
         try:
             _LOGGER.info(f"Saving {file} to disk")
-            save_yaml(file, db)
+            save_yaml(file, db, comment_db=comment_db)
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
             
@@ -914,7 +917,7 @@ def reload_entity_integration(entity_id):
     if integration is None:
         return
     
-    if minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
+    if integration not in ENTITY_INTEGRATION_DICT["last_reload"] or minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         reload_integration(entity_id)
         
@@ -977,7 +980,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
             else:
                 return True
         except Exception as e:
-            _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration}) {ENTITY_INTEGRATION_DICT}: {e}")
+            _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}")
             return True
     else:
         _LOGGER.warning(f"integration was none allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})")
@@ -1484,10 +1487,9 @@ def is_entity_available(entity):
             return
         
         entity_state = get_state(entity, error_state="unknown")
-        if entity_state not in ("unknown", "unavailable"):
-            return True
-        else:
+        if entity_state in ("unknown", "unavailable"):
             raise Exception(f"Entity state is {entity_state}")
+        return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
         
@@ -4154,9 +4156,11 @@ def trip_activate_reminder():
 
         reminder_times = [10, 60, 90, 360, 1440, 1440*2]
         
+        trip_settings = f"Afgang: {get_trip_date_time()}\nHjemkomst: {get_trip_homecoming_date_time()}\n{f'Tur km forbrug: {get_trip_range()}km' if get_trip_range() > 0.0 else f'Tur ladning til: {get_trip_target_level()}km'}"
+        
         for i in reminder_times:
             if in_between(minutes_since_change, i, i+5):
-                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
  
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
@@ -4271,7 +4275,15 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
 def ready_to_charge():
     _LOGGER = globals()['_LOGGER'].getChild("ready_to_charge")
     
-    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
+    def entity_unavailable(entity_id):
+        if is_entity_configured(entity_id) and not is_entity_available(entity_id):
+            set_charging_rule(f"⛔{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen")
+            return True
+        
+    if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
+        return
+    
+    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
     charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
     
     if charger_enabled != "on":
@@ -4279,13 +4291,12 @@ def ready_to_charge():
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
         #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
     
+    if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+        return
+    
     ev_charger_port = "open" if not is_ev_configured() else get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id'], float_type=False, error_state="open")
     
-    if charger_status in ("unknown", "unavailable"):
-        _LOGGER.warning("Charger cable status unavailable")
-        set_charging_rule(f"⛔Lader kabel ikke tilgængelig")
-        return
-    elif charger_status == "disconnected":
+    if charger_status == "disconnected":
         _LOGGER.info("Charger cable disconnected")
         set_charging_rule(f"Lader kabel frakoblet")
         
@@ -4302,39 +4313,30 @@ def ready_to_charge():
         return
     else:
         if is_ev_configured():
+            if entity_unavailable(CONFIG['ev_car']['entity_ids']['location_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                return
+            
             currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
             
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
             
             if ev_charger_connector == "on" or charger_connector == "on":
-                if currentLocation in ("unknown", "unavailable"):
-                    _LOGGER.info("Charger connected, but location unknown")
-                    set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke opdateret")
-                    wake_up_ev()
-                    return
-                
                 if currentLocation != "home":
                     _LOGGER.info("To long away from home")
                     set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
                     return
-            else:
-                return
             
             if ev_charger_port not in ("open", "on"):
                 _LOGGER.info("Chargeport not open")
                 set_charging_rule(f"⛔Bilens ladeport ikke åben")
                 return
             
-            if charger_connector not in ("not_configured", "on"):
+            if charger_connector != "on" and ev_charger_connector != "on":
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
                 return
-                
-            if ev_charger_connector not in ("not_configured", "on"):
-                _LOGGER.info("Ev charger cable is Disconnected")
-                set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
-                return
+            
     #set_charging_rule(f"Lader & elbil klar")
     return True
 
@@ -4385,7 +4387,7 @@ def is_charging():
                         CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_error, emoji_charging_problem)
                         charging_history_combine_and_set()
             
-            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{__name__.capitalize()} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{__name__.capitalize()} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
         reset()
         
         if charger_status in ("charging"):
@@ -4414,7 +4416,7 @@ def is_charging():
         if RESTARTING_CHARGER:
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter laderen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
             _LOGGER.warning(f"Starting charger (attempts {RESTARTING_CHARGER_COUNT}): Starting charger again")
-            my_notify(message = f"Starter laderen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Starter laderen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
             send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
             RESTARTING_CHARGER = False
@@ -4464,7 +4466,7 @@ def is_charging():
             restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
             #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
             send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
-        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
     _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit}")
@@ -4814,7 +4816,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     ev_solar_share = 0.0
     ev_solar_price_kwh = 0.0
     try:
-        ev_solar_share = round(ev_solar_watt / ev_watt, 2)
+        ev_solar_share = min(round(ev_solar_watt / ev_watt, 2), 100.0)
         ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
     except:
         pass
@@ -4828,7 +4830,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     ev_grid_share = 0.0
     ev_grid_price_kwh = 0.0
     try:
-        ev_grid_share = round(ev_grid_watt/ev_watt, 2)
+        ev_grid_share = min(round(ev_grid_watt/ev_watt, 2), 100.0)
         ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
     except:
         pass
@@ -5025,7 +5027,7 @@ def notify_battery_under_daily_battery_level():
                 }
             ]
         }
-        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau", title = f"{__name__.capitalize()} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau\nLader ikke i de 3 dyreste timer", title = f"{__name__.capitalize()} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
@@ -5333,7 +5335,7 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
-            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{__name__.capitalize()} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{__name__.capitalize()} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")

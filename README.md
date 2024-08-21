@@ -18,6 +18,7 @@
 ### Todo
 1. Monta understøttelse
 2. Kia UVO understøttelse
+3. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
 ---
 ### Fremtiden
 - Konvertere scriptet til en integration
