@@ -4278,6 +4278,7 @@ def ready_to_charge():
     def entity_unavailable(entity_id):
         if is_entity_configured(entity_id) and not is_entity_available(entity_id):
             set_charging_rule(f"⛔{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen")
+            my_notify(message = f"{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
             return True
         
     if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
