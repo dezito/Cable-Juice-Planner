@@ -917,7 +917,7 @@ def reload_entity_integration(entity_id):
     if integration is None:
         return
     
-    if minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
+    if integration not in ENTITY_INTEGRATION_DICT["last_reload"] or minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         reload_integration(entity_id)
         
@@ -1487,10 +1487,9 @@ def is_entity_available(entity):
             return
         
         entity_state = get_state(entity, error_state="unknown")
-        if entity_state not in ("unknown", "unavailable"):
-            return True
-        else:
+        if entity_state in ("unknown", "unavailable"):
             raise Exception(f"Entity state is {entity_state}")
+        return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
         
@@ -4276,7 +4275,15 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
 def ready_to_charge():
     _LOGGER = globals()['_LOGGER'].getChild("ready_to_charge")
     
-    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
+    def entity_unavailable(entity_id):
+        if is_entity_configured(entity_id) and not is_entity_available(entity_id):
+            set_charging_rule(f"⛔{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen")
+            return True
+        
+    if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
+        return
+    
+    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
     charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
     
     if charger_enabled != "on":
@@ -4284,13 +4291,12 @@ def ready_to_charge():
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
         #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
     
+    if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+        return
+    
     ev_charger_port = "open" if not is_ev_configured() else get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id'], float_type=False, error_state="open")
     
-    if charger_status in ("unknown", "unavailable"):
-        _LOGGER.warning("Charger cable status unavailable")
-        set_charging_rule(f"⛔Lader kabel ikke tilgængelig")
-        return
-    elif charger_status == "disconnected":
+    if charger_status == "disconnected":
         _LOGGER.info("Charger cable disconnected")
         set_charging_rule(f"Lader kabel frakoblet")
         
@@ -4307,18 +4313,15 @@ def ready_to_charge():
         return
     else:
         if is_ev_configured():
+            if entity_unavailable(CONFIG['ev_car']['entity_ids']['location_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                return
+            
             currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
             
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
             
             if ev_charger_connector == "on" or charger_connector == "on":
-                if currentLocation in ("unknown", "unavailable"):
-                    _LOGGER.info("Charger connected, but location unknown")
-                    set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke opdateret")
-                    wake_up_ev()
-                    return
-                
                 if currentLocation != "home":
                     _LOGGER.info("To long away from home")
                     set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
@@ -4329,15 +4332,11 @@ def ready_to_charge():
                 set_charging_rule(f"⛔Bilens ladeport ikke åben")
                 return
             
-            if charger_connector not in ("not_configured", "on"):
+            if charger_connector != "on" and ev_charger_connector != "on":
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
                 return
-                
-            if ev_charger_connector not in ("not_configured", "on"):
-                _LOGGER.info("Ev charger cable is Disconnected")
-                set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
-                return
+            
     #set_charging_rule(f"Lader & elbil klar")
     return True
 
