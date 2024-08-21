@@ -980,7 +980,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
             else:
                 return True
         except Exception as e:
-            _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration}) {ENTITY_INTEGRATION_DICT}: {e}")
+            _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}")
             return True
     else:
         _LOGGER.warning(f"integration was none allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})")
@@ -4323,8 +4323,6 @@ def ready_to_charge():
                     _LOGGER.info("To long away from home")
                     set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
                     return
-            else:
-                return
             
             if ev_charger_port not in ("open", "on"):
                 _LOGGER.info("Chargeport not open")
@@ -4819,7 +4817,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     ev_solar_share = 0.0
     ev_solar_price_kwh = 0.0
     try:
-        ev_solar_share = round(ev_solar_watt / ev_watt, 2)
+        ev_solar_share = min(round(ev_solar_watt / ev_watt, 2), 100.0)
         ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
     except:
         pass
@@ -4833,7 +4831,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     ev_grid_share = 0.0
     ev_grid_price_kwh = 0.0
     try:
-        ev_grid_share = round(ev_grid_watt/ev_watt, 2)
+        ev_grid_share = min(round(ev_grid_watt/ev_watt, 2), 100.0)
         ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
     except:
         pass

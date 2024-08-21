@@ -13,7 +13,7 @@ _LOGGER = getLogger(BASENAME)
 
 NOTIFY_HISTORY = {}
 
-def my_notify(message = None, title = "", data = {}, notify_list = [], admin_only = False, always = False, persistent_notification = False):
+def my_notify(message = None, title = "", data = {}, notify_list = [], admin_only = False, always = False, persistent_notification = False): #TODO add notification_id to persistent_notification
     """
     Sends a notification message using the Home Assistant notification service. It supports sending
     notifications to a specific entity_ids if 'admin_only' is True and using 'notify_entity_id' from
