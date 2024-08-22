@@ -76,7 +76,8 @@ def my_notify(message = None, title = "", data = {}, notify_list = [], admin_onl
                         service.call("notify", "persistent_notification", blocking=True,
                                             title=title,
                                             message=message,
-                                            notification_id=persistent_notification_id)
+                                            data={"notification_id": persistent_notification_id}
+                                            )
                 else:
                     _LOGGER.warning(f"Notify service dont have notify.{entity_id} Message:'{message}' not send")
             except Exception as e:
