@@ -4165,7 +4165,7 @@ def trip_activate_reminder():
         
         for i in reminder_times:
             if in_between(minutes_since_change, i, i+5):
-                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id="trip_activation_needed")
  
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
