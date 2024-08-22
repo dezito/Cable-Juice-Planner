@@ -1181,7 +1181,7 @@ def emoji_text_format(text):
 
 def set_default_entity_states():
     set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
-    set_attr(f"sensor.{__name__}_overview.overview", "Ingen data endnu")
+    set_attr(f"sensor.{__name__}_overview.overview", "<center>\n\n**Ingen oversigt endnu**\n\n</center>")
 
 def weather_values():
     output = []
@@ -3392,9 +3392,10 @@ def cheap_grid_charge_hours():
                     "unit": f"{round(chargeHours[hour]['Price'], 2):.2f}"
                 }
         
+        overview.append("## Lade oversigt ##")
+        overview.append("<center>\n")
+        
         if charging_plan_list:
-            overview.append("## Lade oversigt ##")
-            overview.append("<center>\n")
             
             if charging_plan_list:
                 overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
@@ -3408,8 +3409,6 @@ def cheap_grid_charge_hours():
                     d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
                     d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
                     overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
-            else:
-                overview.append(f"**Ingen kommende ladning planlagt**")
             
             if totalkWh > 0.0:
                 overview.append(f"\n**Ialt {int(round(chargeHours['TotalProcent'],0))}% {chargeHours['TotalkWh']} kWh {chargeHours['TotalCost']:.2f} kr ({round(chargeHours['TotalCost'] / chargeHours['TotalkWh'],2)} kr)**")
@@ -3419,7 +3418,13 @@ def cheap_grid_charge_hours():
             
             if work_overview:
                 overview.append("***")
-            overview.append("</center>\n")
+        else:
+            overview.append(f"**Ingen kommende ladning planlagt**")
+            
+            if work_overview and solar_over_production:
+                overview.append("**Nok i solcelle overproduktion**")
+            
+        overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan overview: {e}")
         _LOGGER.error(f"USING_OFFLINE_PRICES: {USING_OFFLINE_PRICES}")
