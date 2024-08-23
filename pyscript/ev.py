@@ -4295,7 +4295,7 @@ def ready_to_charge():
     if charger_enabled != "on":
         _LOGGER.warning(f"Charger was off, turning it on")
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-        #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+        
     
     if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
         return
@@ -4346,33 +4346,33 @@ def ready_to_charge():
     #set_charging_rule(f"Lader & elbil klar")
     return True
 
+def start_charging():
+    send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+    send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")
+    ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
+
 def is_charging():
     _LOGGER = globals()['_LOGGER'].getChild("is_charging")
     global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT, CURRENT_CHARGING_SESSION, CHARGING_HISTORY_DB
     
-    if TESTING:
-        _LOGGER.warning(f"Not checking if is charging TESTMODE")
-        return
-    
-    charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
-    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
-    
     def reset():
         global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT
         
-        if RESTARTING_CHARGER_COUNT > 0 or charger_enabled != "on":
-            #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+        if RESTARTING_CHARGER_COUNT > 0 or (charger_enabled != "on"):
             send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
             ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
             
         CHARGING_IS_BEGINNING = False
         RESTARTING_CHARGER = False
         RESTARTING_CHARGER_COUNT = 0
-        
-    if not ready_to_charge():
-        reset()
-        return
     
+    if TESTING:
+        _LOGGER.warning(f"Not checking if is charging TESTMODE")
+        return
+        
+    charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
+    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
+        
     data = {
         "ttl": 0,
         "priority": "high",
@@ -4388,6 +4388,7 @@ def is_charging():
             
             if CURRENT_CHARGING_SESSION['start']:
                 when = CURRENT_CHARGING_SESSION['start']
+                
                 if 1 < RESTARTING_CHARGER_COUNT < 3:
                     if emoji_charging_error not in CHARGING_HISTORY_DB[when]["emoji"]:
                         CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_error, emoji_charging_problem)
@@ -4400,6 +4401,14 @@ def is_charging():
             return True
         else:
             return
+        
+    if not ready_to_charge() or not CURRENT_CHARGING_SESSION['start']:
+        reset()
+        return
+    
+    when = CURRENT_CHARGING_SESSION['start']
+    if RESTARTING_CHARGER_COUNT == 0 and minutesBetween(getTime(), when, error_value=CONFIG['cron_interval'] + 5) <= CONFIG['cron_interval'] * 2:
+        return
     
     if is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
         error_dict = {
@@ -4417,14 +4426,13 @@ def is_charging():
         dynamic_circuit_limit = sum(CURRENT_CHARGING_AMPS)
         current_charging_amps = sum(CURRENT_CHARGING_AMPS)
     
-    
     try:
         if RESTARTING_CHARGER:
-            set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter laderen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
-            _LOGGER.warning(f"Starting charger (attempts {RESTARTING_CHARGER_COUNT}): Starting charger again")
-            my_notify(message = f"Starter laderen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
-            #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-            send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+            set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter ladningen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
+            _LOGGER.warning(f"Starting charging (attempts {RESTARTING_CHARGER_COUNT}): Starting charging again")
+            my_notify(message = f"Starter ladningen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            
+            start_charging()
             RESTARTING_CHARGER = False
         elif charger_status in ("unknown", "unavailable"):
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nLader ikke tilgængelig")
@@ -4432,7 +4440,7 @@ def is_charging():
         elif charger_status == "error":
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nKritisk fejl på lader, tjek integration eller Easee app")
             raise Exception(f"Charger critical error, check Easee app or Home Assistant")
-        elif charger_status in ("awaiting_start", "ready_to_charge"):
+        elif charger_status in ("awaiting_start", "awaiting_authorization", "ready_to_charge"):
             if current_charging_amps == 0:
                 if CHARGING_IS_BEGINNING or RESTARTING_CHARGER or RESTARTING_CHARGER_COUNT or charger_enabled != "on":
                     reset()
@@ -4451,27 +4459,29 @@ def is_charging():
     except Exception as e:
         _LOGGER.warning(f"Charging has not started as expected: {e}")
         
-        if CURRENT_CHARGING_SESSION['start']:
-            when = CURRENT_CHARGING_SESSION['start']
-            
-            if 1 < RESTARTING_CHARGER_COUNT < 3:
-                if emoji_charging_problem not in CHARGING_HISTORY_DB[when]["emoji"]:
-                    CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"] + f" {emoji_charging_problem}"
-                    charging_history_combine_and_set()
-            elif RESTARTING_CHARGER_COUNT == 3:
-                if emoji_charging_problem in CHARGING_HISTORY_DB[when]["emoji"]:
-                    CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_problem, emoji_charging_error)
-                    charging_history_combine_and_set()
+        if 1 < RESTARTING_CHARGER_COUNT < 3:
+            if emoji_charging_problem not in CHARGING_HISTORY_DB[when]["emoji"]:
+                CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"] + f" {emoji_charging_problem}"
+                charging_history_combine_and_set()
+        elif RESTARTING_CHARGER_COUNT == 3:
+            if emoji_charging_problem in CHARGING_HISTORY_DB[when]["emoji"]:
+                CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_problem, emoji_charging_error)
+                charging_history_combine_and_set()
                     
         restarting = ""
         
         if not RESTARTING_CHARGER:
             RESTARTING_CHARGER = True
             RESTARTING_CHARGER_COUNT += 1
-            _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
-            restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
-            #set_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
-            send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
+            
+            if RESTARTING_CHARGER_COUNT == 1 and is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
+                _LOGGER.warning(f"Restarting charger control integration (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger control integration for now")
+                restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
+                send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
+            else:
+                _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
+                restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
+                send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
         my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
@@ -4651,24 +4661,16 @@ def charge_if_needed():
             if not charging_without_rule():
                 charging_history(None, "")
                 _LOGGER.info("EV not ready to charge")
-
-        if amps[1] > 0.0:
-            '''if is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
-                if get_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']) != "on":
-                    set_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")'''
-            
-            send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")
-            ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
-        else:
-            send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
-            '''if is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
-                if get_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']) != "off":
-                    set_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")'''
         
         if get_state(f"input_boolean.{__name__}_fill_up") == "on":
             charging_limit = max(charging_limit, get_max_recommended_charge_limit_battery_level())
             
         ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
+        
+        if amps[1] > 0.0:
+            start_charging()
+        else:
+            send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
             
         set_charger_charging_amps(*amps)
     except Exception as e:
@@ -4685,13 +4687,8 @@ def charge_if_needed():
             
         ERROR_COUNT += 1
         
-        send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")
-        '''if is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
-            if get_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']) != "on":
-                set_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")'''
-            
-        ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
         ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(get_max_recommended_charge_limit_battery_level()))
+        start_charging()
         
         charging_history({'Price': 0.0, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'error': True}, "error")
         set_charging_rule(f"{emoji_parse({'error': True})}Fejl: Script deaktiveret, lader maks!!!")
@@ -5105,7 +5102,10 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("triggers_charge_if_needed")
         if trigger_type == "time":
             calc_kwh_price(getMinute(), update_entities = True)
-        
+            
+        if is_charging():
+            wake_up_ev()
+            
         charge_if_needed()
             
         is_battery_fully_charged()
@@ -5135,21 +5135,16 @@ if INITIALIZATION_COMPLETE:
                         _LOGGER.debug(f"Setting new trip range to {get_trip_range()}")
 
                     if startCharging:
+                        ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
+                        
                         if get_trip_date_time() == resetDatetime():
                             set_charger_charging_amps(CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp'])
-                            
-                            '''if is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
-                                if get_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']) != "on":
-                                    set_state(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")'''
                                 
-                            send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "on")
-                            ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
+                            start_charging()
                             _LOGGER.info("Begin to charge now")
                         else:
                             _LOGGER.info(f"Schedule charging to trip at {get_trip_date_time()}")
                             charge_if_needed()
-                            
-                        ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
             else:
                 charge_if_needed()
                 
@@ -5247,12 +5242,6 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("emulated_battery_level_changed")
             if float(old_value) == 0.0 and float(value) < get_min_daily_battery_level():
                 notify_battery_under_daily_battery_level()
-        
-    @time_trigger(f"cron(0/15 * * * *)")
-    def cron_is_charging(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("cron_is_charging")
-        if is_charging():
-            wake_up_ev()
             
     @time_trigger("startup")
     @time_trigger(f"cron(0/5 * * * *)")
