@@ -1,4 +1,3 @@
-__version__ = "1.0.0"
 '''
 Add notify_entity_id to configuration.yaml
 notify_entity_id: "notify.mobile_app_thomas_mobil"
@@ -15,7 +14,26 @@ _LOGGER = getLogger(BASENAME)
 
 NOTIFY_HISTORY = {}
 
-def my_notify(message = None, title = "", data = {}, notify_list = [], admin_only = False, always = False, persistent_notification = False, persistent_notification_id = None): #TODO add notification_id to persistent_notification
+def my_persistent_notification(message = None, title = "", persistent_notification_id = None):
+    _LOGGER = globals()['_LOGGER'].getChild("my_persistent_notification")
+    try:
+        if service.has_service("notify", "persistent_notification"):
+                if persistent_notification_id is None:
+                    length_of_string = 6
+                    sample_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+                    persistent_notification_id = ''.join(rand.choices(sample_str, k = length_of_string))
+                    
+                service.call("notify", "persistent_notification", blocking=True,
+                                    title=title,
+                                    message=message,
+                                    data={"notification_id": persistent_notification_id}
+                                    )
+        else:
+            _LOGGER.warning(f"Notify service dont have notify.{entity_id} Message:'{message}' not send")
+    except Exception as e:
+        _LOGGER.error(f"Error in service call notify.persistent_notification: {e}")
+
+def my_notify(message = None, title = "", data = {}, notify_list = [], admin_only = False, always = False, persistent_notification = False, persistent_notification_id = None):
     """
     Sends a notification message using the Home Assistant notification service. It supports sending
     notifications to a specific entity_ids if 'admin_only' is True and using 'notify_entity_id' from
@@ -66,22 +84,7 @@ def my_notify(message = None, title = "", data = {}, notify_list = [], admin_onl
                 _LOGGER.error(f"Error in service call notify.{entity_id}: {e}")
                 
         if persistent_notification:
-            try:
-                if service.has_service("notify", "persistent_notification"):
-                        if persistent_notification_id is None:
-                            length_of_string = 6
-                            sample_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-                            persistent_notification_id = ''.join(rand.choices(sample_str, k = length_of_string))
-                            
-                        service.call("notify", "persistent_notification", blocking=True,
-                                            title=title,
-                                            message=message,
-                                            data={"notification_id": persistent_notification_id}
-                                            )
-                else:
-                    _LOGGER.warning(f"Notify service dont have notify.{entity_id} Message:'{message}' not send")
-            except Exception as e:
-                _LOGGER.error(f"Error in service call notify.persistent_notification: {e}")
+            my_persistent_notification(message = message, title = title, persistent_notification_id = persistent_notification_id)
                 
         NOTIFY_HISTORY[getTime() + datetime.timedelta(minutes=60)] = f"{title} {message}"
         
