@@ -186,7 +186,7 @@ def compare_dicts_unique_to_dict1(dict1, dict2, path=""):
 
     return unique_to_dict1
 
-def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name'):
+def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name', check_nested_keys=False):
     """
     Enhanced to handle lists of dictionaries, specifically for configurations like sensors.
     Assumes each dictionary in a list has a unique identifier specified by unique_id_key.
@@ -207,6 +207,9 @@ def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name')
             updated = True
         elif isinstance(value, dict):
             nested_updated, existing_config[key] = update_dict_with_new_keys(existing_config[key], value, unique_id_key)
+            if check_nested_keys and key in existing_config and existing_config.get(key) != new_config.get(key):
+                existing_config[key] = new_config[key]
+                updated = True
             updated = updated or nested_updated
         elif isinstance(value, list):
             if not isinstance(existing_config[key], list):
