@@ -22,7 +22,7 @@ except:
 from filesystem import file_exists, create_yaml, load_yaml, save_yaml
 from hass_manager import get_state, get_attr, set_state, set_attr, get_manufacturer, get_identifiers, get_integration, reload_integration
 from history import get_values, get_average_value, get_max_value, get_min_value
-from mynotify import my_notify
+from mynotify import my_notify, my_persistent_notification
 from mytime import getTime, getTimePlusDays, daysBetween, hoursBetween, minutesBetween, getMinute, getHour, getMonth, getYear, getTimeStartOfDay, getTimeEndOfDay, getDayOfWeekText, date_to_string, toDateTime, resetDatetime, reset_time_to_hour
 from utils import in_between, round_up, average, get_specific_values, get_closest_key, update_keys_recursive, compare_dicts_unique_to_dict1, update_dict_with_new_keys, limit_dict_size
 
@@ -1055,12 +1055,14 @@ def init():
             for key, value in deprecated_keys.items():
                 _LOGGER.warning(f"\t{key}: {value}")
             _LOGGER.warning("Please remove them.")
+            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{__name__.capitalize()} Forældet nøgler", persistent_notification_id = file_path)
+            
 
         if prompt_restart and (was_updated or updated or deprecated_keys):
             raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
 
         return content
-
+    
     welcome()
     try:
         CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
