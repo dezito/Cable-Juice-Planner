@@ -237,10 +237,7 @@ CHARGING_TYPES = {
     }
 }
 
-ENTITIES_RENAMING = {
-    f"{__name__}_allow_guest_charging_now": f"{__name__}_allow_manual_charging_now",
-    f"{__name__}_allow_guest_charging_solar": f"{__name__}_allow_manual_charging_solar"
-}
+ENTITIES_RENAMING = {}
 
 DEFAULT_CONFIG = {
     "charger": {
@@ -364,10 +361,10 @@ DEFAULT_ENTITIES = {
           "name":"Tillad manuel ladning kun på sol"
       },
       f"{__name__}_fill_up":{
-          "name":"Auto opladning til maks anbefalet"
+          "name":"Optimal ugeopladning (uden Arbejdsplan)"
       },
       f"{__name__}_days_to_charge":{
-          "name":"Arbejde auto ladning"
+          "name":"Arbejdsplan opladning"
       },
       f"{__name__}_trip_charging":{
           "name":"Tur ladning"
@@ -1018,7 +1015,7 @@ def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
     global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, TESTING
 
-    def handle_yaml(file_path, default_content, key_renaming, comment_db, check_first_run=False, prompt_restart=False):
+    def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
@@ -1039,14 +1036,14 @@ def init():
             if was_updated:
                 save_yaml(file_path, content, comment_db)
 
-        updated, content = update_dict_with_new_keys(content, default_content)
+        updated, content = update_dict_with_new_keys(content, default_content, check_nested_keys=check_nested_keys)
         if updated:
             if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True
             save_yaml(file_path, content, comment_db)
 
         if was_updated or updated:
-            msg = f"Config updated."
+            msg = f"{'Config' if "config.yaml" in file_path else 'Entities pacakage'} updated."
             if check_first_run:
                 msg += " Set first_run to false and reload."
             msg += " Please restart Home Assistant to apply changes."
@@ -1109,7 +1106,7 @@ def init():
                     if key in DEFAULT_ENTITIES['sensor'][0]['sensors']:
                         del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
         
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
@@ -5020,8 +5017,9 @@ if INITIALIZATION_COMPLETE:
         if benchmark_loaded: end_benchmark("charge_if_needed")
         
         preheat_ev()
-        
-    @state_trigger(f"input_boolean.{__name__}_fill_up")
+    
+    #Fill up and days to charge only 1 allowed
+    '''@state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_days_to_charge")
     def charging_rule(trigger_type=None, var_name=None, value=None, old_value=None):
         if value == "on":
@@ -5030,7 +5028,7 @@ if INITIALIZATION_COMPLETE:
                     set_state(f"input_boolean.{__name__}_days_to_charge", "off")
             elif var_name == f"input_boolean.{__name__}_days_to_charge":
                 if get_state(f"input_boolean.{__name__}_fill_up") == "on":
-                    set_state(f"input_boolean.{__name__}_fill_up", "off")
+                    set_state(f"input_boolean.{__name__}_fill_up", "off")'''
                 
     @time_trigger(f"cron(0/{CONFIG['cron_interval']} * * * *)")
     @state_trigger(f"input_button.{__name__}_enforce_planning")
