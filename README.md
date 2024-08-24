@@ -27,12 +27,18 @@
 > ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
 > #### Docker:
 > ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
 > shell_command:
 >   update_cable_juice_planner: "bash /config/scripts/update_cable_juice_planner.sh"
 > ```
 > 
 > #### Home Assistant OS:
 > ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
 > shell_command:
 >   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/scripts/update_cable_juice_planner.sh"
 > ```
