@@ -4,6 +4,7 @@ notify_entity_id: "notify.mobile_app_thomas_mobil"
 '''
 import datetime
 import random as rand
+import re
 
 from filesystem import *
 from mytime import *
@@ -22,6 +23,9 @@ def my_persistent_notification(message = None, title = "", persistent_notificati
                     length_of_string = 6
                     sample_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
                     persistent_notification_id = ''.join(rand.choices(sample_str, k = length_of_string))
+                    
+                pattern = "[^0-9a-zA-Z\s]+"
+                persistent_notification_id = re.sub(pattern, "", persistent_notification_id)
                     
                 service.call("notify", "persistent_notification", blocking=True,
                                     title=title,
