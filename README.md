@@ -1,16 +1,21 @@
----
 ### Installation:
-1. Kopiere al teksten i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh)
-2. Navigere til Home Assistant config/scripts mappen 
-3. Lav en fil ved navn "update_cable_juice_planner.sh"
-4. Sæt teksten ind du har kopieret
-5. SSH ind i Home Assistant
-6. Navigerer til scripts mappen
-7. Start update_cable_juice_planner.sh
-8. update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
-9. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
-10. Genstart Home Assistant eller åben og gem ev.py filen
-11. Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
+1.  Navigere til Home Assistant config og lav en mappe ved navn "packages"
+2.  Sæt koden nedenunder ind i configuration.yaml
+```yaml
+homeassistant:
+  packages: !include_dir_named packages/
+```
+3. Kopiere al teksten i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh)
+4. Navigere til Home Assistant config/scripts mappen
+5. Lav en fil ved navn "update_cable_juice_planner.sh"
+6. Sæt teksten ind du har kopieret
+7. SSH ind i Home Assistant
+8. Navigerer til scripts mappen
+9. Start update_cable_juice_planner.sh
+10. update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
+11. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
+11. Genstart Home Assistant eller åben og gem ev.py filen
+12. Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
     - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
     - Alle entitier navne starter med ev_ der laves
 ---
@@ -27,12 +32,18 @@
 > ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
 > #### Docker:
 > ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
 > shell_command:
 >   update_cable_juice_planner: "bash /config/scripts/update_cable_juice_planner.sh"
 > ```
-> 
+>
 > #### Home Assistant OS:
 > ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
 > shell_command:
 >   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/scripts/update_cable_juice_planner.sh"
 > ```
@@ -75,9 +86,9 @@
 | ![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png) | ![Historik](Cable-Juice-Planner-Readme/history.png) | ![Oversigt](Cable-Juice-Planner-Readme/overview.png) |
 
 | Manuel ladning | Tur ladning |
-| --- | --- | 
-| ![Manuel](Cable-Juice-Planner-Readme/manual.png) | ![Tur](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/trip.png) |
+| --- | --- |
+| ![Manuel](Cable-Juice-Planner-Readme/manual.png) | ![Tur](Cable-Juice-Planner-Readme/trip.png) |
 
 | Indstillinger |
 | --- |
-| ![Indstillinger](https://github.com/dezito/Cable-Juice-Planner/blob/master/Cable-Juice-Planner-Readme/settings.png) |
+| ![Indstillinger](Cable-Juice-Planner-Readme/settings.png) |
