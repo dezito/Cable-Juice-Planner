@@ -2453,7 +2453,10 @@ def _charging_history(charging_data = None, charging_type = ""):
         
     if update_entity:
         charging_history_combine_and_set()
-        
+
+def stop_current_charging_session():
+    charging_history(None, "")
+
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
     global USING_OFFLINE_PRICES
@@ -4612,7 +4615,7 @@ def charge_if_needed():
             if amps[1] > 0.0:
                 charging_history({'Price': get_solar_sell_price() if solar_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': True if solar_amps[1] != 0.0 else False}, "manual")
             else:
-                charging_history(None, "")
+                stop_current_charging_session()
         elif ready_to_charge():
             if get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
                 if currentHour not in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
@@ -4655,12 +4658,12 @@ def charge_if_needed():
                 _LOGGER.debug(f"solar_watt:{solar_watt} solar_period:{solar_period}")
             else:
                 if not charging_without_rule():
-                    charging_history(None, "")
+                    stop_current_charging_session()
                     set_charging_rule(f"Lader ikke")
                     _LOGGER.info("No rules for charging")
         else:
             if not charging_without_rule():
-                charging_history(None, "")
+                stop_current_charging_session()
                 _LOGGER.info("EV not ready to charge")
         
         if get_state(f"input_boolean.{__name__}_fill_up") == "on":
@@ -5196,7 +5199,7 @@ if INITIALIZATION_COMPLETE:
         try:
             if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['type'] == "no_rule":
                 if not charging_without_rule():
-                    charging_history(None, "")
+                    stop_current_charging_session()
                     set_charging_rule(f"Lader ikke")
         except:
             pass
@@ -5210,12 +5213,13 @@ if INITIALIZATION_COMPLETE:
             charge_if_needed()
         elif "disconnected" in value:
             wake_up_ev()
+            stop_current_charging_session()
             set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
         elif "charging" in old_value and "complete" in value:
             if not is_ev_configured():
-                charging_history(None, "")
+                stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
     if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
@@ -5260,7 +5264,7 @@ if INITIALIZATION_COMPLETE:
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
         solar_available_append_to_db(solar_production_available(period = 60, withoutEV = True))
-        charging_history(None, "")
+        stop_current_charging_session()
         kwh_charged_by_solar()
         solar_charged_percentage()
         
@@ -5360,7 +5364,7 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("shutdown")
         global CONFIG
         set_charging_rule(f"📟Scriptet lukket ned")
-        charging_history(None, "")
+        stop_current_charging_session()
         reset_counter_entity_integration()
         
         try:
