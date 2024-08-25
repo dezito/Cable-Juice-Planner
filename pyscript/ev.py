@@ -496,7 +496,7 @@ DEFAULT_ENTITIES = {
           "max":2,
           "step":0.01,
           "icon":"mdi:cash-multiple",
-          "unit_of_measurement":"DKK/kWh"
+          "unit_of_measurement":"kr/kWh"
       },
       f"{__name__}_preheat_minutes_before":{
           "name":"Forvarm bilen X min før",
@@ -760,7 +760,7 @@ DEFAULT_ENTITIES = {
             f"{__name__}_kwh_cost_price":{
                "friendly_name":"",
                "value_template":"unavailable",
-               "unit_of_measurement":"DKK/kWh"
+               "unit_of_measurement":"kr/kWh"
             },
             f"{__name__}_current_charging_rule":{
                "friendly_name":"Nuværende lade regel",
@@ -1445,8 +1445,11 @@ def get_solar_sell_price(set_entity_attr=False):
             sell_price = round(solar_sell_price, 3)
         
         if set_entity_attr:
-            for item in get_attr(f"sensor.{__name__}_kwh_cost_price"):
-                state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
+            attr_list = ["price", "transmissions_nettarif", "systemtarif", "elafgift", "tariffs", "tariff_sum", "raw_price", "sell_tariffs_overview", "transmissions_nettarif_", "systemtarif_", "energinets_network_tariff_", "energinets_balance_tariff_", "solar_production_seller_cut_", "sell_tariffs", "solar_sell_price", "fixed_sell_price"]
+            entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
+            for item in attr_list:
+                if item in entity_attr:
+                    state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
                 
             set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.3f} kr/kWh")
             set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif", f"{transmissions_nettarif:.3f} kr/kWh")
@@ -4856,10 +4859,13 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
         set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
         
-        if not is_solar_configured():
-            for item in get_attr(f"sensor.{__name__}_kwh_cost_price"):
+        attr_list = ["raw_price", "refund", "price", "solar_grid_ratio", "solar_share", "solar_kwh_price", "grid_share", "grid_kwh_price", "ev_kwh_price"]
+        entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
+        for item in attr_list:
+            if item in entity_attr:
                 state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
                 
+        if not is_solar_configured():
             raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
             refund = get_refund()
             price = raw_price - refund
