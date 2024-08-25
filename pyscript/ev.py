@@ -2191,13 +2191,13 @@ def charging_history_combine_and_set():
                 emoji = emoji_sorting(emoji)
                 
                 combined_db[started] = {
-                    "cost": cost,
+                    "cost": round(cost, 3),
                     "emoji": emoji,
                     "ended": ended,
-                    "kWh": kWh,
-                    "kWh_solar": kWh_solar,
-                    "percentage": percentage,
-                    "unit": unit
+                    "kWh": round(kWh, 3),
+                    "kWh_solar": round(kWh_solar, 3),
+                    "percentage": round(percentage, 1),
+                    "unit": round(unit, 3)
                 }
                 
                 if start_charger_meter is not None and end_charger_meter is not None:
@@ -2353,11 +2353,11 @@ def _charging_history(charging_data = None, charging_type = ""):
         price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
         cost = round(added_kwh * price, 2)
         
-        CHARGING_HISTORY_DB[start]["percentage"] = added_percentage
-        CHARGING_HISTORY_DB[start]["kWh"] = added_kwh
-        CHARGING_HISTORY_DB[start]["kWh_solar"] = added_kwh_by_solar
-        CHARGING_HISTORY_DB[start]["cost"] = cost
-        CHARGING_HISTORY_DB[start]["unit"] = price
+        CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
+        CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
+        CHARGING_HISTORY_DB[start]["kWh_solar"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
+        CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
         CHARGING_HISTORY_DB[start]["start_charger_meter"] = CURRENT_CHARGING_SESSION['start_charger_meter']
         CHARGING_HISTORY_DB[start]["end_charger_meter"] = charger_meter
         CHARGING_HISTORY_DB[start]["charging_session"] = CURRENT_CHARGING_SESSION
@@ -2422,9 +2422,9 @@ def _charging_history(charging_data = None, charging_type = ""):
             "ended": ">",
             "emoji": CURRENT_CHARGING_SESSION['emoji'],
             "percentage": round(charging_data['battery_level'], 1),
-            "kWh": round(charging_data['kWh'], 1),
-            "cost": round(charging_data['Cost'], 2),
-            "unit": round(charging_data['Price'], 2),
+            "kWh": round(charging_data['kWh'], 3),
+            "cost": round(charging_data['Cost'], 3),
+            "unit": round(charging_data['Price'], 3),
             "charging_session": CURRENT_CHARGING_SESSION,
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
             "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter']
@@ -2741,7 +2741,12 @@ def cheap_grid_charge_hours():
         if CHARGING_HISTORY_DB:
             for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
                 if round(battery_level_cost_percentage) < round(current_battery_level):
-                    if "cost" not in CHARGING_HISTORY_DB[key] or "kWh" not in CHARGING_HISTORY_DB[key] or "kWh_solar" not in CHARGING_HISTORY_DB[key] or "percentage" not in CHARGING_HISTORY_DB[key]:
+                    if (
+                        "cost" not in CHARGING_HISTORY_DB[key] or
+                        "kWh" not in CHARGING_HISTORY_DB[key] or
+                        "kWh_solar" not in CHARGING_HISTORY_DB[key] or
+                        "percentage" not in CHARGING_HISTORY_DB[key]
+                    ):
                         continue
                     
                     cost = CHARGING_HISTORY_DB[key]["cost"]
