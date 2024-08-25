@@ -981,7 +981,7 @@ def reset_counter_entity_integration():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
     
 
-def allow_command_entity_integration(entity_id = None, command = "None", integration = None):#TODO Add check if same or similar command called in X time
+def allow_command_entity_integration(entity_id = None, command = "None", integration = None):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
     
@@ -1591,7 +1591,7 @@ def wake_up_ev():
             else:
                 _LOGGER.warning(f"Limit reached, cant wake up ev")
     
-def send_command(entity_id, command):#TODO Add queue and chargelimit last hour use max(commands)
+def send_command(entity_id, command):
     _LOGGER = globals()['_LOGGER'].getChild("send_command")
     
     if not is_entity_configured(entity_id): return
@@ -1617,7 +1617,7 @@ def send_command(entity_id, command):#TODO Add queue and chargelimit last hour u
     else:
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
         
-def ev_send_command(entity_id, command):#TODO Add queue and chargelimit last hour use max(commands)
+def ev_send_command(entity_id, command):
     _LOGGER = globals()['_LOGGER'].getChild("ev_send_command")
     
     if not is_ev_configured(): return
@@ -1927,7 +1927,7 @@ def kwh_needed_for_charging(targetLevel = None, battery = None):
     _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss kwh:{percentage_to_kwh(targetLevel - battery, include_charging_loss = True)}")
     return max(kwh, 0.0)
 
-def verify_charge_limit(limit):#TODO Add limit to last hour use max(limit)
+def verify_charge_limit(limit):
     _LOGGER = globals()['_LOGGER'].getChild("verify_charge_limit")
     try:
         if CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']:
@@ -1937,7 +1937,7 @@ def verify_charge_limit(limit):#TODO Add limit to last hour use max(limit)
         limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
     except Exception as e:
         _LOGGER.error(e)
-        limit = get_min_charge_limit_battery_level()
+        limit = get_max_recommended_charge_limit_battery_level()
     return limit
 
 def reset_current_charging_session():
@@ -2288,7 +2288,7 @@ def charging_history_combine_and_set():
     CHARGING_HISTORY_DB = combined_db
     save_charging_history()
     
-def charging_power_to_emulated_battery_level():#TODO Add charging power to emulated battery level
+def charging_power_to_emulated_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("charging_power_to_emulated_battery_level")
     
     if is_ev_configured(): return
@@ -2297,18 +2297,7 @@ def charging_power_to_emulated_battery_level():#TODO Add charging power to emula
     now = getTime()
     past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
     
-    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    value_avg = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    _LOGGER.debug(f"charger_changed value_max:{value_max}")
-    _LOGGER.debug(f"charger_changed value_min:{value_min}")
-    _LOGGER.debug(f"charger_changed value_avg:{value_avg}")
-    
-    try:
-        watt = float(value_max)
-        _LOGGER.warning(f"charger_changed value:{watt}")
-    except Exception as e:
-        _LOGGER.error(f"charger_changed value:{value_max} {e}")
+    watt = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
     
     if watt == 0.0:
         _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} watt:{watt}")
@@ -3005,7 +2994,7 @@ def cheap_grid_charge_hours():
                     
                 fill_up = get_state(f"input_boolean.{__name__}_fill_up") == "on" and day in fill_up_days
                 
-                if fill_up or need_recommended_full_charge:#TODO Add minimum battery level rule
+                if fill_up or need_recommended_full_charge:
                     rules = []
                     kwh_needed_to_fill_up_day = kwh_needed_to_fill_up_share
                     
