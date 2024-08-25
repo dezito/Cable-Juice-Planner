@@ -178,6 +178,11 @@ CHARGING_TYPES = {
         "emoji": "7️⃣",
         "description": "Syvende arbejdsdag"
     },
+    "eighth_workday_preparation": {
+        "priority": 7.7,
+        "emoji": "8️⃣",
+        "description": "Syvende arbejdsdag"
+    },
     "fill_up": {
         "priority": 8,
         "emoji": "💴",
@@ -3138,8 +3143,8 @@ def cheap_grid_charge_hours():
     set_state(f"sensor.{__name__}_charge_very_cheap_battery_level", f"{ev_charge_very_cheap_battery_level}%")
     set_state(f"sensor.{__name__}_charge_ultra_cheap_battery_level", f"{ev_charge_ultra_cheap_battery_level}%")
     
-    workday_rules =["first_workday_preparation", "second_workday_preparation", "third_workday_preparation", "fourth_workday_preparation", "fifth_workday_preparation", "sixth_workday_preparation", "seventh_workday_preparation"]
-    workday_labels =["Første arbejdsdag", "Anden arbejdsdag", "Tredje arbejdsdag", "Fjerde arbejdsdag", "Femte arbejdsdag", "Sjette arbejdsdag", "Syvende arbejdsdag"]
+    workday_rules =["first_workday_preparation", "second_workday_preparation", "third_workday_preparation", "fourth_workday_preparation", "fifth_workday_preparation", "sixth_workday_preparation", "seventh_workday_preparation", "eighth_workday_preparation"]
+    workday_labels =["Første arbejdsdag", "Anden arbejdsdag", "Tredje arbejdsdag", "Fjerde arbejdsdag", "Femte arbejdsdag", "Sjette arbejdsdag", "Syvende arbejdsdag", "Ottende arbejdsdag"]
     workday_emoji = []
     
     for i, rule in enumerate(workday_rules):
