@@ -2510,7 +2510,7 @@ def cheap_grid_charge_hours():
                 
                 for raw in power_prices_attr['raw_tomorrow']:
                     combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-    except Exception as e:
+    except Exception as e:#TODO Add support for every week day prices
             _LOGGER.warning(f"Cant get real prices, using database: {e}")
             my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", notification_id="real_prices_error")
             
@@ -2645,7 +2645,7 @@ def cheap_grid_charge_hours():
                 ultra_cheap_price = True
         except Exception as e:
             _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e}")
-            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
+            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)#TODO Add support for every week day prices
             if round(price, 3) <= average_price:
                 very_cheap_price = True
             if round(price, 3) <= (average_price * 0.75):
@@ -4004,7 +4004,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                 avg_sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
                 
                 if avg_sell_price == -1.0:
-                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour])
+                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour])#TODO Add support for every week day prices
                 
                 return avg_kwh, avg_sell_price
         except Exception as e:
@@ -4889,7 +4889,7 @@ def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False
     
     return round(min(solar_kwh_available, ev_kwh), 3)
 
-def load_kwh_prices():
+def load_kwh_prices(): #TODO Add support for every week day prices
     _LOGGER = globals()['_LOGGER'].getChild("load_kwh_prices")
     global KWH_AVG_PRICES_DB
     force_save = False
@@ -4934,7 +4934,7 @@ def save_kwh_prices():
     if len(KWH_AVG_PRICES_DB) > 0:
         save_changes(f"{__name__}_kwh_avg_prices_db", KWH_AVG_PRICES_DB)
 
-def append_kwh_prices():
+def append_kwh_prices():#TODO Add support for every week day prices
     _LOGGER = globals()['_LOGGER'].getChild("append_kwh_prices")
     global KWH_AVG_PRICES_DB
     
@@ -5000,7 +5000,7 @@ def append_kwh_prices():
             
             set_low_mean_price()
 
-def set_low_mean_price():
+def set_low_mean_price():#TODO Add support for every week day prices
     average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
     set_attr(f"sensor.{__name__}_charge_very_cheap_battery_level.low_mean_price", round(average_price, 2))
     set_attr(f"sensor.{__name__}_charge_ultra_cheap_battery_level.low_mean_price", round((average_price * 0.75), 2))
