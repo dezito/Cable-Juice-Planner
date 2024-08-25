@@ -1,6 +1,7 @@
 __version__ = "1.0.0"
 import functools
 import math
+from pprint import pformat
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
@@ -16,6 +17,7 @@ def in_between(check, start, end):
     - start (datetime|int|float): The start of the range.
     - end (datetime|int|float): The end of the range.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("in_between")
     #return check <= start < end if check <= end else check <= start or start < end
     return start <= check < end if start <= end else start <= check or check < end
 
@@ -27,6 +29,7 @@ def round_up(n, decimals=0):
     - n (float): The number to round up.
     - decimals (int): The number of decimal places to round to.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("round_up")
     n = max(n, 0.0)
     multiplier = 10 ** decimals
     return float(math.ceil(n * multiplier) / multiplier)
@@ -50,6 +53,7 @@ def average(data):
     
 
 def get_specific_values(values, positive_only = False, negative_only = False):
+    _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")
     return_list = []
     for value in values:
         try:
@@ -99,6 +103,7 @@ def keys_exists(element, *keys):
     - element (dict): The dictionary to check.
     - keys (str): A sequence of keys representing the path to check for existence.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("keys_exists")
     if not isinstance(element, dict):
         raise AttributeError('keys_exists() expects dict as first argument.')
     if len(keys) == 0:
@@ -120,6 +125,7 @@ def has_key(d, path):
     - d (dict): The dictionary to check.
     - path (str): The dot-separated path of keys to check for existence.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("has_key")
     try:
         functools.reduce(lambda x, y: x[y], path.split("."), d)
         return True
@@ -138,6 +144,7 @@ def update_keys_recursive(obj, key_mapping):
     Returns:
     - bool: True if any updates were made, False otherwise.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("update_keys_recursive")
     updated = False  # Flag to track if any updates are made
 
     if isinstance(obj, dict):
@@ -167,7 +174,7 @@ def compare_dicts_unique_to_dict1(dict1, dict2, path=""):
     - dict2 (dict): The second dictionary to compare against.
     - path (str): The current path, used internally for recursion.
     """
-    _LOGGER = globals()['_LOGGER'].getChild("get_closest_key")
+    _LOGGER = globals()['_LOGGER'].getChild("compare_dicts_unique_to_dict1")
     unique_to_dict1 = {}
 
     for key in dict1:
@@ -200,6 +207,7 @@ def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name',
     - updated (bool): True if any updates were made to the existing dictionary, False otherwise.
     - existing_config (dict): The updated dictionary.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("update_dict_with_new_keys")
     updated = False
     for key, value in new_config.items():
         if key not in existing_config:
@@ -239,5 +247,6 @@ def limit_dict_size(dct, size):
     :param size: The dictionary size.
     :return: A dictionary with a maximum of X key-value pairs.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("limit_dict_size")
     # Convert dictionary items to a list, slice to keep the last 30 items, and convert back to dictionary
     return dict(list(dct.items())[:size])
