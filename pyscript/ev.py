@@ -228,7 +228,7 @@ CHARGING_TYPES = {
     "eighth_workday_preparation": {
         "priority": 7.7,
         "emoji": "8️⃣",
-        "description": "Syvende arbejdsdag"
+        "description": "Ottende arbejdsdag"
     },
     "fill_up": {
         "priority": 8,
