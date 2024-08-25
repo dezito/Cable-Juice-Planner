@@ -14,21 +14,68 @@ import datetime
 from pprint import pformat
 
 try:
-    from benchmark import start_benchmark, end_benchmark, benchmark_decorator
+    from benchmark import (
+        start_benchmark,
+        end_benchmark,
+        benchmark_decorator)
     benchmark_loaded = True
 except:
     benchmark_loaded = False
 
-from filesystem import file_exists, create_yaml, load_yaml, save_yaml
-from hass_manager import get_state, get_attr, set_state, set_attr, get_manufacturer, get_identifiers, get_integration, reload_integration
-from history import get_values, get_average_value, get_max_value, get_min_value
-from mynotify import my_notify, my_persistent_notification
-from mytime import getTime, getTimePlusDays, daysBetween, hoursBetween, minutesBetween, getMinute, getHour, getMonth, getYear, getTimeStartOfDay, getTimeEndOfDay, getDayOfWeekText, date_to_string, toDateTime, resetDatetime, reset_time_to_hour
-from utils import in_between, round_up, average, get_specific_values, get_closest_key, update_keys_recursive, compare_dicts_unique_to_dict1, update_dict_with_new_keys, limit_dict_size
+from filesystem import (
+    file_exists,
+    create_yaml,
+    load_yaml,
+    save_yaml)
+from hass_manager import (
+    get_state,
+    get_attr,
+    set_state,
+    set_attr,
+    get_manufacturer,
+    get_identifiers,
+    get_integration,
+    reload_integration)
+from history import (
+    get_values,
+    get_average_value,
+    get_max_value,
+    get_min_value)
+from mynotify import (
+    my_notify,
+    my_persistent_notification)
+from mytime import (
+    getTime,
+    getTimePlusDays,
+    daysBetween,
+    hoursBetween,
+    minutesBetween,
+    getMinute,
+    getHour,
+    getMonth,
+    getYear,
+    getTimeStartOfDay,
+    getTimeEndOfDay,
+    getDayOfWeekText,
+    date_to_string,
+    toDateTime,
+    resetDatetime,
+    reset_time_to_hour)
+from utils import (
+    in_between,
+    round_up,
+    average,
+    get_specific_values,
+    get_closest_key,
+    update_keys_recursive,
+    compare_dicts_unique_to_dict1,
+    update_dict_with_new_keys,
+    limit_dict_size)
 
 import homeassistant.helpers.sun as sun
 
 from logging import getLogger
+TITLE = f"Cable Juice Planner ({__name__}.py)"
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
@@ -181,7 +228,7 @@ CHARGING_TYPES = {
     "eighth_workday_preparation": {
         "priority": 7.7,
         "emoji": "8️⃣",
-        "description": "Syvende arbejdsdag"
+        "description": "Ottende arbejdsdag"
     },
     "fill_up": {
         "priority": 8,
@@ -449,7 +496,7 @@ DEFAULT_ENTITIES = {
           "max":2,
           "step":0.01,
           "icon":"mdi:cash-multiple",
-          "unit_of_measurement":"DKK/kWh"
+          "unit_of_measurement":"kr/kWh"
       },
       f"{__name__}_preheat_minutes_before":{
           "name":"Forvarm bilen X min før",
@@ -713,7 +760,7 @@ DEFAULT_ENTITIES = {
             f"{__name__}_kwh_cost_price":{
                "friendly_name":"",
                "value_template":"unavailable",
-               "unit_of_measurement":"DKK/kWh"
+               "unit_of_measurement":"kr/kWh"
             },
             f"{__name__}_current_charging_rule":{
                "friendly_name":"Nuværende lade regel",
@@ -864,6 +911,7 @@ def save_changes(file, db):
             save_yaml(file, db, comment_db=comment_db)
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
+            my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification")
             
 def create_integration_dict():
     _LOGGER = globals()['_LOGGER'].getChild("create_integration_dict")
@@ -933,7 +981,7 @@ def reset_counter_entity_integration():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
     
 
-def allow_command_entity_integration(entity_id = None, command = "None", integration = None):#TODO Add check if same or similar command called in X time
+def allow_command_entity_integration(entity_id = None, command = "None", integration = None):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
     
@@ -1060,7 +1108,7 @@ def init():
             for key, value in deprecated_keys.items():
                 _LOGGER.warning(f"\t{key}: {value}")
             _LOGGER.warning("Please remove them.")
-            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{__name__.capitalize()} Forældet nøgler", persistent_notification_id = file_path)
+            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{TITLE} Forældet nøgler", persistent_notification_id = file_path)
             
 
         if prompt_restart and (was_updated or updated or deprecated_keys):
@@ -1127,6 +1175,7 @@ def init():
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
+        my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}init")
 
 set_charging_rule(f"📟Starter scriptet op")
 init()
@@ -1396,8 +1445,11 @@ def get_solar_sell_price(set_entity_attr=False):
             sell_price = round(solar_sell_price, 3)
         
         if set_entity_attr:
-            for item in get_attr(f"sensor.{__name__}_kwh_cost_price"):
-                state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
+            attr_list = ["price", "transmissions_nettarif", "systemtarif", "elafgift", "tariffs", "tariff_sum", "raw_price", "sell_tariffs_overview", "transmissions_nettarif_", "systemtarif_", "energinets_network_tariff_", "energinets_balance_tariff_", "solar_production_seller_cut_", "sell_tariffs", "solar_sell_price", "fixed_sell_price"]
+            entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
+            for item in attr_list:
+                if item in entity_attr:
+                    state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
                 
             set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.3f} kr/kWh")
             set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif", f"{transmissions_nettarif:.3f} kr/kWh")
@@ -1496,6 +1548,7 @@ def is_entity_available(entity):
         return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
+        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = entity)
         
         reload_entity_integration(entity)
     
@@ -1541,7 +1594,7 @@ def wake_up_ev():
             else:
                 _LOGGER.warning(f"Limit reached, cant wake up ev")
     
-def send_command(entity_id, command):#TODO Add queue and chargelimit last hour use max(commands)
+def send_command(entity_id, command):
     _LOGGER = globals()['_LOGGER'].getChild("send_command")
     
     if not is_entity_configured(entity_id): return
@@ -1567,7 +1620,7 @@ def send_command(entity_id, command):#TODO Add queue and chargelimit last hour u
     else:
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
         
-def ev_send_command(entity_id, command):#TODO Add queue and chargelimit last hour use max(commands)
+def ev_send_command(entity_id, command):
     _LOGGER = globals()['_LOGGER'].getChild("ev_send_command")
     
     if not is_ev_configured(): return
@@ -1653,6 +1706,7 @@ def load_drive_efficiency():
         DRIVE_EFFICIENCY_DB = load_yaml(f"{__name__}_drive_efficiency_db")
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_drive_efficiency_db: {e}")
+        my_persistent_notification(f"Cant load {__name__}_drive_efficiency_db: {e}", f"{TITLE} warning")
     
     if DRIVE_EFFICIENCY_DB == {} or not DRIVE_EFFICIENCY_DB:
         DRIVE_EFFICIENCY_DB = []
@@ -1701,6 +1755,7 @@ def load_km_kwh_efficiency():
         KM_KWH_EFFICIENCY_DB = load_yaml(f"{__name__}_km_kwh_efficiency_db")
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_km_kwh_efficiency_db: {e}")
+        my_persistent_notification(f"Cant load {__name__}_km_kwh_efficiency_db: {e}", f"{TITLE} warning")
     
     if KM_KWH_EFFICIENCY_DB == {} or not KM_KWH_EFFICIENCY_DB:
         KM_KWH_EFFICIENCY_DB = []
@@ -1749,7 +1804,8 @@ def set_state_km_kwh_efficiency():
                 set_attr(f"sensor.{__name__}_km_per_kwh.dato_{i}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
         set_estimated_range()
     except Exception as e:
-        _LOGGER.error(f"{e}")
+        _LOGGER.error(f"Cant set km/kwh efficiency: {e}")
+        my_persistent_notification(f"Cant set km/kwh efficiency: {e}", f"{TITLE} warning")
     
 def set_estimated_range():
     try:
@@ -1762,6 +1818,7 @@ def set_estimated_range():
         set_attr(f"sensor.{__name__}_estimated_range.total", range_total)
     except Exception as e:
         _LOGGER.warning(f"Cant set estimated range: {e}")
+        my_persistent_notification(f"Cant set estimated range: {e}", f"{TITLE} warning")
             
 def drive_efficiency(state = None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
@@ -1883,7 +1940,7 @@ def verify_charge_limit(limit):
         limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
     except Exception as e:
         _LOGGER.error(e)
-        limit = get_min_charge_limit_battery_level()
+        limit = get_max_recommended_charge_limit_battery_level()
     return limit
 
 def reset_current_charging_session():
@@ -1906,6 +1963,7 @@ def load_charging_history():
         CHARGING_HISTORY_DB = load_yaml(f"{__name__}_charging_history_db")
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_charging_history_db: {e}")
+        my_persistent_notification(f"Cant load {__name__}_charging_history_db: {e}", f"{TITLE} error")
     
     if CHARGING_HISTORY_DB == {} or not CHARGING_HISTORY_DB:
         CHARGING_HISTORY_DB = {}
@@ -1921,6 +1979,7 @@ def load_charging_history():
             except Exception as e:
                 _LOGGER.error(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}\n  ({last_item})")
                 _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
+                my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}", f"{TITLE} error")
     
     set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
     charging_history_combine_and_set()
@@ -1945,7 +2004,7 @@ def save_charging_history():
             save_changes(f"{__name__}_charging_history_db", CHARGING_HISTORY_DB)
         except Exception as e:
             _LOGGER.error(f"Cant save {__name__}_charging_history_db: {e}")
-            pass
+            my_persistent_notification(f"Cant save {__name__}_charging_history_db: {e}", f"{TITLE} error")
         
 def charging_history_recalc_price():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_recalc_price")
@@ -2018,6 +2077,7 @@ def charging_history_recalc_price():
                     return True
             except Exception as e:
                 _LOGGER.error(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}")
+                my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error")
     return False
 
 def charging_history_combine_and_set():
@@ -2134,13 +2194,13 @@ def charging_history_combine_and_set():
                 emoji = emoji_sorting(emoji)
                 
                 combined_db[started] = {
-                    "cost": cost,
+                    "cost": round(cost, 3),
                     "emoji": emoji,
                     "ended": ended,
-                    "kWh": kWh,
-                    "kWh_solar": kWh_solar,
-                    "percentage": percentage,
-                    "unit": unit
+                    "kWh": round(kWh, 3),
+                    "kWh_solar": round(kWh_solar, 3),
+                    "percentage": round(percentage, 1),
+                    "unit": round(unit, 3)
                 }
                 
                 if start_charger_meter is not None and end_charger_meter is not None:
@@ -2240,18 +2300,7 @@ def charging_power_to_emulated_battery_level():
     now = getTime()
     past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
     
-    value_max = get_max_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    value_min = get_min_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    value_avg = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    _LOGGER.debug(f"charger_changed value_max:{value_max}")
-    _LOGGER.debug(f"charger_changed value_min:{value_min}")
-    _LOGGER.debug(f"charger_changed value_avg:{value_avg}")
-    
-    try:
-        watt = float(value_max)
-        _LOGGER.warning(f"charger_changed value:{watt}")
-    except Exception as e:
-        _LOGGER.error(f"charger_changed value:{value_max} {e}")
+    watt = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
     
     if watt == 0.0:
         _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} watt:{watt}")
@@ -2290,6 +2339,7 @@ def charging_history(charging_data = None, charging_type = ""):
     except Exception as e:
         _LOGGER.error(f"Charging history queue failed  CHARGING_HISTORY_QUEUE: {CHARGING_HISTORY_QUEUE}")
         _LOGGER.error(f"{e}")
+        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error")
     finally:
         CHARGING_HISTORY_RUNNING = False
 
@@ -2306,11 +2356,11 @@ def _charging_history(charging_data = None, charging_type = ""):
         price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
         cost = round(added_kwh * price, 2)
         
-        CHARGING_HISTORY_DB[start]["percentage"] = added_percentage
-        CHARGING_HISTORY_DB[start]["kWh"] = added_kwh
-        CHARGING_HISTORY_DB[start]["kWh_solar"] = added_kwh_by_solar
-        CHARGING_HISTORY_DB[start]["cost"] = cost
-        CHARGING_HISTORY_DB[start]["unit"] = price
+        CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
+        CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
+        CHARGING_HISTORY_DB[start]["kWh_solar"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
+        CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
         CHARGING_HISTORY_DB[start]["start_charger_meter"] = CURRENT_CHARGING_SESSION['start_charger_meter']
         CHARGING_HISTORY_DB[start]["end_charger_meter"] = charger_meter
         CHARGING_HISTORY_DB[start]["charging_session"] = CURRENT_CHARGING_SESSION
@@ -2375,9 +2425,9 @@ def _charging_history(charging_data = None, charging_type = ""):
             "ended": ">",
             "emoji": CURRENT_CHARGING_SESSION['emoji'],
             "percentage": round(charging_data['battery_level'], 1),
-            "kWh": round(charging_data['kWh'], 1),
-            "cost": round(charging_data['Cost'], 2),
-            "unit": round(charging_data['Price'], 2),
+            "kWh": round(charging_data['kWh'], 3),
+            "cost": round(charging_data['Cost'], 3),
+            "unit": round(charging_data['Price'], 3),
             "charging_session": CURRENT_CHARGING_SESSION,
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
             "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter']
@@ -2406,7 +2456,10 @@ def _charging_history(charging_data = None, charging_type = ""):
         
     if update_entity:
         charging_history_combine_and_set()
-        
+
+def stop_current_charging_session():
+    charging_history(None, "")
+
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
     global USING_OFFLINE_PRICES
@@ -2463,8 +2516,9 @@ def cheap_grid_charge_hours():
                 
                 for raw in power_prices_attr['raw_tomorrow']:
                     combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-    except Exception as e:
+    except Exception as e:#TODO Add support for every week day prices
             _LOGGER.warning(f"Cant get real prices, using database: {e}")
+            my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", notification_id="real_prices_error")
             
             USING_OFFLINE_PRICES = True
             for i in range(24):
@@ -2597,7 +2651,7 @@ def cheap_grid_charge_hours():
                 ultra_cheap_price = True
         except Exception as e:
             _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e}")
-            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
+            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)#TODO Add support for every week day prices
             if round(price, 3) <= average_price:
                 very_cheap_price = True
             if round(price, 3) <= (average_price * 0.75):
@@ -2693,7 +2747,12 @@ def cheap_grid_charge_hours():
         if CHARGING_HISTORY_DB:
             for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
                 if round(battery_level_cost_percentage) < round(current_battery_level):
-                    if "cost" not in CHARGING_HISTORY_DB[key] or "kWh" not in CHARGING_HISTORY_DB[key] or "kWh_solar" not in CHARGING_HISTORY_DB[key] or "percentage" not in CHARGING_HISTORY_DB[key]:
+                    if (
+                        "cost" not in CHARGING_HISTORY_DB[key] or
+                        "kWh" not in CHARGING_HISTORY_DB[key] or
+                        "kWh_solar" not in CHARGING_HISTORY_DB[key] or
+                        "percentage" not in CHARGING_HISTORY_DB[key]
+                    ):
                         continue
                     
                     cost = CHARGING_HISTORY_DB[key]["cost"]
@@ -2946,7 +3005,7 @@ def cheap_grid_charge_hours():
                     
                 fill_up = get_state(f"input_boolean.{__name__}_fill_up") == "on" and day in fill_up_days
                 
-                if fill_up or need_recommended_full_charge:#TODO Add minimum battery level rule
+                if fill_up or need_recommended_full_charge:
                     rules = []
                     kwh_needed_to_fill_up_day = kwh_needed_to_fill_up_share
                     
@@ -3012,6 +3071,7 @@ def cheap_grid_charge_hours():
                         kwh_needed_to_fill_up_day -= kwh_needed_to_fill_up_share
             except Exception as e:
                 _LOGGER.warning(f"Cant create fill up or need recommended full charge for day {day}: {e}")
+                my_persistent_notification(f"Error in fill up or need recommended full charge for day {day}: {e}", f"{TITLE} error")
             
             try: #Alternative charging estimate
                 diff_alternative = battery_level() - (
@@ -3454,7 +3514,6 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
-    
     if overview:
         overview.append("<center>\n")
         overview.append(f"##### Sidst planlagt {getTime()} #####")
@@ -3574,6 +3633,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
     except Exception as e:
         _LOGGER.warning(f"Cant set dynamic amps on charger: {e}")
         _LOGGER.warning(f"Setting ev cars charging amps to {amps}")
+        my_persistent_notification(f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}", f"{TITLE} warning")
         try:
             if not is_ev_configured():
                 raise Exception(f"{e}")
@@ -3593,6 +3653,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         
         except Exception as e_second:
             _LOGGER.error(f"Cant set charging amps: {e_second}")
+            my_persistent_notification(f"Cant set charging amps: {e_second}", f"{TITLE} error")
     finally:
         try:
             if is_ev_configured() and is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
@@ -3603,6 +3664,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
                     ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
         except Exception as e:
             _LOGGER.warning(f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}")
+            my_persistent_notification(f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}", f"{TITLE} warning")
             
             
     if successful:
@@ -3858,6 +3920,7 @@ def load_solar_available_db():
         SOLAR_PRODUCTION_AVAILABLE_DB = {int(outer_key): {int(inner_key): value for inner_key, value in inner_dict.items()} for outer_key, inner_dict in load_yaml(f"{__name__}_solar_production_available_db").items()}
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_solar_production_available_db: {e}")
+        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error")
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
         SOLAR_PRODUCTION_AVAILABLE_DB = {}
@@ -3952,7 +4015,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                 avg_sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
                 
                 if avg_sell_price == -1.0:
-                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour])
+                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour])#TODO Add support for every week day prices
                 
                 return avg_kwh, avg_sell_price
         except Exception as e:
@@ -4115,7 +4178,7 @@ def trip_activate_reminder():
         
         for i in reminder_times:
             if in_between(minutes_since_change, i, i+5):
-                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id="trip_activation_needed")
+                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id="trip_activation_needed")
  
 
 def preheat_ev():#TODO Make it work on Tesla and Kia
@@ -4215,7 +4278,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         drive_efficiency("preheat")
         
         _LOGGER.info("Preheating ev car")
-        my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+        my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif get_state(CONFIG['ev_car']['entity_ids']['climate_entity_id'], error_state="unknown") == "heat_cool" and service.has_service("climate", "turn_off"):
         if ready_to_charge():
             if minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 1) > (preheat_min_before * 3) and minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 11) <= (preheat_min_before * 3) + 10:
@@ -4225,7 +4288,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                 drive_efficiency("preheat_cancel")
                 
                 _LOGGER.info("Car not moved stopping preheating ev car")
-                my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
 
 def ready_to_charge():
     _LOGGER = globals()['_LOGGER'].getChild("ready_to_charge")
@@ -4233,7 +4296,7 @@ def ready_to_charge():
     def entity_unavailable(entity_id):
         if is_entity_configured(entity_id) and not is_entity_available(entity_id):
             set_charging_rule(f"⛔{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen")
-            my_notify(message = f"{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen", title = f"{__name__.capitalize()}", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            my_notify(message = f"{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{get_integration(entity_id)}restart")
             return True
         
     if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
@@ -4343,7 +4406,7 @@ def is_charging():
                         CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_error, emoji_charging_problem)
                         charging_history_combine_and_set()
             
-            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{__name__.capitalize()} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{TITLE} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
         reset()
         
         if charger_status in ("charging"):
@@ -4379,7 +4442,7 @@ def is_charging():
         if RESTARTING_CHARGER:
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter ladningen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
             _LOGGER.warning(f"Starting charging (attempts {RESTARTING_CHARGER_COUNT}): Starting charging again")
-            my_notify(message = f"Starter ladningen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_notify(message = f"Starter ladningen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
             start_charging()
             RESTARTING_CHARGER = False
@@ -4431,7 +4494,7 @@ def is_charging():
                 _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
                 restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
                 send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
-        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{__name__.capitalize()} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
     _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit} dynamic_circuit_limit:{dynamic_circuit_limit}")
@@ -4555,7 +4618,7 @@ def charge_if_needed():
             if amps[1] > 0.0:
                 charging_history({'Price': get_solar_sell_price() if solar_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': True if solar_amps[1] != 0.0 else False}, "manual")
             else:
-                charging_history(None, "")
+                stop_current_charging_session()
         elif ready_to_charge():
             if get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
                 if currentHour not in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
@@ -4598,12 +4661,12 @@ def charge_if_needed():
                 _LOGGER.debug(f"solar_watt:{solar_watt} solar_period:{solar_period}")
             else:
                 if not charging_without_rule():
-                    charging_history(None, "")
+                    stop_current_charging_session()
                     set_charging_rule(f"Lader ikke")
                     _LOGGER.info("No rules for charging")
         else:
             if not charging_without_rule():
-                charging_history(None, "")
+                stop_current_charging_session()
                 _LOGGER.info("EV not ready to charge")
         
         if get_state(f"input_boolean.{__name__}_fill_up") == "on":
@@ -4621,9 +4684,11 @@ def charge_if_needed():
         global ERROR_COUNT
         
         _LOGGER.error(f"Error running charge_if_needed(), setting charger and car to max: {e}")
+        my_persistent_notification(f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}", f"{TITLE} error")
         
         if ERROR_COUNT == 3:
             _LOGGER.error(f"Restarting script to maybe fix error!!!")
+            my_persistent_notification(f"Restarting script to maybe fix error!!!", f"{TITLE} error")
             
             restart_script()
         else:
@@ -4658,6 +4723,7 @@ def set_charging_price(price):
             raise Exception(f"Easee service dont have set_charging_cost, cant set price to {price}")
     except Exception as e:
         _LOGGER.error(f"Cant set charging cost in Easee: {e}")
+        my_persistent_notification(f"Cant set charging cost in Easee: {e}", f"{TITLE} error")
 
 def kwh_charged_by_solar():
     _LOGGER = globals()['_LOGGER'].getChild("kwh_charged_by_solar")
@@ -4685,6 +4751,7 @@ def kwh_charged_by_solar():
             raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
     except Exception as e:
         _LOGGER.error(e)
+        my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error")
     
 def solar_charged_percentage():
     _LOGGER = globals()['_LOGGER'].getChild("solar_percentage")
@@ -4698,6 +4765,7 @@ def solar_charged_percentage():
         set_state(f"sensor.{__name__}_solar_charged_percentage", round(((total_solar_ev_kwh / total_ev_kwh) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
+        my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error")
     
 def calc_co2_emitted(period = None, added_kwh = None):
     _LOGGER = globals()['_LOGGER'].getChild("calc_co2_emitted")
@@ -4767,10 +4835,10 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
     except:
         pass
-    _LOGGER.info(f"ev_watt {ev_watt}")
-    _LOGGER.info(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
-    _LOGGER.info(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.info(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
+    _LOGGER.debug(f"ev_watt {ev_watt}")
+    _LOGGER.debug(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
+    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+    _LOGGER.debug(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
     
     grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
     
@@ -4781,20 +4849,23 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
     except:
         pass
-    _LOGGER.warning(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.warning(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
+    _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
+    _LOGGER.debug(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
     
     ev_total_price_kwh = round(ev_solar_price_kwh + ev_grid_price_kwh, 3)
-    _LOGGER.warning(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
+    _LOGGER.debug(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
     
     if update_entities:
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
         set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
         
-        if not is_solar_configured():
-            for item in get_attr(f"sensor.{__name__}_kwh_cost_price"):
+        attr_list = ["raw_price", "refund", "price", "solar_grid_ratio", "solar_share", "solar_kwh_price", "grid_share", "grid_kwh_price", "ev_kwh_price"]
+        entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
+        for item in attr_list:
+            if item in entity_attr:
                 state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
                 
+        if not is_solar_configured():
             raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
             refund = get_refund()
             price = raw_price - refund
@@ -4832,7 +4903,7 @@ def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False
     
     return round(min(solar_kwh_available, ev_kwh), 3)
 
-def load_kwh_prices():
+def load_kwh_prices(): #TODO Add support for every week day prices
     _LOGGER = globals()['_LOGGER'].getChild("load_kwh_prices")
     global KWH_AVG_PRICES_DB
     force_save = False
@@ -4842,6 +4913,7 @@ def load_kwh_prices():
         KWH_AVG_PRICES_DB = load_yaml(f"{__name__}_kwh_avg_prices_db")
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_kwh_avg_prices_db: {e}")
+        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", "KWH_AVG_PRICES_DB")
     
     if KWH_AVG_PRICES_DB == {} or not KWH_AVG_PRICES_DB:
         KWH_AVG_PRICES_DB = {}
@@ -4876,7 +4948,7 @@ def save_kwh_prices():
     if len(KWH_AVG_PRICES_DB) > 0:
         save_changes(f"{__name__}_kwh_avg_prices_db", KWH_AVG_PRICES_DB)
 
-def append_kwh_prices():
+def append_kwh_prices():#TODO Add support for every week day prices
     _LOGGER = globals()['_LOGGER'].getChild("append_kwh_prices")
     global KWH_AVG_PRICES_DB
     
@@ -4942,7 +5014,7 @@ def append_kwh_prices():
             
             set_low_mean_price()
 
-def set_low_mean_price():
+def set_low_mean_price():#TODO Add support for every week day prices
     average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
     set_attr(f"sensor.{__name__}_charge_very_cheap_battery_level.low_mean_price", round(average_price, 2))
     set_attr(f"sensor.{__name__}_charge_ultra_cheap_battery_level.low_mean_price", round((average_price * 0.75), 2))
@@ -4960,7 +5032,7 @@ def notify_set_battery_level():
                 }
             ]
         }
-        my_notify(message = f"Husk at sætte batteri niveauet på elbilen i Home Assistant", title = f"{__name__.capitalize()} Elbilen batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Husk at sætte batteri niveauet på elbilen i Home Assistant", title = f"{TITLE} Elbilen batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 def notify_battery_under_daily_battery_level():
     if battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
@@ -4973,7 +5045,7 @@ def notify_battery_under_daily_battery_level():
                 }
             ]
         }
-        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau\nLader ikke i de 3 dyreste timer", title = f"{__name__.capitalize()} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau\nLader ikke i de 3 dyreste timer", title = f"{TITLE} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
@@ -5133,7 +5205,7 @@ if INITIALIZATION_COMPLETE:
         try:
             if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['type'] == "no_rule":
                 if not charging_without_rule():
-                    charging_history(None, "")
+                    stop_current_charging_session()
                     set_charging_rule(f"Lader ikke")
         except:
             pass
@@ -5147,12 +5219,13 @@ if INITIALIZATION_COMPLETE:
             charge_if_needed()
         elif "disconnected" in value:
             wake_up_ev()
+            stop_current_charging_session()
             set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
         elif "charging" in old_value and "complete" in value:
             if not is_ev_configured():
-                charging_history(None, "")
+                stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
     if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
@@ -5197,7 +5270,7 @@ if INITIALIZATION_COMPLETE:
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
         solar_available_append_to_db(solar_production_available(period = 60, withoutEV = True))
-        charging_history(None, "")
+        stop_current_charging_session()
         kwh_charged_by_solar()
         solar_charged_percentage()
         
@@ -5265,7 +5338,7 @@ if INITIALIZATION_COMPLETE:
                         save_changes(f"{__name__}_config", CONFIG)
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
-                        my_notify(message = f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{__name__.capitalize()} Ladetab kalkuleret", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                        my_notify(message = f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab kalkuleret", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
@@ -5274,7 +5347,7 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
-            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{__name__.capitalize()} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
@@ -5297,7 +5370,7 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("shutdown")
         global CONFIG
         set_charging_rule(f"📟Scriptet lukket ned")
-        charging_history(None, "")
+        stop_current_charging_session()
         reset_counter_entity_integration()
         
         try:
@@ -5316,6 +5389,7 @@ if INITIALIZATION_COMPLETE:
             save_changes(f"{__name__}_config", CONFIG)
         except Exception as e:
             _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
+            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", notification_id = f"{__name__}_shutdown_error")
             
 
 @state_trigger(f"input_button.{__name__}_restart_script")
