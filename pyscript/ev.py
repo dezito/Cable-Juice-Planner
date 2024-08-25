@@ -4813,10 +4813,10 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
     except:
         pass
-    _LOGGER.info(f"ev_watt {ev_watt}")
-    _LOGGER.info(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
-    _LOGGER.info(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.info(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
+    _LOGGER.debug(f"ev_watt {ev_watt}")
+    _LOGGER.debug(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
+    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+    _LOGGER.debug(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
     
     grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
     
@@ -4827,11 +4827,11 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
     except:
         pass
-    _LOGGER.warning(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.warning(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
+    _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
+    _LOGGER.debug(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
     
     ev_total_price_kwh = round(ev_solar_price_kwh + ev_grid_price_kwh, 3)
-    _LOGGER.warning(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
+    _LOGGER.debug(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
     
     if update_entities:
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
