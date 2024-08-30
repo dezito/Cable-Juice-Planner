@@ -1162,7 +1162,7 @@ def init():
                         del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
         
         handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
-        
+
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
         
@@ -1469,8 +1469,20 @@ def get_solar_sell_price(set_entity_attr=False):
             if sell_price >= 0.0:
                 set_attr(f"sensor.{__name__}_kwh_cost_price.fixed_sell_price", f"{sell_price:.3f} kr/kWh")
     except Exception as e:
-        sell_price = max(CONFIG['solar']['production_price'], 0.0)
-        _LOGGER.error(f"Cant get solar sell price using {sell_price}: {e}")
+        sell_price = None
+        using_text = "default"
+        try:
+            sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+            if sell_price == -1.0:
+                sell_price = average(KWH_AVG_PRICES_DB['history_sell'][getHour()])#TODO Add support for every week day prices
+                using_text = "database average"
+        except Exception as e:
+            pass
+        
+        if sell_price is None:
+            sell_price = max(CONFIG['solar']['production_price'], 0.0)
+            
+        _LOGGER.error(f"Cant get solar sell price using {using_text} {sell_price}: {e}")
         
     return sell_price
 
@@ -4816,8 +4828,8 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     solar_watt_available = round(max(solar_production_available(period = minutes, withoutEV = True), 0.0), 3)
     
     min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
-        
-    if ev_watt < min_watt:
+    
+    if (ev_watt == 0.0 and not in_between(getMinute(), 1, 58)) or ev_watt < min_watt:
         _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
         ev_watt = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
     else:
