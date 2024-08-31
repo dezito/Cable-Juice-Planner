@@ -2530,8 +2530,8 @@ def cheap_grid_charge_hours():
                     combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
     except Exception as e:#TODO Add support for every week day prices
             _LOGGER.warning(f"Cant get real prices, using database: {e}")
-            my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", notification_id="real_prices_error")
-            
+            my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
+            _LOGGER.error(f"Using database prices")
             USING_OFFLINE_PRICES = True
             for i in range(24):
                 price = average(KWH_AVG_PRICES_DB['history'][i])
@@ -5401,7 +5401,7 @@ if INITIALIZATION_COMPLETE:
             save_changes(f"{__name__}_config", CONFIG)
         except Exception as e:
             _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", notification_id = f"{__name__}_shutdown_error")
+            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
             
 
 @state_trigger(f"input_button.{__name__}_restart_script")
