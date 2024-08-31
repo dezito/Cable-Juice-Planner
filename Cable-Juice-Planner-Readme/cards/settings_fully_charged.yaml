@@ -3,13 +3,20 @@
 type: vertical-stack
 cards:
   - type: markdown
-    content: >-
+    content: >
       ## 📎 Anbefalet fuld ladning
+
+
+      <details>
+
+      <summary><b>Læs mere</b></summary>
 
 
       Hvis din bil har et LFP-batteri anbefales det mindst en gang hver 14. dag
       eller som foreskrevet af bilproducenten.
 
+
+      </details>
   - type: custom:numberbox-card
     border: true
     entity: input_number.<PREFIX>_full_charge_recommended
