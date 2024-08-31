@@ -17,6 +17,9 @@ cards:
 
       **Aktiveres når der er overproduktion fra solceller**
 
+      <details>
+      <summary><b>Læs mere</b></summary>
+
       - **📊 Opladning**: Udnytter overskydende solenergi til opladning.
       - **🔋 Opladningsbehov**:
         - Tilpasses efter solcelleoverproduktion i forhold til husets forbrug.
@@ -24,5 +27,7 @@ cards:
       - **📅 Opladningsplan**:
         - Estimerer tilgængelig solcelleoverproduktion i løbet af ugen under planlægningen af "Optimal Ugeopladning" og "Arbejdsplan Opladning"
         - Planlægger opladning ud fra solcelleoverproduktionen, så bilen oplades mest muligt med vedvarende energi.
+        
+      </details>
   - type: custom:mushroom-title-card
     title: ''

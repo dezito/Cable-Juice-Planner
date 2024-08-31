@@ -6,7 +6,12 @@ cards:
     content: |-
       ## 📎 Solcelleoverproduktion Salgspris
 
+      <details>
+      <summary><b>Læs mere</b></summary>
+
       Sæt prisen til **-1.0** for at bruge den aktuelle salgspris.
+
+      </details>
   - type: custom:numberbox-card
     border: false
     entity: input_number.<PREFIX>_solar_sell_fixed_price

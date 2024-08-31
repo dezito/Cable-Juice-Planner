@@ -17,6 +17,9 @@ cards:
 
       **Aktiveres ved arbejde indenfor den næste uge**
 
+      <details>
+      <summary><b>Læs mere</b></summary>
+
       - **📊 Opladning**: Planlægger daglig opladning over en uge.
       - **🔋 Opladningsbehov**:
         - Tilpasses baseret på arbejdsdage og fridage.
@@ -26,6 +29,8 @@ cards:
       - **📅 Opladningsplan**: 
         - Planlægger opladningen udfra arbejdsplanen, så bilen altid er klar til brug.
         - Vælger de mest økonomiske tidspunkter fra nu og frem til den givende arbejdsdags afgang.
+
+      </details>
   - type: horizontal-stack
     cards:
       - type: custom:mushroom-entity-card

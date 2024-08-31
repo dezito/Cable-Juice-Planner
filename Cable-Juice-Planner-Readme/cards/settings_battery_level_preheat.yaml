@@ -6,6 +6,8 @@ cards:
     content: >
       ## 📎 Batteriniveau- og Forvarmningsindstillinger for Elbil
 
+      <details>
+      <summary><b>Læs mere</b></summary>
 
       - **{{ states.input_number.<PREFIX>_min_daily_battery_level.name }}**
         - Minimum batteriniveau ved hjemkomst fra arbejde.
@@ -19,6 +21,8 @@ cards:
         - Bilproducentens maksimale anbefaling eller maksimal opladningsprocent ved brug af "Cable Juice Planner".
       - **{{ states.input_number.<PREFIX>_preheat_minutes_before.name }}**
         - Forvarm bilen før afgang til arbejde og ture.
+
+      </details>
   - type: custom:numberbox-card
     border: false
     entity: input_number.<PREFIX>_min_daily_battery_level
