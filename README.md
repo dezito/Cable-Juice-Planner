@@ -85,10 +85,17 @@ homeassistant:
 | --- | --- | --- |
 | ![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png) | ![Historik](Cable-Juice-Planner-Readme/history.png) | ![Oversigt](Cable-Juice-Planner-Readme/overview.png) |
 
+| Uge strømpriser | Solcelleoverproduktion |
+| --- | --- |
+| ![Uge strømpriser](Cable-Juice-Planner-Readme/week_prices.png) | ![Solcelleoverproduktion](Cable-Juice-Planner-Readme/solar_price_graf.png) |
+
 | Manuel ladning | Tur ladning |
 | --- | --- |
 | ![Manuel](Cable-Juice-Planner-Readme/manual.png) | ![Tur](Cable-Juice-Planner-Readme/trip.png) |
 
-| Indstillinger |
-| --- |
-| ![Indstillinger](Cable-Juice-Planner-Readme/settings.png) |
+| Indstillinger |  |
+| --- | --- |
+| ![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png) | ![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png) |
+| ![Indstillinger](Cable-Juice-Planner-Readme/settings_fill_up.png) | ![Indstillinger](Cable-Juice-Planner-Readme/settings_cheap_charging.png) |
+| ![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png) | ![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png) |
+| ![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_sell_price.png) | ![Indstillinger](Cable-Juice-Planner-Readme/settings_calculate_loss.png) |
