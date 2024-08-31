@@ -82,21 +82,23 @@ homeassistant:
 > icon: mdi:cloud-download
 > ```
 
-| Emoji beskrivelse | Historik | Oversigt |
-| --- | --- | --- |
-| [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
-
-| Uge strømpriser | Solcelleoverproduktion |
-| --- | --- |
-| [![Uge strømpriser](Cable-Juice-Planner-Readme/week_prices.png)](Cable-Juice-Planner-Readme/cards/week_prices.yaml) | [![Solcelleoverproduktion](Cable-Juice-Planner-Readme/solar_price_graf.png)](Cable-Juice-Planner-Readme/cards/solar_price_graf.yaml) |
-
-| Manuel ladning | Tur ladning |
-| --- | --- |
-| [![Manuel](Cable-Juice-Planner-Readme/manual.png)](Cable-Juice-Planner-Readme/cards/manual.yaml) | [![Tur](Cable-Juice-Planner-Readme/trip.png)](Cable-Juice-Planner-Readme/cards/trip.yaml) |
-
-| Indstillinger |  |
-| --- | --- |
-| [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png)](Cable-Juice-Planner-Readme/cards/settings_solar_charging.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png)](Cable-Juice-Planner-Readme/cards/settings_fully_charged.yaml) |
-| [![Indstillinger](Cable-Juice-Planner-Readme/settings_fill_up.png)](Cable-Juice-Planner-Readme/cards/settings_fill_up.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_cheap_charging.png)](Cable-Juice-Planner-Readme/cards/settings_cheap_charging.yaml) |
-| [![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png)](Cable-Juice-Planner-Readme/cards/settings_workplan.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png)](Cable-Juice-Planner-Readme/cards/settings_battery_level_preheat.yaml) |
-| [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_sell_price.png)](Cable-Juice-Planner-Readme/cards/settings_solar_sell_price.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_calculate_loss.png)](Cable-Juice-Planner-Readme/cards/settings_calculate_loss.yaml) |
+> [!Note]
+> Klik på et billede nedenunder for at få Home Assistant kortet
+> | Emoji beskrivelse | Historik | Oversigt |
+> | --- | --- | --- |
+> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-> Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
+>
+> | Uge strømpriser | Solcelleoverproduktion |
+> | --- | --- |
+> | [![Uge strømpriser](Cable-Juice-Planner-Readme/week_prices.png)](Cable-Juice-Planner-Readme/cards/week_prices.yaml) | [![Solcelleoverproduktion](Cable-Juice-Planner-Readme/solar_price_graf.png)](Cable-Juice-Planner-Readme/cards/solar_price_graf.yaml) |
+>
+> | Manuel ladning | Tur ladning |
+> | --- | --- |
+> | [![Manuel](Cable-Juice-Planner-Readme/manual.png)](Cable-Juice-Planner-Readme/cards/manual.yaml) | [![Tur](Cable-Juice-Planner-Readme/trip.png)](Cable-Juice-Planner-Readme/cards/trip.yaml) |
+>
+> | Indstillinger |  |
+> | --- | --- |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png)](Cable-Juice-Planner-Readme/cards/settings_solar_charging.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png)](Cable-Juice-Planner-> Readme/cards/settings_fully_charged.yaml) |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fill_up.png)](Cable-Juice-Planner-Readme/cards/settings_fill_up.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_cheap_charging.png)](Cable-Juice-Planner-Readme/cards/settings_cheap_charging.yaml) |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png)](Cable-Juice-Planner-Readme/cards/settings_workplan.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png)](Cable-Juice-Planner-> Readme/cards/settings_battery_level_preheat.yaml) |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_sell_price.png)](Cable-Juice-Planner-Readme/cards/settings_solar_sell_price.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_calculate_loss.png)](Cable-Juice-Planner-Readme/cards/settings_calculate_loss.yaml) |
