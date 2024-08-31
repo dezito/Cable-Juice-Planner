@@ -1,0 +1,162 @@
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.energi_data_service
+        state: unavailable
+    card:
+      type: horizontal-stack
+      cards:
+        - type: markdown
+          content: |-
+            <center>
+
+            # Energi Data Service er nede <font color=red>!!!</font>
+            ## Bruger interne priser</center>
+        - show_name: true
+          show_icon: true
+          type: button
+          entity: sensor.energi_data_service
+          tap_action:
+            action: call-service
+            service: homeassistant.reload_config_entry
+            target:
+              entity_id: sensor.energi_data_service
+          hold_action:
+            action: none
+          icon: mdi:reload
+          name: Genstart Energi Data Service
+          show_state: true
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.energi_data_service
+        state_not: unavailable
+    card:
+      type: custom:config-template-card
+      variables:
+        today_prices: |
+          states['sensor.energi_data_service'].attributes.today || []
+        tomorrow_prices: |
+          states['sensor.energi_data_service'].attributes.tomorrow || []
+        forecast_prices: |
+          if (states['sensor.energi_data_service'].attributes.forecast) {
+            states['sensor.energi_data_service'].attributes.forecast.map(item =>
+            item.price)
+          } else { []}
+        total_hours: >
+          const allPrices = [...vars.today_prices, ...vars.tomorrow_prices,
+          ...vars.forecast_prices];
+
+          allPrices.length
+        lowest_price: >
+          let min = 999; const allPrices = [...vars.today_prices,
+          ...vars.tomorrow_prices, ...vars.forecast_prices];
+          allPrices.forEach(price => {
+            if (price < min) min = price;
+          }); min * 1.05
+        highest_price: >
+          let max = -999; const allPrices = [...vars.today_prices,
+          ...vars.tomorrow_prices, ...vars.forecast_prices];
+          allPrices.forEach(price => {
+            if (price > max) max = price;
+          }); max * 0.95
+        mean_price: >
+          let sum = 0.0; const allPrices = [...vars.today_prices,
+          ...vars.tomorrow_prices, ...vars.forecast_prices];
+          allPrices.forEach(price => {
+            sum += price;
+          });
+
+          const mean = sum / vars.total_hours; mean
+        step_under_mean: |
+          (vars.mean_price - vars.lowest_price) / 5
+        step_over_mean: |
+          (vars.highest_price - vars.mean_price) / 5
+        price1: vars.lowest_price
+        price2: vars.mean_price - vars.step_under_mean * 4
+        price3: vars.mean_price - vars.step_under_mean * 3
+        price4: vars.mean_price - vars.step_under_mean * 2
+        price5: vars.mean_price - vars.step_under_mean * 1
+        price6: vars.mean_price
+        price7: vars.mean_price + vars.step_over_mean * 1
+        price8: vars.mean_price + vars.step_over_mean * 2
+        price9: vars.mean_price + vars.step_over_mean * 3
+        price10: vars.mean_price + vars.step_over_mean * 4
+        price11: vars.highest_price
+      entities: []
+      card:
+        type: custom:apexcharts-card
+        apex_config:
+          chart:
+            height: 300px
+        all_series_config:
+          unit: ' kr.'
+        experimental:
+          color_threshold: true
+        header:
+          title: >-
+            ${"Elpriser pr. time (kr/kWh) 🔵" + vars.lowest_price.toFixed(2) + "
+            🟢" + vars.mean_price.toFixed(2) + " 🟣" +
+            vars.highest_price.toFixed(2)}
+          show: true
+          standard_format: false
+          show_states: false
+          colorize_states: true
+        now:
+          show: true
+          label: Nu
+        graph_span: ${(vars.total_hours-1) +"h"}
+        span:
+          start: day
+          offset: '-0h'
+        yaxis:
+          - min: 0
+        series:
+          - entity: sensor.energi_data_service
+            type: column
+            name: Inkl. afgifter
+            data_generator: |
+              var data = entity.attributes.raw_today.map((start, index) => {
+                return [new Date(start["hour"]), entity.attributes.raw_today[index]["price"]];
+              });
+              if (entity.attributes.forecast) {
+                var forecast = entity.attributes.forecast.map((start, index) => {
+                  return [new Date(start["hour"]), entity.attributes.forecast[index]["price"]];
+                });
+                data = data.concat(forecast);
+              }
+              if (entity.attributes.tomorrow_valid) {
+                var tomorrow = entity.attributes.raw_tomorrow.map((start, index) => {
+                  return [new Date(start["hour"]), entity.attributes.raw_tomorrow[index]["price"]];
+                });
+                data = data.concat(tomorrow);
+              }
+              return data;
+            float_precision: 2
+            color_threshold:
+              - value: ${vars.price1}
+                color: '#2196F3'
+              - value: ${vars.price2}
+                color: '#1976D2'
+              - value: ${vars.price3}
+                color: '#4CAF50'
+              - value: ${vars.price4}
+                color: '#388E3C'
+              - value: ${vars.price5}
+                color: '#2E7D32'
+              - value: ${vars.price6}
+                color: '#1B5E20'
+              - value: ${vars.price7}
+                color: '#FFCA28'
+              - value: ${vars.price8}
+                color: '#FFB300'
+              - value: ${vars.price9}
+                color: '#FF6F00'
+              - value: ${vars.price10}
+                color: '#E65100'
+              - value: ${vars.price11}
+                color: '#9C27B0'
+            show:
+              legend_value: false

@@ -1,0 +1,35 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+# Replace <EV_BATTERY_LEVEL> with the entity_id of the ev battery level sensor or emulated entity_id from this script.
+
+type: vertical-stack
+cards:
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_fill_up
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+        secondary_info: none
+      - type: custom:mushroom-entity-card
+        border: true
+        entity: input_number.<PREFIX>_typical_daily_distance
+        step: 5
+        min: 0
+        max: 500
+  - type: markdown
+    content: |-
+      # 📎 {{ states.input_boolean.<PREFIX>_fill_up.name }}
+
+      **Kan aktiveres ved ferie** (Ignorerer arbejdsplanen) 🏖️
+
+      - **📊 Opladning**: Fordeles over en uge.
+      - **🔋 Opladningsbehov**:
+        - {{ states.input_number.<PREFIX>_max_recommended_charge_limit_battery_level.state | int - states.<EV_BATTERY_LEVEL>.state | int }}% opdeles i 3 dele.
+        - Opladningsbehovet er baseret på forskellen mellem det nuværende batteriniveau og det maksimalt anbefalede.
+      - **📅 Opladningsplan**: Finder de billigste tidspunkter for opladning.
+  - type: custom:mushroom-title-card
+    title: ""

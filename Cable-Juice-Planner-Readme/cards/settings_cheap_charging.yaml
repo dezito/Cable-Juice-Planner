@@ -1,0 +1,33 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: >-
+      ## 📎 Ladningsprocent ved billig strøm
+
+
+      - **Normal billig strøm**: Hvis strømprisen er under den laveste
+      gennemsnitspris per døgn i den seneste periode, lades batteriet op til
+      "**{{
+      states.input_number.<PREFIX>_very_cheap_grid_charging_max_battery_level.name
+      }}**".
+
+
+      - **Ekstra billig strøm**: Hvis strømprisen er yderligere 25% billigere,
+      lades batteriet op til "**{{
+      states.input_number.<PREFIX>_ultra_cheap_grid_charging_max_battery_level.name
+      }}**".
+
+
+      - "**{{ states.input_boolean.<PREFIX>_fill_up.name }}**" skal være aktiveret
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_very_cheap_grid_charging_max_battery_level
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_ultra_cheap_grid_charging_max_battery_level
+  - type: custom:mushroom-title-card
+    title: ''
+view_layout:
+  position: sidebar

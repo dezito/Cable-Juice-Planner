@@ -1,0 +1,331 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: custom:mushroom-entity-card
+    entity: input_boolean.<PREFIX>_workplan_charging
+    double_tap_action:
+      action: none
+    hold_action:
+      action: none
+    tap_action:
+      action: toggle
+    secondary_info: none
+  - type: markdown
+    content: |
+      # 📎 {{ states.input_boolean.<PREFIX>_workplan_charging.name }}
+
+      **Aktiveres ved arbejde indenfor den næste uge**
+
+      - **📊 Opladning**: Planlægger daglig opladning over en uge.
+      - **🔋 Opladningsbehov**:
+        - Tilpasses baseret på arbejdsdage og fridage.
+        - Tager højde for afgangs- og hjemkomsttidspunkt samt afstand i alt.
+        - Minimum batteriniveau ved hjemkomst: {{ states.input_number.<PREFIX>_min_daily_battery_level.state | int }}%.
+        - Maksimal opladning: {{ states.input_number.<PREFIX>_max_recommended_charge_limit_battery_level.state | int }}%.
+      - **📅 Opladningsplan**: 
+        - Planlægger opladningen udfra arbejdsplanen, så bilen altid er klar til brug.
+        - Vælger de mest økonomiske tidspunkter fra nu og frem til den givende arbejdsdags afgang.
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_monday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_monday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_monday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_monday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_monday
+          tap_action:
+            action: toggle
+          icon_color: red
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_monday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_monday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_monday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_monday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_tuesday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_tuesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_tuesday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_tuesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_tuesday
+          tap_action:
+            action: toggle
+          icon_color: red
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_tuesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_tuesday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_tuesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_tuesday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_wednesday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_wednesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_wednesday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_wednesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_wednesday
+          icon_color: red
+          tap_action:
+            action: toggle
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_wednesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_wednesday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_wednesday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_wednesday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_thursday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_thursday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_thursday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_thursday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_thursday
+          icon_color: red
+          tap_action:
+            action: toggle
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_thursday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_thursday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_thursday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_thursday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_friday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_friday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_friday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_friday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_friday
+          icon_color: red
+          tap_action:
+            action: toggle
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_friday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_friday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_friday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_friday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_saturday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_saturday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_saturday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_saturday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_saturday
+          icon_color: red
+          tap_action:
+            action: toggle
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_saturday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_saturday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_saturday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_saturday
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.<PREFIX>_workday_sunday
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_sunday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_number.<PREFIX>_workday_distance_needed_sunday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_sunday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_boolean.<PREFIX>_preheat_sunday
+          icon_color: red
+          tap_action:
+            action: toggle
+  - type: horizontal-stack
+    cards:
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_sunday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_departure_sunday
+      - type: conditional
+        conditions:
+          - entity: input_boolean.<PREFIX>_workday_sunday
+            state: 'on'
+        card:
+          type: custom:mushroom-entity-card
+          entity: input_datetime.<PREFIX>_workday_homecoming_sunday
+  - type: custom:mushroom-title-card
+    title: ''

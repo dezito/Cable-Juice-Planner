@@ -1,0 +1,16 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: |-
+      ## 📎 Solcelleoverproduktion Salgspris
+
+      Sæt prisen til **-1.0** for at bruge den aktuelle salgspris.
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_solar_sell_fixed_price
+  - type: custom:mushroom-title-card
+    title: ''
+view_layout:
+  position: sidebar

@@ -1,0 +1,29 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+# Replace <EV_BATTERY_LEVEL> with the entity_id of the ev battery level sensor or emulated entity_id from this script.
+
+type: vertical-stack
+cards:
+  - type: custom:mushroom-title-card
+    title: '{{ states.sensor.<PREFIX>_current_charging_rule.state }}'
+    alignment: center
+    view_layout:
+      position: sidebar
+  - type: conditional
+    conditions:
+      - condition: numeric_state
+        entity: <EV_BATTERY_LEVEL>
+        below: input_number.<PREFIX>_min_daily_battery_level
+      - condition: state
+        entity: <EV_BATTERY_LEVEL>
+        state_not: '0.0'
+    card:
+      type: custom:mushroom-entity-card
+      entity: input_boolean.<PREFIX>_forced_charging_daily_battery_level
+    view_layout:
+      position: sidebar
+  - type: markdown
+    content: '{{ states.sensor.<PREFIX>_charging_history.attributes.history }}'
+    view_layout:
+      position: sidebar
+view_layout:
+  position: sidebar
