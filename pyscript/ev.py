@@ -2531,7 +2531,7 @@ def cheap_grid_charge_hours():
     except Exception as e:#TODO Add support for every week day prices
             _LOGGER.warning(f"Cant get real prices, using database: {e}")
             my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
-            _LOGGER.error(f"Using database prices")
+            
             USING_OFFLINE_PRICES = True
             for i in range(24):
                 price = average(KWH_AVG_PRICES_DB['history'][i])
