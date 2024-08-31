@@ -131,7 +131,128 @@ def has_key(d, path):
         return True
     except KeyError:
         return False
+
+def get_dict_value_with_path(d, path):
+    """
+    Retrieves the value from a dictionary based on a given path.
+    Parameters:
+        d (dict): The dictionary to retrieve the value from.
+        path (str): The path to the value in dot notation.
+    Returns:
+        The value from the dictionary at the specified path.
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("get_dict_value_with_path")
     
+    keys = path.split('.')
+    for key in keys:
+        if key.isdigit():
+            key = int(key)
+            d = d[key]
+        elif key in d:
+            d = d[key]
+        else:
+            return
+    return d
+
+def set_dict_value_with_path(d, path, value):
+    """
+    Sets the value of a nested dictionary given a path.
+    Args:
+        d (dict): The dictionary to modify.
+        path (str): The path to the value, using dot notation.
+        value: The value to set.
+    Returns:
+        dict: The modified dictionary.
+    Example:
+        >>> d = {'a': {'b': {'c': 1}}}
+        >>> set_dict_value_with_path(d, 'a.b.c', 2)
+        {'a': {'b': {'c': 2}}}
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("set_dict_value_with_path")
+    
+    keys = path.split('.')
+    current = d
+    for i, key in enumerate(keys):
+        if key.isdigit():
+            key = int(key)
+            if i == len(keys) - 1:
+                current[key] = value
+            else:
+                if key >= len(current):
+                    current.extend([{}] * (key + 1 - len(current)))
+                if not isinstance(current[key], (dict, list)):
+                    current[key] = {}
+                current = current[key]
+        else:
+            if i == len(keys) - 1:
+                current[key] = value
+            else:
+                if key not in current or not isinstance(current[key], (dict, list)):
+                    current[key] = {} if not keys[i + 1].isdigit() else []
+                current = current[key]
+    return d
+
+def delete_dict_key_with_path(d, path):
+    """
+    Deletes a key from a nested dictionary based on the given path.
+    Args:
+        d (dict): The nested dictionary.
+        path (str): The path to the key in dot notation.
+    Returns:
+        dict: The modified dictionary with the key removed.
+    Example:
+        >>> d = {'a': {'b': {'c': 1}}}
+        >>> path = 'a.b.c'
+        >>> delete_dict_key_with_path(d, path)
+        {'a': {'b': {}}}
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("delete_dict_key_with_path")
+    
+    keys = path.split('.')
+    current = d
+
+    for i, key in enumerate(keys[:-1]):  # Iterate up to the second last key
+        if key.isdigit():
+            key = int(key)
+            if isinstance(current, list) and 0 <= key < len(current):
+                current = current[key]
+            else:
+                return d
+        elif isinstance(current, dict) and key in current:
+            current = current[key]
+        else:
+            return d
+
+    last_key = keys[-1]
+    if isinstance(current, dict) and last_key in current:
+        del current[last_key]
+    elif isinstance(current, list) and last_key.isdigit():
+        last_key = int(last_key)
+        if 0 <= last_key < len(current):
+            del current[last_key]
+
+    return d
+
+def rename_dict_keys(d, keys_renaming, remove_old_keys=False):
+    """
+    Renames keys in a dictionary based on a given mapping.
+    Args:
+        d (dict): The dictionary to modify.
+        keys_renaming (dict): A dictionary mapping old keys to new keys.
+        remove_old_keys (bool, optional): Whether to remove the old keys from the dictionary. Defaults to False.
+    Returns:
+        dict: The modified dictionary with renamed keys.
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("rename_dict_keys")
+    
+    for old_path, new_path in keys_renaming.items():
+        old_value = get_dict_value_with_path(d, old_path)
+        if old_value is not None:
+            d = set_dict_value_with_path(d, new_path, old_value)
+            if remove_old_keys:
+                d = delete_dict_key_with_path(d, old_path)
+    return d
+
 def update_keys_recursive(obj, key_mapping):
     """
     Recursively update keys in an object (dictionary or list) that may contain nested dictionaries and lists,
