@@ -1,0 +1,28 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: custom:mushroom-entity-card
+    entity: input_boolean.<PREFIX>_solar_charging
+    double_tap_action:
+      action: none
+    hold_action:
+      action: none
+    tap_action:
+      action: toggle
+    secondary_info: none
+  - type: markdown
+    content: |
+      # 📎️ {{ states.input_boolean.<PREFIX>_solar_charging.name }}
+
+      **Aktiveres når der er overproduktion fra solceller**
+
+      - **📊 Opladning**: Udnytter overskydende solenergi til opladning.
+      - **🔋 Opladningsbehov**:
+        - Tilpasses efter solcelleoverproduktion i forhold til husets forbrug.
+        - Maksimal opladning: {{ states.input_number.<PREFIX>_max_recommended_charge_limit_battery_level.state | int }}%
+      - **📅 Opladningsplan**:
+        - Estimerer tilgængelig solcelleoverproduktion i løbet af ugen under planlægningen af "Optimal Ugeopladning" og "Arbejdsplan Opladning"
+        - Planlægger opladning ud fra solcelleoverproduktionen, så bilen oplades mest muligt med vedvarende energi.
+  - type: custom:mushroom-title-card
+    title: ''

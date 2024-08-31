@@ -1,0 +1,10 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: history-graph
+entities:
+  - entity: sensor.<PREFIX>_solar_over_production_current_hour
+  - entity: sensor.<PREFIX>_kwh_cost_price
+hours_to_show: 48
+logarithmic_scale: true
+view_layout:
+  position: sidebar

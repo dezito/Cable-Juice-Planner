@@ -1,0 +1,40 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: >
+      ## 📎 Batteriniveau- og Forvarmningsindstillinger for Elbil
+
+
+      - **{{ states.input_number.<PREFIX>_min_daily_battery_level.name }}**
+        - Minimum batteriniveau ved hjemkomst fra arbejde.
+      - **{{ states.input_number.<PREFIX>_min_trip_battery_level.name }}**
+        - Minimum batteriniveau ved hjemkomst fra en tur.
+      - **{{ states.input_number.<PREFIX>_min_charge_limit_battery_level.name }}**
+        - Bilens minimum mulige opladningsindstilling.
+      - **{{
+      states.input_number.<PREFIX>_max_recommended_charge_limit_battery_level.name
+      }}**
+        - Bilproducentens maksimale anbefaling eller maksimal opladningsprocent ved brug af "Cable Juice Planner".
+      - **{{ states.input_number.<PREFIX>_preheat_minutes_before.name }}**
+        - Forvarm bilen før afgang til arbejde og ture.
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_min_daily_battery_level
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_min_trip_battery_level
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_min_charge_limit_battery_level
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_max_recommended_charge_limit_battery_level
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.<PREFIX>_preheat_minutes_before
+  - type: custom:mushroom-title-card
+    title: ''
+view_layout:
+  position: sidebar

@@ -1,0 +1,23 @@
+# Replace <PREFIX> with the filename of the script (default is "ev")
+
+type: vertical-stack
+cards:
+  - type: markdown
+    content: >-
+      ## 📎 Anbefalet fuld ladning
+
+
+      Hvis din bil har et LFP-batteri anbefales det mindst en gang hver 14. dag
+      eller som foreskrevet af bilproducenten.
+
+  - type: custom:numberbox-card
+    border: true
+    entity: input_number.<PREFIX>_full_charge_recommended
+  - type: custom:mushroom-entity-card
+    entity: input_datetime.<PREFIX>_last_full_charge
+    fill_container: false
+    secondary_info: state
+  - type: custom:mushroom-title-card
+    title: ''
+view_layout:
+  position: sidebar
