@@ -2044,7 +2044,7 @@ def charging_history_recalc_price():
                         start = sorted_keys[i]
                         
                         _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
-                        start_charger_meter = CHARGING_HISTORY_DB[start]['charging_session']['start_charger_meter']
+                        start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
                         
                         join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                         emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
@@ -2081,7 +2081,6 @@ def charging_history_recalc_price():
                 CHARGING_HISTORY_DB[start]["start_charger_meter"] = start_charger_meter
                 CHARGING_HISTORY_DB[start]["end_charger_meter"] = end_charger_meter
                 
-                _LOGGER.info(f"{last_session == CHARGING_HISTORY_DB[start]} {last_session} == {CHARGING_HISTORY_DB[start]}")
                 if last_session != CHARGING_HISTORY_DB[start]:
                     _LOGGER.info(f"Last charging session to: {last_session}")
                     _LOGGER.info(f"Recalculated current hour charging sessions to: {CHARGING_HISTORY_DB[start]}")
