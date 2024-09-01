@@ -1,30 +1,34 @@
-# Replace <PREFIX> with the filename of the script (default is "ev")
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: numberbox-card (https://github.com/junkfix/numberbox-card)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
 
 type: vertical-stack
 cards:
-  - type: markdown
-    content: >
-      ## 📎 Anbefalet fuld ladning
+  - type: custom:stack-in-card
+    mode: vertical
+    cards:
+      - type: markdown
+        content: >
+          ## 📎 Anbefalet fuld ladning
 
 
-      <details>
+          <details>
 
-      <summary><b>Læs mere</b></summary>
-
-
-      Hvis din bil har et LFP-batteri anbefales det mindst en gang hver 14. dag
-      eller som foreskrevet af bilproducenten.
+          <summary><b>Læs mere</b></summary>
 
 
-      </details>
-  - type: custom:numberbox-card
-    border: true
-    entity: input_number.<PREFIX>_full_charge_recommended
-  - type: custom:mushroom-entity-card
-    entity: input_datetime.<PREFIX>_last_full_charge
-    fill_container: false
-    secondary_info: state
-  - type: custom:mushroom-title-card
-    title: ''
+          Hvis din bil har et LFP-batteri anbefales det mindst en gang hver 14.
+          dag eller som foreskrevet af bilproducenten.
+
+
+          </details>
+      - type: custom:numberbox-card
+        border: true
+        entity: input_number.ev_full_charge_recommended
+      - type: custom:mushroom-entity-card
+        entity: input_datetime.ev_last_full_charge
+        fill_container: false
+        secondary_info: state
 view_layout:
   position: sidebar

@@ -1,6 +1,4 @@
-# Replace <PREFIX> with the filename of the script (default is "ev")
-
 type: markdown
-content: '  {{ states.sensor.<PREFIX>_overview.attributes.overview }}'
+content: '  {{ states.sensor.ev_overview.attributes.overview }}'
 view_layout:
   position: sidebar

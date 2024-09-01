@@ -1,6 +1,4 @@
-# Replace <PREFIX> with the filename of the script (default is "ev")
-
 type: markdown
-content: '{{ states.sensor.<PREFIX>_emoji_description.attributes.description }}'
+content: '{{ states.sensor.ev_emoji_description.attributes.description }}'
 view_layout:
   position: sidebar

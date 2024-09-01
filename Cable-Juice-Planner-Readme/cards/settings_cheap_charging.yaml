@@ -1,38 +1,39 @@
-# Replace <PREFIX> with the filename of the script (default is "ev")
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: numberbox-card (https://github.com/junkfix/numberbox-card)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
 
 type: vertical-stack
 cards:
-  - type: markdown
-    content: >-
-      ## 📎 Ladningsprocent ved billig strøm
+  - type: custom:stack-in-card
+    mode: vertical
+    cards:
+      - type: markdown
+        content: >-
+          ## 📎 Ladningsprocent ved billig strøm
 
-      <details>
-      <summary><b>Læs mere</b></summary>
-
-
-      - **Normal billig strøm**: Hvis strømprisen er under den laveste
-      gennemsnitspris per døgn i den seneste periode, lades batteriet op til
-      "**{{
-      states.input_number.<PREFIX>_very_cheap_grid_charging_max_battery_level.name
-      }}**".
-
-      - **Ekstra billig strøm**: Hvis strømprisen er yderligere 25% billigere,
-      lades batteriet op til "**{{
-      states.input_number.<PREFIX>_ultra_cheap_grid_charging_max_battery_level.name
-      }}**".
-
-      - "**{{ states.input_boolean.<PREFIX>_fill_up.name }}**" skal være aktiveret
+          <details> <summary><b>Læs mere</b></summary>
 
 
-      </details>
-  - type: custom:numberbox-card
-    border: false
-    entity: input_number.<PREFIX>_very_cheap_grid_charging_max_battery_level
-  - type: custom:numberbox-card
-    border: false
-    entity: input_number.<PREFIX>_ultra_cheap_grid_charging_max_battery_level
-  - type: custom:mushroom-title-card
-    title: ''
+          - **Normal billig strøm**: Hvis strømprisen er under den laveste
+          gennemsnitspris per døgn i den seneste periode, lades batteriet op til
+          "**{{
+          states.input_number.ev_very_cheap_grid_charging_max_battery_level.name
+          }}**".
+
+          - **Ekstra billig strøm**: Hvis strømprisen er yderligere 25%
+          billigere, lades batteriet op til "**{{
+          states.input_number.ev_ultra_cheap_grid_charging_max_battery_level.name
+          }}**".
+
+          - "**{{ states.input_boolean.ev_fill_up.name }}**" skal være aktiveret
+
+          </details>
+      - type: custom:numberbox-card
+        border: false
+        entity: input_number.ev_very_cheap_grid_charging_max_battery_level
+      - type: custom:numberbox-card
+        border: false
+        entity: input_number.ev_ultra_cheap_grid_charging_max_battery_level
 view_layout:
   position: sidebar
-
