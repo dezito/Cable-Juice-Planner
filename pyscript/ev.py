@@ -1019,6 +1019,22 @@ def is_ev_configured():
     
     return EV_CONFIGURED
 
+def is_entity_available(entity):
+    _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
+    try:
+        if not is_entity_configured(entity):
+            return
+        
+        entity_state = get_state(entity, error_state="unknown")
+        if entity_state in ("unknown", "unavailable"):
+            raise Exception(f"Entity state is {entity_state}")
+        return True
+    except Exception as e:
+        _LOGGER.warning(f"Entity {entity} not available: {e}")
+        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = entity)
+        
+        reload_entity_integration(entity)
+        
 def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
     global COMMENT_DB_YAML
@@ -1213,6 +1229,7 @@ def init():
             is_config_file = True if "config.yaml" in file_path else False
             
             keys_renamed = []
+            keys_renamed_log = []
             all_entities = state.names() if not is_config_file else []
             
             content = rename_dict_keys(content, key_renaming, remove_old_keys=False)
@@ -1224,28 +1241,37 @@ def init():
                     
                     content = delete_dict_key_with_path(content, old_path)
                     keys_renamed.append(f"{old_path} -> {new_path}")
+                    keys_renamed_log.append(f"Renamed {old_path} to {new_path}")
                 else:
                     old_entity_id = ".".join(old_path.split(".")[-2:])
                     new_entity_id = ".".join(new_path.split(".")[-2:])
                     if old_entity_id in all_entities:
                         old_entity_id_state = get_state(old_entity_id)
+                        old_entity_id_attr = get_attr(old_entity_id)
                         
                         if new_entity_id in all_entities:
-                            set_state(new_entity_id, old_entity_id_state)
+                            if not is_entity_available(new_entity_id):
+                                set_state(new_entity_id, old_entity_id_state)
+                                
                             new_entity_id_state = get_state(new_entity_id)
-                            if old_entity_id_state == new_entity_id_state:
+                            if old_entity_id_state == new_entity_id_state or (is_entity_available(new_entity_id) and "restored" in old_entity_id_attr and old_entity_id_attr["restored"] == True):
                                 content = delete_dict_key_with_path(content, old_path)
                                 keys_renamed.append(f"{old_path} ({old_entity_id_state}) (Slettet) -> {new_path} ({new_entity_id_state})")
+                                keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) (Removed) to {new_path} ({new_entity_id_state})")
                             else:
                                 keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} ({new_entity_id_state})")
+                                keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) to {new_path} ({new_entity_id_state})")
                         else:
                             keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} (Oprettet)")
+                            keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) to {new_path} (Created)")
                 
-            config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
-            
-            my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{file_path}_renaming_keys")
-            
             if old_content != content:
+                for log_string in keys_renamed_log:
+                    _LOGGER.info(log_string)
+                
+                config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
+                my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{file_path}_renaming_keys")
+                
                 save_yaml(file_path, content, comment_db)
 
         deprecated_keys = compare_dicts_unique_to_dict1(content, default_content)
@@ -1730,22 +1756,6 @@ def calc_distance_to_battery_level(distance):
 
 def calc_battery_level_to_distance(battery_level):
     return battery_level * avg_distance_per_percentage()
-
-def is_entity_available(entity):
-    _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
-    try:
-        if not is_entity_configured(entity):
-            return
-        
-        entity_state = get_state(entity, error_state="unknown")
-        if entity_state in ("unknown", "unavailable"):
-            raise Exception(f"Entity state is {entity_state}")
-        return True
-    except Exception as e:
-        _LOGGER.warning(f"Entity {entity} not available: {e}")
-        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = entity)
-        
-        reload_entity_integration(entity)
     
 def wake_up_ev():
     _LOGGER = globals()['_LOGGER'].getChild("wake_up_ev")
