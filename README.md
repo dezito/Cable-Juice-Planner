@@ -92,7 +92,7 @@ homeassistant:
 > Klik på et billede nedenunder for at få Home Assistant kortet
 > | Emoji beskrivelse | Historik | Oversigt |
 > | --- | --- | --- |
-> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-> Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
+> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
 >
 > | Uge strømpriser | Solcelleoverproduktion |
 > | --- | --- |
