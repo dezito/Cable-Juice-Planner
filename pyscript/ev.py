@@ -494,9 +494,6 @@ DEFAULT_ENTITIES = {
           "name":"Arbejdsplan opladning",
           "icon": "mdi:brain"
       },
-      f"{__name__}_trip_charging":{
-          "name":"Tur ladning"
-      },
       f"{__name__}_trip_preheat":{
           "name":"Tur ladning forvarm bilen",
           "icon": "mdi:heat-wave"
@@ -1532,7 +1529,6 @@ def get_trip_date_time():
         _LOGGER.error(f"input_datetime.{__name__}_trip_date_time is not set to a dateTime: {e}")
         try:
             set_state(f"input_datetime.{__name__}_trip_date_time", resetDatetime())
-            set_state(f"input_boolean.{__name__}_trip_charging", "off")
         except Exception as e:
             _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_date_time to {resetDatetime()}: {e}")
             
@@ -1546,7 +1542,6 @@ def get_trip_homecoming_date_time():
         _LOGGER.error(f"input_datetime.{__name__}_trip_homecoming_date_time is not set to a dateTime: {e}")
         try:
             set_state(f"input_datetime.{__name__}_trip_homecoming_date_time", resetDatetime())
-            set_state(f"input_boolean.{__name__}_trip_charging", "off")
         except Exception as e:
             _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_homecoming_date_time to {resetDatetime()}: {e}")
             
@@ -1560,7 +1555,6 @@ def get_trip_range():
         _LOGGER.error(f"input_number.{__name__}_trip_range_needed is not set to a number: {e}")
         try:
             set_state(f"input_number.{__name__}_trip_range_needed", 0.0)
-            set_state(f"input_boolean.{__name__}_trip_charging", "off")
         except Exception as e:
             _LOGGER.error(f"Cant set input_number.{__name__}_trip_range_needed to 0.0: {e}")
         
@@ -1574,26 +1568,24 @@ def get_trip_target_level():
         _LOGGER.error(f"input_number.{__name__}_trip_charge_procent is not set to a number: {e}")
         try:
             set_state(f"input_number.{__name__}_trip_charge_procent", 0.0)
-            set_state(f"input_boolean.{__name__}_trip_charging", "off")
         except Exception as e:
             _LOGGER.error(f"Cant set input_number.{__name__}_trip_charge_procent to 0.0: {e}")
         
     return trip_target_level
 
 def is_trip_planned():
-    trip_planned = "off"
-    try:
-        trip_planned = get_state(f"input_boolean.{__name__}_trip_charging")
-        if trip_planned != "on" and trip_planned != "off":
-            raise Exception("State is not on/off")
-    except Exception as e:
-        _LOGGER.error(f"input_boolean.{__name__}_trip_charging is not set to a boolean: {e}")
-        try:
-            set_state(f"input_boolean.{__name__}_trip_charging", "off")
-        except Exception as e:
-            _LOGGER.error(f"Cant set input_boolean.{__name__}_trip_charging to off: {e}")
+    if not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or \
+        not is_entity_available(f"input_number.{__name__}_trip_range_needed") or \
+        not is_entity_available(f"input_datetime.{__name__}_trip_date_time") or \
+        not is_entity_available(f"input_datetime.{__name__}_trip_homecoming_date_time"):
+            return False
         
-    return True if trip_planned == "on" else False
+    if get_trip_range() == 0.0 and get_trip_target_level() == 0.0:
+            return False
+        
+    if get_trip_date_time() == resetDatetime() or get_trip_homecoming_date_time() == resetDatetime():
+            return False
+    return True
 
 def fill_up_charging_enabled():
     if get_state(f"input_boolean.{__name__}_fill_up") == "on":
@@ -2743,7 +2735,7 @@ def cheap_grid_charge_hours():
         
         try:
             if charging_plan[day]['workday']:
-                working = in_between(h.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['homecoming'].hour)
+                working = in_between(h.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
 
             if trip_datetime:
                 if in_between(h, trip_datetime, trip_homecoming_datetime):
@@ -3292,7 +3284,7 @@ def cheap_grid_charge_hours():
                 if (day >= 0 and (charging_plan[day_after]['workday'] or charging_plan[day_after]["trip"])) or (day == 0 and extra_charge_alternative):
                     charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
                     
-                    homecoming_alternative = min([date for date in [charging_plan[day_before]['homecoming'], charging_plan[day_before]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None])
+                    homecoming_alternative = min([date for date in [charging_plan[day_before]['work_homecoming'], charging_plan[day_before]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None])
                     last_charging_alternative = min([date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_goto']] if date is not None])
                     used_battery_level_alternative = get_min_daily_battery_level() + charging_plan[day_after]['work_battery_level_needed']
 
@@ -3334,7 +3326,7 @@ def cheap_grid_charge_hours():
                     location = sun.get_astral_location(hass)
                     sunrise = location[0].sunrise(charging_plan[day]['work_goto']).replace(tzinfo=None)
                     sunrise_text = f"{emoji_parse({'sunrise': True})}{date_to_string(date = sunrise, format = '%H:%M')}"
-                    sunset = location[0].sunset(charging_plan[day]['homecoming']).replace(tzinfo=None)
+                    sunset = location[0].sunset(charging_plan[day]['work_homecoming']).replace(tzinfo=None)
                     sunset_text = f"{emoji_parse({'sunset': True})}{date_to_string(date = sunset, format = '%H:%M')}"
                     
                     timeperiod = []
@@ -3346,15 +3338,15 @@ def cheap_grid_charge_hours():
                         if sunset >= charging_plan[day]['trip_homecoming']:
                             timeperiod.append(f"{emoji_parse({'homecoming': True})}{date_to_string(date = charging_plan[day]['trip_homecoming'], format = '%H:%M')}-{sunset_text}")
                         
-                    elif charging_plan[day]['work_goto'] == charging_plan[day]['homecoming'] and not charging_plan[day]['trip_goto']:
+                    elif charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming'] and not charging_plan[day]['trip_goto']:
                         timeperiod.append(f"{sunrise_text}-{sunset_text}")
                     else:
                         if sunrise <= charging_plan[day]['work_goto']:
                             timeperiod.append(f"{sunrise_text}-{emoji_parse({'goto': True})}{date_to_string(date = charging_plan[day]['work_goto'], format = '%H:%M')}")
-                            if sunset >= charging_plan[day]['homecoming']:
+                            if sunset >= charging_plan[day]['work_homecoming']:
                                 timeperiod.append("<br>")
-                        if sunset >= charging_plan[day]['homecoming']:
-                            timeperiod.append(f"{emoji_parse({'homecoming': True})}{date_to_string(date = charging_plan[day]['homecoming'], format = '%H:%M')}-{sunset_text}")
+                        if sunset >= charging_plan[day]['work_homecoming']:
+                            timeperiod.append(f"{emoji_parse({'homecoming': True})}{date_to_string(date = charging_plan[day]['work_homecoming'], format = '%H:%M')}-{sunset_text}")
                         
                     solar_over_production[day] = {
                         "day": f"{getDayOfWeekText(charging_plan[day]['work_goto'], translate = True).capitalize()}",
@@ -3436,7 +3428,7 @@ def cheap_grid_charge_hours():
             "work_goto": midnight_datetime,
             "work_last_charging": midnight_datetime,
             "work_total_cost": 0.0,
-            "homecoming": midnight_datetime,
+            "work_homecoming": midnight_datetime,
             "total_needed_battery_level": 0.0,
             "day_text": day_text,
             "label": None,
@@ -3461,7 +3453,7 @@ def cheap_grid_charge_hours():
                 charging_plan[day]['workday'] = True
                 
                 charging_plan[day]['work_goto'] = work_goto
-                charging_plan[day]['homecoming'] = midnight_datetime.replace(hour=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').hour, minute=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').minute, second=0)
+                charging_plan[day]['work_homecoming'] = midnight_datetime.replace(hour=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').hour, minute=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').minute, second=0)
                 
                 hours_before = max(1, min(2, hoursBetween(now, charging_plan[day]['work_goto'])))
                 charging_plan[day]['work_last_charging'] = reset_time_to_hour(work_goto) - datetime.timedelta(hours=hours_before)
@@ -3505,7 +3497,7 @@ def cheap_grid_charge_hours():
                 last_charging = charging_plan[day]['trip_last_charging']
                 
                 if charging_plan[day]['workday'] and \
-                ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or \
+                ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or \
                 (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1)):
                     charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour(getTime()))
                     last_charging = charging_plan[day]['trip_last_charging']
@@ -3544,7 +3536,7 @@ def cheap_grid_charge_hours():
         total_solar_available_price = []
         
         if solar_charging_enabled():
-            if day == 0 and (getTime() >= charging_plan[day]['homecoming'] or not charging_plan[day]['workday']):
+            if day == 0 and (getTime() >= charging_plan[day]['work_homecoming'] or not charging_plan[day]['workday']):
                 total_solar_available += solar_kwh_prediction['today']
                 total_solar_available_price.append(solar_price_prediction['today'])
             elif 1 <= day <= 5 and (today + datetime.timedelta(days=day)) in solar_kwh_prediction:
@@ -3563,9 +3555,9 @@ def cheap_grid_charge_hours():
 
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     
-    chargeHours['TotalCost'] = totalCost
-    chargeHours['TotalkWh'] = totalkWh
-    chargeHours['TotalProcent'] = round(kwh_to_percentage(totalkWh, include_charging_loss = True), 2)
+    chargeHours['total_cost'] = totalCost
+    chargeHours['total_kwh'] = totalkWh
+    chargeHours['total_procent'] = round(kwh_to_percentage(totalkWh, include_charging_loss = True), 2)
     
     countExpensive = 0
     expensiveList = []
@@ -3580,16 +3572,16 @@ def cheap_grid_charge_hours():
         countExpensive += 1
         
     set_attr(f"input_boolean.{__name__}_forced_charging_daily_battery_level.expensive_hours", dict(sorted(expensiveDict.items())))
-    chargeHours['ExpensiveHours'] = expensiveList
+    chargeHours['expensive_hours'] = expensiveList
     
     todays_max_battery_level = max(sum(charging_plan[0]["battery_level_before_work"]), sum(charging_plan[0]["battery_level_at_midnight"]), sum(charging_plan[0]["battery_level_after_work"]))
     tomorrow_max_battery_level = max(sum(charging_plan[1]["battery_level_before_work"]), sum(charging_plan[1]["battery_level_at_midnight"]), sum(charging_plan[1]["battery_level_after_work"]))
-    chargeHours['MaxChargingLevelToday'] = round(max(todays_max_battery_level, tomorrow_max_battery_level, charging_plan[day]['total_needed_battery_level'], get_min_charge_limit_battery_level()), 2)
+    chargeHours['max_charging_level_today'] = round(max(todays_max_battery_level, tomorrow_max_battery_level, charging_plan[day]['total_needed_battery_level'], get_min_charge_limit_battery_level()), 2)
     '''_LOGGER.error(f"todays_max_battery_level:{todays_max_battery_level}")
     _LOGGER.error(f"tomorrow_max_battery_level:{tomorrow_max_battery_level}")
     _LOGGER.error(f"charging_plan[day]['total_needed_battery_level']:{charging_plan[day]['total_needed_battery_level']}")
     _LOGGER.error(f"get_min_charge_limit_battery_level:{get_min_charge_limit_battery_level()}")
-    _LOGGER.error(f"chargeHours['MaxChargingLevelToday']:{chargeHours['MaxChargingLevelToday']}")'''
+    _LOGGER.error(f"chargeHours['max_charging_level_today']:{chargeHours['max_charging_level_today']}")'''
 
     for day in charging_plan.keys():
         if not isinstance(day, int): continue
@@ -3599,6 +3591,68 @@ def cheap_grid_charge_hours():
         
     _LOGGER.info(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     _LOGGER.info(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
+    
+    charging_plan_attr = dict()
+    charging_hours_attr = dict()
+    try:
+        for key, value in charging_plan.items():
+            if isinstance(key, int):
+                title = f"Day {key} {str(value['day_text']).capitalize().replace('_', ' ')} ({value['label'] if value['label'] else ''})"
+                charging_plan_attr[title] = {}
+                for k, v in value.items():
+                    if "_sum" in k or k == "total_needed_battery_level" and v:
+                        charging_plan_attr[title][str(k).capitalize().replace("_", " ").replace("sum", "")] = f"{v:.2f}%"
+                    
+                    if "solar_" in k and v:
+                        if "kwh" in k:
+                            charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} kWh"
+                        elif "cost" in k:
+                            charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} kr"
+                        else :
+                            charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f}%"
+                        
+                    if (k == "workday" and v) or (k == "trip" and v):
+                        if k == "workday":
+                            charging_plan_attr[title]["Work goto"] = f"{value["work_goto"]}"
+                            charging_plan_attr[title]["Work homecoming"] = f"{value["work_homecoming"]}"
+                            charging_plan_attr[title]["Work last_charging"] = f"{value["work_last_charging"]}"
+                            charging_plan_attr[title]["Work range_needed"] = f"{value["work_range_needed"]} km"
+                            charging_plan_attr[title]["Work total_cost"] = f"{value["work_total_cost"]:.2f} kr"
+                            charging_plan_attr[title]["Work battery level needed"] = f"{value["work_battery_level_needed"]:.2f}%"
+                            charging_plan_attr[title]["Work kwh_needed"] = f"{value["work_kwh_needed"]:.2f} kWh"
+                        if k == "trip":
+                            charging_plan_attr[title]["Trip goto"] = f"{value["trip_goto"]}"
+                            charging_plan_attr[title]["Trip homecoming"] = f"{value["work_homecoming"]}"
+                            charging_plan_attr[title]["Trip last charging"] = f"{value["work_last_charging"]}"
+                            charging_plan_attr[title]["Trip total cost"] = f"{value["work_total_cost"]:.2f} kr"
+                            charging_plan_attr[title]["Trip battery level needed"] = f"{value["work_battery_level_needed"]:.2f}%"
+                            charging_plan_attr[title]["Trip battery level above max"] = f"{value["work_battery_level_needed"]:.2f}%"
+                            charging_plan_attr[title]["Trip kWh needed"] = f"{value["work_kwh_needed"]:.2f} kWh"
+                charging_plan_attr[title] = dict(sorted(charging_plan_attr[title].items()))
+    except Exception as e:
+        _LOGGER.error(f"Failed to create charging plan attributes: {e}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+
+    try:
+        for key, value in chargeHours.items():
+            if key == "expensive_hours":
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = value
+            elif key == "max_charging_level_today":
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f}%" if value else "0.0%"
+            elif key == "total_procent":
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f}%"
+            elif key == "total_kwh":
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f} kWh"
+            elif key == "total_cost":
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f} kr"
+            else:
+                charging_hours_attr[str(key)] = [f"{value['battery_level']:.2f}%", f"{value['kWh']:.2f} kWh", f"{value['Cost']:.2f} kr"]
+    except Exception as e:
+        _LOGGER.error(f"Failed to create charging plan charging_hours attributes: {e}")
+        _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+    
+    set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
+    set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
     
     overview = []
     
@@ -3635,7 +3689,7 @@ def cheap_grid_charge_hours():
                     overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
             
             if totalkWh > 0.0:
-                overview.append(f"\n**Ialt {int(round(chargeHours['TotalProcent'],0))}% {chargeHours['TotalkWh']} kWh {chargeHours['TotalCost']:.2f} kr ({round(chargeHours['TotalCost'] / chargeHours['TotalkWh'],2)} kr)**")
+                overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr)**")
             
             if USING_OFFLINE_PRICES:
                 overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
@@ -3732,7 +3786,7 @@ def cheap_grid_charge_hours():
         set_attr(f"sensor.{__name__}_overview.overview", "\n".join(overview))
     else:
         set_attr(f"sensor.{__name__}_overview.overview", "Ingen data")
-        
+    
     return chargeHours
 
 def calc_charging_amps(power = 0.0, report = False):
@@ -4279,8 +4333,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             
         expensive_hours = []
             
-        if "ExpensiveHours" in CHEAP_GRID_CHARGE_HOURS_DICT:
-            for hour in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
+        if "expensive_hours" in CHEAP_GRID_CHARGE_HOURS_DICT:
+            for hour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
                 expensive_hours.append(hour.hour)
             
         from_hour = sunrise if day > 0 else max(sunrise, getHour())
@@ -4361,7 +4415,6 @@ def trip_reset():
     set_state(f"input_number.{__name__}_trip_range_needed", 0.0)
     set_state(f"input_datetime.{__name__}_trip_date_time", resetDatetime())
     set_state(f"input_datetime.{__name__}_trip_homecoming_date_time", resetDatetime())
-    set_state(f"input_boolean.{__name__}_trip_charging", "off")
     
     if is_ev_configured():
         set_state(f"input_boolean.{__name__}_trip_preheat", "off")
@@ -4377,20 +4430,6 @@ def trip_charging():
         _LOGGER.debug("trip_charging:True")
         return True
     
-def trip_activate_reminder():
-    _LOGGER = globals()['_LOGGER'].getChild("trip_activate_reminder")
-    if not is_trip_planned() and (get_trip_range() > 0.0 or get_trip_target_level() > 0.0):
-        minutes_since_change = minutesBetween(LAST_TRIP_CHANGE_DATETIME, getTime())
-
-        reminder_times = [10, 60, 90, 360, 1440, 1440*2]
-        
-        trip_settings = f"Afgang: {get_trip_date_time()}\nHjemkomst: {get_trip_homecoming_date_time()}\n{f'Tur km forbrug: {get_trip_range()}km' if get_trip_range() > 0.0 else f'Tur ladning til: {get_trip_target_level()}km'}"
-        
-        for i in reminder_times:
-            if in_between(minutes_since_change, i, i+5):
-                my_notify(message = f"Tur ladning planlagt, men ikke aktiveret\n{trip_settings}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id="trip_activation_needed")
- 
-
 def preheat_ev():#TODO Make it work on Tesla and Kia
     _LOGGER = globals()['_LOGGER'].getChild("preheat_ev")
     
@@ -4794,7 +4833,7 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif solar_using_grid_price and currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
+            elif solar_using_grid_price and currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 solar_amps[1] = 0.0
                 
@@ -4831,9 +4870,9 @@ def charge_if_needed():
                 stop_current_charging_session()
         elif ready_to_charge():
             if get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
-                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
+                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
                     set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm")
-                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours'], format = '%H:%M')}")
+                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours'], format = '%H:%M')}")
                 else:
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
@@ -4848,7 +4887,7 @@ def charge_if_needed():
                 charging_history(CHEAP_GRID_CHARGE_HOURS_DICT[currentHour], "planned")
                 
                 battery_level_plus_charge = battery_level() + CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['battery_level']
-                max_level_today = CHEAP_GRID_CHARGE_HOURS_DICT['MaxChargingLevelToday']
+                max_level_today = CHEAP_GRID_CHARGE_HOURS_DICT['max_charging_level_today']
                 charging_limit = min(round_up(max(battery_level_plus_charge, max_level_today, range_to_battery_level())), 100.0)
                 amps = [CONFIG['charger']['charging_phases'], CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['ChargingAmps']]
                 '''_LOGGER.error(f"battery_level_plus_charge:{battery_level_plus_charge}")
@@ -5337,7 +5376,6 @@ if INITIALIZATION_COMPLETE:
         is_battery_fully_charged()
         set_estimated_range()
 
-    @state_trigger(f"input_boolean.{__name__}_trip_charging == 'on' or input_boolean.{__name__}_trip_charging == 'off'")
     @state_trigger(f"input_number.{__name__}_trip_charge_procent")
     @state_trigger(f"input_number.{__name__}_trip_range_needed")
     @state_trigger(f"input_datetime.{__name__}_trip_date_time")
@@ -5347,47 +5385,14 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_trips")
         global LAST_TRIP_CHANGE_DATETIME
         
-        if var_name == f"input_boolean.{__name__}_trip_charging":
-            if value == "on":
-                if ready_to_charge():
-                    startCharging = False
-                    if get_trip_target_level() != 0.0:
-                        startCharging = True
-                        charging_limit = get_trip_target_level()
-                        _LOGGER.debug(f"Setting new trip charging BATTERY_LEVEL to {charging_limit}")
-                    if get_trip_range() != 0.0:
-                        startCharging = True
-                        charging_limit = range_to_battery_level(get_trip_range(), get_min_trip_battery_level(), get_trip_date_time())
-                        _LOGGER.debug(f"Setting new trip range to {get_trip_range()}")
-
-                    if startCharging:
-                        ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
-                        
-                        if get_trip_date_time() == resetDatetime():
-                            set_charger_charging_amps(CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp'])
-                                
-                            start_charging()
-                            _LOGGER.info("Begin to charge now")
-                        else:
-                            _LOGGER.info(f"Schedule charging to trip at {get_trip_date_time()}")
-                            charge_if_needed()
-            else:
-                charge_if_needed()
-                
-        elif var_name == f"input_number.{__name__}_trip_charge_procent":
+        if var_name == f"input_number.{__name__}_trip_charge_procent":
             if value in ("unknown", "unavailable"): return
             if get_trip_target_level() != 0.0:
                 set_state(f"input_number.{__name__}_trip_range_needed", 0.0)
-            if is_trip_planned():
-                _LOGGER.debug(f"Setting new trip charging BATTERY_LEVEL to {value}")
-                
         elif var_name == f"input_number.{__name__}_trip_range_needed":
             if value in ("unknown", "unavailable"): return
             if get_trip_range() != 0.0:
                 set_state(f"input_number.{__name__}_trip_charge_procent", 0.0)
-            if is_trip_planned():
-                _LOGGER.debug(f"Setting new trip range to {value}")
-                
         elif var_name == f"input_datetime.{__name__}_trip_date_time":
             if value in ("unknown", "unavailable"): return
             value = toDateTime(value)
@@ -5449,7 +5454,14 @@ if INITIALIZATION_COMPLETE:
         def state_trigger_ev_charge_cable(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charge_cable")
             wake_up_ev()
-
+            
+    if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
+        def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
+            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
+            if value == "home":
+                charge_if_needed()
+            
     if is_ev_configured():
         @time_trigger(f"cron(0/5 * * * *)")
         def cron_five_every_minute(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -5469,13 +5481,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("emulated_battery_level_changed")
             if float(old_value) == 0.0 and float(value) < get_min_daily_battery_level():
                 notify_battery_under_daily_battery_level()
-            
-    @time_trigger("startup")
-    @time_trigger(f"cron(0/5 * * * *)")
-    def trip_cron_five_every_minute(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("trip_cron_five_every_minute")
-        trip_activate_reminder()
-        
+                
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
