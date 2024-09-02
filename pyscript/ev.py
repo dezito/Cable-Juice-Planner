@@ -3569,14 +3569,17 @@ def cheap_grid_charge_hours():
     
     countExpensive = 0
     expensiveList = []
+    expensiveDict = {}
     
     for hour, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
         if countExpensive < 4:
             expensiveList.append(hour)
+            expensiveDict[str(hour)] = f"{price:.2f} kr"
         else:
             break
         countExpensive += 1
         
+    set_attr(f"input_boolean.{__name__}_forced_charging_daily_battery_level.expensive_hours", dict(sorted(expensiveDict.items())))
     chargeHours['ExpensiveHours'] = expensiveList
     
     todays_max_battery_level = max(sum(charging_plan[0]["battery_level_before_work"]), sum(charging_plan[0]["battery_level_at_midnight"]), sum(charging_plan[0]["battery_level_after_work"]))
