@@ -4831,7 +4831,7 @@ def charge_if_needed():
                 stop_current_charging_session()
         elif ready_to_charge():
             if get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
-                if currentHour not in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
+                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
                     set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm")
                     _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours'], format = '%H:%M')}")
                 else:
