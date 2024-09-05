@@ -1281,7 +1281,7 @@ def init():
             
                 
         if updated:
-            msg = f"{'Config' if "config.yaml" in file_path else 'Entities pacakage'} updated."
+            msg = f"{'Config' if "config.yaml" in file_path else 'Entities package'} updated."
             if check_first_run:
                 msg += " Set first_run to false and reload."
             msg += " Please restart Home Assistant to apply changes."
