@@ -1,4 +1,3 @@
-
 # Required: HACS integration (https://hacs.xyz/)
 # Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
 # Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
@@ -14,7 +13,7 @@ cards:
         conditions:
           - condition: state
             entity: input_number.ev_trip_range_needed
-            state: '0.0'
+            state: "0.0"
         card:
           type: custom:mushroom-number-card
           entity: input_number.ev_trip_charge_procent
@@ -22,7 +21,7 @@ cards:
         conditions:
           - condition: state
             entity: input_number.ev_trip_charge_procent
-            state: '0.0'
+            state: "0.0"
         card:
           type: custom:mushroom-number-card
           entity: input_number.ev_trip_range_needed
@@ -40,14 +39,6 @@ cards:
           action: none
       - type: custom:mushroom-entity-card
         entity: input_datetime.ev_trip_homecoming_date_time
-        hold_action:
-          action: none
-        double_tap_action:
-          action: none
-      - type: custom:mushroom-entity-card
-        entity: input_boolean.ev_trip_charging
-        tap_action:
-          action: toggle
         hold_action:
           action: none
         double_tap_action:

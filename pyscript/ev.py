@@ -307,7 +307,7 @@ DEFAULT_CONFIG = {
         "power_voltage": 240.0,
         "charging_phases": 3.0,
         "charging_max_amp": 16.0,
-        "charging_loss": 0.0,
+        "charging_loss": -0.05,
     },
     "cron_interval": 5,
     "database": {
