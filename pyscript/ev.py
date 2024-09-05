@@ -1885,9 +1885,7 @@ def battery_range():
             _LOGGER.error(e)
     return distance
     
-def is_battery_fully_charged(dont_set_date=False):
-    if dont_set_date: return
-    
+def is_battery_fully_charged():
     if battery_level() < 100.0: return
     
     set_state(f"input_datetime.{__name__}_last_full_charge", getTime())
@@ -5319,7 +5317,7 @@ if INITIALIZATION_COMPLETE:
         if benchmark_loaded: end_benchmark("load_charging_history")
         
         solar_charged_percentage()
-        is_battery_fully_charged(dont_set_date=True)
+        is_battery_fully_charged()
         set_estimated_range()
         
         _LOGGER.info(f"EV solar charging max to {get_max_recommended_charge_limit_battery_level()}%")
