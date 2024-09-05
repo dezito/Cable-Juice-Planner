@@ -19,6 +19,7 @@ def end_benchmark(section):
     if section in start_times:
         elapsed_time = end_time - start_times[section]
         _LOGGER.warn(f"{section}: took {elapsed_time:.6f} seconds")
+        return elapsed_time
     else:
         _LOGGER.warn(f"Benchmarking for section '{section}' was not started.")
 

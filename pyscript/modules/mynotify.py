@@ -24,7 +24,7 @@ def my_persistent_notification(message = None, title = "", persistent_notificati
                     sample_str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
                     persistent_notification_id = ''.join(rand.choices(sample_str, k = length_of_string))
                     
-                pattern = "[^0-9a-zA-Z\s]+"
+                pattern = r"[^0-9a-zA-Z\s]+"
                 persistent_notification_id = re.sub(pattern, "", persistent_notification_id)
                     
                 service.call("notify", "persistent_notification", blocking=True,

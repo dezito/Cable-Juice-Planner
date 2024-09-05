@@ -12,18 +12,24 @@ homeassistant:
 7. SSH ind i Home Assistant
 8. Navigerer til scripts mappen
 9. Start update_cable_juice_planner.sh
-10. update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
-11. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
-11. Genstart Home Assistant eller åben og gem ev.py filen
-12. Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
-    - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
-    - Alle entitier navne starter med ev_ der laves
+    - update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
+10. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
+11. Redigere denne efter dit behov
+12. Genstart Home Assistant eller åben og gem ev.py filen
+    - Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
+        - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
+        - Alle entitier navne starter med ev_ der laves
+13. Genstart Home Assistant
+
+- Hvis du har flere elbiler laves der en kopi af ev.py til ev_2.py, den nye prefiks vil være ev_2
+- I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.
 ---
 
 ### Todo
 1. Monta understøttelse
 2. Kia UVO understøttelse
 3. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
+4. Gør at scriptet ikke låser Home Assistant når den kører charge_if_needed()
 ---
 ### Fremtiden
 - Konvertere scriptet til en integration
@@ -86,7 +92,7 @@ homeassistant:
 > Klik på et billede nedenunder for at få Home Assistant kortet
 > | Emoji beskrivelse | Historik | Oversigt |
 > | --- | --- | --- |
-> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-> Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
+> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
 >
 > | Uge strømpriser | Solcelleoverproduktion |
 > | --- | --- |

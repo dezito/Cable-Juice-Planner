@@ -1,6 +1,40 @@
-# Replace <PREFIX> with the filename of the script (default is "ev")
-
-type: markdown
-content: '  {{ states.sensor.<PREFIX>_overview.attributes.overview }}'
+type: vertical-stack
+cards:
+  - type: markdown
+    content: "{{ states.sensor.ev_overview.attributes.overview }}"
+    view_layout:
+      position: sidebar
+  - type: vertical-stack
+    cards:
+      - type: custom:stack-in-card
+        mode: vertical
+        cards:
+          - type: custom:mushroom-entity-card
+            entity: sensor.ev_charge_very_cheap_battery_level
+            double_tap_action:
+              action: none
+            hold_action:
+              action: none
+            tap_action:
+              action: more-info
+          - type: custom:mushroom-entity-card
+            entity: sensor.ev_charge_ultra_cheap_battery_level
+            double_tap_action:
+              action: none
+            hold_action:
+              action: none
+            tap_action:
+              action: more-info
+      - type: custom:mushroom-chips-card
+        chips:
+          - type: entity
+            entity: input_button.ev_enforce_planning
+            tap_action:
+              action: toggle
+            hold_action:
+              action: none
+            content_info: name
+            use_entity_picture: false
+        alignment: end
 view_layout:
   position: sidebar
