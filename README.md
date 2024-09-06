@@ -1,3 +1,52 @@
+# 🚗Cable Juice Planner🔋🌞📅 til Home Assistant (PyScript)
+
+### Beskrivelse:
+Planlægger og styrer opladning af elbil, ud fra en arbejdsplan eller de billigste tider over en uge.
+
+Ved **Solcelleoverskud til opladning**, oplades bilen med solcelle overskudsproduktion, den kan indstilles til at bruge alt strøm i nuværende time også selv, hvis opladningen starter senere i nuværende time, vil den bruge alt overproduktion fra timen, den kan også indstilles til x antal minutter tilbage.
+
+Ved **Arbejdsplan opladning**, specificere man nødvendig kilometer per arbejdsdag, afgang, hjemkomst og forvarm valg. Scriptet finder de billigste tider at lade bilen på og starter/stopper selv ladningen derefter, forvarmer bilen til afgang, hvis valgt
+
+Ved **Optimal ugeopladning (uden Arbejdsplan)**, specificere man forventer antal kilometer, der køres per dag. Scriptet deler differencen mellem nuværende batteriniveau (f.eks. 27%) og **Elbilens maks anbefalet ladingsprocent** (f.eks. 90%) op i 3 dele (f.eks. 63%/3=21%) og på 1/4/7 dag(e) fra nu af finder de billigste tider at lade bilen på og starter/stopper selv ladningen derefter.
+
+Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og powerwall afladning i planlægningen og under opladning
+
+---
+
+### Funktioner:
+- Detaljeret opladningshistorik
+- Solcelle over produktion til rådighed i nuværende time (tilvalg)
+- Nuværende strømpris med fratrukket solcelle overproduktion
+- Oversigter:
+  - Planlagte opladninger
+  - Afgangsplan
+  - Solcelle over produktion prognose
+- Tur planlægning
+- Manuel opladning
+- Emoji forklaring
+- Tvangsladning under daglig batteri niveau (op til **Daglig hjemkomst batteri niveau** f.eks. 30%)
+- Udregning af reel (med detaljeret historik):
+  - Kørsel effektivitet
+  - km/kWh
+  - Estimerede rækkevidde
+
+- ### Indstillinger:
+  - Opladningsregler:
+    - Solcelleoverskud til opladning
+    - Arbejdsplan opladning
+    - Optimal ugeopladning (uden Arbejdsplan)
+  - Automatisk fuld opladning, hver X antal dage
+  - Automatisk opladning ved billig og meget billig strøm
+  - **Batteriniveau- og Forvarmningsindstillinger for Elbil** indstillinger:
+    - Daglig hjemkomst batteri niveau efter arbejde (minimum)
+    - Tur hjemkomst batteri niveau
+    - Elbilens minimum ladingsprocent
+    - Elbilens maks anbefalet ladingsprocent
+  - Solcelleoverproduktion Salgspris, fastpris eller nuværende salgspris (fratrukket udgifter for at sælge det)
+  - Kalkulering af lade tab
+
+---
+
 ### Installation:
 1.  Navigere til Home Assistant config og lav en mappe ved navn "packages"
 2.  Sæt koden nedenunder ind i configuration.yaml
@@ -92,7 +141,7 @@ homeassistant:
 > Klik på et billede nedenunder for at få Home Assistant kortet
 > | Emoji beskrivelse | Historik | Oversigt |
 > | --- | --- | --- |
-> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
+> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml)<br>[Virtuel batteriniveau entity](Cable-Juice-Planner-Readme/cards/history_emulated_battery.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
 >
 > | Uge strømpriser | Solcelleoverproduktion |
 > | --- | --- |
@@ -104,7 +153,9 @@ homeassistant:
 >
 > | Indstillinger |  |
 > | --- | --- |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png)](Cable-Juice-Planner-Readme/cards/settings_solar_charging.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png)](Cable-Juice-Planner-> Readme/cards/settings_fully_charged.yaml) |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png)](Cable-Juice-Planner-Readme/cards/settings_solar_charging.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png)](Cable-Juice-Planner/Readme/cards/settings_fully_charged.yaml) |
 > | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fill_up.png)](Cable-Juice-Planner-Readme/cards/settings_fill_up.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_cheap_charging.png)](Cable-Juice-Planner-Readme/cards/settings_cheap_charging.yaml) |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png)](Cable-Juice-Planner-Readme/cards/settings_workplan.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png)](Cable-Juice-Planner-> Readme/cards/settings_battery_level_preheat.yaml) |
+> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png)](Cable-Juice-Planner-Readme/cards/settings_workplan.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png)](Cable-Juice-Planner/Readme/cards/settings_battery_level_preheat.yaml) |
 > | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_sell_price.png)](Cable-Juice-Planner-Readme/cards/settings_solar_sell_price.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_calculate_loss.png)](Cable-Juice-Planner-Readme/cards/settings_calculate_loss.yaml) |
+
+
