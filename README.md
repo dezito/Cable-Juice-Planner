@@ -91,7 +91,15 @@ homeassistant:
 
 - Hvis du har flere elbiler laves der en kopi af ev.py til ev_2.py, den nye prefiks vil være ev_2
 - I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.
+
+<center>
+
+### [Konfiguration eksempler](Cable-Juice-Planner-Readme/Config_examples)
+
+</center>
+
 ---
+
 
 ### Todo
 1. Monta understøttelse
