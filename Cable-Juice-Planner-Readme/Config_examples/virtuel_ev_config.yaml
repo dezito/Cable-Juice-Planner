@@ -1,0 +1,77 @@
+# Citroen C-Zero 2012 & Huawei Solar konfiguration
+
+charger:
+  charging_loss: -0.07 # **Required** Can be auto calculated via WebGUI with input_boolean.ev2_calculate_charging_loss
+  charging_max_amp: 16.0 # **Required** Maximum amps for the charger
+  charging_phases: 1.0 # **Required** Phases available for the charger
+  entity_ids:
+    cable_connected_entity_id: '' # If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger
+    co2_entity_id: sensor.energi_data_service_co2 # Energi Data Service CO2 entity_id
+    dynamic_circuit_limit: sensor.easee_dynamic_circuit_limit # If not set, charger.entity_ids.start_stop_charging_entity_id must be set
+    enabled_entity_id: switch.easee_charger_enabled # **Required** Turn Charger unit ON/OFF, NOT for start/stop charging
+    kwh_meter_entity_id: sensor.easee_maler_kwh # **Required** Maybe use Riemann-sum integral-sensor else the chargers lifetime kwh meter
+    lifetime_kwh_meter_entity_id: sensor.easee_lifetime_energy # **Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter
+    power_consumtion_entity_id: sensor.easee_power # **Required** Charging power in Watt
+    start_stop_charging_entity_id: '' # If using other integration than Easee to start stop charging
+    status_entity_id: sensor.easee_status # **Required** Charger status
+  power_voltage: 240.0 # **Required** Grid power voltage
+cron_interval: 10 # **Required** Interval between state check and function runs
+database:
+  charging_history_db_data_to_save: 3 # Save X month back
+  drive_efficiency_db_data_to_save: 15
+  km_kwh_efficiency_db_data_to_save: 15
+  kwh_avg_prices_db_data_to_save: 15
+  solar_available_db_data_to_save: 10
+ev_car:
+  battery_size: 9.9 # **Required** Usable battery capacity, check with OBD2 unit for precise value
+  daily_drive_distance: 30.0 # **Required** Also updates via WebGUI
+  entity_ids:
+    charge_cable_entity_id: '' # Used to determine if ev is connected to charger
+    charge_port_door_entity_id: '' # **Required**
+    charge_switch_entity_id: '' # Start/stop charging on EV
+    charging_amps_entity_id: '' # Setting charging amps on EV
+    charging_limit_entity_id: '' # **Required** Setting charging battery limit on EV
+    climate_entity_id: ''
+    estimated_battery_range_entity_id: '' # **Required** Must precise battery range
+    last_update_entity_id: '' # Used to determine sending wake up call
+    location_entity_id: '' # **Required**
+    odometer_entity_id: '' # **Required**
+    usable_battery_level_entity_id: '' # **Required** Must precise battery level
+    wake_up_entity_id: '' # Force wake up (Leave blank if using Hyundai-Kia-Connect)
+  max_recommended_charge_limit_battery_level: 100.0 # **Required** Also updates via WebGUI
+  min_charge_limit_battery_level: 30.0 # **Required** Also updates via WebGUI
+  min_daily_battery_level: 20.0 # **Required** Also updates via WebGUI
+  min_trip_battery_level: 20.0 # **Required** Also updates via WebGUI
+  ultra_cheap_grid_charging_max_battery_level: 100.0 # **Required** Also updates via WebGUI
+  very_cheap_grid_charging_max_battery_level: 90.0 # **Required** Also updates via WebGUI
+first_run: false # **Required** After editing the file set this to false
+forecast:
+  entity_ids:
+    daily_service_entity_id: weather.hjem # **Required** (AccuWeather) daily forecast entity_id
+    hourly_service_entity_id: weather.openweathermap # **Required** (OpenWeatherMap) hourly forecast entity_id
+    outdoor_temp_entity_id: sensor.udendors_termometer_temperatur # Used to determine preheat or defrost when preheating the ev
+home:
+  entity_ids:
+    ignore_consumption_from_entity_ids: # List of power sensors to ignore
+    - sensor.varme_elpatron_electric_consumption_w
+    - sensor.varme_radiator_power
+    power_consumption_entity_id: sensor.huawei_home_power_consumption # Home power consumption, not grid power consumption
+    powerwall_watt_flow_entity_id: '' # Powerwall watt flow (Plus value for discharging, negative for charging)
+notify_list: # List of users to send notifications
+- notify.mobile_app_mand_mobil
+- notify.mobile_app_kone_mobil
+prices:
+  entity_ids:
+    power_prices_entity_id: sensor.energi_data_service # **Required** Energi Data Service price entity_id
+  refund: 0.0
+solar:
+  allow_grid_charging_above_solar_available: 0.0 # Voltage above(+)/under(-) overproduction available
+  charging_single_phase_max_amp: 16.0 # Maximum allowed amps the car can charge
+  charging_single_phase_min_amp: 6.0 # Minimum allowed amps the car can charge
+  charging_three_phase_min_amp: 6.0 # Minimum allowed amps the car can charge
+  entity_ids:
+    production_entity_id: sensor.huawei_solar_active_power # Solar power production
+  max_to_current_hour: true # Must use overproduced power current hour
+  production_price: 0.88 # Set to -1.0 if using raw hour price, also updates via WebGUI
+  solarpower_use_before_minutes: 60 # Minutes back u can use overproduced power
+testing_mode: false # In testing mode, no commands are sent to charger or ev

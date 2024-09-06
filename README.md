@@ -29,6 +29,7 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
   - Kørsel effektivitet
   - km/kWh
   - Estimerede rækkevidde
+- Refusion af elafgift
 
 - ### Indstillinger:
   - Opladningsregler:
@@ -44,6 +45,22 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
     - Elbilens maks anbefalet ladingsprocent
   - Solcelleoverproduktion Salgspris, fastpris eller nuværende salgspris (fratrukket udgifter for at sælge det)
   - Kalkulering af lade tab
+
+### Påkrævet integrationer
+- HACS (https://github.com/hacs/integration)
+- PyScript (https://github.com/custom-components/pyscript)
+- Energi Data Service (Carnot) (https://github.com/MTrab/energidataservice)
+- Sun
+
+### Understøttet og testet integrationer
+- Easee Charger (https://github.com/nordicopen/easee_hass)
+- Kia UVO (https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
+- Tessie (https://www.home-assistant.io/integrations/tessie/)
+- TeslaFi (https://github.com/jhansche/ha-teslafi)
+- Tesla (https://github.com/alandtse/tesla)
+- Fronius (https://www.home-assistant.io/integrations/fronius/)
+- Kostal (https://www.home-assistant.io/integrations/kostal_plenticore/)
+- Huawei Solar (https://github.com/wlcrs/huawei_solar)
 
 ---
 
@@ -62,13 +79,14 @@ homeassistant:
 8. Navigerer til scripts mappen
 9. Start update_cable_juice_planner.sh
     - update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
-10. Første start vil lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
+10. Ved første start vil den lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
 11. Redigere denne efter dit behov
 12. Genstart Home Assistant eller åben og gem ev.py filen
-    - Anden start vil lave lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
+    - Ved anden start vil den lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
         - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
         - Alle entitier navne starter med ev_ der laves
 13. Genstart Home Assistant
+14. Evt. Copy & Paste kortene i Cable-Juice-Planner-Readme/cards mappen
 
 - Hvis du har flere elbiler laves der en kopi af ev.py til ev_2.py, den nye prefiks vil være ev_2
 - I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.

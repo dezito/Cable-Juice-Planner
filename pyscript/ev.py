@@ -381,7 +381,7 @@ DEFAULT_CONFIG = {
         "charging_single_phase_min_amp": 6.0,
         "charging_single_phase_max_amp": 16.0,
         "charging_three_phase_min_amp": 5.0,
-        "production_price": 0.88
+        "production_price": -1.00
     },
     "testing_mode": False
 }
