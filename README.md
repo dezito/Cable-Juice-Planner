@@ -11,6 +11,8 @@ Ved **Optimal ugeopladning (uden Arbejdsplan)**, specificere man forventer antal
 
 Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og powerwall afladning i planlægningen og under opladning
 
+![Tesla demo](http://sloth.nu/tesla_solar_demo.gif "Tesla demo")
+![Virtuel elbil](http://sloth.nu/virtual_ev_demo.gif "Virtuel elbil")
 ---
 
 ### Funktioner:
