@@ -10,9 +10,8 @@ Ved **Arbejdsplan opladning**, specificere man nødvendig kilometer per arbejdsd
 Ved **Optimal ugeopladning (uden Arbejdsplan)**, specificere man forventer antal kilometer, der køres per dag. Scriptet deler differencen mellem nuværende batteriniveau (f.eks. 27%) og **Elbilens maks anbefalet ladingsprocent** (f.eks. 90%) op i 3 dele (f.eks. 63%/3=21%) og på 1/4/7 dag(e) fra nu af finder de billigste tider at lade bilen på og starter/stopper selv ladningen derefter.
 
 Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og powerwall afladning i planlægningen og under opladning
-
-![Tesla demo](http://sloth.nu/tesla_solar_demo.gif "Tesla demo")
-![Virtuel elbil](http://sloth.nu/virtual_ev_demo.gif "Virtuel elbil")
+![Tesla demo](https://sloth.nu/tesla_solar_demo.gif "Tesla demo")
+![Virtuel elbil](https://sloth.nu/virtual_ev_demo.gif "Virtuel elbil")
 ---
 
 ### Funktioner:
