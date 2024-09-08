@@ -1359,6 +1359,31 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}init")
 
+def get_all_entities():
+    _LOGGER = globals()['_LOGGER'].getChild("get_all_entities")
+    global DEFAULT_ENTITIES
+    entities = []
+    yaml_card = ["type: grid", "cards:"]
+    
+    for domain_name, sub_dict in DEFAULT_ENTITIES.items():
+        if domain_name == "sensor":
+            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:")
+            for sensor_dict in sub_dict:
+                for entity_name in sensor_dict["sensors"].keys():
+                    yaml_card.append(f"    - {domain_name}.{entity_name}")
+                    entities.append(f"{domain_name}.{entity_name}")
+        else:
+            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:")
+            for entity_name in sub_dict.keys():
+                yaml_card.append(f"    - {domain_name}.{entity_name}")
+                entities.append(f"{domain_name}.{entity_name}")
+    
+    _LOGGER.info(f"Entities:\n{"\n".join(yaml_card)}")
+    
+    return entities
+
+#get_all_entities()
+
 set_charging_rule(f"📟Starter scriptet op")
 init()
 
@@ -2821,16 +2846,6 @@ def cheap_grid_charge_hours():
 
         return [kwhNeeded, totalCost, totalkWh, battery_level_added]
 
-    def solar_prediction_available_until_next_workday(hour, work_day):
-        days = daysBetween(hour, work_day)
-        solar_prediction_available = 0.0
-        if days > 0:
-            for day in range(1,days+1):
-                if charging_plan[day]['workday'] or charging_plan[day]['trip']:
-                    break
-                solar_prediction_available += charging_plan[day]['solar_prediction']
-        return solar_prediction_available
-
     def cheap_price_check(price):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_price_check")
         very_cheap_price = False
@@ -2925,6 +2940,20 @@ def cheap_grid_charge_hours():
                     
                     if i > what_day:
                         charging_plan[i]['battery_level_before_work'].append(battery_level_added)
+        
+        def battery_level_full_on_next_departure(what_day):
+            if what_day == 7:
+                return False
+            
+            for day in range(what_day + 1,8):
+                if charging_plan[day]['trip']:
+                    return False
+                
+                if charging_plan[day]['workday']:
+                    if round(sum(charging_plan[day]["battery_level_before_work"]),0) >= get_max_recommended_charge_limit_battery_level():
+                        return True
+                    break
+            return False
         
         unused_solar_kwh = {}
         unused_solar_cost = {}
@@ -3046,6 +3075,10 @@ def cheap_grid_charge_hours():
                         what_day = daysBetween(getTime(), hour)
                         battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, hour, price, day)
                         if not battery_level_id:
+                            continue
+                        
+                        if battery_level_full_on_next_departure(what_day):
+                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}kr. continue to next cheapest hour/price")
                             continue
                         
                         working, on_trip = available_for_charging_prediction(hour, trip_date_time, trip_homecoming_date_time)
@@ -3586,7 +3619,7 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_before_work_sum'] = sum(charging_plan[day]['battery_level_before_work'])
         charging_plan[day]['battery_level_after_work_sum'] = sum(charging_plan[day]['battery_level_after_work'])
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
-        
+
     _LOGGER.info(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     _LOGGER.info(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
