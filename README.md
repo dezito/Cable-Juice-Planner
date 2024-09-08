@@ -109,6 +109,16 @@ homeassistant:
 ---
 ### Fremtiden
 - Konvertere scriptet til en integration
+
+### Filer der laves i roden af Home Assistant mappen:
+- ev_config.yaml **(Konfigurations filen)**
+- ev_charging_history_db.yaml **(Opladningshistorik database)**
+- ev_drive_efficiency_db.yaml **(Kørselseffiktivitet procent database)**
+- ev_km_kwh_efficiency_db.yaml **(Km/Kwh database)**
+- ev_kwh_avg_prices_db.yaml **(Offline strøm priser database)**
+- ev_solar_production_available_db.yaml **(Solcelle over produktion database)**
+
+
 ---
 > [!Note]
 > ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
