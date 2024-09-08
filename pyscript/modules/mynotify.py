@@ -1,7 +1,3 @@
-'''
-Add notify_entity_id to configuration.yaml
-notify_entity_id: "notify.mobile_app_thomas_mobil"
-'''
 import datetime
 import random as rand
 import re
