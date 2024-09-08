@@ -1359,6 +1359,31 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}init")
 
+def get_all_entities():
+    _LOGGER = globals()['_LOGGER'].getChild("get_all_entities")
+    global DEFAULT_ENTITIES
+    entities = []
+    yaml_card = ["type: grid", "cards:"]
+    
+    for domain_name, sub_dict in DEFAULT_ENTITIES.items():
+        if domain_name == "sensor":
+            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:")
+            for sensor_dict in sub_dict:
+                for entity_name in sensor_dict["sensors"].keys():
+                    yaml_card.append(f"    - {domain_name}.{entity_name}")
+                    entities.append(f"{domain_name}.{entity_name}")
+        else:
+            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:")
+            for entity_name in sub_dict.keys():
+                yaml_card.append(f"    - {domain_name}.{entity_name}")
+                entities.append(f"{domain_name}.{entity_name}")
+    
+    _LOGGER.info(f"Entities:\n{"\n".join(yaml_card)}")
+    
+    return entities
+
+#get_all_entities()
+
 set_charging_rule(f"📟Starter scriptet op")
 init()
 
