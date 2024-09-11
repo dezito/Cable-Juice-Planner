@@ -57,10 +57,10 @@ git config --global --add safe.directory $REPO_DIR/Cable-Juice-Planner
 
 # Clone the repo if it doesn't exist, otherwise pull latest changes
 if [ ! -d "$REPO_DIR/Cable-Juice-Planner/.git" ]; then
-  echo "Cloning repository from $REPO_URL (branch: $BRANCH) to $REPO_DIR/Cable-Juice-Planner"
+  echo -e "\nCloning repository from $REPO_URL (branch: $BRANCH) to $REPO_DIR/Cable-Juice-Planner"
   git clone --branch $BRANCH $REPO_URL $REPO_DIR/Cable-Juice-Planner
 else
-  echo "Pulling latest changes from branch $BRANCH in $REPO_DIR/Cable-Juice-Planner"
+  echo -e "\nPulling latest changes from branch $BRANCH in $REPO_DIR/Cable-Juice-Planner"
   cd $REPO_DIR/Cable-Juice-Planner
   git fetch --all && git reset --hard origin/$BRANCH
   git checkout $BRANCH
@@ -68,7 +68,7 @@ else
 fi
 
 # Automatically create all directories in pyscript/modules and pyscript/modules/mytime
-echo "Creating necessary directories in pyscript/modules..."
+echo -e "\nCreating necessary directories in pyscript/modules..."
 find $REPO_DIR/Cable-Juice-Planner/pyscript -type d -exec mkdir -p $REPO_DIR/pyscript/{} \;
 
 # Create hardlinks for all files in pyscript and its subdirectories
