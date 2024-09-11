@@ -30,6 +30,32 @@ if [ -f "$REPO_DIR/.git/config" ]; then
   fi
 fi
 
+# Remove 'cards', 'config_examples', and 'images' files if they exist in Cable-Juice-Planner, then remove the directories if they are empty
+for folder in cards config_examples images; do
+  if [ -d "$REPO_DIR/$folder" ]; then
+    # Iterate through all files in the folder
+    find "$REPO_DIR/$folder" -type f | while read -r file_path; do
+      # Construct the corresponding file path in Cable-Juice-Planner
+      relative_path="${file_path#$REPO_DIR/}"
+      corresponding_file="$REPO_DIR/Cable-Juice-Planner/$relative_path"
+
+      # Check if the file exists in Cable-Juice-Planner
+      if [ -f "$corresponding_file" ]; then
+        echo "Removing file: $file_path (exists in Cable-Juice-Planner)"
+        rm "$file_path"
+      fi
+    done
+
+    # After removing the files, check if the folder is empty and remove it if so
+    if [ -z "$(find "$REPO_DIR/$folder" -type f)" ]; then
+      echo "Removing empty folder: $REPO_DIR/$folder"
+      rm -rf "$REPO_DIR/$folder"
+    else
+      echo "Folder $REPO_DIR/$folder is not empty after file removal, skipping deletion."
+    fi
+  fi
+done
+
 # Git configuration
 git config --global --add safe.directory $REPO_DIR/Cable-Juice-Planner
 
