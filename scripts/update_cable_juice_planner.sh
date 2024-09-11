@@ -8,7 +8,7 @@ else
 fi
 
 # Define the GitHub repository URL
-REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
+REPO_URL="https://github.com/dezito/Cable-Juice-PlanneCRr.git"
 
 # Check if branch argument is passed, otherwise use default branch (master)
 BRANCH=${1:-master}
