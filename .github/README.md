@@ -78,7 +78,7 @@ homeassistant:
 6. Sæt teksten ind du har kopieret
 7. SSH ind i Home Assistant
 8. Navigerer til scripts mappen
-9. Start update_cable_juice_planner.sh
+9. Start "bash update_cable_juice_planner.sh"
     - update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
 10. Ved første start vil den lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
 11. Redigere denne efter dit behov
