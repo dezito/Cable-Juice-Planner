@@ -25,8 +25,6 @@ if [ -f "$REPO_DIR/.git/config" ]; then
   if grep -q '\[remote "origin"\]' "$REPO_DIR/.git/config" && grep -q "url = $REPO_URL" "$REPO_DIR/.git/config"; then
     echo "Found .git/config with correct remote URL in $REPO_DIR. Moving .git to $REPO_DIR/Cable-Juice-Planner"
     mv $REPO_DIR/.git $REPO_DIR/Cable-Juice-Planner/.git
-  else
-    echo "No valid remote URL in .git/config. Skipping .git move."
   fi
 fi
 
@@ -50,8 +48,6 @@ for folder in cards config_examples images; do
     if [ -z "$(find "$REPO_DIR/$folder" -type f)" ]; then
       echo "Removing empty folder: $REPO_DIR/$folder"
       rm -rf "$REPO_DIR/$folder"
-    else
-      echo "Folder $REPO_DIR/$folder is not empty after file removal, skipping deletion."
     fi
   fi
 done
