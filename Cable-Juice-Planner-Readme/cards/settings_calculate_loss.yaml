@@ -1,0 +1,77 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+#
+# Replace <EV_BATTERY_LEVEL> with the entity_id of the ev battery level sensor or emulated entity_id from this script.
+
+type: vertical-stack
+cards:
+  - type: vertical-stack
+    cards:
+      - type: custom:stack-in-card
+        mode: vertical
+        cards:
+          - type: markdown
+            content: >
+              ## 📎 Kalkulering af ladetab ##
+
+
+              For at opnå det bedste resultat anbefales det at lade bilen op fra
+              en lav procent (f.eks. 10%) til 100%.
+
+
+              1. **<font color={% if states.<EV_BATTERY_LEVEL>.state |
+              int > 20 %}red{% else %}lightgreen{% endif %}>Aflad bilen</font>**
+              :
+                 - Sørg for at bilen er afladet så meget som muligt.
+                 - "**{{ states.<EV_BATTERY_LEVEL>.name }}**" er på {{ states.<EV_BATTERY_LEVEL>.state }}% (Maksimum 20%).
+
+              2. **<font color={% if
+              states.input_number.ev_max_recommended_charge_limit_battery_level.state
+              | int < 90 %}red{% else %}lightgreen{% endif %}>Indstil max
+              ladeprocent</font>**:
+                 - Sæt den ønskede ladeprocent i bilen og Home Assistant.
+                 - "**{{ states.input_number.ev_max_recommended_charge_limit_battery_level.name }}"** er sat til {{ states.input_number.ev_max_recommended_charge_limit_battery_level.state }}% (Minimum 90%).
+
+              3. **Aktiver "Kalkulere ladetab"**: Start processen for
+              kalkulering af ladetab. Lad bilen selv indikere, når den er fuldt
+              opladet.
+
+              4. **Gem resultatet**: Når opladningen er fuldført, gemmes
+              resultatet automatisk i konfigurationsfilen.
+
+              5. **Modtag notifikation**: Du vil modtage en notifikation på din
+              mobil med resultatet.
+          - type: custom:mushroom-entity-card
+            entity: input_boolean.ev_calculate_charging_loss
+            fill_container: true
+    view_layout:
+      position: sidebar
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: action
+        tap_action:
+          action: call-service
+          service: script.cable_juice_planner_opdatering
+          target: {}
+        hold_action:
+          action: none
+        double_tap_action:
+          action: none
+        icon: mdi:cloud-download
+      - type: entity
+        entity: input_button.ev_restart_script
+        tap_action:
+          action: more-info
+        hold_action:
+          action: more-info
+        double_tap_action:
+          action: more-info
+        content_info: name
+        icon_color: red
+        use_entity_picture: false
+    alignment: end
+    view_layout:
+      position: sidebar
+view_layout:
+  position: sidebar

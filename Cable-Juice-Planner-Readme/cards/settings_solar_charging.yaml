@@ -1,0 +1,36 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+
+type: vertical-stack
+cards:
+  - type: custom:stack-in-card
+    mode: vertical
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.ev_solar_charging
+        double_tap_action:
+          action: none
+        hold_action:
+          action: none
+        tap_action:
+          action: toggle
+        secondary_info: none
+      - type: markdown
+        content: |
+          # 📎️ {{ states.input_boolean.ev_solar_charging.name }}
+
+          **Aktiveres når der er overproduktion fra solceller**
+
+          <details>
+          <summary><b>Læs mere</b></summary>
+
+          - **📊 Opladning**: Udnytter overskydende solenergi til opladning.
+          - **🔋 Opladningsbehov**:
+            - Tilpasses efter solcelleoverproduktion i forhold til husets forbrug.
+            - Maksimal opladning: {{ states.input_number.ev_max_recommended_charge_limit_battery_level.state | int }}%
+          - **📅 Opladningsplan**:
+            - Estimerer tilgængelig solcelleoverproduktion i løbet af ugen under planlægningen af "Optimal Ugeopladning" og "Arbejdsplan Opladning"
+            - Planlægger opladning ud fra solcelleoverproduktionen, så bilen oplades mest muligt med vedvarende energi.
+            
+          </details>

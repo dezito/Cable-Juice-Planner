@@ -1,0 +1,105 @@
+#All entities for Cable-Juice-Planner that can created my the script
+
+type: grid
+cards:
+  - type: entities
+    title: 📦 Input_button
+    state_color: true
+    entities:
+    - input_button.ev_trip_reset
+    - input_button.ev_enforce_planning
+    - input_button.ev_restart_script
+  - type: entities
+    title: 📦 Input_boolean
+    state_color: true
+    entities:
+    - input_boolean.ev_debug_log
+    - input_boolean.ev_forced_charging_daily_battery_level
+    - input_boolean.ev_allow_manual_charging_now
+    - input_boolean.ev_allow_manual_charging_solar
+    - input_boolean.ev_solar_charging
+    - input_boolean.ev_fill_up
+    - input_boolean.ev_workplan_charging
+    - input_boolean.ev_trip_preheat
+    - input_boolean.ev_workday_monday
+    - input_boolean.ev_workday_tuesday
+    - input_boolean.ev_workday_wednesday
+    - input_boolean.ev_workday_thursday
+    - input_boolean.ev_workday_friday
+    - input_boolean.ev_workday_saturday
+    - input_boolean.ev_workday_sunday
+    - input_boolean.ev_preheat_monday
+    - input_boolean.ev_preheat_tuesday
+    - input_boolean.ev_preheat_wednesday
+    - input_boolean.ev_preheat_thursday
+    - input_boolean.ev_preheat_friday
+    - input_boolean.ev_preheat_saturday
+    - input_boolean.ev_preheat_sunday
+    - input_boolean.ev_calculate_charging_loss
+  - type: entities
+    title: 📦 Input_number
+    state_color: true
+    entities:
+    - input_number.ev_co2_emitted
+    - input_number.ev_kwh_charged_by_solar
+    - input_number.ev_solar_sell_fixed_price
+    - input_number.ev_preheat_minutes_before
+    - input_number.ev_typical_daily_distance
+    - input_number.ev_workday_distance_needed_monday
+    - input_number.ev_workday_distance_needed_tuesday
+    - input_number.ev_workday_distance_needed_wednesday
+    - input_number.ev_workday_distance_needed_thursday
+    - input_number.ev_workday_distance_needed_friday
+    - input_number.ev_workday_distance_needed_saturday
+    - input_number.ev_workday_distance_needed_sunday
+    - input_number.ev_min_daily_battery_level
+    - input_number.ev_min_trip_battery_level
+    - input_number.ev_min_charge_limit_battery_level
+    - input_number.ev_max_recommended_charge_limit_battery_level
+    - input_number.ev_very_cheap_grid_charging_max_battery_level
+    - input_number.ev_ultra_cheap_grid_charging_max_battery_level
+    - input_number.ev_battery_level
+    - input_number.ev_completed_battery_level
+    - input_number.ev_estimated_total_range
+    - input_number.ev_trip_charge_procent
+    - input_number.ev_trip_range_needed
+    - input_number.ev_full_charge_recommended
+  - type: entities
+    title: 📦 Input_datetime
+    state_color: true
+    entities:
+    - input_datetime.ev_workday_departure_monday
+    - input_datetime.ev_workday_departure_tuesday
+    - input_datetime.ev_workday_departure_wednesday
+    - input_datetime.ev_workday_departure_thursday
+    - input_datetime.ev_workday_departure_friday
+    - input_datetime.ev_workday_departure_saturday
+    - input_datetime.ev_workday_departure_sunday
+    - input_datetime.ev_workday_homecoming_monday
+    - input_datetime.ev_workday_homecoming_tuesday
+    - input_datetime.ev_workday_homecoming_wednesday
+    - input_datetime.ev_workday_homecoming_thursday
+    - input_datetime.ev_workday_homecoming_friday
+    - input_datetime.ev_workday_homecoming_saturday
+    - input_datetime.ev_workday_homecoming_sunday
+    - input_datetime.ev_trip_date_time
+    - input_datetime.ev_trip_homecoming_date_time
+    - input_datetime.ev_last_full_charge
+  - type: entities
+    title: 📊 Sensorer
+    state_color: true
+    entities:
+    - sensor.ev_solar_over_production_current_hour
+    - sensor.ev_solar_charged_percentage
+    - sensor.ev_drive_efficiency
+    - sensor.ev_km_per_kwh
+    - sensor.ev_estimated_range
+    - sensor.ev_drive_efficiency_last_battery_level
+    - sensor.ev_drive_efficiency_last_odometer
+    - sensor.ev_charge_very_cheap_battery_level
+    - sensor.ev_charge_ultra_cheap_battery_level
+    - sensor.ev_kwh_cost_price
+    - sensor.ev_current_charging_rule
+    - sensor.ev_emoji_description
+    - sensor.ev_overview
+    - sensor.ev_charging_history

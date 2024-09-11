@@ -1,0 +1,4 @@
+type: markdown
+content: '{{ states.sensor.ev_emoji_description.attributes.description }}'
+view_layout:
+  position: sidebar

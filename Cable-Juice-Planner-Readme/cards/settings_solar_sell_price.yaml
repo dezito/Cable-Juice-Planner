@@ -1,0 +1,25 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: numberbox-card (https://github.com/junkfix/numberbox-card)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+
+type: vertical-stack
+cards:
+  - type: custom:stack-in-card
+    mode: vertical
+    cards:
+      - type: markdown
+        content: |-
+          ## 📎 Solcelleoverproduktion Salgspris
+
+          <details>
+          <summary><b>Læs mere</b></summary>
+
+          Sæt prisen til **-1.0** for at bruge den aktuelle salgspris.
+
+          </details>
+      - type: custom:numberbox-card
+        border: false
+        entity: input_number.ev_solar_sell_fixed_price
+view_layout:
+  position: sidebar
