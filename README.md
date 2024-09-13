@@ -11,7 +11,7 @@ Ved **Optimal ugeopladning (uden Arbejdsplan)**, specificere man forventer antal
 
 Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og powerwall afladning i planlægningen og under opladning
 
-<a href="https://sloth.nu/tesla_solar_demo.gif" target="_blank"><img src="Cable-Juice-Planner-Readme//tesla_solar_demo_small.gif" width="49%"></a><a href="https://sloth.nu/virtual_ev_demo.gif" target="_blank"><img src="Cable-Juice-Planner-Readme//virtual_ev_demo_small.gif" width="49%"></a>
+<a href="https://sloth.nu/tesla_solar_demo.gif" target="_blank"><img src="images/tesla_solar_demo_small.gif" width="49%"></a><a href="https://sloth.nu/virtual_ev_demo.gif" target="_blank"><img src="images/virtual_ev_demo_small.gif" width="49%"></a>
 ---
 
 ### Funktioner:
@@ -66,37 +66,41 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 ---
 
 ### Installation:
-1.  Navigere til Home Assistant config og lav en mappe ved navn "packages"
+1.  Navigere til Home Assistant config mappen
 2.  Sæt koden nedenunder ind i configuration.yaml
 ```yaml
 homeassistant:
   packages: !include_dir_named packages/
 ```
 3. Kopiere al teksten i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh)
-4. Navigere til Home Assistant config/scripts mappen
-5. Lav en fil ved navn "update_cable_juice_planner.sh"
-6. Sæt teksten ind du har kopieret
-7. SSH ind i Home Assistant
-8. Navigerer til scripts mappen
-9. Start "bash update_cable_juice_planner.sh"
-    - update_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
-10. Ved første start vil den lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
-11. Redigere denne efter dit behov
-12. Genstart Home Assistant eller åben og gem ev.py filen
+4. Lav en fil ved navn "install_cable_juice_planner.sh" (lige meget hvor)
+5. Sæt teksten ind du har kopieret
+6. SSH ind i Home Assistant
+7. Navigerer til scripts mappen
+8. Start "bash install_cable_juice_planner.sh"
+    - install_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
+9. Ved første start vil den lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
+10. Redigere denne efter dit behov
+11. Genstart Home Assistant eller åben og gem ev.py filen
     - Ved anden start vil den lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
         - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
         - Alle entitier navne starter med ev_ der laves
-13. Genstart Home Assistant
-14. Evt. Copy & Paste kortene i Cable-Juice-Planner-Readme/cards mappen
+12. Genstart Home Assistant
+13. Evt. Copy & Paste kortene i [Cable-Juice-Planner/cards mappen](cards) mappen
 
-- Hvis du har flere elbiler laves der en kopi af ev.py til ev_2.py, den nye prefiks vil være ev_2
-- I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.
+- Ved flere elbiler køres kommando "ln -n Cable-Juice-Planner/pyscript/ev.py pyscript/ev2.py" i SSH, dette laver en ny hardlink til ev.py, den nye prefiks vil være ev2
+  - I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.
 
 <center>
 
-### [Konfiguration eksempler](Cable-Juice-Planner-Readme/Config_examples)
+### [Konfiguration eksempler](config_examples)
 
 </center>
+
+### Opdatering fra ældre version:
+
+- Hvis man opdaterer fra en ældre version med Cable-Juice-Planner-Readme i config mappen, skal man kører opdateringen 2 gange.
+  - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 2 gange igen
 
 ---
 
@@ -128,7 +132,7 @@ homeassistant:
 >  packages: !include_dir_named packages/
 >
 > shell_command:
->   update_cable_juice_planner: "bash /config/scripts/update_cable_juice_planner.sh"
+>   update_cable_juice_planner: "bash /config/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
 > ```
 >
 > #### Home Assistant OS:
@@ -137,7 +141,7 @@ homeassistant:
 >  packages: !include_dir_named packages/
 >
 > shell_command:
->   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/scripts/update_cable_juice_planner.sh"
+>   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
 > ```
 ---
 > [!Note]
@@ -178,21 +182,21 @@ homeassistant:
 > Klik på et billede nedenunder for at få Home Assistant kortet
 > | Emoji beskrivelse | Historik | Oversigt |
 > | --- | --- | --- |
-> | [![Emoji beskrivelse](Cable-Juice-Planner-Readme/emoji_description.png)](Cable-Juice-Planner-Readme/cards/emoji_description.yaml) | [![Historik](Cable-Juice-Planner-Readme/history.png)](Cable-Juice-Planner-Readme/cards/history.yaml)<br>[Virtuel batteriniveau entity](Cable-Juice-Planner-Readme/cards/history_emulated_battery.yaml) | [![Oversigt](Cable-Juice-Planner-Readme/overview.png)](Cable-Juice-Planner-Readme/cards/overview.yaml) |
+> | [![Emoji beskrivelse](images/emoji_description.png)](cards/emoji_description.yaml) | [![Historik](images/history.png)](cards/history.yaml)<br>[Virtuel batteriniveau entity](cards/history_emulated_battery.yaml) | [![Oversigt](images/overview.png)](cards/overview.yaml) |
 >
 > | Uge strømpriser | Solcelleoverproduktion |
 > | --- | --- |
-> | [![Uge strømpriser](Cable-Juice-Planner-Readme/week_prices.png)](Cable-Juice-Planner-Readme/cards/week_prices.yaml) | [![Solcelleoverproduktion](Cable-Juice-Planner-Readme/solar_price_graf.png)](Cable-Juice-Planner-Readme/cards/solar_price_graf.yaml) |
+> | [![Uge strømpriser](images/week_prices.png)](cards/week_prices.yaml) | [![Solcelleoverproduktion](images/solar_price_graf.png)](cards/solar_price_graf.yaml) |
 >
 > | Manuel ladning | Tur ladning |
 > | --- | --- |
-> | [![Manuel](Cable-Juice-Planner-Readme/manual.png)](Cable-Juice-Planner-Readme/cards/manual.yaml) | [![Tur](Cable-Juice-Planner-Readme/trip.png)](Cable-Juice-Planner-Readme/cards/trip.yaml) |
+> | [![Manuel](images/manual.png)](cards/manual.yaml) | [![Tur](images/trip.png)](cards/trip.yaml) |
 >
 > | Indstillinger |  |
 > | --- | --- |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_charging.png)](Cable-Juice-Planner-Readme/cards/settings_solar_charging.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fully_charged.png)](Cable-Juice-Planner/Readme/cards/settings_fully_charged.yaml) |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_fill_up.png)](Cable-Juice-Planner-Readme/cards/settings_fill_up.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_cheap_charging.png)](Cable-Juice-Planner-Readme/cards/settings_cheap_charging.yaml) |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_workplan.png)](Cable-Juice-Planner-Readme/cards/settings_workplan.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_battery_level_preheat.png)](Cable-Juice-Planner/Readme/cards/settings_battery_level_preheat.yaml) |
-> | [![Indstillinger](Cable-Juice-Planner-Readme/settings_solar_sell_price.png)](Cable-Juice-Planner-Readme/cards/settings_solar_sell_price.yaml) | [![Indstillinger](Cable-Juice-Planner-Readme/settings_calculate_loss.png)](Cable-Juice-Planner-Readme/cards/settings_calculate_loss.yaml) |
+> | [![Indstillinger](images/settings_solar_charging.png)](cards/settings_solar_charging.yaml) | [![Indstillinger](images/settings_fully_charged.png)](Readme/cards/settings_fully_charged.yaml) |
+> | [![Indstillinger](images/settings_fill_up.png)](cards/settings_fill_up.yaml) | [![Indstillinger](images/settings_cheap_charging.png)](cards/settings_cheap_charging.yaml) |
+> | [![Indstillinger](images/settings_workplan.png)](cards/settings_workplan.yaml) | [![Indstillinger](images/settings_battery_level_preheat.png)](Readme/cards/settings_battery_level_preheat.yaml) |
+> | [![Indstillinger](images/settings_solar_sell_price.png)](cards/settings_solar_sell_price.yaml) | [![Indstillinger](images/settings_calculate_loss.png)](cards/settings_calculate_loss.yaml) |
 
 
