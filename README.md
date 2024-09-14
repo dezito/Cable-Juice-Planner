@@ -12,6 +12,7 @@ Ved **Optimal ugeopladning (uden Arbejdsplan)**, specificere man forventer antal
 Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og powerwall afladning i planlægningen og under opladning
 
 <a href="https://sloth.nu/tesla_solar_demo.gif" target="_blank"><img src="images/tesla_solar_demo_small.gif" width="49%"></a><a href="https://sloth.nu/virtual_ev_demo.gif" target="_blank"><img src="images/virtual_ev_demo_small.gif" width="49%"></a>
+[![Opladnings periode](images/charging_period.png)]
 ---
 
 ### Funktioner:
@@ -54,14 +55,24 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 - Sun
 
 ### Understøttet og testet integrationer
-- Easee Charger (https://github.com/nordicopen/easee_hass)
-- Kia UVO (https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
-- Tessie (https://www.home-assistant.io/integrations/tessie/)
-- TeslaFi (https://github.com/jhansche/ha-teslafi)
-- Tesla (https://github.com/alandtse/tesla)
-- Fronius (https://www.home-assistant.io/integrations/fronius/)
-- Kostal (https://www.home-assistant.io/integrations/kostal_plenticore/)
-- Huawei Solar (https://github.com/wlcrs/huawei_solar)
+- [Easee Charger](https://github.com/nordicopen/easee_hass)
+- [Kia UVO](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
+- [Tessie](https://www.home-assistant.io/integrations/tessie/)
+- [TeslaFi](https://github.com/jhansche/ha-teslafi)
+- [Tesla](https://github.com/alandtse/tesla)
+- [Fronius](https://www.home-assistant.io/integrations/fronius/)
+- [Kostal](https://www.home-assistant.io/integrations/kostal_plenticore/)
+- [Huawei Solar](https://github.com/wlcrs/huawei_solar)
+
+### Todo
+1. Monta understøttelse
+2. Kia UVO understøttelse
+3. [Zaptec EV charger](https://github.com/custom-components/zaptec)
+3. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
+4. Gør at scriptet ikke låser Home Assistant når den kører charge_if_needed()
+---
+### Fremtiden
+- Konvertere scriptet til en integration
 
 ---
 
@@ -103,16 +114,6 @@ homeassistant:
   - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 2 gange igen
 
 ---
-
-
-### Todo
-1. Monta understøttelse
-2. Kia UVO understøttelse
-3. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
-4. Gør at scriptet ikke låser Home Assistant når den kører charge_if_needed()
----
-### Fremtiden
-- Konvertere scriptet til en integration
 
 ### Filer der laves i roden af Home Assistant mappen:
 - ev_config.yaml **(Konfigurations filen)**
