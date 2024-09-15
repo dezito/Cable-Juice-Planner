@@ -3341,6 +3341,7 @@ def cheap_grid_charge_hours():
                         
                     kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative - charging_plan[day_before]['solar_prediction'], get_min_daily_battery_level())
                     kwh_solar_alternative = min(charging_plan[day_before]['solar_prediction'], charging_plan[day_after]['work_battery_level_needed']) if charging_plan[day_before]['solar_prediction'] > 0.0 else 0.0
+                    
                     if kwh_solar_alternative > 0.0:
                         solar_price = get_solar_sell_price(get_avg_offline_sell_price=True)
                         _LOGGER.error(f"Alternative charging estimate for day {day}: solar_price {solar_price}")
@@ -5315,7 +5316,7 @@ def append_kwh_prices():#TODO Add support for every week day prices
                         tariffs = attr["tariffs"][str(i)]
                         
                     tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-                    raw_price = today[i] - tariff_sum - get_refund()
+                    raw_price = today[i] - tariff_sum
 
                     energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
                     energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
