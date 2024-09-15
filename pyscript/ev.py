@@ -3921,22 +3921,25 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         if not charger_id:
             raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
         
-        if service.has_service("easee", "set_circuit_dynamic_limit"):
-            service.call("easee", "set_circuit_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current_p1=phase_1,
-                                current_p2=phase_2,
-                                current_p3=phase_3,
-                                time_to_live=60)
-        else:
-            raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
-        
-        if service.has_service("easee", "set_charger_dynamic_limit"):
-            service.call("easee", "set_charger_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current=max(phase_1, phase_2, phase_3))
-        else:
-            raise Exception("Easee integration dont has service set_charger_dynamic_limit")
+        try:
+            if service.has_service("easee", "set_circuit_dynamic_limit"):
+                service.call("easee", "set_circuit_dynamic_limit", blocking=True,
+                                    charger_id=charger_id,
+                                    current_p1=phase_1,
+                                    current_p2=phase_2,
+                                    current_p3=phase_3,
+                                    time_to_live=60)
+            else:
+                raise Exception("Easee integration dont have service set_circuit_dynamic_limit")
+        except Exception as e:
+            _LOGGER.warning(f"Cant set dynamic amps on charger, trying set_charger_dynamic_limit: {e}")
+            if service.has_service("easee", "set_charger_dynamic_limit"):
+                service.call("easee", "set_charger_dynamic_limit", blocking=True,
+                                    charger_id=charger_id,
+                                    current=max(phase_1, phase_2, phase_3))
+            else:
+                raise Exception("Easee integration dont have service set_circuit_dynamic_limit & set_charger_dynamic_limit")
+            
         successful = True
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
