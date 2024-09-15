@@ -3344,16 +3344,9 @@ def cheap_grid_charge_hours():
                     
                     if kwh_solar_alternative > 0.0:
                         solar_price = get_solar_sell_price(get_avg_offline_sell_price=True)
-                        _LOGGER.error(f"Alternative charging estimate for day {day}: solar_price {solar_price}")
                         totalCost_alternative += kwh_solar_alternative * solar_price
                         totalkWh_alternative += kwh_solar_alternative
                         
-                    _LOGGER.info(f"Alternative charging estimate for day {day}: {homecoming_alternative} - {last_charging_alternative}")
-                    _LOGGER.info(f"Alternative charging estimate for day {day}: used_battery_level_alternative {used_battery_level_alternative}")
-                    _LOGGER.info(f"Alternative charging estimate for day {day}: kwh_needed_today_alternative {kwh_needed_today_alternative}")
-                    _LOGGER.info(f"Alternative charging estimate for day {day}: kwh_solar_alternative {kwh_solar_alternative}")
-                    _LOGGER.info(f"Alternative charging estimate for day {day}: workday:{charging_plan[day_after]['workday']} trip:{charging_plan[day_after]['trip']}")
-                    
                     for hour, price in sorted(combinedHourPrices.items(), key=lambda kv: (kv[1],kv[0])):
                         if hour <= last_charging_alternative and hour >= homecoming_alternative:
                             working, on_trip = available_for_charging_prediction(hour, trip_date_time, trip_homecoming_date_time)
