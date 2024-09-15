@@ -1632,12 +1632,28 @@ def manual_charging_solar_enabled():
     if get_state(f"input_boolean.{__name__}_allow_manual_charging_solar") == "on":
         return True
 
-def get_solar_sell_price(set_entity_attr=False):
+def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False):
     _LOGGER = globals()['_LOGGER'].getChild("get_solar_sell_price")
     
     if not is_solar_configured(): return 0.0
     
     try:
+        sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+        
+        if get_avg_offline_sell_price:
+            if sell_price != -1.0:
+                return sell_price
+            
+            location = sun.get_astral_location(hass)
+            sunrise = location[0].sunrise(getTime()).replace(tzinfo=None).hour
+            sunset = location[0].sunset(getTime()).replace(tzinfo=None).hour
+            sell_price_list = []
+            
+            for hour in range(sunrise, sunset):
+                sell_price_list.append(average(KWH_AVG_PRICES_DB['history_sell'][hour]))
+                
+            return average(sell_price_list)
+        
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
         
@@ -1664,10 +1680,7 @@ def get_solar_sell_price(set_entity_attr=False):
         sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
         solar_sell_price = raw_price - sell_tariffs
         
-        sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
         if sell_price == -1.0:
-            if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-                raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
             sell_price = round(solar_sell_price, 3)
         
         if set_entity_attr:
@@ -3318,7 +3331,6 @@ def cheap_grid_charge_hours():
                     homecoming_alternative = min([date for date in [charging_plan[day_before]['work_homecoming'], charging_plan[day_before]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None])
                     last_charging_alternative = min([date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_goto']] if date is not None])
                     used_battery_level_alternative = get_min_daily_battery_level() + charging_plan[day_after]['work_battery_level_needed']
-
                     if day == 0 and extra_charge_alternative:
                         diff = abs(diff_alternative)
                         used_battery_level_alternative += diff
@@ -3328,6 +3340,18 @@ def cheap_grid_charge_hours():
                         used_battery_level_alternative += charging_plan[day_after]['trip_battery_level_needed'] + charging_plan[day_after]['trip_battery_level_above_max'] + diff_min_alternative
                         
                     kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative - charging_plan[day_before]['solar_prediction'], get_min_daily_battery_level())
+                    kwh_solar_alternative = min(charging_plan[day_before]['solar_prediction'], charging_plan[day_after]['work_battery_level_needed']) if charging_plan[day_before]['solar_prediction'] > 0.0 else 0.0
+                    if kwh_solar_alternative > 0.0:
+                        solar_price = get_solar_sell_price(get_avg_offline_sell_price=True)
+                        _LOGGER.error(f"Alternative charging estimate for day {day}: solar_price {solar_price}")
+                        totalCost_alternative += kwh_solar_alternative * solar_price
+                        totalkWh_alternative += kwh_solar_alternative
+                        
+                    _LOGGER.info(f"Alternative charging estimate for day {day}: {homecoming_alternative} - {last_charging_alternative}")
+                    _LOGGER.info(f"Alternative charging estimate for day {day}: used_battery_level_alternative {used_battery_level_alternative}")
+                    _LOGGER.info(f"Alternative charging estimate for day {day}: kwh_needed_today_alternative {kwh_needed_today_alternative}")
+                    _LOGGER.info(f"Alternative charging estimate for day {day}: kwh_solar_alternative {kwh_solar_alternative}")
+                    _LOGGER.info(f"Alternative charging estimate for day {day}: workday:{charging_plan[day_after]['workday']} trip:{charging_plan[day_after]['trip']}")
                     
                     for hour, price in sorted(combinedHourPrices.items(), key=lambda kv: (kv[1],kv[0])):
                         if hour <= last_charging_alternative and hour >= homecoming_alternative:
