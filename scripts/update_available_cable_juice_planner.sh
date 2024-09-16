@@ -10,7 +10,10 @@ fi
 # Define the GitHub repository URL
 REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
 
-cd $REPO_DIR
+cd $REPO_DIR/Cable-Juice-Planner
+
+# Check if branch argument is passed, otherwise use default branch (master)
+BRANCH=${1:-master}
 
 # Fetch den seneste branch info fra fjernrepository
 git fetch origin $BRANCH

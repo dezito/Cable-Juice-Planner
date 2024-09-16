@@ -112,6 +112,7 @@ LAST_TRIP_CHANGE_DATETIME = getTime()
 
 CONFIG = {}
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
+SOLAR_PRODUCTION_AVAILABLE_DB_VERSION = 2.0
 KWH_AVG_PRICES_DB = {}
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
@@ -130,21 +131,21 @@ EV_SEND_COMMAND_QUEUE = []
 
 CURRENT_CHARGING_SESSION = {}
 WEATHER_CONDITION_DICT = {
-    "sunny": 0,                # Maximum solar production
-    "windy": 25,               # Minimal effect on solar production unless cloudy
-    "windy-variant": 25,       # Similar to windy
-    "partlycloudy": 50,        # Slightly reduced solar production
-    "cloudy": 75,              # Moderately reduced solar production
-    "rainy": 75,               # Moderate reduction in solar production
-    "pouring": 75,             # Significant reduction in solar production
-    "lightning": 75,           # Reduced solar production due to cloud coverage
-    "lightning-rainy": 75,     # Significantly reduced solar production
-    "snowy": 75,               # Snow can obstruct panels significantly
-    "snowy-rainy": 75,         # Combined effect of snow and rain
-    "clear-night": 100,        # No solar production
-    "fog": 100,                # Severely reduced visibility and solar production
-    "hail": 100,               # Potential zero production during hail
-    "exceptional": 100         # Extreme weather conditions with no production
+    "sunny": 100,                # Maksimal solproduktion, ideelle forhold
+    "windy": 80,                 # Minimal effekt på solproduktion
+    "windy-variant": 80,         # Ligner windy, mindre effekt på produktionen
+    "partlycloudy": 60,          # Moderat reduceret solproduktion
+    "cloudy": 40,                # Betydelig reduceret solproduktion
+    "rainy": 40,                 # Betydelig reduceret produktion på grund af regn og skyer
+    "pouring": 20,               # Kraftig regn, stor reduktion i produktion
+    "lightning": 20,             # Stor reduktion pga. skydække og storm
+    "lightning-rainy": 20,       # Kraftig storm og regn, signifikant reduceret produktion
+    "snowy": 20,                 # Sne, reducerer solproduktionen markant
+    "snowy-rainy": 20,           # Kombination af sne og regn, meget lav produktion
+    "clear-night": 0,            # Ingen produktion om natten
+    "fog": 20,                   # Tåge, meget lav produktion pga. nedsat sollys
+    "hail": 0,                   # Ingen produktion under hagl
+    "exceptional": 0             # Ekstreme forhold, ingen produktion
 }
 
 INTEGRATION_DAILY_LIMIT_BUFFER = 50
@@ -3018,6 +3019,8 @@ def cheap_grid_charge_hours():
         kwh_needed_to_fill_up = kwh_needed_for_charging(get_max_recommended_charge_limit_battery_level())
         kwh_needed_to_fill_up_share = kwh_needed_to_fill_up / len(fill_up_days)
         
+        charge_hours_alternative = []
+        
         for day in sorted([key for key in charging_plan.keys() if isinstance(key, int)]):
             day_before = max(day - 1, 0)
             day_after = min(day + 1, 7)
@@ -3320,32 +3323,37 @@ def cheap_grid_charge_hours():
                 homecoming_alternative = min([date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None])
                 last_charging_alternative = min([date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_goto']] if date is not None])
                 
-                work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed'] if charging_plan[day]['work_battery_level_needed'] > 0.0 else 0.0
-                typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
-                total_battery_level_needed_alternative = work_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
-                used_battery_level_alternative = get_min_daily_battery_level() + total_battery_level_needed_alternative if total_battery_level_needed_alternative > 0.0 else 0.0
+                if day == 0:
+                    used_battery_level_alternative = get_max_recommended_charge_limit_battery_level() - battery_level()
+                else:
+                    work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed'] if charging_plan[day]['work_battery_level_needed'] > 0.0 else 0.0
+                    typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
+                    total_battery_level_needed_alternative = work_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
+                    used_battery_level_alternative = total_battery_level_needed_alternative if total_battery_level_needed_alternative > 0.0 else 0.0
                 
-                if charging_plan[day]["trip"]:
-                    diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
-                    used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
+                    if charging_plan[day]["trip"]:
+                        diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
+                        used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
 
-                kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, get_min_daily_battery_level())
+                kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
                 kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative) if charging_plan[day]['solar_kwh_prediction'] > 0.0 else 0.0
                 kwh_needed_today_alternative -= kwh_solar_alternative
                 kwh_needed_today_alternative = max(kwh_needed_today_alternative, 0.0)
                 
                 if kwh_solar_alternative > 0.0:
-                    solar_price = get_solar_sell_price(get_avg_offline_sell_price=True)
+                    solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
                     total_cost_alternative += kwh_solar_alternative * solar_price
                     total_kwh_alternative += kwh_solar_alternative
                     
                 for hour, price in sorted(combinedHourPrices.items(), key=lambda kv: (kv[1],kv[0])):
-                    if hour <= last_charging_alternative and hour >= homecoming_alternative:
+                    if hour not in charge_hours_alternative and in_between(hour, homecoming_alternative, last_charging_alternative):
                         working, on_trip = available_for_charging_prediction(hour, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
                             continue
                         
                         if kwh_needed_today_alternative > 0.0:
+                            charge_hours_alternative.append(hour)
+                            
                             if (kwh_needed_today_alternative - MAX_KWH_CHARGING) < 0.0:
                                 cost = kwh_needed_today_alternative * price
                                 total_kwh_alternative += kwh_needed_today_alternative
@@ -3921,22 +3929,25 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         if not charger_id:
             raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
         
-        if service.has_service("easee", "set_circuit_dynamic_limit"):
-            service.call("easee", "set_circuit_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current_p1=phase_1,
-                                current_p2=phase_2,
-                                current_p3=phase_3,
-                                time_to_live=60)
-        else:
-            raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
-        
-        if service.has_service("easee", "set_charger_dynamic_limit"):
-            service.call("easee", "set_charger_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current=max(phase_1, phase_2, phase_3))
-        else:
-            raise Exception("Easee integration dont has service set_charger_dynamic_limit")
+        try:
+            if service.has_service("easee", "set_circuit_dynamic_limit"):
+                service.call("easee", "set_circuit_dynamic_limit", blocking=True,
+                                    charger_id=charger_id,
+                                    current_p1=phase_1,
+                                    current_p2=phase_2,
+                                    current_p3=phase_3,
+                                    time_to_live=60)
+            else:
+                raise Exception("Easee integration dont have service set_circuit_dynamic_limit")
+        except Exception as e:
+            _LOGGER.warning(f"Cant set dynamic amps on charger, trying set_charger_dynamic_limit: {e}")
+            if service.has_service("easee", "set_charger_dynamic_limit"):
+                service.call("easee", "set_charger_dynamic_limit", blocking=True,
+                                    charger_id=charger_id,
+                                    current=max(phase_1, phase_2, phase_3))
+            else:
+                raise Exception("Easee integration dont have service set_circuit_dynamic_limit & set_charger_dynamic_limit")
+            
         successful = True
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
@@ -4218,16 +4229,91 @@ def get_forecast(forecast_dict = None, date = None):
         
     _LOGGER.debug(f"{date}: {forecast}")
     return forecast
-        
+    
+def forecast_score(data):
+    _LOGGER = globals()['_LOGGER'].getChild("forecast_score")
+    normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
+    
+    uv_index = data["uv_index"]
+    max_uv_index = 11
+    normalized_uv_index = min(uv_index / max_uv_index, 1)
+    
+    temperature = data["temperature"]
+    max_temperature = 20
+    if temperature <= max_temperature:
+        normalized_temperature = temperature / max_temperature
+    else:
+        normalized_temperature = max_temperature / temperature
+
+    cloud_weight = 0.5
+    uv_weight = 0.3
+    temperature_weight = 0.2
+
+    if data["cloud_coverage"] >= 90:
+        normalized_cloud_coverage *= 0.2
+        normalized_uv_index *= 0.1
+        normalized_temperature *= 0.5
+
+    score = ((
+        normalized_cloud_coverage * cloud_weight +
+        normalized_uv_index * uv_weight +
+        normalized_temperature * temperature_weight
+    ) * 100)
+
+    return score
+
+def db_cloud_coverage_to_score(database):
+    new_database = {}
+    for hour in database:
+        new_database[hour] = {}
+        for cloud_coverage, data in database[hour].items():
+            score = 100 - cloud_coverage
+            new_database[hour][score] = data
+    return new_database
+
+def transform_database(database, step_size=20):
+    new_database = {}
+    for hour, cloud_data in database.items():
+        new_database[hour] = {}
+
+        for cloud_coverage, entries in cloud_data.items():
+            score_group = (cloud_coverage // step_size) * step_size
+            upper_group = score_group + step_size
+
+            if score_group not in new_database[hour]:
+                new_database[hour][score_group] = []
+            if upper_group not in new_database[hour] and upper_group <= 100:
+                new_database[hour][upper_group] = []
+
+            sorted_entries = sorted(entries, key=lambda x: x[1])
+
+            split_index = len(sorted_entries) // 2
+
+            new_database[hour][score_group].extend(sorted_entries[:split_index])
+
+            if upper_group <= 100:
+                new_database[hour][upper_group].extend(sorted_entries[split_index:])
+
+    return new_database
+    
 def load_solar_available_db():
     _LOGGER = globals()['_LOGGER'].getChild("load_solar_available_db")
     global SOLAR_PRODUCTION_AVAILABLE_DB
     
     if not is_solar_configured(): return
     
+    version = 1.0
+    
     try:
-        create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
-        SOLAR_PRODUCTION_AVAILABLE_DB = {int(outer_key): {int(inner_key): value for inner_key, value in inner_dict.items()} for outer_key, inner_dict in load_yaml(f"{__name__}_solar_production_available_db").items()}
+        database = load_yaml(f"{__name__}_solar_production_available_db")
+        if "version" in database:
+            version = float(database["version"])
+            del database["version"]
+            
+        SOLAR_PRODUCTION_AVAILABLE_DB = {int(outer_key): {int(inner_key): value for inner_key, value in inner_dict.items()} for outer_key, inner_dict in database.items()}
+        
+        if not SOLAR_PRODUCTION_AVAILABLE_DB:
+            create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_solar_production_available_db: {e}")
         my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error")
@@ -4240,6 +4326,12 @@ def load_solar_available_db():
             SOLAR_PRODUCTION_AVAILABLE_DB[hour] = {}
         for value in weather_values():
             SOLAR_PRODUCTION_AVAILABLE_DB[hour].setdefault(value, [])
+    
+    if version <= 1.0:
+        _LOGGER.info(f"Transforming database from version {version} to {SOLAR_PRODUCTION_AVAILABLE_DB_VERSION}")
+        SOLAR_PRODUCTION_AVAILABLE_DB = db_cloud_coverage_to_score(SOLAR_PRODUCTION_AVAILABLE_DB)
+        SOLAR_PRODUCTION_AVAILABLE_DB = transform_database(SOLAR_PRODUCTION_AVAILABLE_DB)
+        
     save_solar_available_db()
     
 def save_solar_available_db():
@@ -4249,7 +4341,10 @@ def save_solar_available_db():
     if not is_solar_configured(): return
     
     if len(SOLAR_PRODUCTION_AVAILABLE_DB) > 0:
-        save_changes(f"{__name__}_solar_production_available_db", SOLAR_PRODUCTION_AVAILABLE_DB)
+        db_to_file = SOLAR_PRODUCTION_AVAILABLE_DB.copy()
+        db_to_file["version"] = SOLAR_PRODUCTION_AVAILABLE_DB_VERSION
+        save_changes(f"{__name__}_solar_production_available_db", db_to_file)
+        
     
 def solar_available_append_to_db(power):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_append_to_db")
@@ -4308,10 +4403,10 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             power_one_up_list = []
             if type(power_list) == list:
                 if len(power_list) <= 6 or average(get_list_values(power_list)) <= 1000.0:
-                    if cloudiness >= 25:
-                        power_one_down_list = get_closest_key(cloudiness - 25, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
-                    if cloudiness <= 75:
-                        power_one_up_list = get_closest_key(cloudiness + 25, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
+                    if cloudiness >= 20:
+                        power_one_down_list = get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
+                    if cloudiness <= 80:
+                        power_one_up_list = get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
                 
                 power = list(filter(lambda value: value <= MAX_WATT_CHARGING, get_list_values(power_list)))
                 power_one_down = list(filter(lambda value: value <= MAX_WATT_CHARGING, get_list_values(power_one_down_list)))
@@ -4413,7 +4508,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     if hour in expensive_hours and using_grid_price:
                         continue
                         
-                    cloudiness = forecast['cloud_coverage']
+                    cloudiness = forecast_score(forecast)
                     power_cost = get_power(cloudiness, hour)
                     total.append(power_cost[0])
                     total_sell.append(power_cost[1])
