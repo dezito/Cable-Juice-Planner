@@ -14,7 +14,7 @@
 >
 > | Indstillinger |  |
 > | --- | --- |
-> | [![Indstillinger](../images/settings_solar_charging.png)](../cards/settings_solar_charging.yaml) | [![Indstillinger](../images/settings_fully_charged.png)](../Readme/cards/settings_fully_charged.yaml) |
+> | [![Indstillinger](../images/settings_solar_charging.png)](../cards/settings_solar_charging.yaml) | [![Indstillinger](../images/settings_fully_charged.png)](../cards/settings_fully_charged.yaml) |
 > | [![Indstillinger](../images/settings_fill_up.png)](../cards/settings_fill_up.yaml) | [![Indstillinger](../images/settings_cheap_charging.png)](../cards/settings_cheap_charging.yaml) |
-> | [![Indstillinger](../images/settings_workplan.png)](../cards/settings_workplan.yaml) | [![Indstillinger](../images/settings_battery_level_preheat.png)](../Readme/cards/settings_battery_level_preheat.yaml) |
+> | [![Indstillinger](../images/settings_workplan.png)](../cards/settings_workplan.yaml) | [![Indstillinger](../images/settings_battery_level_preheat.png)](../cards/settings_battery_level_preheat.yaml) |
 > | [![Indstillinger](../images/settings_solar_sell_price.png)](../cards/settings_solar_sell_price.yaml) | [![Indstillinger](../images/settings_calculate_loss.png)](../cards/settings_calculate_loss.yaml) |
