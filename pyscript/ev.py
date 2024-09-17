@@ -3687,7 +3687,7 @@ def cheap_grid_charge_hours():
                 overview.append(f"| **☀️ Solcelle andel** | **{round(battery_level_cost_solar_percentage,0):.0f}% {round(percentage_to_kwh(battery_level_cost_solar_percentage), 1)} kWh** |")
                 
             overview.append(f"| **💰 Udgift** | **{round(battery_level_cost, 2):.2f} kr** |")
-            overview.append(f"| **🧮 Enhedspris** | {round(kwh_to_percentage(battery_level_cost_unit, include_charging_loss=True), 2):.2f} kr/% **{round(battery_level_cost_unit, 2):.2f} kr/kWh** |")
+            overview.append(f"| **🧮 Enhedspris** | {round(percentage_to_kwh(battery_level_cost_unit, include_charging_loss=True), 2):.2f} kr/% **{round(battery_level_cost_unit, 2):.2f} kr/kWh** |")
             overview.append("</center>\n")
             overview.append("***")
     except Exception as e:
