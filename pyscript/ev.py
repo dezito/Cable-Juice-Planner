@@ -732,7 +732,7 @@ DEFAULT_ENTITIES = {
           "mode": "box"
       },
       f"{__name__}_estimated_total_range":{
-          "name": "Elbil max rækkevidde",
+          "name": "Virtuel elbil max rækkevidde",
           "min": 0,
           "max": 1000,
           "step": 1,
