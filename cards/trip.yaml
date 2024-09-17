@@ -2,57 +2,77 @@
 # Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
 # Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
 
-type: vertical-stack
+type: custom:stack-in-card
+mode: vertical
 cards:
-  - type: custom:stack-in-card
-    mode: vertical
-    cards:
-      - type: custom:mushroom-title-card
-        title: Tur ladning
-      - type: conditional
-        conditions:
-          - condition: state
-            entity: input_number.ev_trip_range_needed
-            state: "0.0"
-        card:
-          type: custom:mushroom-number-card
-          entity: input_number.ev_trip_charge_procent
-      - type: conditional
-        conditions:
-          - condition: state
-            entity: input_number.ev_trip_charge_procent
-            state: "0.0"
-        card:
-          type: custom:mushroom-number-card
-          entity: input_number.ev_trip_range_needed
-      - type: custom:mushroom-entity-card
-        entity: input_boolean.ev_trip_preheat
-        icon_color: red
-        fill_container: false
+  - type: markdown
+    content: >-
+      ## 📎 Tur planlægning
+
+
+      Tur opladningen planlægges automatisk, når betingelserne er opfyldt.
+
+
+      <details>
+
+      <summary><b>Læs mere</b></summary>
+
+
+      - **Automatisk aktivering**: Tur opladning starter automatisk, når
+      følgende betingelser er opfyldt:
+        - En af følgende betingelser er opfyldt:
+          - **{{ states.input_number.ev_trip_charge_procent.name }}** er indstillet til en procent over 0%.
+          - **{{ states.input_number.ev_trip_range_needed.name }}** er indstillet til et antal kilometer over 0 km.
+        - **{{ states.input_datetime.ev_trip_date_time.name }}** er sat til en fremtidig dato.
+        - **{{ states.input_datetime.ev_trip_homecoming_date_time.name }}** er sat til en fremtidig dato.
+      - **Opladning**:
+        - Lader op til det nødvendige behov for at gennemføre turen, baseret på enten det ønskede batteriniveau eller den indstillede distance.
+        - Opladning mellem **{{ states.input_number.ev_max_recommended_charge_limit_battery_level.state | int }}-100%** vil blive udført lige inden afgang for at beskytte batteriet.
+
+
+      </details>
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_number.ev_trip_range_needed
+        state: '0.0'
+    card:
+      type: custom:mushroom-number-card
+      entity: input_number.ev_trip_charge_procent
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_number.ev_trip_charge_procent
+        state: '0.0'
+    card:
+      type: custom:mushroom-number-card
+      entity: input_number.ev_trip_range_needed
+  - type: custom:mushroom-entity-card
+    entity: input_boolean.ev_trip_preheat
+    icon_color: red
+    fill_container: false
+    tap_action:
+      action: toggle
+  - type: custom:mushroom-entity-card
+    entity: input_datetime.ev_trip_date_time
+    hold_action:
+      action: none
+    double_tap_action:
+      action: none
+  - type: custom:mushroom-entity-card
+    entity: input_datetime.ev_trip_homecoming_date_time
+    hold_action:
+      action: none
+    double_tap_action:
+      action: none
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: entity
+        entity: input_button.ev_trip_reset
+        content_info: name
         tap_action:
           action: toggle
-      - type: custom:mushroom-entity-card
-        entity: input_datetime.ev_trip_date_time
         hold_action:
           action: none
-        double_tap_action:
-          action: none
-      - type: custom:mushroom-entity-card
-        entity: input_datetime.ev_trip_homecoming_date_time
-        hold_action:
-          action: none
-        double_tap_action:
-          action: none
-      - type: custom:mushroom-chips-card
-        chips:
-          - type: entity
-            entity: input_button.ev_trip_reset
-            content_info: name
-            tap_action:
-              action: toggle
-            hold_action:
-              action: none
-            use_entity_picture: false
-        alignment: end
-view_layout:
-  position: sidebar
+        use_entity_picture: false
+    alignment: end
