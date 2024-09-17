@@ -110,8 +110,8 @@ homeassistant:
 
 ### Opdatering fra ældre version:
 
-- Hvis man opdaterer fra en ældre version med Cable-Juice-Planner-Readme i config mappen, skal man kører opdateringen 2 gange.
-  - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 2 gange igen
+- Hvis man opdaterer fra en ældre version med Cable-Juice-Planner-Readme i config mappen, skal man kører opdateringen 3 gange.
+  - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 3 gange igen
 
 ---
 
