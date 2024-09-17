@@ -1038,6 +1038,9 @@ def save_changes(file, db):
     global COMMENT_DB_YAML
     db_disk = load_yaml(file)
     
+    if "version" in db_disk:
+        del db_disk["version"]
+    
     comment_db = COMMENT_DB_YAML if f"{__name__}_config" in file else None
     if db != db_disk or db == {}:
         try:
