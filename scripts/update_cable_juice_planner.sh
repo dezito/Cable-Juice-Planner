@@ -73,13 +73,15 @@ echo -e "\nCreating necessary directories for pyscript and scripts based on repo
 
 # Find and create all directories in Cable-Juice-Planner/pyscript and Cable-Juice-Planner/scripts
 find $REPO_DIR/Cable-Juice-Planner/pyscript -type d | while read -r dir; do
-  relative_dir="${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+  # Remove the $REPO_DIR/Cable-Juice-Planner/pyscript part from the path to get the relative path
+  relative_dir=$(realpath --relative-to="$REPO_DIR/Cable-Juice-Planner/pyscript" "$dir")
   echo "Creating directory: $REPO_DIR/pyscript/$relative_dir"
   mkdir -p "$REPO_DIR/pyscript/$relative_dir"
 done
 
 find $REPO_DIR/Cable-Juice-Planner/scripts -type d | while read -r dir; do
-  relative_dir="${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+  # Remove the $REPO_DIR/Cable-Juice-Planner/scripts part from the path to get the relative path
+  relative_dir=$(realpath --relative-to="$REPO_DIR/Cable-Juice-Planner/scripts" "$dir")
   echo "Creating directory: $REPO_DIR/scripts/$relative_dir"
   mkdir -p "$REPO_DIR/scripts/$relative_dir"
 done
@@ -87,7 +89,7 @@ done
 # Create hardlinks for all files in pyscript and its subdirectories
 echo "Creating hardlinks for all pyscript files..."
 find $REPO_DIR/Cable-Juice-Planner/pyscript -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/pyscript/${src_file#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+  dest_file="$REPO_DIR/pyscript/$(realpath --relative-to="$REPO_DIR/Cable-Juice-Planner/pyscript" "$src_file")"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$src_file")" != "$(stat -c %i "$dest_file")" ]; then
@@ -102,7 +104,7 @@ done
 # Create hardlinks for scripts
 echo "Creating hardlinks for scripts..."
 find $REPO_DIR/Cable-Juice-Planner/scripts -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/scripts/${src_file#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+  dest_file="$REPO_DIR/scripts/$(realpath --relative-to="$REPO_DIR/Cable-Juice-Planner/scripts" "$src_file")"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$src_file")" != "$(stat -c %i "$dest_file")" ]; then
