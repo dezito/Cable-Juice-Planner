@@ -73,13 +73,15 @@ echo -e "\nCreating necessary directories for pyscript and scripts based on repo
 
 # Find and create all directories in Cable-Juice-Planner/pyscript and Cable-Juice-Planner/scripts
 find $REPO_DIR/Cable-Juice-Planner/pyscript -type d | while read -r dir; do
-  echo "Creating directory: $REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
-  mkdir -p "$REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+  relative_dir="${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+  echo "Creating directory: $REPO_DIR/pyscript/$relative_dir"
+  mkdir -p "$REPO_DIR/pyscript/$relative_dir"
 done
 
 find $REPO_DIR/Cable-Juice-Planner/scripts -type d | while read -r dir; do
-  echo "Creating directory: $REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
-  mkdir -p "$REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+  relative_dir="${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+  echo "Creating directory: $REPO_DIR/scripts/$relative_dir"
+  mkdir -p "$REPO_DIR/scripts/$relative_dir"
 done
 
 # Create hardlinks for all files in pyscript and its subdirectories
