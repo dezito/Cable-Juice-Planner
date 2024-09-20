@@ -25,31 +25,37 @@ if [ ! -d "$REPO_DIR/Cable-Juice-Planner/.git" ]; then
   git clone --branch $BRANCH $REPO_URL $REPO_DIR/Cable-Juice-Planner
 else
   echo -e "\nPulling latest changes from branch $BRANCH in $REPO_DIR/Cable-Juice-Planner"
-  cd $REPO_DIR/Cable-Juice-Planner
+  cd "$REPO_DIR/Cable-Juice-Planner"
   git fetch --all && git reset --hard origin/$BRANCH
   git checkout $BRANCH
   git pull --force origin $BRANCH
 fi
 
-# Create necessary directories for pyscript
+# Create necessary directories for pyscript based on relative paths
 echo -e "\nCreating necessary directories for pyscript..."
 cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
 find . -type d | while read -r dir; do
-  mkdir -p "$REPO_DIR/pyscript/$dir"
+  # Remove leading './' from directory path
+  relative_dir="${dir#./}"
+  mkdir -p "$REPO_DIR/pyscript/$relative_dir"
 done
 
-# Create necessary directories for scripts
+# Create necessary directories for scripts based on relative paths
 echo -e "\nCreating necessary directories for scripts..."
 cd "$REPO_DIR/Cable-Juice-Planner/scripts"
 find . -type d | while read -r dir; do
-  mkdir -p "$REPO_DIR/scripts/$dir"
+  # Remove leading './' from directory path
+  relative_dir="${dir#./}"
+  mkdir -p "$REPO_DIR/scripts/$relative_dir"
 done
 
 # Create hardlinks for all pyscript files
 echo "Creating hardlinks for all pyscript files..."
 cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
 find . -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/pyscript/$src_file"
+  # Remove leading './' from file path
+  relative_file="${src_file#./}"
+  dest_file="$REPO_DIR/pyscript/$relative_file"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
@@ -65,7 +71,9 @@ done
 echo "Creating hardlinks for scripts..."
 cd "$REPO_DIR/Cable-Juice-Planner/scripts"
 find . -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/scripts/$src_file"
+  # Remove leading './' from file path
+  relative_file="${src_file#./}"
+  dest_file="$REPO_DIR/scripts/$relative_file"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
@@ -78,3 +86,34 @@ find . -type f | while read -r src_file; do
 done
 
 echo "All directories and hardlinks have been created successfully."
+
+# Check and update configuration.yaml
+CONFIG_FILE="$REPO_DIR/configuration.yaml"
+
+if [ -f "$CONFIG_FILE" ]; then
+  echo "Checking $CONFIG_FILE for 'homeassistant:' and 'packages: !include_dir_named packages/'"
+
+  # Check if 'homeassistant:' exists
+  if grep -q '^homeassistant:' "$CONFIG_FILE"; then
+    echo "'homeassistant:' section found."
+
+    # Check if 'packages: !include_dir_named packages/' exists under 'homeassistant:'
+    if awk '/^homeassistant:/{found=1} found && /packages: !include_dir_named packages\//{print; exit}' "$CONFIG_FILE" > /dev/null; then
+      echo "'packages: !include_dir_named packages/' already exists under 'homeassistant:'."
+    else
+      echo "Adding 'packages: !include_dir_named packages/' under 'homeassistant:'."
+      # Add 'packages' under 'homeassistant:'
+      awk '/^homeassistant:/ {print; print "  packages: !include_dir_named packages/"; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    fi
+  else
+    echo "'homeassistant:' section not found. Adding it with 'packages: !include_dir_named packages/'."
+    # Add 'homeassistant:' section with 'packages:'
+    echo -e "\nhomeassistant:\n  packages: !include_dir_named packages/" >> "$CONFIG_FILE"
+  fi
+else
+  echo "$CONFIG_FILE does not exist. Creating it with 'homeassistant:' section."
+  # Create configuration.yaml with 'homeassistant:' section
+  echo -e "homeassistant:\n  packages: !include_dir_named packages/" > "$CONFIG_FILE"
+fi
+
+echo "Configuration updated successfully."
