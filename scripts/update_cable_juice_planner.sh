@@ -73,10 +73,12 @@ echo -e "\nCreating necessary directories for pyscript and scripts based on repo
 
 # Find and create all directories in Cable-Juice-Planner/pyscript and Cable-Juice-Planner/scripts
 find $REPO_DIR/Cable-Juice-Planner/pyscript -type d | while read -r dir; do
+  echo "Creating directory: $REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
   mkdir -p "$REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
 done
 
 find $REPO_DIR/Cable-Juice-Planner/scripts -type d | while read -r dir; do
+  echo "Creating directory: $REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
   mkdir -p "$REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
 done
 
