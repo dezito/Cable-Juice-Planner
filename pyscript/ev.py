@@ -2726,44 +2726,71 @@ def cheap_grid_charge_hours():
     hourPrices = {}
     combinedHourPrices = {}
     try:
+        all_prices_loaded = True
+        
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
             
         power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
         
-        if "raw_today" not in power_prices_attr:
-            raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-        
-        for raw in power_prices_attr['raw_today']:
-            hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-
-
-        if "forecast" not in power_prices_attr:
-            raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-        
-        for raw in power_prices_attr['forecast']:
-            combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
-
+        if "raw_today" in power_prices_attr:
+            for raw in power_prices_attr['raw_today']:
+                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                    hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                else:
+                    all_prices_loaded = False
+                    
+        if "forecast" in power_prices_attr:
+            for raw in power_prices_attr['forecast']:
+                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                    combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
+                else:
+                    all_prices_loaded = False
 
         if "tomorrow_valid" in power_prices_attr:
             if power_prices_attr['tomorrow_valid']:
-                if "raw_tomorrow" not in power_prices_attr:
-                    raise Exception(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-                
-                for raw in power_prices_attr['raw_tomorrow']:
-                    combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) != 24:
+                    _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+                else:
+                    for raw in power_prices_attr['raw_tomorrow']:
+                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                            combinedHourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                        else:
+                            all_prices_loaded = False
+                    
+        if "raw_today" not in power_prices_attr:
+            raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+        elif len(power_prices_attr['raw_today']) != 24:
+            raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+
+        if "forecast" not in power_prices_attr:
+            raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+        elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
+            raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+
+        if not all_prices_loaded:
+            raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
     except Exception as e:#TODO Add support for every week day prices
-            _LOGGER.warning(f"Cant get real prices, using database: {e}")
-            my_persistent_notification(f"Kan ikke hente realtidspriser, bruger database priser", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
+            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
+            _LOGGER.error(f"combinedHourPrices: {pformat(combinedHourPrices, width=200, compact=True)}")
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
             
-            USING_OFFLINE_PRICES = True
-            for i in range(24):
-                price = average(KWH_AVG_PRICES_DB['history'][i])
-                for d in range(7):
-                    timestamp = reset_time_to_hour(current_hour.replace(hour=i)) + datetime.timedelta(days=d)
-                    timestamp = timestamp.replace(tzinfo=None)
-                    if timestamp not in combinedHourPrices:
-                        combinedHourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
+            try:
+                USING_OFFLINE_PRICES = True
+                for i in range(24):
+                    if i not in KWH_AVG_PRICES_DB['history']:
+                        raise Exception(f"Missing hour {i} in KWH_AVG_PRICES_DB")
+                    
+                    price = average(KWH_AVG_PRICES_DB['history'][i])
+                    for d in range(7):
+                        timestamp = reset_time_to_hour(current_hour.replace(hour=i)) + datetime.timedelta(days=d)
+                        timestamp = timestamp.replace(tzinfo=None)
+                        if timestamp not in combinedHourPrices:
+                            combinedHourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
+            except Exception as e:
+                _LOGGER.error(f"Cant get offline prices: {e}")
+                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
+                raise Exception(f"Offline prices error: {e}")
     
     combinedHourPrices.update(hourPrices)
     
