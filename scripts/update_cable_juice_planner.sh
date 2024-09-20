@@ -16,9 +16,10 @@ BRANCH=${1:-master}
 # Ensure Cable-Juice-Planner directory exists
 cd $REPO_DIR
 
-if [ ! -d "$REPO_DIR/Cable-Juice-Planner" ]; then
-  mkdir -p $REPO_DIR/Cable-Juice-Planner
-fi
+# Ensure base directories exist
+mkdir -p "$REPO_DIR/packages"
+mkdir -p "$REPO_DIR/Cable-Juice-Planner"
+mkdir -p "$REPO_DIR/scripts"
 
 # Check if .git directory exists in REPO_DIR and contains the correct remote URL
 if [ -f "$REPO_DIR/.git/config" ]; then
@@ -67,9 +68,17 @@ else
   git pull --force origin $BRANCH
 fi
 
-# Automatically create all directories in pyscript/modules and pyscript/modules/mytime
-echo -e "\nCreating necessary directories in pyscript/modules..."
-find $REPO_DIR/Cable-Juice-Planner/pyscript -type d -exec mkdir -p $REPO_DIR/pyscript/{} \;
+# Automatically create all directories in pyscript and scripts based on the repository structure
+echo -e "\nCreating necessary directories for pyscript and scripts based on repository..."
+
+# Find and create all directories in Cable-Juice-Planner/pyscript and Cable-Juice-Planner/scripts
+find $REPO_DIR/Cable-Juice-Planner/pyscript -type d | while read -r dir; do
+  mkdir -p "$REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+done
+
+find $REPO_DIR/Cable-Juice-Planner/scripts -type d | while read -r dir; do
+  mkdir -p "$REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+done
 
 # Create hardlinks for all files in pyscript and its subdirectories
 echo "Creating hardlinks for all pyscript files..."
