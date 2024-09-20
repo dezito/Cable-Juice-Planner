@@ -2797,6 +2797,7 @@ def cheap_grid_charge_hours():
 
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwhAvailable, battery_level = None, max_recommended_battery_level = None, rules = []):
         _LOGGER = globals()['_LOGGER'].getChild("add_to_charge_hours")
+        cost = 0.0
         kwh = MAX_KWH_CHARGING
         battery_level_added = False
         
@@ -2811,7 +2812,7 @@ def cheap_grid_charge_hours():
             
         if kwhAvailable == True and hour in chargeHours:
             kwh = kwh - chargeHours[hour]['kWh']
-                
+            
         if kwh > 0.5:
             if hour not in chargeHours:
                 chargeHours[hour] = {
@@ -3604,12 +3605,12 @@ def cheap_grid_charge_hours():
                             charging_plan_attr[title]["Work kwh_needed"] = f"{value["work_kwh_needed"]:.2f} kWh"
                         if k == "trip":
                             charging_plan_attr[title]["Trip goto"] = f"{value["trip_goto"]}"
-                            charging_plan_attr[title]["Trip homecoming"] = f"{value["work_homecoming"]}"
-                            charging_plan_attr[title]["Trip last charging"] = f"{value["work_last_charging"]}"
-                            charging_plan_attr[title]["Trip total cost"] = f"{value["work_total_cost"]:.2f} kr"
-                            charging_plan_attr[title]["Trip battery level needed"] = f"{value["work_battery_level_needed"]:.2f}%"
-                            charging_plan_attr[title]["Trip battery level above max"] = f"{value["work_battery_level_needed"]:.2f}%"
-                            charging_plan_attr[title]["Trip kWh needed"] = f"{value["work_kwh_needed"]:.2f} kWh"
+                            charging_plan_attr[title]["Trip homecoming"] = f"{value["trip_homecoming"]}"
+                            charging_plan_attr[title]["Trip last charging"] = f"{value["trip_last_charging"]}"
+                            charging_plan_attr[title]["Trip total cost"] = f"{value["trip_total_cost"]:.2f} kr"
+                            charging_plan_attr[title]["Trip battery level needed"] = f"{value["trip_battery_level_needed"]:.2f}%"
+                            charging_plan_attr[title]["Trip battery level above max"] = f"{value["trip_battery_level_above_max"]:.2f}%"
+                            charging_plan_attr[title]["Trip kWh needed"] = f"{value["trip_kwh_needed"]:.2f} kWh"
                 charging_plan_attr[title] = dict(sorted(charging_plan_attr[title].items()))
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan attributes: {e}")
@@ -3778,11 +3779,11 @@ def cheap_grid_charge_hours():
             
             estimated_alternative_text = ""
             
-            if work_overview_total_kwh > 0.0 and total_kwh_alternative > 0.0:
-                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative / total_kwh_alternative) * work_overview_total_kwh, 2)}kr {round(total_cost_alternative / total_kwh_alternative, 2)}kr/kwh"
+            if work_overview_total_kwh > 0.0 and sum(total_kwh_alternative) > 0.0:
+                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((sum(total_cost_alternative) / sum(total_kwh_alternative)) * work_overview_total_kwh, 2):.2f}kr {round(sum(total_cost_alternative) / sum(total_kwh_alternative), 2):.2f}kr/kWh"
                 
             if work_overview_total_kwh > 0.0:
-                overview.append(f"\n**Ialt {round(work_overview_total_kwh, 1)}kWh {round(work_overview_total_cost, 2)}kr ({round(work_overview_total_cost / work_overview_total_kwh, 2)} kr/kwh)**{estimated_alternative_text}")
+                overview.append(f"\n**Ialt {round(work_overview_total_kwh, 1):.1f}kWh {round(work_overview_total_cost, 2):.2f}kr ({round(work_overview_total_cost / work_overview_total_kwh, 2):.2f} kr/kWh)**{estimated_alternative_text}")
             
             if solar_over_production:
                 overview.append("***")
