@@ -91,29 +91,50 @@ echo "All directories and hardlinks have been created successfully."
 CONFIG_FILE="$REPO_DIR/configuration.yaml"
 
 if [ -f "$CONFIG_FILE" ]; then
-  echo "Checking $CONFIG_FILE for 'homeassistant:' and 'packages: !include_dir_named packages/'"
+  echo "Checking $CONFIG_FILE for required configurations."
 
-  # Check if 'homeassistant:' exists
+  # Backup the configuration file
+  cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+
+  # Ensure 'homeassistant:' and 'packages:' are configured
   if grep -q '^homeassistant:' "$CONFIG_FILE"; then
     echo "'homeassistant:' section found."
 
-    # Check if 'packages: !include_dir_named packages/' exists under 'homeassistant:'
-    if awk '/^homeassistant:/{found=1} found && /packages: !include_dir_named packages\//{print; exit}' "$CONFIG_FILE" > /dev/null; then
+    if awk '/^homeassistant:/{found=1} found && /^\s*packages: !include_dir_named packages\//{print; exit}' "$CONFIG_FILE" > /dev/null; then
       echo "'packages: !include_dir_named packages/' already exists under 'homeassistant:'."
     else
       echo "Adding 'packages: !include_dir_named packages/' under 'homeassistant:'."
-      # Add 'packages' under 'homeassistant:'
       awk '/^homeassistant:/ {print; print "  packages: !include_dir_named packages/"; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
     fi
   else
     echo "'homeassistant:' section not found. Adding it with 'packages: !include_dir_named packages/'."
-    # Add 'homeassistant:' section with 'packages:'
     echo -e "\nhomeassistant:\n  packages: !include_dir_named packages/" >> "$CONFIG_FILE"
   fi
+
+  # Ensure 'shell_command:' and 'update_cable_juice_planner' are configured
+  if grep -q '^shell_command:' "$CONFIG_FILE"; then
+    echo "'shell_command:' section found."
+
+    if awk '/^shell_command:/{found=1} found && /^\s*update_cable_juice_planner:/{print; exit}' "$CONFIG_FILE" > /dev/null; then
+      echo "'update_cable_juice_planner' already exists under 'shell_command:'."
+    else
+      echo "Adding 'update_cable_juice_planner' under 'shell_command:'."
+      awk -v repo_dir="$REPO_DIR" '/^shell_command:/ {print; print "  update_cable_juice_planner: \"bash "repo_dir"/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\""; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+    fi
+  else
+    echo "'shell_command:' section not found. Adding it with 'update_cable_juice_planner'."
+    echo -e "\nshell_command:\n  update_cable_juice_planner: \"bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\"" >> "$CONFIG_FILE"
+  fi
+
 else
-  echo "$CONFIG_FILE does not exist. Creating it with 'homeassistant:' section."
-  # Create configuration.yaml with 'homeassistant:' section
-  echo -e "homeassistant:\n  packages: !include_dir_named packages/" > "$CONFIG_FILE"
+  echo "$CONFIG_FILE does not exist. Creating it with required configurations."
+  cat <<EOL > "$CONFIG_FILE"
+homeassistant:
+  packages: !include_dir_named packages/
+
+shell_command:
+  update_cable_juice_planner: "bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
+EOL
 fi
 
 echo "Configuration updated successfully."
