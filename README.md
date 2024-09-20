@@ -48,12 +48,6 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
   - Solcelleoverproduktion Salgspris, fastpris eller nuværende salgspris (fratrukket udgifter for at sælge det)
   - Kalkulering af lade tab
 
-### Påkrævet integrationer
-- HACS (https://github.com/hacs/integration)
-- PyScript (https://github.com/custom-components/pyscript)
-- Energi Data Service (Carnot) (https://github.com/MTrab/energidataservice)
-- Sun
-
 ### Understøttet og testet integrationer
 - [Easee Charger](https://github.com/nordicopen/easee_hass)
 - [Kia UVO](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
@@ -75,44 +69,61 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 - Konvertere scriptet til en integration
 
 ---
+### Påkrævet integrationer
+- HACS (https://github.com/hacs/integration)
+- PyScript (https://github.com/custom-components/pyscript)
+  - Allow All Imports - Aktiveret
+  - Access hass as a global variable - Aktiveret
+- Energi Data Service (https://github.com/MTrab/energidataservice)
+  - Carnot - Aktiveret
+- Sun
 
 ### Installation:
-1.  Navigere til Home Assistant config mappen
-2.  Sæt koden nedenunder ind i configuration.yaml
-```yaml
-homeassistant:
-  packages: !include_dir_named packages/
+1. Kopiere koden her under og sæt ind i Terminal eller SSH, Cable Juice Planner installeres og nødvendig ændringer i configuration.yaml tilføjes automatisk
+```shell
+curl -s https://raw.githubusercontent.com/dezito/Cable-Juice-Planner/master/scripts/update_cable_juice_planner.sh | bash
 ```
-3. Kopiere al teksten i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh)
-4. Lav en fil ved navn "install_cable_juice_planner.sh" (lige meget hvor)
-5. Sæt teksten ind du har kopieret
-6. SSH ind i Home Assistant
-7. Navigerer til scripts mappen
-8. Start "bash install_cable_juice_planner.sh"
-    - install_cable_juice_planner.sh vil clone denne repo i Home Assistant mappen og pyscript/ev.py vil starte.
-9. Ved første start vil den lave en yaml config fil (ev_config.yaml) i roden af Home Assistant mappen
-10. Redigere denne efter dit behov
-11. Genstart Home Assistant eller åben og gem ev.py filen
-    - Ved anden start vil den lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger \
-        - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
-        - Alle entitier navne starter med ev_ der laves
-12. Genstart Home Assistant
-13. Evt. Copy & Paste kortene i [Cable-Juice-Planner/cards mappen](cards) mappen
 
-- Ved flere elbiler køres kommando "ln -n Cable-Juice-Planner/pyscript/ev.py pyscript/ev2.py" i SSH, dette laver en ny hardlink til ev.py, den nye prefiks vil være ev2
-  - I "ev2_config.yaml" -> "home.entity_ids.ignore_consumption_from_entity_ids" indsættes entity_id fra "ev_config.yaml" -> "charger.entity_ids.power_consumtion_entity_id", hvis du har solceller og 2 laderer.
+2. Ved første start vil den lave en yaml konfig fil (ev_config.yaml) i roden af Home Assistant mappen
+3. Redigere denne efter dit behov
+4. Genstart Home Assistant
+    - Ved anden start vil den lave en yaml fil i packages mappen (packages\ev.yaml) med alle entities scriptet bruger
+      - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
+      - Alle entitier navne starter med ev_ der laves
+5. Genstart Home Assistant
+7. Følg [Lav et script og modtag resultat i en notifikation](#lav-et-script-og-modtag-resultat-i-en-notifikation)
+6. Evt. kopier & sæt ind fra kortene i [Cable-Juice-Planner/cards mappen](cards) mappen
+    - Der står i kortene, hvad der evt skal ændres i dem
 
-<center>
-
-### [Konfiguration eksempler](config_examples)
-
-</center>
+> [!Note]
+>
+> Ved flere elbiler køres kommando ```ln -n Cable-Juice-Planner/pyscript/ev.py pyscript/ev2.py``` i Terminal eller SSH, dette laver en ny hardlink til ev.py, den nye prefiks vil være ev2
+>
+> I "ev2_config.yaml" indsættes entity_id fra "ev_config.yaml", hvis du har solceller og 2 laderer.
+>
+> ev_config.yaml:
+> ```yaml
+> charger:
+>   entity_ids:
+>     power_consumtion_entity_id: >>Denne entity id<< # **Required** Charging power in Watt
+> ```
+>
+> ev2_config.yaml:
+> ```yaml
+> home:
+>   entity_ids:
+>     ignore_consumption_from_entity_ids: # List of power sensors to ignore
+>     - >>Indsæt her<<
+> ```
 
 ### Opdatering fra ældre version:
 
 - Hvis man opdaterer fra en ældre version med Cable-Juice-Planner-Readme i config mappen, skal man kører opdateringen 3 gange.
   - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 3 gange igen
 
+
+---
+### [Konfiguration eksempler](config_examples)
 ---
 
 ### Filer der laves i roden af Home Assistant mappen:
@@ -123,30 +134,9 @@ homeassistant:
 - ev_kwh_avg_prices_db.yaml **(Offline strøm priser database)**
 - ev_solar_production_available_db.yaml **(Solcelle over produktion database)**
 
-
 ---
 > [!Note]
-> ### Tilføj til dette til configuration.yaml for at kunne opdatere fra Home Assistant service
-> #### Docker:
-> ```yaml
->homeassistant:
->  packages: !include_dir_named packages/
->
-> shell_command:
->   update_cable_juice_planner: "bash /config/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
-> ```
->
-> #### Home Assistant OS:
-> ```yaml
->homeassistant:
->  packages: !include_dir_named packages/
->
-> shell_command:
->   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
-> ```
----
-> [!Note]
-> ### Lav et script og modtag resultat i en notifikation
+> ### [Lav et script og modtag resultat i en notifikation]
 > 1. Indstillinger
 > 2. Automatiseringer & Scener
 > 3. Scripts
@@ -177,6 +167,27 @@ homeassistant:
 >           message: "{{ return_response['stderr'] }}"
 > description: ""
 > icon: mdi:cloud-download
+> ```
+
+---
+> [!Note]
+> ### Dette tilføjes automatisk til configuration.yaml
+> #### Docker:
+> ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
+> shell_command:
+>   update_cable_juice_planner: "bash /config/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
+> ```
+>
+> #### Home Assistant OS:
+> ```yaml
+>homeassistant:
+>  packages: !include_dir_named packages/
+>
+> shell_command:
+>   update_cable_juice_planner: "bash /mnt/data/supervisor/homeassistant/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
 > ```
 
 > [!Note]
