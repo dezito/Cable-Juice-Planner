@@ -1,9 +1,8 @@
-__version__ = "1.0.0"
-from history import *
-
 from dateutil import parser
 
 import homeassistant.helpers.device as device_helper
+
+from history import get_last_value
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
