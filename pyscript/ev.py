@@ -4857,9 +4857,10 @@ def is_charging():
     def reset():
         global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT
         
-        if RESTARTING_CHARGER_COUNT > 0 or (charger_enabled != "on"):
-            send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-            ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
+        if is_entity_available(CONFIG['charger']['entity_ids']['enabled_entity_id']) and is_entity_available(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']):
+            if RESTARTING_CHARGER_COUNT > 0 or (charger_enabled != "on"):
+                send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+                ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
             
         CHARGING_IS_BEGINNING = False
         RESTARTING_CHARGER = False
