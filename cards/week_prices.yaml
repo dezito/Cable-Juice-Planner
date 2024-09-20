@@ -1,3 +1,8 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: config-template-card (https://github.com/iantrich/config-template-card)
+# Required: apexcharts-card (https://github.com/RomRider/apexcharts-card)
+# Optional: Edit refund amount to match your country/state/nation/energy-provider, line 44 and line 127
+
 type: vertical-stack
 cards:
   - type: conditional
@@ -36,6 +41,7 @@ cards:
     card:
       type: custom:config-template-card
       variables:
+        refund: 0.0
         today_prices: |
           states['sensor.energi_data_service'].attributes.today || []
         tomorrow_prices: |
@@ -50,23 +56,23 @@ cards:
           ...vars.forecast_prices];
 
           allPrices.length
-        lowest_price: >
+        lowest_price: >-
           let min = 999; const allPrices = [...vars.today_prices,
           ...vars.tomorrow_prices, ...vars.forecast_prices];
           allPrices.forEach(price => {
-            if (price < min) min = price;
+            if (price - vars.refund < min) min = price - vars.refund;
           }); min * 1.05
-        highest_price: >
+        highest_price: >-
           let max = -999; const allPrices = [...vars.today_prices,
           ...vars.tomorrow_prices, ...vars.forecast_prices];
           allPrices.forEach(price => {
-            if (price > max) max = price;
+            if (price - vars.refund > max) max = price - vars.refund;
           }); max * 0.95
-        mean_price: >
+        mean_price: >-
           let sum = 0.0; const allPrices = [...vars.today_prices,
           ...vars.tomorrow_prices, ...vars.forecast_prices];
           allPrices.forEach(price => {
-            sum += price;
+            sum += price - vars.refund;
           });
 
           const mean = sum / vars.total_hours; mean
@@ -92,7 +98,7 @@ cards:
           chart:
             height: 300px
         all_series_config:
-          unit: ' kr.'
+          unit: " kr."
         experimental:
           color_threshold: true
         header:
@@ -110,53 +116,51 @@ cards:
         graph_span: ${(vars.total_hours-1) +"h"}
         span:
           start: day
-          offset: '-0h'
+          offset: "-0h"
         yaxis:
           - min: 0
         series:
           - entity: sensor.energi_data_service
             type: column
             name: Inkl. afgifter
-            data_generator: |
+            data_generator: >-
+              var refund = 0.0;
               var data = entity.attributes.raw_today.map((start, index) => {
-                return [new Date(start["hour"]), entity.attributes.raw_today[index]["price"]];
-              });
-              if (entity.attributes.forecast) {
+                return [new Date(start["hour"]), entity.attributes.raw_today[index]["price"] - refund];
+              }); if (entity.attributes.forecast) {
                 var forecast = entity.attributes.forecast.map((start, index) => {
-                  return [new Date(start["hour"]), entity.attributes.forecast[index]["price"]];
+                  return [new Date(start["hour"]), entity.attributes.forecast[index]["price"] - refund];
                 });
                 data = data.concat(forecast);
-              }
-              if (entity.attributes.tomorrow_valid) {
+              } if (entity.attributes.tomorrow_valid) {
                 var tomorrow = entity.attributes.raw_tomorrow.map((start, index) => {
-                  return [new Date(start["hour"]), entity.attributes.raw_tomorrow[index]["price"]];
+                  return [new Date(start["hour"]), entity.attributes.raw_tomorrow[index]["price"] - refund];
                 });
                 data = data.concat(tomorrow);
-              }
-              return data;
+              } return data;
             float_precision: 2
             color_threshold:
               - value: ${vars.price1}
-                color: '#2196F3'
+                color: "#2196F3"
               - value: ${vars.price2}
-                color: '#1976D2'
+                color: "#1976D2"
               - value: ${vars.price3}
-                color: '#4CAF50'
+                color: "#4CAF50"
               - value: ${vars.price4}
-                color: '#388E3C'
+                color: "#388E3C"
               - value: ${vars.price5}
-                color: '#2E7D32'
+                color: "#2E7D32"
               - value: ${vars.price6}
-                color: '#1B5E20'
+                color: "#1B5E20"
               - value: ${vars.price7}
-                color: '#FFCA28'
+                color: "#FFCA28"
               - value: ${vars.price8}
-                color: '#FFB300'
+                color: "#FFB300"
               - value: ${vars.price9}
-                color: '#FF6F00'
+                color: "#FF6F00"
               - value: ${vars.price10}
-                color: '#E65100'
+                color: "#E65100"
               - value: ${vars.price11}
-                color: '#9C27B0'
+                color: "#9C27B0"
             show:
               legend_value: false
