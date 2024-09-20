@@ -119,7 +119,7 @@ if [ -f "$CONFIG_FILE" ]; then
       echo "'update_cable_juice_planner' already exists under 'shell_command:'."
     else
       echo "Adding 'update_cable_juice_planner' under 'shell_command:'."
-      awk -v repo_dir="$REPO_DIR" '/^shell_command:/ {print; print "  update_cable_juice_planner: \"bash "repo_dir"/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\""; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+      awk -v repo_dir="$REPO_DIR" '/^shell_command:/ {print; print "  update_cable_juice_planner: \"bash {print repo_dir}/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\""; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
     fi
   else
     echo "'shell_command:' section not found. Adding it with 'update_cable_juice_planner'."
