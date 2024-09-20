@@ -5219,14 +5219,17 @@ def set_charging_price(price):
         return
     
     try:
-        if service.has_service("easee", "set_charging_cost"):
-            service.call("easee", "set_charging_cost", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                cost_per_kwh=price,
-                                vat=25,
-                                currency_id="DKK")
-        else:
-            raise Exception(f"Easee service dont have set_charging_cost, cant set price to {price}")
+        if is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
+            if "easee" in get_integration(CONFIG['charger']['entity_ids']['status_entity_id']):
+                if service.has_service("easee", "set_charging_cost"):
+                    service.call("easee", "set_charging_cost", blocking=True,
+                                        charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                        cost_per_kwh=price,
+                                        vat=25,
+                                        currency_id="DKK")
+                else:
+                    raise Exception(f"Easee service dont have set_charging_cost, cant set price to {price}")
+                _LOGGER.info(f"Setting charging cost to {price} in Easee")
     except Exception as e:
         _LOGGER.error(f"Cant set charging cost in Easee: {e}")
         my_persistent_notification(f"Cant set charging cost in Easee: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_set_charging_price")
