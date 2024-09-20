@@ -31,25 +31,32 @@ else
   git pull --force origin $BRANCH
 fi
 
-# Create necessary directories for pyscript
+# Create necessary directories for pyscript based on relative paths
 echo -e "\nCreating necessary directories for pyscript..."
 cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
 find . -type d | while read -r dir; do
-  mkdir -p "$REPO_DIR/pyscript/$dir"
+  # Ensure there is no leading './' in the directory path
+  relative_dir=$(echo "$dir" | sed 's|^\./||')
+  echo "Creating directory: $REPO_DIR/pyscript/$relative_dir"
+  mkdir -p "$REPO_DIR/pyscript/$relative_dir"
 done
 
-# Create necessary directories for scripts
+# Create necessary directories for scripts based on relative paths
 echo -e "\nCreating necessary directories for scripts..."
 cd "$REPO_DIR/Cable-Juice-Planner/scripts"
 find . -type d | while read -r dir; do
-  mkdir -p "$REPO_DIR/scripts/$dir"
+  # Ensure there is no leading './' in the directory path
+  relative_dir=$(echo "$dir" | sed 's|^\./||')
+  echo "Creating directory: $REPO_DIR/scripts/$relative_dir"
+  mkdir -p "$REPO_DIR/scripts/$relative_dir"
 done
 
 # Create hardlinks for all pyscript files
 echo "Creating hardlinks for all pyscript files..."
 cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
 find . -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/pyscript/$src_file"
+  # Ensure there is no leading './' in the file path
+  dest_file="$REPO_DIR/pyscript/$(echo "$src_file" | sed 's|^\./||')"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
@@ -65,7 +72,8 @@ done
 echo "Creating hardlinks for scripts..."
 cd "$REPO_DIR/Cable-Juice-Planner/scripts"
 find . -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/scripts/$src_file"
+  # Ensure there is no leading './' in the file path
+  dest_file="$REPO_DIR/scripts/$(echo "$src_file" | sed 's|^\./||')"
 
   # Check if the destination file exists and is not a hardlink
   if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
