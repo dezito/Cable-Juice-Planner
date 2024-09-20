@@ -1,115 +1,138 @@
 #!/bin/bash
 
-# Check if /config directory exists, if not, use /mnt/data/supervisor/homeassistant
+# Tjekker om /config mappen findes, ellers brug /mnt/data/supervisor/homeassistant
 if [ -d "/config" ]; then
   REPO_DIR="/config"
 else
   REPO_DIR="/mnt/data/supervisor/homeassistant"
 fi
 
-# Define the GitHub repository URL
+# Definer GitHub repository URL
 REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
 
-# Check if branch argument is passed, otherwise use default branch (master)
+# Tjekker om branch-argumentet er givet, ellers brug standardbranchen (master)
 BRANCH=${1:-master}
 
-# Ensure Cable-Juice-Planner directory exists
-cd $REPO_DIR
-
-# Ensure base directories exist
+# Sikrer at basismapper eksisterer
 mkdir -p "$REPO_DIR/packages"
 mkdir -p "$REPO_DIR/Cable-Juice-Planner"
 mkdir -p "$REPO_DIR/scripts"
+mkdir -p "$REPO_DIR/pyscript"
 
-# Check if .git directory exists in REPO_DIR and contains the correct remote URL
-if [ -f "$REPO_DIR/.git/config" ]; then
-  if grep -q '\[remote "origin"\]' "$REPO_DIR/.git/config" && grep -q "url = $REPO_URL" "$REPO_DIR/.git/config"; then
-    echo "Found .git/config with correct remote URL in $REPO_DIR. Moving .git to $REPO_DIR/Cable-Juice-Planner"
-    mv $REPO_DIR/.git $REPO_DIR/Cable-Juice-Planner/.git
-  fi
-fi
-
-# Remove 'cards', 'config_examples', and 'images' files if they exist in Cable-Juice-Planner, then remove the directories if they are empty
-for folder in cards config_examples images; do
-  if [ -d "$REPO_DIR/$folder" ]; then
-    # Iterate through all files in the folder
-    find "$REPO_DIR/$folder" -type f | while read -r file_path; do
-      # Construct the corresponding file path in Cable-Juice-Planner
-      relative_path="${file_path#$REPO_DIR/}"
-      corresponding_file="$REPO_DIR/Cable-Juice-Planner/$relative_path"
-
-      # Check if the file exists in Cable-Juice-Planner
-      if [ -f "$corresponding_file" ]; then
-        echo "Removing file: $file_path (exists in Cable-Juice-Planner)"
-        rm "$file_path"
-      fi
-    done
-
-    # After removing the files, check if the folder is empty and remove it if so
-    if [ -z "$(find "$REPO_DIR/$folder" -type f)" ]; then
-      echo "Removing empty folder: $REPO_DIR/$folder"
-      rm -rf "$REPO_DIR/$folder"
-    fi
-  fi
-done
-
-# Git configuration
-git config --global --add safe.directory $REPO_DIR/Cable-Juice-Planner
-
-# Clone the repo if it doesn't exist, otherwise pull latest changes
+# Kloner repoet, hvis det ikke eksisterer, ellers henter seneste ændringer
 if [ ! -d "$REPO_DIR/Cable-Juice-Planner/.git" ]; then
-  echo -e "\nCloning repository from $REPO_URL (branch: $BRANCH) to $REPO_DIR/Cable-Juice-Planner"
+  echo -e "\nKloner repository fra $REPO_URL (branch: $BRANCH) til $REPO_DIR/Cable-Juice-Planner"
   git clone --branch $BRANCH $REPO_URL $REPO_DIR/Cable-Juice-Planner
 else
-  echo -e "\nPulling latest changes from branch $BRANCH in $REPO_DIR/Cable-Juice-Planner"
-  cd $REPO_DIR/Cable-Juice-Planner
+  echo -e "\nHenter seneste ændringer fra branch $BRANCH i $REPO_DIR/Cable-Juice-Planner"
+  cd "$REPO_DIR/Cable-Juice-Planner"
   git fetch --all && git reset --hard origin/$BRANCH
   git checkout $BRANCH
   git pull --force origin $BRANCH
 fi
 
-# Automatically create all directories in pyscript and scripts based on the repository structure
-echo -e "\nCreating necessary directories for pyscript and scripts based on repository..."
-
-# Find and create all directories in Cable-Juice-Planner/pyscript and Cable-Juice-Planner/scripts
-find $REPO_DIR/Cable-Juice-Planner/pyscript -type d | while read -r dir; do
-  echo "Creating directory: $REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
-  mkdir -p "$REPO_DIR/pyscript/${dir#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+# Opretter nødvendige mapper for pyscript baseret på relative stier
+echo -e "\nOpretter nødvendige mapper for pyscript..."
+cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
+find . -type d | while read -r dir; do
+  # Fjerner indledende './' fra mappestien
+  relative_dir="${dir#./}"
+  mkdir -p "$REPO_DIR/pyscript/$relative_dir"
 done
 
-find $REPO_DIR/Cable-Juice-Planner/scripts -type d | while read -r dir; do
-  echo "Creating directory: $REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
-  mkdir -p "$REPO_DIR/scripts/${dir#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+# Opretter nødvendige mapper for scripts baseret på relative stier
+echo -e "\nOpretter nødvendige mapper for scripts..."
+cd "$REPO_DIR/Cable-Juice-Planner/scripts"
+find . -type d | while read -r dir; do
+  # Fjerner indledende './' fra mappestien
+  relative_dir="${dir#./}"
+  mkdir -p "$REPO_DIR/scripts/$relative_dir"
 done
 
-# Create hardlinks for all files in pyscript and its subdirectories
-echo "Creating hardlinks for all pyscript files..."
-find $REPO_DIR/Cable-Juice-Planner/pyscript -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/pyscript/${src_file#$REPO_DIR/Cable-Juice-Planner/pyscript/}"
+# Opretter hardlinks for alle pyscript-filer
+echo "Opretter hardlinks for alle pyscript-filer..."
+cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
+find . -type f | while read -r src_file; do
+  # Fjerner indledende './' fra filstien
+  relative_file="${src_file#./}"
+  dest_file="$REPO_DIR/pyscript/$relative_file"
 
-  # Check if the destination file exists and is not a hardlink
-  if [ -e "$dest_file" ] && [ "$(stat -c %i "$src_file")" != "$(stat -c %i "$dest_file")" ]; then
-    echo "Removing old file: $dest_file (not a hardlink)"
+  # Tjekker om destinationsfilen eksisterer og ikke er et hardlink
+  if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
+    echo "Fjerner gammel fil: $dest_file (ikke et hardlink)"
     rm "$dest_file"
   fi
 
-  # Create the hardlink
-  ln -n "$src_file" "$dest_file"
+  # Opretter hardlinket
+  ln -f "$PWD/$src_file" "$dest_file"
 done
 
-# Create hardlinks for scripts
-echo "Creating hardlinks for scripts..."
-find $REPO_DIR/Cable-Juice-Planner/scripts -type f | while read -r src_file; do
-  dest_file="$REPO_DIR/scripts/${src_file#$REPO_DIR/Cable-Juice-Planner/scripts/}"
+# Opretter hardlinks for scripts
+echo "Opretter hardlinks for scripts..."
+cd "$REPO_DIR/Cable-Juice-Planner/scripts"
+find . -type f | while read -r src_file; do
+  # Fjerner indledende './' fra filstien
+  relative_file="${src_file#./}"
+  dest_file="$REPO_DIR/scripts/$relative_file"
 
-  # Check if the destination file exists and is not a hardlink
-  if [ -e "$dest_file" ] && [ "$(stat -c %i "$src_file")" != "$(stat -c %i "$dest_file")" ]; then
-    echo "Removing old file: $dest_file (not a hardlink)"
+  # Tjekker om destinationsfilen eksisterer og ikke er et hardlink
+  if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
+    echo "Fjerner gammel fil: $dest_file (ikke et hardlink)"
     rm "$dest_file"
   fi
 
-  # Create the hardlink
-  ln -n "$src_file" "$dest_file"
+  # Opretter hardlinket
+  ln -f "$PWD/$src_file" "$dest_file"
 done
 
-echo "All directories and hardlinks have been created successfully."
+echo "Alle mapper og hardlinks er oprettet med succes."
+
+# Tjekker og opdaterer configuration.yaml
+CONFIG_FILE="$REPO_DIR/configuration.yaml"
+
+CONFIG_CHANGED=0
+
+if [ -f "$CONFIG_FILE" ]; then
+  # Sikkerhedskopierer konfigurationsfilen
+  cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
+
+  # Sikrer at 'homeassistant:' og 'packages:' er konfigureret
+  if ! grep -q '^homeassistant:' "$CONFIG_FILE"; then
+    echo "Tilføjer 'homeassistant:' sektion med 'packages: !include_dir_named packages/'."
+    echo -e "\nhomeassistant:\n  packages: !include_dir_named packages/" >> "$CONFIG_FILE"
+    CONFIG_CHANGED=1
+  else
+    if ! awk '/^homeassistant:/{found=1} found && /^\s*packages: !include_dir_named packages\//{print; exit}' "$CONFIG_FILE" > /dev/null; then
+      echo "Tilføjer 'packages: !include_dir_named packages/' under 'homeassistant:'."
+      awk '/^homeassistant:/ {print; print "  packages: !include_dir_named packages/"; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+      CONFIG_CHANGED=1
+    fi
+  fi
+
+  # Sikrer at 'shell_command:' og 'update_cable_juice_planner' er konfigureret
+  if ! grep -q '^shell_command:' "$CONFIG_FILE"; then
+    echo "Tilføjer 'shell_command:' sektion med 'update_cable_juice_planner'."
+    echo -e "\nshell_command:\n  update_cable_juice_planner: \"bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\"" >> "$CONFIG_FILE"
+    CONFIG_CHANGED=1
+  else
+    if ! awk '/^shell_command:/{found=1} found && /^\s*update_cable_juice_planner:/{print; exit}' "$CONFIG_FILE" > /dev/null; then
+      echo "Tilføjer 'update_cable_juice_planner' under 'shell_command:'."
+      awk -v repo_dir="$REPO_DIR" '/^shell_command:/ {print; print "  update_cable_juice_planner: \"bash " repo_dir "/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\""; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+      CONFIG_CHANGED=1
+    fi
+  fi
+
+  if [ "$CONFIG_CHANGED" -eq 1 ]; then
+    echo "Konfigurationen er opdateret med succes."
+  fi
+else
+  echo "$CONFIG_FILE findes ikke. Opretter den med nødvendige konfigurationer."
+  cat <<EOL > "$CONFIG_FILE"
+homeassistant:
+  packages: !include_dir_named packages/
+
+shell_command:
+  update_cable_juice_planner: "bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
+EOL
+  echo "Konfigurationsfil oprettet og opdateret med succes."
+fi
