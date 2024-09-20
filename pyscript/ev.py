@@ -5282,6 +5282,8 @@ def calc_co2_emitted(period = None, added_kwh = None):
     if added_kwh is None:
         return 0.0
     
+    if not is_entity_available(CONFIG['charger']['entity_ids']['co2_entity_id']): return
+    
     if CONFIG['charger']['entity_ids']['co2_entity_id'] not in state.names(domain="sensor"): return
     
     minutes = getMinute() if period is None else period
