@@ -420,7 +420,7 @@ COMMENT_DB_YAML = {
     "power_consumtion_entity_id": "**Required** Charging power in Watt",
     "kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
     "lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
-    "enabled_entity_id": "**Required** Turn Charger unit ON/OFF, NOT for start/stop charging",
+    "enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
     "dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
     "co2_entity_id": "Energi Data Service CO2 entity_id",
     "cable_connected_entity_id": "If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger",
@@ -4792,7 +4792,7 @@ def ready_to_charge():
     charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
     charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
     
-    if charger_enabled != "on":
+    if is_entity_available(CONFIG['charger']['entity_ids']['enabled_entity_id']) and charger_enabled != "on":
         _LOGGER.warning(f"Charger was off, turning it on")
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
         
@@ -4980,7 +4980,11 @@ def is_charging():
             else:
                 _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
                 restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
-                send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
+                if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
+                    send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
+                else:
+                    ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "off")
+                
         my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
