@@ -70,13 +70,14 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 
 ---
 ### Påkrævet integrationer
-- HACS (https://github.com/hacs/integration)
-- PyScript (https://github.com/custom-components/pyscript)
+- [Easee charger](https://github.com/nordicopen/easee_hass)
+- [HACS](https://github.com/hacs/integration)
+- [PyScript](https://github.com/custom-components/pyscript)
   - Allow All Imports - Aktiveret
   - Access hass as a global variable - Aktiveret
-- Energi Data Service (https://github.com/MTrab/energidataservice)
-  - Carnot - Aktiveret
-- Sun
+- [Energi Data Service](https://github.com/MTrab/energidataservice)
+  - [Carnot](https://www.carnot.dk/) - Aktiveret
+- [Sun](https://www.home-assistant.io/integrations/sun/)
 
 ### Installation:
 1. Kopiere koden her under og sæt ind i Terminal eller SSH, Cable Juice Planner installeres og nødvendig ændringer i configuration.yaml tilføjes automatisk
