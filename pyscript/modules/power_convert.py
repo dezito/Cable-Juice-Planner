@@ -1,11 +1,10 @@
-__version__ = "1.0.0"
-from hass_manager import get_state, get_attr
+from hass_manager import get_attr
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-def power_convert(power = 0.0, entity_id = "", output = "W"):
+def power_convert(power = None, entity_id = "", convert_to = "W"):
     """
     Converts the power value of a specified entity to a different unit of measurement.
     Logs a warning and returns the original power value if conversion fails.
@@ -13,7 +12,7 @@ def power_convert(power = 0.0, entity_id = "", output = "W"):
     Parameters:
     - power (float): The default power value to return if conversion fails.
     - entity_id (str): The entity ID whose power value is to be converted.
-    - output (str): The unit to convert the power value to.
+    - convert_to (str): The unit to convert the power value to.
 
     Returns:
     - float: The converted power value or the original value if conversion fails.
@@ -21,9 +20,9 @@ def power_convert(power = 0.0, entity_id = "", output = "W"):
     _LOGGER = globals()['_LOGGER'].getChild("power_convert")
     try:
         power_type = get_attr(entity_id, "unit_of_measurement")
-        return convert_units(power, power_type, output)
+        return convert_units(power, power_type, convert_to)
     except Exception as e:
-        _LOGGER.error(f"power_convert(): Cant convert {entity_id} {power} to {output}: {e}")
+        _LOGGER.error(f"power_convert(): Cant convert {entity_id} {power} to {convert_to}: {e}")
         
     return power
 

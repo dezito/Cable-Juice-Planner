@@ -1,10 +1,11 @@
 import datetime
 import numpy as np
 
-from homeassistant.components.recorder import history
+from homeassistant.components.recorder import history as hass_history
 from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.util import dt as dt_util
+
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
@@ -56,7 +57,7 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
     if entity_id is None or entity_id == "" or entity_id not in state.names(domain=entity_id.split(".")[0]):
         return state_values
     
-    hist_data = history.get_significant_states(
+    hist_data = hass_history.get_significant_states(
         hass = hass,
         start_time = start_time,
         end_time = end_time,
@@ -70,7 +71,7 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
     )
     
     '''with session_scope(hass=hass, read_only=True) as session:
-        hist_data = history.get_significant_states_with_session(
+        hist_data = hass_history.get_significant_states_with_session(
             hass=hass,
             session=session,
             start_time=start_time,
@@ -107,8 +108,8 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     Returns:
     - A list of state values or the error state if an error occurs.
     """
-    from power_convert import power_convert
     _LOGGER = globals()['_LOGGER'].getChild("get_values")
+    from power_convert import power_convert
     
     from_time = min(from_datetime, to_datetime)
     to_time = max(from_datetime, to_datetime)
@@ -126,7 +127,7 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
                             value = float(value)
                         except:
                             continue
-                    value = value if convert_to is None else power_convert(value, entity_id, output = convert_to)
+                    value = value if convert_to is None else power_convert(value, entity_id, convert_to = convert_to)
                     states.append(value)
             except:
                 pass
