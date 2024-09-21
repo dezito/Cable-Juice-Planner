@@ -3055,7 +3055,7 @@ def cheap_grid_charge_hours():
                     last_charging = charging_plan[day]['work_last_charging']
                     
                 if charging_plan[day]['trip']:
-                    last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging'])
+                    last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging']) if charging_plan[day]['workday'] else charging_plan[day]['trip_last_charging']
                                     
                 _LOGGER.debug(f"charging_plan[{day}]['work_goto'] {charging_plan[day]['work_goto']} / charging_plan[{day}]['trip_last_charging'] {charging_plan[day]['trip_last_charging']} / last_charging {last_charging}")
                 
@@ -3140,7 +3140,7 @@ def cheap_grid_charge_hours():
                             goto_key = 'trip_goto' if event_type == 'trip' else 'work_goto'
                             event_time = charging_plan[day][goto_key]
                             
-                            if getTime() > event_time:
+                            if event_time is None or getTime() > event_time:
                                 continue
                             
                             emoji = emoji_parse({'trip': True}) if event_type == 'trip' else charging_plan[day]['emoji']
@@ -3597,13 +3597,19 @@ def cheap_grid_charge_hours():
                         charging_plan[day]['trip_kwh_needed'] += percentage_to_kwh(battery_level_added, include_charging_loss=False)
                         charging_plan[day]["trip_total_cost"] += chargeHours[charging_hour]["Cost"]
                         
-                        if charging_plan[day]['trip_goto'] >= charging_plan[day]['work_goto']:
+                        charging_sessions_id = "battery_level_before_work"
+                        
+                        work_goto = charging_plan[day]['work_goto']
+                        if not charging_plan[day]['work_goto']:
+                            work_goto = charging_plan[day]['end_of_day']
+                        
+                        if charging_plan[day]['trip_goto'] >= work_goto:
                             charging_plan[day]['battery_level_after_work'].append(battery_level_added)
+                            charging_sessions_id = "battery_level_after_work" if charging_plan[day]['trip_goto'] >= work_goto else "battery_level_before_work"
                         else:
                             charging_plan[day]['battery_level_before_work'].append(battery_level_added)
                             charging_plan[day]['battery_level_after_work'].append(battery_level_added)
                     
-                        charging_sessions_id = "battery_level_after_work" if charging_plan[day]['trip_goto'] >= charging_plan[day]['work_goto'] else "battery_level_before_work"
                         if charging_sessions_id not in charging_plan[day]['charging_sessions']:
                             charging_plan[day]['charging_sessions'][charging_sessions_id] = {}
                         charging_plan[day]['charging_sessions'][charging_sessions_id][charging_hour] = chargeHours[charging_hour]
