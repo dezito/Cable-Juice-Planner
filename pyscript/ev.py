@@ -3353,8 +3353,9 @@ def cheap_grid_charge_hours():
                     used_battery_level_alternative = max(get_max_recommended_charge_limit_battery_level() - battery_level(), 0.0)
                 else:
                     work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed']
+                    trip_battery_level_needed_alternative = charging_plan[day_before]['trip_battery_level_needed'] + charging_plan[day_before]['trip_battery_level_above_max']
                     typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
-                    total_battery_level_needed_alternative = work_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
+                    total_battery_level_needed_alternative = work_battery_level_needed_alternative + trip_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
                     used_battery_level_alternative = max(total_battery_level_needed_alternative, 0.0)
                 
                     if charging_plan[day]["trip"]:
