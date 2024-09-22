@@ -3883,8 +3883,8 @@ def cheap_grid_charge_hours():
             overview.append("## Afgangsplan ##")
             overview.append("<center>\n")
             
-            work_overview_total_kwh = 0.0
-            work_overview_total_cost = 0.0
+            work_overview_total_kwh = []
+            work_overview_total_cost = []
             
             if work_overview:
                 solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
@@ -3893,8 +3893,8 @@ def cheap_grid_charge_hours():
                 
                 
                 for d in work_overview.values():
-                    work_overview_total_kwh += d['kwh_needed']
-                    work_overview_total_cost += d['cost']
+                    work_overview_total_kwh.append(d['kwh_needed'])
+                    work_overview_total_cost.append(d['cost'])
                     
                     d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
                     d['day'] = f"**{d['day']}**" if d['day'] else ""
@@ -3908,13 +3908,18 @@ def cheap_grid_charge_hours():
             else:
                 overview.append(f"**Ingen kommende arbejdsdag**")
             
+            work_overview_total_kwh_sum = sum(work_overview_total_kwh)
+            work_overview_total_cost_sum = sum(work_overview_total_cost)
+            total_cost_alternative_sum = sum(total_cost_alternative)
+            total_kwh_alternative_sum = sum(total_kwh_alternative)
+            
             estimated_alternative_text = ""
             
-            if work_overview_total_kwh > 0.0 and sum(total_kwh_alternative) > 0.0:
-                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((sum(total_cost_alternative) / sum(total_kwh_alternative)) * work_overview_total_kwh, 2):.2f}kr {round(sum(total_cost_alternative) / sum(total_kwh_alternative), 2):.2f}kr/kWh"
+            if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
+                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh"
                 
-            if work_overview_total_kwh > 0.0:
-                overview.append(f"\n**Ialt {round(work_overview_total_kwh, 1):.1f}kWh {round(work_overview_total_cost, 2):.2f}kr ({round(work_overview_total_cost / work_overview_total_kwh, 2):.2f} kr/kWh)**{estimated_alternative_text}")
+            if work_overview_total_kwh_sum > 0.0:
+                overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**{estimated_alternative_text}")
             
             if solar_over_production:
                 overview.append("***")
