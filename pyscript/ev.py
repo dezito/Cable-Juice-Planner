@@ -1030,7 +1030,7 @@ def is_entity_available(entity):
         return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
-        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = entity)
+        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
         
         reload_entity_integration(entity)
         
