@@ -5,7 +5,7 @@
 type: vertical-stack
 cards:
   - type: markdown
-    content: "{{ states.sensor.ev_overview.attributes.overview }}"
+    content: '{{ states.sensor.ev_overview.attributes.overview }}'
     view_layout:
       position: sidebar
   - type: vertical-stack
@@ -13,6 +13,29 @@ cards:
       - type: custom:stack-in-card
         mode: vertical
         cards:
+          - type: markdown
+            content: >-
+              ## 📎 Opladningsgrænser ved billige strøm priser
+
+
+              <details>
+
+              <summary><b>Læs mere</b></summary>
+
+
+              - **{{ states.sensor.ev_charge_very_cheap_battery_level.name }}**
+              oplades til **{{
+              states.sensor.ev_charge_very_cheap_battery_level.state }}%**
+                - Når prisen er under de sidste 14 dages billigste pris
+              - **{{ states.sensor.ev_charge_ultra_cheap_battery_level.name }}**
+              oplades til **{{
+              states.sensor.ev_charge_ultra_cheap_battery_level.state }}%**
+                - Når prisen er 25% under de sidste 14 dages billigste pris
+
+              <center>☀️Opladningsgrænsen reguleres, afhængig af solcelle over
+              produktions estimering, en uge frem</center>
+
+              </details>
           - type: custom:mushroom-entity-card
             entity: sensor.ev_charge_very_cheap_battery_level
             double_tap_action:
@@ -42,3 +65,4 @@ cards:
         alignment: end
 view_layout:
   position: sidebar
+
