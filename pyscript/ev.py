@@ -5756,7 +5756,6 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
             global ENTITY_INTEGRATION_DICT
             preheat_ev()
-            _LOGGER.warning(f"DEBUG ENTITY_INTEGRATION_DICT:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
             
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
         def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
