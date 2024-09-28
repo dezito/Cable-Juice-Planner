@@ -86,9 +86,10 @@ INITIALIZATION_COMPLETE = False
 TESTING = False
 PREHEATING = False
 
-EV_CONFIGURED = None
+CHARGER_CONFIGURED = None
 SOLAR_CONFIGURED = None
 POWERWALL_CONFIGURED = None
+EV_CONFIGURED = None
 
 USING_OFFLINE_PRICES = False
 LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {}
@@ -970,28 +971,19 @@ def welcome():
 -------------------------------------------------------------------
 ''')
 
-def restart_script():
-    _LOGGER = globals()['_LOGGER'].getChild("restart_script")
-    _LOGGER.info("Restarting script")
-    set_charging_rule(f"📟Genstarter scriptet")
-    if service.has_service("pyscript", "reload"):
-        service.call("pyscript", "reload", blocking=True,
-                            global_ctx=f"file.{__name__}")
-
-def is_entity_configured(entity):
-    _LOGGER = globals()['_LOGGER'].getChild("is_entity_configured")
-    if entity is None or entity == "":
-        return False
-    return True
-        
-def is_powerwall_configured():
-    global POWERWALL_CONFIGURED
+def is_charger_configured():
+    global CHARGER_CONFIGURED
     
-    if POWERWALL_CONFIGURED is None:
-        POWERWALL_CONFIGURED = True if CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
-        _LOGGER.info(f"Powerwall entity is {'' if POWERWALL_CONFIGURED else 'not '}configured")
-    
-    return POWERWALL_CONFIGURED
+    if CHARGER_CONFIGURED is None:
+        if CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and \
+            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and \
+            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and \
+            CONFIG['charger']['entity_ids']['status_entity_id']:
+            CHARGER_CONFIGURED = True
+        else:
+            CHARGER_CONFIGURED = False
+            
+    return CHARGER_CONFIGURED
 
 def is_solar_configured():
     global SOLAR_CONFIGURED
@@ -1001,6 +993,15 @@ def is_solar_configured():
         _LOGGER.info(f"Solar entity is {'' if SOLAR_CONFIGURED else 'not '}configured")
     
     return SOLAR_CONFIGURED
+        
+def is_powerwall_configured():
+    global POWERWALL_CONFIGURED
+    
+    if POWERWALL_CONFIGURED is None:
+        POWERWALL_CONFIGURED = True if CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
+        _LOGGER.info(f"Powerwall entity is {'' if POWERWALL_CONFIGURED else 'not '}configured")
+    
+    return POWERWALL_CONFIGURED
 
 def is_ev_configured():
     global EV_CONFIGURED
@@ -1017,6 +1018,12 @@ def is_ev_configured():
         _LOGGER.info(f"Ev entities is {'' if EV_CONFIGURED else 'not '}configured")
     
     return EV_CONFIGURED
+
+def is_entity_configured(entity):
+    _LOGGER = globals()['_LOGGER'].getChild("is_entity_configured")
+    if entity is None or entity == "":
+        return False
+    return True
 
 def is_entity_available(entity):
     _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
@@ -1050,7 +1057,7 @@ def save_changes(file, db):
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
             my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification", persistent_notification_id = f"{__name__}_{file}_save_changes_error")
-            
+        
 def create_integration_dict():
     _LOGGER = globals()['_LOGGER'].getChild("create_integration_dict")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
@@ -1200,6 +1207,14 @@ def set_charging_rule(text=""):
             set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
+            
+def restart_script():
+    _LOGGER = globals()['_LOGGER'].getChild("restart_script")
+    _LOGGER.info("Restarting script")
+    set_charging_rule(f"📟Genstarter scriptet")
+    if service.has_service("pyscript", "reload"):
+        service.call("pyscript", "reload", blocking=True,
+                            global_ctx=f"file.{__name__}")
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
