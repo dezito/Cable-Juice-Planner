@@ -2576,7 +2576,7 @@ def charging_history(charging_data = None, charging_type = ""):
     except Exception as e:
         _LOGGER.error(f"Charging history queue failed  CHARGING_HISTORY_QUEUE: {CHARGING_HISTORY_QUEUE}")
         _LOGGER.error(f"{e}")
-        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error", notification_id=f"{__name__}_charging_history_queue_failed")
+        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_queue_failed")
     finally:
         CHARGING_HISTORY_RUNNING = False
 
@@ -4439,7 +4439,7 @@ def load_solar_available_db():
             create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_solar_production_available_db: {e}")
-        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", notification_id=f"{__name__}_load_solar_available_db")
+        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_solar_available_db")
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
         SOLAR_PRODUCTION_AVAILABLE_DB = {}
