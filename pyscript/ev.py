@@ -1218,7 +1218,7 @@ def restart_script():
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
-    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, TESTING
+    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
@@ -1367,6 +1367,9 @@ def init():
 
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
+        
+        if not is_charger_configured():
+            raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
         
         is_powerwall_configured()
         
@@ -3036,7 +3039,6 @@ def cheap_grid_charge_hours():
         work_overview_battery_level_adjusted = False
         
         charge_hours_alternative = {}
-        
         for day in sorted([key for key in charging_plan.keys() if isinstance(key, int)]):
             day_before = max(day - 1, 0)
             day_after = min(day + 1, 7)
@@ -3713,9 +3715,7 @@ def cheap_grid_charge_hours():
     battery_level_expenses_report = battery_level_expenses
     battery_level_expenses_kwh_report = battery_level_expenses_kwh
     battery_level_expenses_solar_percentage_report = battery_level_expenses_solar_percentage
-    
-    
-    
+        
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     chargeHours['total_cost'] = totalCost
     chargeHours['total_kwh'] = totalkWh
@@ -4499,18 +4499,13 @@ def solar_available_append_to_db(power):
     hour = getHour()
     cloudiness = None
     condition = None
-    try:
-        try:
-            cloudiness = get_attr(CONFIG['forecast']['entity_ids']['hourly_service_entity_id'])["cloud_coverage"]
-        except Exception as e_hourly:
-            _LOGGER.warning(f"Cant get cloud coverage from hourly {CONFIG['forecast']['entity_ids']['hourly_service_entity_id']}: {e_hourly}")
-            
-            cloudiness = get_attr(CONFIG['forecast']['entity_ids']['daily_service_entity_id'])["cloud_coverage"]
-    except Exception as e:
-        _LOGGER.warning(f"Cant get cloud coverage from daily {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}: {e}")
-    finally:
-        if cloudiness is not None:
-            condition = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
+    
+    forecast_dict = get_forecast_dict()
+    forecast = get_forecast(forecast_dict)
+    cloudiness = forecast_score(forecast)
+    
+    if cloudiness is not None:
+        condition = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
         
     if condition is None:
         try:
@@ -5341,7 +5336,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
     grid_co2_emitted = 0.0
     grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
     try:
-        solar_co2_emitted =((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
+        solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
         grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
         grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
     except:
