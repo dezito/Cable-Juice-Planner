@@ -5,6 +5,10 @@ import calendar
 
 from .get_time import getTime
 
+from logging import getLogger
+BASENAME = f"pyscript.modules.{__name__}"
+_LOGGER = getLogger(BASENAME)
+
 #Get
 def getSecond(date = None):
     if not date:
@@ -43,6 +47,7 @@ def getDayOfWeek(date = None):
     Returns:
         int: ex. SATURDAY = 5
     """
+    _LOGGER = globals()['_LOGGER'].getChild("getDayOfWeek")
     if not date:
         date = getTime()
     return date.weekday()
