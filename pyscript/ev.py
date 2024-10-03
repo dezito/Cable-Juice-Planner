@@ -3260,6 +3260,7 @@ def cheap_grid_charge_hours():
                                     work_overview_battery_level_adjusted = True
                                     diff = abs(diff)
                                     battery_level_needed_adjusted = battery_level_needed + diff
+                                    
                                     temp_events.append({
                                         "time": getTime(),
                                         "data": {
@@ -3272,8 +3273,8 @@ def cheap_grid_charge_hours():
                                             "cost": (diff / battery_level_needed_adjusted) * cost
                                         }
                                     })
-                                    
-                                    cost = ((battery_level_needed_adjusted - diff) / battery_level_needed_adjusted) * cost
+                                    kwh_needed -= percentage_to_kwh(diff, include_charging_loss=True)
+                                    cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                             
                             temp_events.append({
                                 "time": event_time,
@@ -3930,50 +3931,49 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
+        work_overview_total_kwh = []
+        work_overview_total_cost = []
+        
+        overview.append("## Afgangsplan ##")
+        overview.append("<center>\n")
+        
         if work_overview:
-            overview.append("## Afgangsplan ##")
-            overview.append("<center>\n")
+            solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
+            overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
+            overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
-            work_overview_total_kwh = []
-            work_overview_total_cost = []
             
-            if work_overview:
-                solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
-                overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
-                overview.append(f"|:---|:---:|:---:|:---:|:---:|")
+            for d in work_overview.values():
+                work_overview_total_kwh.append(d['kwh_needed'])
+                work_overview_total_cost.append(d['cost'])
                 
+                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                d['day'] = f"**{d['day']}**" if d['day'] else ""
+                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
+                d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
+                d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
+                d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
                 
-                for d in work_overview.values():
-                    work_overview_total_kwh.append(d['kwh_needed'])
-                    work_overview_total_cost.append(d['cost'])
-                    
-                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                    d['day'] = f"**{d['day']}**" if d['day'] else ""
-                    d['when'] = f"**{d['when']}**" if d['when'] else ""
-                    d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
-                    d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
-                    d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
-                    d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                    
-                    overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
-            else:
-                overview.append(f"**Ingen kommende arbejdsdag**")
+                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
+        else:
+            overview.append(f"**Ingen kommende arbejdsdag**")
+        
+        work_overview_total_kwh_sum = sum(work_overview_total_kwh)
+        work_overview_total_cost_sum = sum(work_overview_total_cost)
+        total_cost_alternative_sum = sum(total_cost_alternative)
+        total_kwh_alternative_sum = sum(total_kwh_alternative)
+        
+        estimated_alternative_text = ""
+        
+        if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
+            estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh"
             
-            work_overview_total_kwh_sum = sum(work_overview_total_kwh)
-            work_overview_total_cost_sum = sum(work_overview_total_cost)
-            total_cost_alternative_sum = sum(total_cost_alternative)
-            total_kwh_alternative_sum = sum(total_kwh_alternative)
-            
-            estimated_alternative_text = ""
-            
-            if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
-                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh"
-                
-            if work_overview_total_kwh_sum > 0.0:
-                overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**{estimated_alternative_text}")
-            
-            if solar_over_production:
-                overview.append("***")
+        if work_overview_total_kwh_sum > 0.0:
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**{estimated_alternative_text}")
+        
+        if solar_over_production:
+            overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create work overview: {e}")
