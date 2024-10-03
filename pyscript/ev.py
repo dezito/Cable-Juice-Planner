@@ -11,6 +11,7 @@ Home Assistant integration requirement:
 """
 
 import datetime
+from typing import Optional
 from pprint import pformat
 
 try:
@@ -56,6 +57,7 @@ from mytime import (
     getYear,
     getTimeStartOfDay,
     getTimeEndOfDay,
+    getDayOfWeek,
     getDayOfWeekText,
     date_to_string,
     toDateTime,
@@ -86,9 +88,10 @@ INITIALIZATION_COMPLETE = False
 TESTING = False
 PREHEATING = False
 
-EV_CONFIGURED = None
+CHARGER_CONFIGURED = None
 SOLAR_CONFIGURED = None
 POWERWALL_CONFIGURED = None
+EV_CONFIGURED = None
 
 USING_OFFLINE_PRICES = False
 LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {}
@@ -115,6 +118,7 @@ CONFIG = {}
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
 SOLAR_PRODUCTION_AVAILABLE_DB_VERSION = 2.0
 KWH_AVG_PRICES_DB = {}
+KWH_AVG_PRICES_DB_VERSION = 2.0
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
 CHARGING_HISTORY_DB = {}
@@ -438,8 +442,8 @@ COMMENT_DB_YAML = {
     "solarpower_use_before_minutes": "Minutes back u can use solar overproduction available",
     "max_to_current_hour": "Must use solar overproduction available in current hour",
     "allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
-    "charging_single_phase_min_amp": "Minimum allowed amps the car can charge",
-    "charging_single_phase_max_amp": "Maximum allowed amps the car can charge",
+    "charging_single_phase_min_amp": "Minimum allowed amps the car can charge, to disable single phase charging set to 0",
+    "charging_single_phase_max_amp": "Maximum allowed amps the car can charge, to disable single phase charging set to 0",
     "charging_three_phase_min_amp": "Minimum allowed amps the car can charge, uses charger.charging_phases config for max",
     "production_price": "Set to -1.0 if using raw hour sell price, also editable via WebGUI",
     "power_prices_entity_id": "**Required** Energi Data Service price entity_id",
@@ -964,27 +968,39 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
 }
 
 def welcome():
+    _LOGGER = globals()['_LOGGER'].getChild("welcome")
     _LOGGER.info(f'''
 -------------------------------------------------------------------
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
 -------------------------------------------------------------------
 ''')
 
-def restart_script():
-    _LOGGER = globals()['_LOGGER'].getChild("restart_script")
-    _LOGGER.info("Restarting script")
-    set_charging_rule(f"📟Genstarter scriptet")
-    if service.has_service("pyscript", "reload"):
-        service.call("pyscript", "reload", blocking=True,
-                            global_ctx=f"file.{__name__}")
+def is_charger_configured():
+    global CHARGER_CONFIGURED
+    
+    if CHARGER_CONFIGURED is None:
+        if CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and \
+            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and \
+            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and \
+            CONFIG['charger']['entity_ids']['status_entity_id']:
+            CHARGER_CONFIGURED = True
+        else:
+            CHARGER_CONFIGURED = False
+            
+    return CHARGER_CONFIGURED
 
-def is_entity_configured(entity):
-    _LOGGER = globals()['_LOGGER'].getChild("is_entity_configured")
-    if entity is None or entity == "":
-        return False
-    return True
+def is_solar_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_solar_configured")
+    global SOLAR_CONFIGURED
+    
+    if SOLAR_CONFIGURED is None:
+        SOLAR_CONFIGURED = True if CONFIG['solar']['entity_ids']['production_entity_id'] else False
+        _LOGGER.info(f"Solar entity is {'' if SOLAR_CONFIGURED else 'not '}configured")
+    
+    return SOLAR_CONFIGURED
         
 def is_powerwall_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_configured")
     global POWERWALL_CONFIGURED
     
     if POWERWALL_CONFIGURED is None:
@@ -993,16 +1009,8 @@ def is_powerwall_configured():
     
     return POWERWALL_CONFIGURED
 
-def is_solar_configured():
-    global SOLAR_CONFIGURED
-    
-    if SOLAR_CONFIGURED is None:
-        SOLAR_CONFIGURED = True if CONFIG['solar']['entity_ids']['production_entity_id'] else False
-        _LOGGER.info(f"Solar entity is {'' if SOLAR_CONFIGURED else 'not '}configured")
-    
-    return SOLAR_CONFIGURED
-
 def is_ev_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
     global EV_CONFIGURED
     if EV_CONFIGURED is None:
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and \
@@ -1017,6 +1025,12 @@ def is_ev_configured():
         _LOGGER.info(f"Ev entities is {'' if EV_CONFIGURED else 'not '}configured")
     
     return EV_CONFIGURED
+
+def is_entity_configured(entity):
+    _LOGGER = globals()['_LOGGER'].getChild("is_entity_configured")
+    if entity is None or entity == "":
+        return False
+    return True
 
 def is_entity_available(entity):
     _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
@@ -1050,7 +1064,7 @@ def save_changes(file, db):
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
             my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification", persistent_notification_id = f"{__name__}_{file}_save_changes_error")
-            
+        
 def create_integration_dict():
     _LOGGER = globals()['_LOGGER'].getChild("create_integration_dict")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
@@ -1175,6 +1189,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
     return False
 
 def set_charging_rule(text=""):
+    _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
     if RESTARTING_CHARGER_COUNT < 3:
         testing = "🧪" if TESTING else ""
         
@@ -1200,10 +1215,18 @@ def set_charging_rule(text=""):
             set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
+            
+def restart_script():
+    _LOGGER = globals()['_LOGGER'].getChild("restart_script")
+    _LOGGER.info("Restarting script")
+    set_charging_rule(f"📟Genstarter scriptet")
+    if service.has_service("pyscript", "reload"):
+        service.call("pyscript", "reload", blocking=True,
+                            global_ctx=f"file.{__name__}")
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
-    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, TESTING
+    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
@@ -1212,6 +1235,11 @@ def init():
         if not file_exists(file_path):
             save_yaml(file_path, default_content, comment_db)
             _LOGGER.error(f"File has been created: {file_path}")
+            if "config.yaml" in file_path:
+                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\Tilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+            else:
+                my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+            
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
 
         content = load_yaml(file_path)
@@ -1353,6 +1381,9 @@ def init():
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
         
+        if not is_charger_configured():
+            raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
+        
         is_powerwall_configured()
         
         create_integration_dict()
@@ -1393,7 +1424,8 @@ set_charging_rule(f"📟Starter scriptet op")
 init()
 
 if INITIALIZATION_COMPLETE:
-    SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * CONFIG['solar']['charging_single_phase_min_amp'])
+    solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
+    SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * solar_min_amp)
     MAX_WATT_CHARGING = (CONFIG['charger']['power_voltage'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['charging_max_amp']
     MAX_KWH_CHARGING = MAX_WATT_CHARGING / 1000
 
@@ -1466,6 +1498,7 @@ def get_list_values(data):
     return float_list
 
 def is_calculating_charging_loss():
+    _LOGGER = globals()['_LOGGER'].getChild("is_calculating_charging_loss")
     try:
         return True if get_state(f"input_boolean.{__name__}_calculate_charging_loss", float_type=False, error_state=False) == "on" else False
     except Exception as e:
@@ -1473,6 +1506,7 @@ def is_calculating_charging_loss():
         return False
 
 def get_entity_daily_distance(day_text = None, date = None):
+    _LOGGER = globals()['_LOGGER'].getChild("get_entity_daily_distance")
     try:
         if day_text is None and date is None:
             distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
@@ -1492,6 +1526,7 @@ def get_entity_daily_distance(day_text = None, date = None):
         return CONFIG['ev_car']['typical_daily_distance_non_working_day']
 
 def get_min_daily_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_daily_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True))
     except Exception as e:
@@ -1499,6 +1534,7 @@ def get_min_daily_battery_level():
         return CONFIG['ev_car']['min_daily_battery_level']
 
 def get_min_trip_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_trip_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True))
     except Exception as e:
@@ -1506,6 +1542,7 @@ def get_min_trip_battery_level():
         return CONFIG['ev_car']['min_trip_battery_level']
 
 def get_min_charge_limit_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_charge_limit_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -1513,6 +1550,7 @@ def get_min_charge_limit_battery_level():
         return CONFIG['ev_car']['min_charge_limit_battery_level']
 
 def get_max_recommended_charge_limit_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_max_recommended_charge_limit_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -1520,6 +1558,7 @@ def get_max_recommended_charge_limit_battery_level():
         return CONFIG['ev_car']['max_recommended_charge_limit_battery_level']
 
 def get_very_cheap_grid_charging_max_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_very_cheap_grid_charging_max_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -1527,6 +1566,7 @@ def get_very_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']
 
 def get_ultra_cheap_grid_charging_max_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_ultra_cheap_grid_charging_max_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -1534,6 +1574,7 @@ def get_ultra_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
 def get_completed_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_completed_battery_level")
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
@@ -1543,6 +1584,7 @@ def get_completed_battery_level():
         return 100.0
 
 def get_estimated_total_range():
+    _LOGGER = globals()['_LOGGER'].getChild("get_estimated_total_range")
     estimated_total_range = 0.0
     try:
         estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
@@ -1552,6 +1594,7 @@ def get_estimated_total_range():
     return estimated_total_range
 
 def get_trip_date_time():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_date_time")
     trip_date_time = resetDatetime()
     try:
         trip_date_time = get_state(f"input_datetime.{__name__}_trip_date_time", error_state=resetDatetime())
@@ -1565,6 +1608,7 @@ def get_trip_date_time():
     return trip_date_time
 
 def get_trip_homecoming_date_time():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_homecoming_date_time")
     trip_homecoming_date_time = resetDatetime()
     try:
         trip_homecoming_date_time = get_state(f"input_datetime.{__name__}_trip_homecoming_date_time", error_state=resetDatetime())
@@ -1578,6 +1622,7 @@ def get_trip_homecoming_date_time():
     return trip_homecoming_date_time
 
 def get_trip_range():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_range")
     trip_range = 0.0
     try:
         trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed"))
@@ -1591,6 +1636,7 @@ def get_trip_range():
     return trip_range
 
 def get_trip_target_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_target_level")
     trip_target_level = 0.0
     try:
         trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent"))
@@ -1642,6 +1688,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
     
     if not is_solar_configured(): return 0.0
     
+    day_of_week = getDayOfWeek()
     try:
         sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
         
@@ -1655,7 +1702,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
             sell_price_list = []
             
             for hour in range(sunrise, sunset):
-                sell_price_list.append(average(KWH_AVG_PRICES_DB['history_sell'][hour]))
+                sell_price_list.append(average(KWH_AVG_PRICES_DB['history_sell'][hour][day_of_week]))
                 
             return average(sell_price_list)
         
@@ -1718,7 +1765,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         try:
             sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
             if sell_price == -1.0:
-                sell_price = average(KWH_AVG_PRICES_DB['history_sell'][getHour()])#TODO Add support for every week day prices
+                sell_price = average(KWH_AVG_PRICES_DB['history_sell'][getHour()][day_of_week])
                 using_text = "database average"
         except Exception as e:
             pass
@@ -1731,6 +1778,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
     return sell_price
 
 def get_refund():
+    _LOGGER = globals()['_LOGGER'].getChild("get_refund")
     try:
         return abs(CONFIG['prices']['refund'])
     except Exception as e:
@@ -1738,6 +1786,7 @@ def get_refund():
         return 0.0
 
 def get_current_hour_price():
+    _LOGGER = globals()['_LOGGER'].getChild("get_current_hour_price")
     try:
         return float(get_state(f"sensor.{__name__}_kwh_cost_price", float_type=True))
     except Exception as e:
@@ -1963,6 +2012,7 @@ def save_drive_efficiency():
     set_state_drive_efficiency()
     
 def set_state_drive_efficiency():
+    _LOGGER = globals()['_LOGGER'].getChild("set_state_drive_efficiency")
     if not is_ev_configured(): return
     
     try:
@@ -2046,6 +2096,7 @@ def set_state_km_kwh_efficiency():
         my_persistent_notification(f"Cant set km/kwh efficiency: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_set_state_km_kwh_efficiency")
     
 def set_estimated_range():
+    _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
     try:
         range_per_percentage = km_kwh_to_km_percentage(float(average(get_list_values(KM_KWH_EFFICIENCY_DB))))
         range_at_battery_level = round(range_per_percentage * battery_level(), 2)
@@ -2265,19 +2316,20 @@ def charging_history_recalc_price():
                 
                 if ended == ">": return False
                 
-                for i in range(1, 20):
-                    if hoursBetween(now, sorted_keys[i]) == 0 and getHour(now) == getHour(sorted_keys[i]):
-                        start = sorted_keys[i]
-                        
-                        _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
-                        start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
-                        
-                        join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
-                        emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
-                        
-                        remove_keys.append(start)
-                    else:
-                        break
+                if len(sorted_keys) > 1:
+                    for i in range(1, min(len(sorted_keys), 20)):
+                        if hoursBetween(now, sorted_keys[i]) == 0 and getHour(now) == getHour(sorted_keys[i]):
+                            start = sorted_keys[i]
+                            
+                            _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
+                            start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
+                            
+                            join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
+                            emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
+                            
+                            remove_keys.append(start)
+                        else:
+                            break
                 
                 for key in remove_keys:
                     if key != start:
@@ -2576,7 +2628,7 @@ def charging_history(charging_data = None, charging_type = ""):
     except Exception as e:
         _LOGGER.error(f"Charging history queue failed  CHARGING_HISTORY_QUEUE: {CHARGING_HISTORY_QUEUE}")
         _LOGGER.error(f"{e}")
-        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error", notification_id=f"{__name__}_charging_history_queue_failed")
+        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_queue_failed")
     finally:
         CHARGING_HISTORY_RUNNING = False
 
@@ -2705,6 +2757,7 @@ def cheap_grid_charge_hours():
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
         _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
+        my_persistent_notification(f"Kan ikke hente strøm priser, {CONFIG['prices']['entity_ids']['power_prices_entity_id']} findes ikke under domain sensor:", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_not_found")
         return
 
     today = getTimeStartOfDay()
@@ -2731,102 +2784,98 @@ def cheap_grid_charge_hours():
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
             
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
-        
-        if "raw_today" in power_prices_attr:
-            for raw in power_prices_attr['raw_today']:
-                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
-                    hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                else:
-                    all_prices_loaded = False
-                    
-        if "forecast" in power_prices_attr:
-            for raw in power_prices_attr['forecast']:
-                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
-                    hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
-                else:
-                    all_prices_loaded = False
-
-        if "tomorrow_valid" in power_prices_attr:
-            if power_prices_attr['tomorrow_valid']:
-                if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) != 24:
-                    _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-                else:
-                    for raw in power_prices_attr['raw_tomorrow']:
-                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
-                            hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                        else:
-                            all_prices_loaded = False
-                    
-        if "raw_today" not in power_prices_attr:
-            raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-        elif len(power_prices_attr['raw_today']) != 24:
-            raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-
-        if "forecast" not in power_prices_attr:
-            raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-        elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
-            raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-
-        if not all_prices_loaded:
-            if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS:
-                _LOGGER.warning(f"minutesBetween: {minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS['last_update'], now)}")
-            if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 60:
-                hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
-                _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
-            else:
-                raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 60:
+            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
         else:
-            LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {
-                "last_update": getTime(),
-                "prices": hourPrices
-            }
-    except Exception as e:#TODO Add support for every week day prices
-            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
+            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
             
-            if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 60:
-                hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
-                _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
-            else:
-                my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
-                
-                try:
-                    USING_OFFLINE_PRICES = True
-                    for i in range(24):
-                        if i not in KWH_AVG_PRICES_DB['history']:
-                            raise Exception(f"Missing hour {i} in KWH_AVG_PRICES_DB")
+            if "raw_today" in power_prices_attr:
+                for raw in power_prices_attr['raw_today']:
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                    else:
+                        all_prices_loaded = False
                         
-                        price = average(KWH_AVG_PRICES_DB['history'][i])
-                        for d in range(7):
-                            timestamp = reset_time_to_hour(current_hour.replace(hour=i)) + datetime.timedelta(days=d)
-                            timestamp = timestamp.replace(tzinfo=None)
-                            if timestamp not in hourPrices:
-                                hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
-                except Exception as e:
-                    _LOGGER.error(f"Cant get offline prices: {e}")
-                    my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
-                    raise Exception(f"Offline prices error: {e}")
+            if "forecast" in power_prices_attr:
+                for raw in power_prices_attr['forecast']:
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
+                    else:
+                        all_prices_loaded = False
+
+            if "tomorrow_valid" in power_prices_attr:
+                if power_prices_attr['tomorrow_valid']:
+                    if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) != 24:
+                        _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+                    else:
+                        for raw in power_prices_attr['raw_tomorrow']:
+                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                                hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                            else:
+                                all_prices_loaded = False
+            
+            if "raw_today" not in power_prices_attr:
+                raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            elif len(power_prices_attr['raw_today']) != 24:
+                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+
+            if "forecast" not in power_prices_attr:
+                raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
+                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+
+            if not all_prices_loaded:
+                raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            else:
+                LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {
+                    "last_update": getTime(),
+                    "prices": hourPrices
+                }
+    except Exception as e:
+        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 120:
+            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
+            _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
+        else:
+            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
+            
+            try:
+                USING_OFFLINE_PRICES = True
+                for h in range(24):
+                    for d in range(7):
+                        if d not in KWH_AVG_PRICES_DB['history'][h]:
+                            raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
+
+                        price = average(KWH_AVG_PRICES_DB['history'][h][d])
+                        timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
+                        timestamp = timestamp.replace(tzinfo=None)
+                        if timestamp not in hourPrices:
+                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
+            except Exception as e:
+                _LOGGER.error(f"Cant get offline prices: {e}")
+                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
+                raise Exception(f"Offline prices error: {e}")
     
-    def available_for_charging_prediction(h, trip_datetime = None, trip_homecoming_datetime = None):
-        _LOGGER = globals()['_LOGGER'].getChild("available_for_charging_prediction")
+    def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
         working = False
         on_trip = False
-        day = daysBetween(getTime(), h)
+        day = daysBetween(getTime(), timestamp)
         
         try:
             if charging_plan[day]['workday']:
-                working = in_between(h.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
+                working = in_between(getHour(timestamp), charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
 
             if trip_datetime:
-                if in_between(h, trip_datetime, trip_homecoming_datetime):
+                if in_between(timestamp, trip_datetime, trip_homecoming_datetime):
                     on_trip = True
         except Exception as e:
             _LOGGER.error(e)
         
         return working, on_trip
-        
+    
     def kwh_available_in_hour(hour):
-        _LOGGER = globals()['_LOGGER'].getChild("kwh_available_in_hour")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.kwh_available_in_hour")
         hour_in_chargeHours = False
         kwhAvailable = False
         if hour in chargeHours:
@@ -2836,10 +2885,13 @@ def cheap_grid_charge_hours():
         return [hour_in_chargeHours, kwhAvailable]
 
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwhAvailable, battery_level = None, max_recommended_battery_level = None, rules = []):
-        _LOGGER = globals()['_LOGGER'].getChild("add_to_charge_hours")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.add_to_charge_hours")
         cost = 0.0
         kwh = MAX_KWH_CHARGING
         battery_level_added = False
+            
+        price = float(price)
+        kwhNeeded = float(kwhNeeded)
         
         if battery_level:
             if max_recommended_battery_level is None:
@@ -2862,9 +2914,6 @@ def cheap_grid_charge_hours():
                     "Price": round(price, 2),
                     "ChargingAmps": CONFIG['charger']['charging_max_amp']
                 }
-            
-            price = float(price)
-            kwhNeeded = float(kwhNeeded)
             
             if (kwhNeeded - kwh) < 0.0:
                 kwh = kwhNeeded
@@ -2898,7 +2947,7 @@ def cheap_grid_charge_hours():
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
 
     def cheap_price_check(price):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_price_check")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.cheap_price_check")
         very_cheap_price = False
         ultra_cheap_price = False
         
@@ -2911,7 +2960,7 @@ def cheap_grid_charge_hours():
                 ultra_cheap_price = True
         except Exception as e:
             _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e}")
-            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)#TODO Add support for every week day prices
+            average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
             if round(price, 3) <= average_price:
                 very_cheap_price = True
             if round(price, 3) <= (average_price * 0.75):
@@ -2920,7 +2969,7 @@ def cheap_grid_charge_hours():
         return [very_cheap_price, ultra_cheap_price]
     
     def future_charging(totalCost, totalkWh):
-        _LOGGER = globals()['_LOGGER'].getChild("future_charging")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
         nonlocal trip_date_time
         nonlocal trip_target_level
         nonlocal total_cost_alternative
@@ -2928,7 +2977,6 @@ def cheap_grid_charge_hours():
         nonlocal battery_level_expenses_percentage
         nonlocal battery_level_expenses_solar_percentage
         nonlocal battery_level_expenses_unit
-        
         
         def what_battery_level(what_day, hour, price, day):
             battery_level_id = "battery_level_at_midnight"
@@ -3021,7 +3069,6 @@ def cheap_grid_charge_hours():
         work_overview_battery_level_adjusted = False
         
         charge_hours_alternative = {}
-        
         for day in sorted([key for key in charging_plan.keys() if isinstance(key, int)]):
             day_before = max(day - 1, 0)
             day_after = min(day + 1, 7)
@@ -3083,22 +3130,22 @@ def cheap_grid_charge_hours():
                 if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
                     kwh_needed_today = 0.0
                 
-                for hour, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
-                    if hour <= last_charging and hour >= current_hour:
-                        hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(hour)
+                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                    if timestamp <= last_charging and timestamp >= current_hour:
+                        hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                         if hour_in_chargeHours and not kwhAvailable:
                             continue
                         
-                        what_day = daysBetween(getTime(), hour)
-                        battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, hour, price, day)
+                        what_day = daysBetween(getTime(), timestamp)
+                        battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                         if not battery_level_id:
                             continue
                         
                         if battery_level_full_on_next_departure(what_day):
-                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}kr. continue to next cheapest hour/price")
+                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
                             continue
                         
-                        working, on_trip = available_for_charging_prediction(hour, trip_date_time, trip_homecoming_date_time)
+                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
                             continue
                         
@@ -3108,7 +3155,7 @@ def cheap_grid_charge_hours():
                                 first_charging_session = sorted(filteredDict.keys())[0]
                                 
                                 try:
-                                    if chargeHours[first_charging_session]['trip'] and hour < first_charging_session and (get_min_trip_battery_level() + charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']) != 100:
+                                    if chargeHours[first_charging_session]['trip'] and timestamp < first_charging_session and (get_min_trip_battery_level() + charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']) != 100:
                                         if what_day != 0 and not charging_plan[day]['workday']:
                                             continue
                                 except:
@@ -3118,9 +3165,9 @@ def cheap_grid_charge_hours():
                             if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
                                 #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
                                 continue
-                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, hour, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
+                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
                             
-                            if hour in chargeHours and battery_level_added:
+                            if timestamp in chargeHours and battery_level_added:
                                 total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                                 
                                 battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
@@ -3132,7 +3179,7 @@ def cheap_grid_charge_hours():
                                     cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
                                     charging_plan[day]['work_total_cost'] += cost_work
                                     
-                                charging_sessions_id = add_charging_session_to_day(hour, what_day, battery_level_id)
+                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
                                 add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
                         else:
                             break
@@ -3165,7 +3212,7 @@ def cheap_grid_charge_hours():
                             emoji = emoji_parse({'trip': True}) if event_type == 'trip' else charging_plan[day]['emoji']
                             battery_level_needed_key = 'trip_battery_level_needed' if event_type == 'trip' else 'work_battery_level_needed'
                             battery_level_needed = charging_plan[day][battery_level_needed_key] if battery_level_needed_key =="work_battery_level_needed" else charging_plan[day][battery_level_needed_key] + charging_plan[day]["trip_battery_level_above_max"]
-                                                        
+                            kwh_needed = charging_plan[day]['trip_kwh_needed' if event_type == 'trip' else 'work_kwh_needed']
                             cost = charging_plan[day]["trip_total_cost" if event_type == "trip" else "work_total_cost"]
                             
                             solar_percentage = min(solar_percentage, battery_level_needed)
@@ -3177,6 +3224,7 @@ def cheap_grid_charge_hours():
                                     grid_battery_level_expenses = percentage_to_kwh(battery_level_expenses_unit, include_charging_loss=True) * amount
                                     cost += grid_battery_level_expenses
                                     battery_level_expenses_percentage -= amount
+                                    kwh_needed += percentage_to_kwh(amount, include_charging_loss=True)
                                     
                                     solar_battery_level_expenses = solar_unit * solar_percentage
                                     cost += solar_battery_level_expenses
@@ -3185,6 +3233,7 @@ def cheap_grid_charge_hours():
                                         solar_amount = min(grid_battery_level_needed, battery_level_expenses_solar_percentage)
                                         solar_percentage = min(solar_percentage + solar_amount, battery_level_needed)
                                         battery_level_expenses_solar_percentage -= solar_amount
+                                        kwh_needed += percentage_to_kwh(solar_amount, include_charging_loss=True)
                                         
                                     solar_kwh = percentage_to_kwh(solar_percentage, include_charging_loss=True)
                                 
@@ -3200,6 +3249,7 @@ def cheap_grid_charge_hours():
                             
                             solar_label = f"{round(solar_percentage,0):.0f}% {round(solar_kwh, 1):.1f}kWh" if solar_kwh > 0.0 else ""
                             
+                            kwh_needed += solar_kwh
                             solar_kwh = 0.0
                             solar_percentage = 0.0
 
@@ -3210,6 +3260,7 @@ def cheap_grid_charge_hours():
                                     work_overview_battery_level_adjusted = True
                                     diff = abs(diff)
                                     battery_level_needed_adjusted = battery_level_needed + diff
+                                    
                                     temp_events.append({
                                         "time": getTime(),
                                         "data": {
@@ -3222,8 +3273,8 @@ def cheap_grid_charge_hours():
                                             "cost": (diff / battery_level_needed_adjusted) * cost
                                         }
                                     })
-                                    
-                                    cost = ((battery_level_needed_adjusted - diff) / battery_level_needed_adjusted) * cost
+                                    kwh_needed -= percentage_to_kwh(diff, include_charging_loss=True)
+                                    cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                             
                             temp_events.append({
                                 "time": event_time,
@@ -3233,7 +3284,7 @@ def cheap_grid_charge_hours():
                                     "when": f"*{date_to_string(date = event_time, format = "%d/%m %H:%M")}*",
                                     "solar": solar_label,
                                     "battery_needed": battery_level_needed,
-                                    "kwh_needed": percentage_to_kwh(battery_level_needed, include_charging_loss=True),
+                                    "kwh_needed": kwh_needed,
                                     "cost": cost
                                 }
                             })
@@ -3281,13 +3332,13 @@ def cheap_grid_charge_hours():
                         rules.append("fill_up")
                         
                     if kwh_needed_to_fill_up_day > 0.0:
-                        for hour, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
-                            hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(hour)
+                        for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                            hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                             if hour_in_chargeHours and not kwhAvailable:
                                 continue
                             
-                            what_day = daysBetween(getTime(), hour)
-                            battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, hour, price, day)
+                            what_day = daysBetween(getTime(), timestamp)
+                            battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                             if need_recommended_full_charge:
                                 max_recommended_charge_limit_battery_level = 100.0 #Ignore solar over production
                                 
@@ -3297,7 +3348,7 @@ def cheap_grid_charge_hours():
                                 if not battery_level_id:
                                     continue
 
-                            if hour <= last_charging and hour >= current_hour:
+                            if timestamp <= last_charging and timestamp >= current_hour:
                                 very_cheap_price, ultra_cheap_price = cheap_price_check(price)
                                 if charging_plan['workday_in_week'] and not very_cheap_price and not ultra_cheap_price:
                                     continue
@@ -3310,33 +3361,33 @@ def cheap_grid_charge_hours():
                                 if kwh_needed_to_fill_up_day <= 0.01:
                                     break
                                 elif kwh_needed_to_fill_up_day > 0.0:
-                                    kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, hour, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
-                                    #_LOGGER.error(f"{hour}: {battery_level_added} {kwh_needed_to_fill_up_day}, {totalCost}, {totalkWh}, {hour}, {price}, {None}, {None}, {kwhAvailable}, {sum(charging_plan[what_day][battery_level_id])}, {max_recommended_charge_limit_battery_level}, {rules}")
+                                    kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                    #_LOGGER.error(f"{timestamp}: {battery_level_added} {kwh_needed_to_fill_up_day}, {totalCost}, {totalkWh}, {timestamp}, {price}, {None}, {None}, {kwhAvailable}, {sum(charging_plan[what_day][battery_level_id])}, {max_recommended_charge_limit_battery_level}, {rules}")
                                     
                                     very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                     ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 
                                 elif ultra_cheap_price and ultra_cheap_kwh_needed_today > 0.0:
-                                    ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                    ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
                                     very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                     kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                     
                                 elif very_cheap_price and very_cheap_kwh_needed_today > 0.0:
-                                    very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                    very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
                                     ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                     kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 else:
                                     continue
                                 
-                                if hour in chargeHours and battery_level_added:
-                                    charging_sessions_id = add_charging_session_to_day(hour, what_day, battery_level_id)
+                                if timestamp in chargeHours and battery_level_added:
+                                    charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
                                     add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
                         kwh_needed_to_fill_up_day -= kwh_needed_to_fill_up_share
             except Exception as e:
                 _LOGGER.warning(f"Cant create fill up or need recommended full charge for day {day}: {e}")
                 my_persistent_notification(f"Error in fill up or need recommended full charge for day {day}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_fill_up_or_need_recommended_full_charge_error")
             
-            try: #Alternative charging estimate
+            try: #Alternative charging estimate TODO Add current battery level cost
                 charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
                 
                 dates = [date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None]
@@ -3373,9 +3424,9 @@ def cheap_grid_charge_hours():
                     total_cost_alternative.append(kwh_solar_alternative * solar_price)
                 
                 total_cost = []
-                for hour, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
-                    if hour not in charge_hours_alternative and in_between(hour, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
-                        working, on_trip = available_for_charging_prediction(hour, trip_date_time, trip_homecoming_date_time)
+                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                    if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
+                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
                             continue
                         
@@ -3390,7 +3441,7 @@ def cheap_grid_charge_hours():
                             
                             total_cost.append(cost)
                             
-                            charge_hours_alternative[hour] = {
+                            charge_hours_alternative[timestamp] = {
                                 "day": f"{day} {charging_plan[day]['day_text']}",
                                 "used_battery_level_alternative": used_battery_level_alternative,
                                 "Price": price,
@@ -3686,6 +3737,8 @@ def cheap_grid_charge_hours():
                     battery_level_expenses_kwh += kwh
                     battery_level_expenses_percentage += percentage
                     battery_level_expenses_solar_percentage += solar_percentage
+                    total_cost_alternative.append(cost)
+                    total_kwh_alternative.append(kwh)
                 else:
                     break
     except Exception as e:
@@ -3698,9 +3751,7 @@ def cheap_grid_charge_hours():
     battery_level_expenses_report = battery_level_expenses
     battery_level_expenses_kwh_report = battery_level_expenses_kwh
     battery_level_expenses_solar_percentage_report = battery_level_expenses_solar_percentage
-    
-    
-    
+        
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     chargeHours['total_cost'] = totalCost
     chargeHours['total_kwh'] = totalkWh
@@ -3712,11 +3763,11 @@ def cheap_grid_charge_hours():
     
     current_day = now.date()
     
-    for hour, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
-        if hour.date() == current_day:
+    for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
+        if timestamp.date() == current_day:
             if countExpensive < 4:
-                expensiveList.append(hour)
-                expensiveDict[str(hour)] = f"{price:.2f} kr"
+                expensiveList.append(timestamp)
+                expensiveDict[str(timestamp)] = f"{price:.2f} kr"
             else:
                 break
             countExpensive += 1
@@ -3829,15 +3880,15 @@ def cheap_grid_charge_hours():
     try:
         charging_plan_list = {}
         
-        for hour, value in sorted({k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
-            if type(hour) is datetime.datetime:
-                charging_plan_list[hour] = {
-                    "when": f"{hour.strftime('%d/%m %H:%M')}",
-                    "type": f"{emoji_parse(chargeHours[hour])}",
-                    "percentage": f"{int(round(chargeHours[hour]['battery_level'],0))}",
-                    'kWh': f"{round(chargeHours[hour]['kWh'], 2):.2f}",
-                    "cost": f"{round(chargeHours[hour]['Cost'], 2):.2f}",
-                    "unit": f"{round(chargeHours[hour]['Price'], 2):.2f}"
+        for timestamp, value in sorted({k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
+            if type(timestamp) is datetime.datetime:
+                charging_plan_list[timestamp] = {
+                    "when": f"{timestamp.strftime('%d/%m %H:%M')}",
+                    "type": f"{emoji_parse(chargeHours[timestamp])}",
+                    "percentage": f"{int(round(chargeHours[timestamp]['battery_level'],0))}",
+                    'kWh': f"{round(chargeHours[timestamp]['kWh'], 2):.2f}",
+                    "cost": f"{round(chargeHours[timestamp]['Cost'], 2):.2f}",
+                    "unit": f"{round(chargeHours[timestamp]['Price'], 2):.2f}"
                 }
         
         overview.append("## Lade oversigt ##")
@@ -3880,50 +3931,49 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
+        work_overview_total_kwh = []
+        work_overview_total_cost = []
+        
+        overview.append("## Afgangsplan ##")
+        overview.append("<center>\n")
+        
         if work_overview:
-            overview.append("## Afgangsplan ##")
-            overview.append("<center>\n")
+            solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
+            overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
+            overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
-            work_overview_total_kwh = []
-            work_overview_total_cost = []
             
-            if work_overview:
-                solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
-                overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
-                overview.append(f"|:---|:---:|:---:|:---:|:---:|")
+            for d in work_overview.values():
+                work_overview_total_kwh.append(d['kwh_needed'])
+                work_overview_total_cost.append(d['cost'])
                 
+                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                d['day'] = f"**{d['day']}**" if d['day'] else ""
+                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
+                d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
+                d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
+                d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
                 
-                for d in work_overview.values():
-                    work_overview_total_kwh.append(d['kwh_needed'])
-                    work_overview_total_cost.append(d['cost'])
-                    
-                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                    d['day'] = f"**{d['day']}**" if d['day'] else ""
-                    d['when'] = f"**{d['when']}**" if d['when'] else ""
-                    d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
-                    d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
-                    d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
-                    d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                    
-                    overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
-            else:
-                overview.append(f"**Ingen kommende arbejdsdag**")
+                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['battery_needed']}% {d['kwh_needed']}kWh | {d['solar']} | {d['cost']} |")
+        else:
+            overview.append(f"**Ingen kommende arbejdsdag**")
+        
+        work_overview_total_kwh_sum = sum(work_overview_total_kwh)
+        work_overview_total_cost_sum = sum(work_overview_total_cost)
+        total_cost_alternative_sum = sum(total_cost_alternative)
+        total_kwh_alternative_sum = sum(total_kwh_alternative)
+        
+        estimated_alternative_text = ""
+        
+        if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
+            estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh"
             
-            work_overview_total_kwh_sum = sum(work_overview_total_kwh)
-            work_overview_total_cost_sum = sum(work_overview_total_cost)
-            total_cost_alternative_sum = sum(total_cost_alternative)
-            total_kwh_alternative_sum = sum(total_kwh_alternative)
-            
-            estimated_alternative_text = ""
-            
-            if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
-                estimated_alternative_text = f"<br>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh"
-                
-            if work_overview_total_kwh_sum > 0.0:
-                overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**{estimated_alternative_text}")
-            
-            if solar_over_production:
-                overview.append("***")
+        if work_overview_total_kwh_sum > 0.0:
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**{estimated_alternative_text}")
+        
+        if solar_over_production:
+            overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create work overview: {e}")
@@ -3982,13 +4032,14 @@ def calc_charging_amps(power = 0.0, report = False):
             "watt": 0.0
             }
         }
-    for i in range(int(CONFIG['solar']['charging_single_phase_min_amp']),int(CONFIG['solar']['charging_single_phase_max_amp']) + 1):
-        watt = float(i) * CONFIG['charger']['power_voltage']
-        powerDict[watt] = {
-            "amp": float(i),
-            "phase": 1.0,
-            "watt": watt
-        }
+    if float(CONFIG['solar']['charging_single_phase_max_amp']) > 0.0:
+        for i in range(int(CONFIG['solar']['charging_single_phase_min_amp']),int(CONFIG['solar']['charging_single_phase_max_amp']) + 1):
+            watt = float(i) * CONFIG['charger']['power_voltage']
+            powerDict[watt] = {
+                "amp": float(i),
+                "phase": 1.0,
+                "watt": watt
+            }
 
     maxSinglePhaseWatt = max(powerDict.keys())
 
@@ -4051,26 +4102,29 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         return
     
     try:
-        charger_id = get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id", error_state=None)
-        if not charger_id:
-            raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
-        
-        if service.has_service("easee", "set_circuit_dynamic_limit"):
-            service.call("easee", "set_circuit_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current_p1=phase_1,
-                                current_p2=phase_2,
-                                current_p3=phase_3,
-                                time_to_live=60)
+        if "easee" in get_integration(CONFIG['charger']['entity_ids']['status_entity_id']):
+            charger_id = get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id", error_state=None)
+            if not charger_id:
+                raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
+            
+            if service.has_service("easee", "set_circuit_dynamic_limit"):
+                service.call("easee", "set_circuit_dynamic_limit", blocking=True,
+                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                    current_p1=phase_1,
+                                    current_p2=phase_2,
+                                    current_p3=phase_3,
+                                    time_to_live=60)
+            else:
+                raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
+            
+            if service.has_service("easee", "set_charger_dynamic_limit"):
+                service.call("easee", "set_charger_dynamic_limit", blocking=True,
+                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                    current=max(phase_1, phase_2, phase_3))
+            else:
+                raise Exception("Easee integration dont has service set_charger_dynamic_limit")
         else:
-            raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
-        
-        if service.has_service("easee", "set_charger_dynamic_limit"):
-            service.call("easee", "set_charger_dynamic_limit", blocking=True,
-                                charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                current=max(phase_1, phase_2, phase_3))
-        else:
-            raise Exception("Easee integration dont has service set_charger_dynamic_limit")
+            raise Exception("Charger brand is not Easee")
         successful = True
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
@@ -4120,6 +4174,7 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored")
     
     def average_since_sum(entity_id):
+        _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored.average_since_sum")
         if entity_id == "" or entity_id is None: return 0.0
 
         try:
@@ -4250,8 +4305,8 @@ def max_solar_watts_available_remaining_hour():
             "period": f"0-{time_to}",
             "watt": 0.0
         }
-
-    solar_threadhold = CONFIG['charger']['power_voltage'] * CONFIG['solar']['charging_single_phase_min_amp'] / 5
+    solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
+    solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
     allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if returnDict['predictedSolarPower']['watt'] >= solar_threadhold else 0.0
     predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
@@ -4433,22 +4488,22 @@ def load_solar_available_db():
             version = float(database["version"])
             del database["version"]
             
-        SOLAR_PRODUCTION_AVAILABLE_DB = {int(outer_key): {int(inner_key): value for inner_key, value in inner_dict.items()} for outer_key, inner_dict in database.items()}
+        SOLAR_PRODUCTION_AVAILABLE_DB = database.copy()
         
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
             create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_solar_production_available_db: {e}")
-        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", notification_id=f"{__name__}_load_solar_available_db")
+        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_solar_available_db")
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
         SOLAR_PRODUCTION_AVAILABLE_DB = {}
     
-    for hour in range(24):
-        if hour not in SOLAR_PRODUCTION_AVAILABLE_DB:
-            SOLAR_PRODUCTION_AVAILABLE_DB[hour] = {}
+    for h in range(24):
+        if h not in SOLAR_PRODUCTION_AVAILABLE_DB:
+            SOLAR_PRODUCTION_AVAILABLE_DB[h] = {}
         for value in weather_values():
-            SOLAR_PRODUCTION_AVAILABLE_DB[hour].setdefault(value, [])
+            SOLAR_PRODUCTION_AVAILABLE_DB[h].setdefault(value, [])
     
     if version <= 1.0:
         _LOGGER.info(f"Transforming database from version {version} to {SOLAR_PRODUCTION_AVAILABLE_DB_VERSION}")
@@ -4483,35 +4538,29 @@ def solar_available_append_to_db(power):
     
     hour = getHour()
     cloudiness = None
-    condition = None
-    try:
-        try:
-            cloudiness = get_attr(CONFIG['forecast']['entity_ids']['hourly_service_entity_id'])["cloud_coverage"]
-        except Exception as e_hourly:
-            _LOGGER.warning(f"Cant get cloud coverage from hourly {CONFIG['forecast']['entity_ids']['hourly_service_entity_id']}: {e_hourly}")
-            
-            cloudiness = get_attr(CONFIG['forecast']['entity_ids']['daily_service_entity_id'])["cloud_coverage"]
-    except Exception as e:
-        _LOGGER.warning(f"Cant get cloud coverage from daily {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}: {e}")
-    finally:
-        if cloudiness is not None:
-            condition = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
-        
-    if condition is None:
+    cloudiness_score = None
+    
+    forecast_dict = get_forecast_dict()
+    forecast = get_forecast(forecast_dict)
+    cloudiness = forecast_score(forecast)
+    
+    if cloudiness is not None:
+        cloudiness_score = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
+    else:
         try:
             try:
-                condition = WEATHER_CONDITION_DICT[get_state(CONFIG['forecast']['entity_ids']['hourly_service_entity_id'])]
+                cloudiness_score = WEATHER_CONDITION_DICT[get_state(CONFIG['forecast']['entity_ids']['hourly_service_entity_id'])]
             except:
-                condition = WEATHER_CONDITION_DICT[get_state(CONFIG['forecast']['entity_ids']['daily_service_entity_id'])]
+                cloudiness_score = WEATHER_CONDITION_DICT[get_state(CONFIG['forecast']['entity_ids']['daily_service_entity_id'])]
         except Exception as e:
             _LOGGER.error(f"Cant get states from hourly {CONFIG['forecast']['entity_ids']['daily_service_entity_id']} or daily {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}: {e}")
             return
     
-    SOLAR_PRODUCTION_AVAILABLE_DB[hour][condition].insert(0, [getTime(), power])
-    _LOGGER.debug(f"inserting {power} SOLAR_PRODUCTION_AVAILABLE_DB[{hour}][{condition}] = {SOLAR_PRODUCTION_AVAILABLE_DB[hour][condition]}")
+    SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score].insert(0, [getTime(), power])
+    _LOGGER.debug(f"inserting {power} SOLAR_PRODUCTION_AVAILABLE_DB[{hour}][{cloudiness_score}] = {SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score]}")
     
-    SOLAR_PRODUCTION_AVAILABLE_DB[hour][condition] = SOLAR_PRODUCTION_AVAILABLE_DB[hour][condition][:CONFIG['database']['solar_available_db_data_to_save']]
-    _LOGGER.debug(f"removing values over {CONFIG['database']['solar_available_db_data_to_save']} SOLAR_PRODUCTION_AVAILABLE_DB[{hour}][{condition}] = {SOLAR_PRODUCTION_AVAILABLE_DB[hour][condition]}")
+    SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score] = SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score][:CONFIG['database']['solar_available_db_data_to_save']]
+    _LOGGER.debug(f"removing values over {CONFIG['database']['solar_available_db_data_to_save']} SOLAR_PRODUCTION_AVAILABLE_DB[{hour}][{cloudiness_score}] = {SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score]}")
     
     save_solar_available_db()
 
@@ -4519,7 +4568,11 @@ def solar_available_prediction(start_trip = None, end_trip=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction")
     global SOLAR_PRODUCTION_AVAILABLE_DB, CHEAP_GRID_CHARGE_HOURS_DICT
     
-    def get_power(cloudiness, hour):
+    def get_power(cloudiness: int | float, date: datetime.datetime) -> list:
+        _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction.get_power")
+        hour = getHour(date)
+        day_of_week = getDayOfWeek(date)
+        
         try:
             power_list = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
             power_one_down_list = []
@@ -4543,12 +4596,12 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                 avg_sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
                 
                 if avg_sell_price == -1.0:
-                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour])#TODO Add support for every week day prices
+                    avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour][day_of_week])
                 
-                return avg_kwh, avg_sell_price
+                return [avg_kwh, avg_sell_price]
         except Exception as e:
-            _LOGGER.warning(f"Cant get cloudiness: {cloudiness} hour: {hour}. {e}")
-        return 0.0
+            _LOGGER.warning(f"Cant get cloudiness: {cloudiness}, hour: {hour}, day_of_week: {day_of_week}. {e}")
+        return [0.0, 0.0]
     
     stop_prediction_before = 3
     days = 7
@@ -4619,7 +4672,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     loop_datetime = date.replace(hour = hour)
                     forecast = get_forecast(forecast_dict, loop_datetime)
                     
-                    if forecast is None:
+                    if forecast is None or loop_datetime is None:
                         continue
                     
                     if work_last_charging and in_between(loop_datetime, work_last_charging, end_work):
@@ -4630,11 +4683,14 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     
                     if hour in expensive_hours and using_grid_price:
                         continue
-                        
+                    
                     cloudiness = forecast_score(forecast)
-                    power_cost = get_power(cloudiness, hour)
-                    total.append(power_cost[0])
-                    total_sell.append(power_cost[1])
+
+                    if cloudiness is not None:
+                        power_cost = get_power(cloudiness, loop_datetime)
+                        total.append(power_cost[0])
+                        total_sell.append(power_cost[1])
+
                         
             total = sum(total)
             total_sell = average(total_sell)
@@ -4816,9 +4872,9 @@ def ready_to_charge():
         return
     
     charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
-    charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
+    charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off") if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']) else "on"
     
-    if is_entity_available(CONFIG['charger']['entity_ids']['enabled_entity_id']) and charger_enabled != "on":
+    if charger_enabled != "on":
         _LOGGER.warning(f"Charger was off, turning it on")
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
         
@@ -4861,7 +4917,7 @@ def ready_to_charge():
             
             if ev_charger_port not in ("open", "on"):
                 _LOGGER.info("Chargeport not open")
-                set_charging_rule(f"⛔Bilens ladeport ikke åben")
+                set_charging_rule(f"⛔Elbilens ladeport er ikke åben")
                 return
             #TODO check charger_connector on monta
             if charger_connector != "on" and ev_charger_connector != "on":
@@ -4936,7 +4992,7 @@ def is_charging():
     if RESTARTING_CHARGER_COUNT == 0 and minutesBetween(getTime(), when, error_value=CONFIG['cron_interval'] + 5) <= CONFIG['cron_interval'] * 2:
         return
     
-    if is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
+    if is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']) and "easee" in get_integration(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
         error_dict = {
             "state_dynamicCircuitCurrentP1": CONFIG['charger']['charging_max_amp'],
             "state_dynamicCircuitCurrentP2": CONFIG['charger']['charging_max_amp'],
@@ -5005,11 +5061,13 @@ def is_charging():
                 restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
                 send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
             else:
-                _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
-                restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
                 if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
+                    _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
+                    restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
                     send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
                 else:
+                    _LOGGER.warning(f"Restarting ev charging (attempts {RESTARTING_CHARGER_COUNT}): Stopping ev charging for now")
+                    restarting = f"\nGenstarter elbil ladningen, {RESTARTING_CHARGER_COUNT} forsøg"
                     ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "off")
                 
         my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
@@ -5245,7 +5303,7 @@ def set_charging_price(price):
         return
     
     try:
-        if is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
+        if is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']) and "easee" in get_integration(CONFIG['charger']['entity_ids']['status_entity_id']):
             if "easee" in get_integration(CONFIG['charger']['entity_ids']['status_entity_id']):
                 if service.has_service("easee", "set_charging_cost"):
                     service.call("easee", "set_charging_cost", blocking=True,
@@ -5293,11 +5351,15 @@ def solar_charged_percentage():
     
     if not is_solar_configured(): return
     
-    total_ev_kwh = float(get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None))
-    total_solar_ev_kwh = float(get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None))
+    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None)
+    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+    
+    if total_ev_kwh is None or total_solar_ev_kwh is None:
+        _LOGGER.warning(f"total_ev_kwh or total_solar_ev_kwh is None")
+        return
     
     try:
-        set_state(f"sensor.{__name__}_solar_charged_percentage", round(((total_solar_ev_kwh / total_ev_kwh) * 100.0), 1))
+        set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
         my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_solar_charged_percentage")
@@ -5326,7 +5388,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
     grid_co2_emitted = 0.0
     grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
     try:
-        solar_co2_emitted =((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
+        solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
         grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
         grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
     except:
@@ -5395,13 +5457,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     if update_entities:
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
         set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
-        
-        attr_list = ["raw_price", "refund", "price", "solar_grid_ratio", "solar_share", "solar_kwh_price", "grid_share", "grid_kwh_price", "ev_kwh_price"]
-        entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
-        for item in attr_list:
-            if item in entity_attr:
-                state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
-                
+
         if not is_solar_configured():
             raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
             refund = get_refund()
@@ -5440,52 +5496,93 @@ def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False
     
     return round(min(solar_kwh_available, ev_kwh), 3)
 
-def load_kwh_prices(): #TODO Add support for every week day prices
+def load_kwh_prices():
     _LOGGER = globals()['_LOGGER'].getChild("load_kwh_prices")
     global KWH_AVG_PRICES_DB
+    
+    def convert_to_int_if_possible(key):
+        try:
+            return int(key)
+        except (ValueError, TypeError):
+            return key
+        
+    def set_default_values(name):
+        global KWH_AVG_PRICES_DB
+        nonlocal force_save
+        if name not in KWH_AVG_PRICES_DB:
+            KWH_AVG_PRICES_DB[name] = {}
+            
+        for h in range(24):
+            if h not in KWH_AVG_PRICES_DB[name]:
+                KWH_AVG_PRICES_DB[name][h] = {}
+                
+            for d in range(7):
+                if d not in KWH_AVG_PRICES_DB[name][h]:
+                    KWH_AVG_PRICES_DB[name][h][d] = []
+                    
+        force_save = True
+    
+    version = 1.0
     force_save = False
     
     try:
-        create_yaml(f"{__name__}_kwh_avg_prices_db", db=KWH_AVG_PRICES_DB)
-        KWH_AVG_PRICES_DB = load_yaml(f"{__name__}_kwh_avg_prices_db")
+        database = load_yaml(f"{__name__}_kwh_avg_prices_db")
+        if "version" in database:
+            version = float(database["version"])
+            del database["version"]
+        
+        KWH_AVG_PRICES_DB = database.copy()
+
+        if not KWH_AVG_PRICES_DB:
+            create_yaml(f"{__name__}_kwh_avg_prices_db", db=KWH_AVG_PRICES_DB)
     except Exception as e:
         _LOGGER.error(f"Cant load {__name__}_kwh_avg_prices_db: {e}")
-        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", "KWH_AVG_PRICES_DB", persistent_notification_id=f"{__name__}_load_kwh_prices")
+        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_kwh_prices")
     
     if KWH_AVG_PRICES_DB == {} or not KWH_AVG_PRICES_DB:
         KWH_AVG_PRICES_DB = {}
+        
+    for name in ["history", "history_sell"]:
+        if name not in KWH_AVG_PRICES_DB:
+            version = 2.0
+            set_default_values(name)
     
-    if "max" not in KWH_AVG_PRICES_DB:
-        KWH_AVG_PRICES_DB['max'] = []
-        KWH_AVG_PRICES_DB['mean'] = []
-        KWH_AVG_PRICES_DB['min'] = []
+    for name in ["max", "mean", "min"]:
+        if name not in KWH_AVG_PRICES_DB:
+            KWH_AVG_PRICES_DB[name] = []
+            force_save = True
+            
+    if version <= 1.0:
+        _LOGGER.info(f"Transforming database from version {version} to {KWH_AVG_PRICES_DB_VERSION}")
+        old_db = KWH_AVG_PRICES_DB.copy()
+                
+        for name in ["history", "history_sell"]:
+            KWH_AVG_PRICES_DB[name] = {}
+            
+            for h in range(24):
+                if h not in KWH_AVG_PRICES_DB[name]:
+                    KWH_AVG_PRICES_DB[name][h] = {}
+                    
+                for d in range(7):
+                    if d not in KWH_AVG_PRICES_DB[name][h]:
+                        KWH_AVG_PRICES_DB[name][h][d] = old_db[name][h].copy()
         force_save = True
-        
-    if "history" not in KWH_AVG_PRICES_DB:
-        KWH_AVG_PRICES_DB['history'] = {}
-        force_save = True
-        for i in range(24):
-            KWH_AVG_PRICES_DB['history'][i] = []
-        
-    if "history_sell" not in KWH_AVG_PRICES_DB:
-        KWH_AVG_PRICES_DB['history_sell'] = {}
-        force_save = True
-        for i in range(24):
-            KWH_AVG_PRICES_DB['history_sell'][i] = []
             
     if force_save:
         append_kwh_prices()
         save_kwh_prices()
-    
+        
     set_low_mean_price()
     
 def save_kwh_prices():
     global KWH_AVG_PRICES_DB
     
     if len(KWH_AVG_PRICES_DB) > 0:
-        save_changes(f"{__name__}_kwh_avg_prices_db", KWH_AVG_PRICES_DB)
+        db_to_file = KWH_AVG_PRICES_DB.copy()
+        db_to_file["version"] = KWH_AVG_PRICES_DB_VERSION
+        save_changes(f"{__name__}_kwh_avg_prices_db", db_to_file)
 
-def append_kwh_prices():#TODO Add support for every week day prices
+def append_kwh_prices():
     _LOGGER = globals()['_LOGGER'].getChild("append_kwh_prices")
     global KWH_AVG_PRICES_DB
     
@@ -5495,7 +5592,6 @@ def append_kwh_prices():#TODO Add support for every week day prices
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
         if "today" in get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id']):
             today = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], "today")
-            _LOGGER.info(today)
             
             max_price = max(today) - get_refund()
             mean_price = round(average(today), 3) - get_refund()
@@ -5522,19 +5618,20 @@ def append_kwh_prices():#TODO Add support for every week day prices
                 systemtarif = attr["additional_tariffs"]["systemtarif"]
                 elafgift = attr["additional_tariffs"]["elafgift"]
                 
+            day_of_week = getDayOfWeek()
             
-            for i in range(24):
-                KWH_AVG_PRICES_DB['history'][i].insert(0, today[i] - get_refund())
-                KWH_AVG_PRICES_DB['history'][i] = KWH_AVG_PRICES_DB['history'][i][:max_length]
+            for h in range(24):
+                KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
+                KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
                 
                 if is_solar_configured():
                     tariffs = 0.0
                     
                     if "tariffs" in power_prices_attr:
-                        tariffs = attr["tariffs"][str(i)]
+                        tariffs = attr["tariffs"][str(h)]
                         
                     tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-                    raw_price = today[i] - tariff_sum
+                    raw_price = today[h] - tariff_sum
 
                     energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
                     energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
@@ -5544,14 +5641,14 @@ def append_kwh_prices():#TODO Add support for every week day prices
                     sell_price = raw_price - sell_tariffs
                         
                     sell_price = round(sell_price, 3)
-                    KWH_AVG_PRICES_DB['history_sell'][i].insert(0, sell_price)
-                    KWH_AVG_PRICES_DB['history_sell'][i] = KWH_AVG_PRICES_DB['history_sell'][i][:max_length]
+                    KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
+                    KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
                 
             save_kwh_prices()
             
             set_low_mean_price()
 
-def set_low_mean_price():#TODO Add support for every week day prices
+def set_low_mean_price():
     average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
     set_attr(f"sensor.{__name__}_charge_very_cheap_battery_level.low_mean_price", round(average_price, 2))
     set_attr(f"sensor.{__name__}_charge_ultra_cheap_battery_level.low_mean_price", round((average_price * 0.75), 2))
