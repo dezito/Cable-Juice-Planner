@@ -5499,6 +5499,9 @@ def load_kwh_prices():
     def set_default_values(name):
         global KWH_AVG_PRICES_DB
         nonlocal force_save
+        if name not in KWH_AVG_PRICES_DB:
+            KWH_AVG_PRICES_DB[name] = {}
+            
         for h in range(24):
             if h not in KWH_AVG_PRICES_DB[name]:
                 KWH_AVG_PRICES_DB[name][h] = {}
