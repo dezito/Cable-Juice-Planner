@@ -968,6 +968,7 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
 }
 
 def welcome():
+    _LOGGER = globals()['_LOGGER'].getChild("welcome")
     _LOGGER.info(f'''
 -------------------------------------------------------------------
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
@@ -989,6 +990,7 @@ def is_charger_configured():
     return CHARGER_CONFIGURED
 
 def is_solar_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_solar_configured")
     global SOLAR_CONFIGURED
     
     if SOLAR_CONFIGURED is None:
@@ -998,6 +1000,7 @@ def is_solar_configured():
     return SOLAR_CONFIGURED
         
 def is_powerwall_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_configured")
     global POWERWALL_CONFIGURED
     
     if POWERWALL_CONFIGURED is None:
@@ -1007,6 +1010,7 @@ def is_powerwall_configured():
     return POWERWALL_CONFIGURED
 
 def is_ev_configured():
+    _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
     global EV_CONFIGURED
     if EV_CONFIGURED is None:
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and \
@@ -1185,6 +1189,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
     return False
 
 def set_charging_rule(text=""):
+    _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
     if RESTARTING_CHARGER_COUNT < 3:
         testing = "🧪" if TESTING else ""
         
@@ -1488,6 +1493,7 @@ def get_list_values(data):
     return float_list
 
 def is_calculating_charging_loss():
+    _LOGGER = globals()['_LOGGER'].getChild("is_calculating_charging_loss")
     try:
         return True if get_state(f"input_boolean.{__name__}_calculate_charging_loss", float_type=False, error_state=False) == "on" else False
     except Exception as e:
@@ -1495,6 +1501,7 @@ def is_calculating_charging_loss():
         return False
 
 def get_entity_daily_distance(day_text = None, date = None):
+    _LOGGER = globals()['_LOGGER'].getChild("get_entity_daily_distance")
     try:
         if day_text is None and date is None:
             distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
@@ -1514,6 +1521,7 @@ def get_entity_daily_distance(day_text = None, date = None):
         return CONFIG['ev_car']['typical_daily_distance_non_working_day']
 
 def get_min_daily_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_daily_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True))
     except Exception as e:
@@ -1521,6 +1529,7 @@ def get_min_daily_battery_level():
         return CONFIG['ev_car']['min_daily_battery_level']
 
 def get_min_trip_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_trip_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True))
     except Exception as e:
@@ -1528,6 +1537,7 @@ def get_min_trip_battery_level():
         return CONFIG['ev_car']['min_trip_battery_level']
 
 def get_min_charge_limit_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_min_charge_limit_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -1535,6 +1545,7 @@ def get_min_charge_limit_battery_level():
         return CONFIG['ev_car']['min_charge_limit_battery_level']
 
 def get_max_recommended_charge_limit_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_max_recommended_charge_limit_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -1542,6 +1553,7 @@ def get_max_recommended_charge_limit_battery_level():
         return CONFIG['ev_car']['max_recommended_charge_limit_battery_level']
 
 def get_very_cheap_grid_charging_max_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_very_cheap_grid_charging_max_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -1549,6 +1561,7 @@ def get_very_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']
 
 def get_ultra_cheap_grid_charging_max_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_ultra_cheap_grid_charging_max_battery_level")
     try:
         return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -1556,6 +1569,7 @@ def get_ultra_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
 def get_completed_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_completed_battery_level")
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
@@ -1565,6 +1579,7 @@ def get_completed_battery_level():
         return 100.0
 
 def get_estimated_total_range():
+    _LOGGER = globals()['_LOGGER'].getChild("get_estimated_total_range")
     estimated_total_range = 0.0
     try:
         estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
@@ -1574,6 +1589,7 @@ def get_estimated_total_range():
     return estimated_total_range
 
 def get_trip_date_time():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_date_time")
     trip_date_time = resetDatetime()
     try:
         trip_date_time = get_state(f"input_datetime.{__name__}_trip_date_time", error_state=resetDatetime())
@@ -1587,6 +1603,7 @@ def get_trip_date_time():
     return trip_date_time
 
 def get_trip_homecoming_date_time():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_homecoming_date_time")
     trip_homecoming_date_time = resetDatetime()
     try:
         trip_homecoming_date_time = get_state(f"input_datetime.{__name__}_trip_homecoming_date_time", error_state=resetDatetime())
@@ -1600,6 +1617,7 @@ def get_trip_homecoming_date_time():
     return trip_homecoming_date_time
 
 def get_trip_range():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_range")
     trip_range = 0.0
     try:
         trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed"))
@@ -1613,6 +1631,7 @@ def get_trip_range():
     return trip_range
 
 def get_trip_target_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_trip_target_level")
     trip_target_level = 0.0
     try:
         trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent"))
@@ -1754,6 +1773,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
     return sell_price
 
 def get_refund():
+    _LOGGER = globals()['_LOGGER'].getChild("get_refund")
     try:
         return abs(CONFIG['prices']['refund'])
     except Exception as e:
@@ -1761,6 +1781,7 @@ def get_refund():
         return 0.0
 
 def get_current_hour_price():
+    _LOGGER = globals()['_LOGGER'].getChild("get_current_hour_price")
     try:
         return float(get_state(f"sensor.{__name__}_kwh_cost_price", float_type=True))
     except Exception as e:
@@ -1986,6 +2007,7 @@ def save_drive_efficiency():
     set_state_drive_efficiency()
     
 def set_state_drive_efficiency():
+    _LOGGER = globals()['_LOGGER'].getChild("set_state_drive_efficiency")
     if not is_ev_configured(): return
     
     try:
@@ -2069,6 +2091,7 @@ def set_state_km_kwh_efficiency():
         my_persistent_notification(f"Cant set km/kwh efficiency: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_set_state_km_kwh_efficiency")
     
 def set_estimated_range():
+    _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
     try:
         range_per_percentage = km_kwh_to_km_percentage(float(average(get_list_values(KM_KWH_EFFICIENCY_DB))))
         range_at_battery_level = round(range_per_percentage * battery_level(), 2)
@@ -2828,7 +2851,7 @@ def cheap_grid_charge_hours():
                 raise Exception(f"Offline prices error: {e}")
     
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
-        _LOGGER = globals()['_LOGGER'].getChild("available_for_charging_prediction")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
         working = False
         on_trip = False
         day = daysBetween(getTime(), timestamp)
@@ -2846,7 +2869,7 @@ def cheap_grid_charge_hours():
         return working, on_trip
     
     def kwh_available_in_hour(hour):
-        _LOGGER = globals()['_LOGGER'].getChild("kwh_available_in_hour")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.kwh_available_in_hour")
         hour_in_chargeHours = False
         kwhAvailable = False
         if hour in chargeHours:
@@ -2856,7 +2879,7 @@ def cheap_grid_charge_hours():
         return [hour_in_chargeHours, kwhAvailable]
 
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwhAvailable, battery_level = None, max_recommended_battery_level = None, rules = []):
-        _LOGGER = globals()['_LOGGER'].getChild("add_to_charge_hours")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.add_to_charge_hours")
         cost = 0.0
         kwh = MAX_KWH_CHARGING
         battery_level_added = False
@@ -2918,7 +2941,7 @@ def cheap_grid_charge_hours():
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
 
     def cheap_price_check(price):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_price_check")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.cheap_price_check")
         very_cheap_price = False
         ultra_cheap_price = False
         
@@ -2940,7 +2963,7 @@ def cheap_grid_charge_hours():
         return [very_cheap_price, ultra_cheap_price]
     
     def future_charging(totalCost, totalkWh):
-        _LOGGER = globals()['_LOGGER'].getChild("future_charging")
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
         nonlocal trip_date_time
         nonlocal trip_target_level
         nonlocal total_cost_alternative
@@ -4145,6 +4168,7 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored")
     
     def average_since_sum(entity_id):
+        _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored.average_since_sum")
         if entity_id == "" or entity_id is None: return 0.0
 
         try:
@@ -4539,6 +4563,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
     global SOLAR_PRODUCTION_AVAILABLE_DB, CHEAP_GRID_CHARGE_HOURS_DICT
     
     def get_power(cloudiness: int | float, date: datetime.datetime) -> list:
+        _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction.get_power")
         hour = getHour(date)
         day_of_week = getDayOfWeek(date)
         
