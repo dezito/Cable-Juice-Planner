@@ -5345,11 +5345,15 @@ def solar_charged_percentage():
     
     if not is_solar_configured(): return
     
-    total_ev_kwh = float(get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None))
-    total_solar_ev_kwh = float(get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None))
+    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None)
+    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+    
+    if total_ev_kwh is None or total_solar_ev_kwh is None:
+        _LOGGER.warning(f"total_ev_kwh or total_solar_ev_kwh is None")
+        return
     
     try:
-        set_state(f"sensor.{__name__}_solar_charged_percentage", round(((total_solar_ev_kwh / total_ev_kwh) * 100.0), 1))
+        set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
         my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_solar_charged_percentage")
