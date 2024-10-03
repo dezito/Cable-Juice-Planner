@@ -2311,19 +2311,20 @@ def charging_history_recalc_price():
                 
                 if ended == ">": return False
                 
-                for i in range(1, 20):
-                    if hoursBetween(now, sorted_keys[i]) == 0 and getHour(now) == getHour(sorted_keys[i]):
-                        start = sorted_keys[i]
-                        
-                        _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
-                        start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
-                        
-                        join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
-                        emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
-                        
-                        remove_keys.append(start)
-                    else:
-                        break
+                if len(sorted_keys) > 1:
+                    for i in range(1, min(len(sorted_keys), 20)):
+                        if hoursBetween(now, sorted_keys[i]) == 0 and getHour(now) == getHour(sorted_keys[i]):
+                            start = sorted_keys[i]
+                            
+                            _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
+                            start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
+                            
+                            join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
+                            emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
+                            
+                            remove_keys.append(start)
+                        else:
+                            break
                 
                 for key in remove_keys:
                     if key != start:
