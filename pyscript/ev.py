@@ -3584,9 +3584,10 @@ def cheap_grid_charge_hours():
             }
         
         for date in [today + datetime.timedelta(days=1), today + datetime.timedelta(days=2), today + datetime.timedelta(days=3), today + datetime.timedelta(days=4)]:
-            attr_dict[date.date()] = f"{round(kwh_to_percentage(solar_kwh_prediction[date], include_charging_loss = True), 2)}% {round((solar_kwh_prediction[date] * solar_price_prediction[date]), 2)}kr"
-            total_kwh_from_solar_available += solar_kwh_prediction[date]
-            total_solar_price.append(solar_price_prediction[date])
+            if date.date() in solar_kwh_prediction:
+                attr_dict[date.date()] = f"{round(kwh_to_percentage(solar_kwh_prediction[date], include_charging_loss = True), 2)}% {round((solar_kwh_prediction[date] * solar_price_prediction[date]), 2)}kr"
+                total_kwh_from_solar_available += solar_kwh_prediction[date]
+                total_solar_price.append(solar_price_prediction[date])
     
         attr_dict['Total'] = f"{round(kwh_to_percentage(total_kwh_from_solar_available, include_charging_loss = True), 2)}% {round(total_kwh_from_solar_available * average(total_solar_price), 2)}kr"
         set_attr(f"sensor.{__name__}_charge_very_cheap_battery_level.unused_solar_production_availability_prediction", attr_dict)
@@ -4108,15 +4109,9 @@ def calc_charging_amps(power = 0.0, report = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_charging_amps")
     power = float(power)
     power = power
-
-    minWatt = SOLAR_CHARGING_TRIGGER_ON - 50
-    powerDict = {
-        minWatt: {
-            "amp": 0.0,
-            "phase": CONFIG['charger']['charging_phases'],
-            "watt": 0.0
-            }
-        }
+    
+    powerDict = {}
+    
     if float(CONFIG['solar']['charging_single_phase_max_amp']) > 0.0:
         for i in range(int(CONFIG['solar']['charging_single_phase_min_amp']),int(CONFIG['solar']['charging_single_phase_max_amp']) + 1):
             watt = float(i) * CONFIG['charger']['power_voltage']
@@ -4126,15 +4121,22 @@ def calc_charging_amps(power = 0.0, report = False):
                 "watt": watt
             }
 
-    maxSinglePhaseWatt = max(powerDict.keys())
+    maxSinglePhaseWatt = max(powerDict.keys()) if powerDict else 0.0
 
     for i in range(int(CONFIG['solar']['charging_three_phase_min_amp']),int(CONFIG['charger']['charging_max_amp']) + 1):
         watt = float(i) * (CONFIG['charger']['power_voltage']  * CONFIG['charger']['charging_phases'])
-        if maxSinglePhaseWatt < watt:
+        if maxSinglePhaseWatt < watt or maxSinglePhaseWatt == 0.0:
             powerDict[watt] = {
                 "amp": float(i),
                 "phase": CONFIG['charger']['charging_phases'],
                 "watt": watt
+            }
+    
+    minWatt = min(powerDict.keys()) - 50.0
+    powerDict[minWatt] = {
+            "amp": 0.0,
+            "phase": CONFIG['charger']['charging_phases'],
+            "watt": 0.0
             }
     
     if report:
@@ -4292,7 +4294,7 @@ def power_from_powerwall(from_time_stamp, to_time_stamp):
     return powerwall_charging
 
 def power_values(from_time_stamp, to_time_stamp):
-    power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
+    power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2)) if is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']) else 0.0
     ignored_consumption = abs(power_from_ignored(from_time_stamp, to_time_stamp))
     powerwall_charging = power_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
@@ -4412,8 +4414,10 @@ def inverter_available(error = ""):
     _LOGGER = globals()['_LOGGER'].getChild("inverter_available")
     
     if not is_solar_configured(): return False
-        
-    if is_entity_available(CONFIG['home']['entity_ids']['power_consumption_entity_id']): return True
+    
+    if is_entity_available(CONFIG['home']['entity_ids']['power_consumption_entity_id']) or not is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']):
+        return True
+    
     _LOGGER.error(f"Inverter not available ({CONFIG['home']['entity_ids']['power_consumption_entity_id']} = {get_state(CONFIG['home']['entity_ids']['power_consumption_entity_id'])}): {error}")
     return False
 
@@ -4700,7 +4704,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         "today": 0
     }
     
-    if not is_solar_configured():
+    if not is_solar_configured() or inverter_available(f"Inverter not available)"):
         return output, output_sell
     
     now = getTime()
@@ -4751,7 +4755,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         except Exception as e:
             _LOGGER.warning(f"Cant get input_datetime.{__name__}_workday_homecoming_{dayName} datetime, using from sunrise: {e}")
         
-        if forecast_dict and inverter_available(f"Day {day} solar_available_prediction() = 0"):
+        if forecast_dict:
             if from_hour <= to_hour:
                 for hour in range(from_hour, to_hour + 1):
                     loop_datetime = date.replace(hour = hour)
