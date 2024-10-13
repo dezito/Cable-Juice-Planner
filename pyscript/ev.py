@@ -5946,6 +5946,9 @@ if INITIALIZATION_COMPLETE:
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
         def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
+            if value not in ["open", "closed", "on", "off"]:
+                return
+            
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
     else:
