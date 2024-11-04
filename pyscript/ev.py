@@ -1275,7 +1275,7 @@ def init():
                 else:
                     old_entity_id = ".".join(old_path.split(".")[-2:])
                     new_entity_id = ".".join(new_path.split(".")[-2:])
-                    if old_entity_id in all_entities:
+                    if old_entity_id in all_entities and new_entity_id not in all_entities:
                         old_entity_id_state = get_state(old_entity_id)
                         old_entity_id_attr = get_attr(old_entity_id)
                         
