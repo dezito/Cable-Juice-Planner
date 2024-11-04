@@ -6,7 +6,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.util import dt as dt_util
 
-
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
@@ -82,7 +81,13 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
         )'''
         
     if entity_id in hist_data:
-        entity_state_dict = {d.last_reported_timestamp: d.state for d in hist_data[entity_id]}
+        #entity_state_dict = {d.last_reported_timestamp: d.state for d in hist_data[entity_id]}
+        entity_state_dict = {}
+        for d in hist_data[entity_id]:
+            try:
+                entity_state_dict[d.last_updated.timestamp()] = d.state
+            except Exception as e:
+                _LOGGER.error(f"Error in fetch_history_data: {e}")
         
         start_timestamp = datetime.datetime.timestamp(start_time)
         end_timestamp = datetime.datetime.timestamp(end_time)
