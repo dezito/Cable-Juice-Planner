@@ -2787,6 +2787,7 @@ def cheap_grid_charge_hours():
     }
     
     hourPrices = {}
+    price_adder_day_between_divider = 30
     try:
         all_prices_loaded = True
         
@@ -2808,7 +2809,7 @@ def cheap_grid_charge_hours():
             if "forecast" in power_prices_attr:
                 for raw in power_prices_attr['forecast']:
                     if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
-                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
+                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
                     else:
                         all_prices_loaded = False
 
@@ -2861,13 +2862,15 @@ def cheap_grid_charge_hours():
                         timestamp = timestamp.replace(tzinfo=None)
                         if timestamp not in hourPrices:
                             missing_hours[timestamp] = price
-                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
+                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
             except Exception as e:
                 _LOGGER.error(f"Cant get offline prices: {e}")
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
+    
+    sorted_by_cheapest_price = sorted(hourPrices.items(), key=lambda kv: (kv[1], kv[0]))
     
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
@@ -3142,7 +3145,7 @@ def cheap_grid_charge_hours():
                 if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
                     kwh_needed_today = 0.0
                 
-                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                for timestamp, price in sorted_by_cheapest_price:
                     if timestamp <= last_charging and timestamp >= current_hour:
                         hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                         if hour_in_chargeHours and not kwhAvailable:
@@ -3395,7 +3398,7 @@ def cheap_grid_charge_hours():
                         rules.append("fill_up")
                         
                     if kwh_needed_to_fill_up_day > 0.0:
-                        for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                        for timestamp, price in sorted_by_cheapest_price:
                             hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                             if hour_in_chargeHours and not kwhAvailable:
                                 continue
@@ -3486,7 +3489,7 @@ def cheap_grid_charge_hours():
                     total_cost_alternative.append(kwh_solar_alternative * solar_price)
                 
                 total_alternative_cost = []
-                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                for timestamp, price in sorted_by_cheapest_price:
                     if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
                         working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
