@@ -4033,17 +4033,20 @@ def cheap_grid_charge_hours():
         
         work_overview_total_kwh_sum = sum(work_overview_total_kwh)
         work_overview_total_cost_sum = sum(work_overview_total_cost)
+        work_overview_per_kwh = work_overview_total_cost_sum / work_overview_total_kwh_sum if work_overview_total_kwh_sum > 0.0 else 0.0
+        
         total_cost_alternative_sum = sum(total_cost_alternative)
         total_kwh_alternative_sum = sum(total_kwh_alternative)
+        total_per_kwh_alternative = total_cost_alternative_sum / total_kwh_alternative_sum if total_kwh_alternative_sum > 0.0 else 0.0
         total_kwh_charge_hours_alternative = []
         total_cost_charge_hours_alternative = []
         
         if work_overview_total_kwh_sum > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**")
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
         
         if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
             overview.append("<details>")
-            overview.append(f"<summary>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
+            overview.append(f"<summary>Skøn ved daglig opladning {round((total_per_kwh_alternative) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
             
             if work_overview_total_kwh_sum > 0.0:
                 work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
@@ -4061,8 +4064,9 @@ def cheap_grid_charge_hours():
                 
             total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
             total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
+            total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
             
-            overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum, 2):.2f}kr/kWh**")
+            overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh**")
 
             overview.append("</details>\n")
             
