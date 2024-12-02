@@ -3405,14 +3405,15 @@ def cheap_grid_charge_hours():
                             
                             what_day = daysBetween(getTime(), timestamp)
                             battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
+                            
+                            if not battery_level_id:
+                                continue
+                            
                             if need_recommended_full_charge:
                                 max_recommended_charge_limit_battery_level = 100.0 #Ignore solar over production
                                 
                                 if not is_ev_configured(): #Sets battery level to 0.0 at midnight
                                     battery_level_id = "battery_level_at_midnight"
-                            else:
-                                if not battery_level_id:
-                                    continue
 
                             if timestamp <= last_charging and timestamp >= current_hour:
                                 very_cheap_price, ultra_cheap_price = cheap_price_check(price)
