@@ -1236,7 +1236,7 @@ def init():
             save_yaml(file_path, default_content, comment_db)
             _LOGGER.error(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
-                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\Tilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\nTilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
             else:
                 my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
             
