@@ -1139,6 +1139,9 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
     if integration is None:
         _, integration = get_integration(entity_id)
     
+    if integration is None and entity_id.split(".")[0] in ("input_number", "input_select", "input_boolean", "input_text", "input_datetime"):
+        integration = entity_id.split(".")[0]
+    
     if integration is not None:
         now = getTime()
         try:
