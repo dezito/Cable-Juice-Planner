@@ -1427,7 +1427,7 @@ init()
 
 if INITIALIZATION_COMPLETE:
     solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
-    SOLAR_CHARGING_TRIGGER_ON = abs( * solar_min_amp)
+    SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * solar_min_amp)
     MAX_WATT_CHARGING = (CONFIG['charger']['power_voltage'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['charging_max_amp']
     MAX_KWH_CHARGING = MAX_WATT_CHARGING / 1000
 
