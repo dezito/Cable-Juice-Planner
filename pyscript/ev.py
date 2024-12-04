@@ -406,10 +406,10 @@ COMMENT_DB_YAML = {
     "odometer_entity_id": "**Required**",
     "estimated_battery_range_entity_id": "**Required** Must precise battery range",
     "usable_battery_level_entity_id": "**Required** Must precise battery level",
-    "charge_port_door_entity_id": "**Required**",
-    "charge_cable_entity_id": "Used to determine if ev is connected to charger",
+    "charge_port_door_entity_id": "**At least one is required charge_port_door_entity_id or/and charge_cable_entity_id** Used to determine if ev charge port is open/closed",
+    "charge_cable_entity_id": "**At least one is required charge_port_door_entity_id or/and charge_cable_entity_id** Used to determine if ev is connected to charger",
     "charge_switch_entity_id": "Start/stop charging on EV",
-    "charging_limit_entity_id": "**Required** Setting charging battery limit on EV",
+    "charging_limit_entity_id": "Setting charging battery limit on EV",
     "charging_amps_entity_id": "Setting charging amps on EV",
     "location_entity_id": "**Required**",
     "last_update_entity_id": "Used to determine sending wake up call",
@@ -1016,9 +1016,9 @@ def is_ev_configured():
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and \
             CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and \
             CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['location_entity_id']:
+            CONFIG['ev_car']['entity_ids']['location_entity_id'] and \
+            (CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'] or \
+            CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
             EV_CONFIGURED = True
         else:
             EV_CONFIGURED = False
@@ -1145,26 +1145,25 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
             ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] if dt[0] >= now - datetime.timedelta(hours=1)]
 
             if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
-                charging_limit_list = []
-                for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
-                    if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] in item[1]:
-                        if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] is None or CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] == "":
-                            continue
-                        charging_limit_list.append(float(item[1].split(": ")[1]))
-                
-                if charging_limit_list:
-                    charging_limit_max = max(charging_limit_list)
-                    if charging_limit_max == command:
-                        _LOGGER.warning(f"Trying to set charging limit, to the same to often")
-                        return
+                if is_entity_configured(CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"]):
+                    charging_limit_list = []
+                    for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
+                        if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] in item[1]:
+                            charging_limit_list.append(float(item[1].split(": ")[1]))
                     
-                    if charging_limit_max > command:
-                        _LOGGER.warning(f"Trying to set charging limit, to lower value to often, using max value")
-                        command = charging_limit_max
-                        
-                        if float(get_state(CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"], float_type=True)) == command:
-                            _LOGGER.warning(f"Charging limit, already the same")
+                    if charging_limit_list:
+                        charging_limit_max = max(charging_limit_list)
+                        if charging_limit_max == command:
+                            _LOGGER.warning(f"Trying to set charging limit, to the same to often")
                             return
+                        
+                        if charging_limit_max > command:
+                            _LOGGER.warning(f"Trying to set charging limit, to lower value to often, using max value")
+                            command = charging_limit_max
+                            
+                            if float(get_state(CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"], float_type=True)) == command:
+                                _LOGGER.warning(f"Charging limit, already the same")
+                                return
                 
                 extra_buffer = 0
                 if "wake" in str(entity_id).lower():
@@ -1236,7 +1235,7 @@ def init():
             save_yaml(file_path, default_content, comment_db)
             _LOGGER.error(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
-                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\Tilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\nTilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
             else:
                 my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
             
@@ -1840,6 +1839,12 @@ def calc_distance_to_battery_level(distance):
 
 def calc_battery_level_to_distance(battery_level):
     return battery_level * avg_distance_per_percentage()
+
+def ev_power_connected():
+    if not is_ev_configured():
+        return True
+    
+    return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) == "on" or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in ("open", "on")
     
 def wake_up_ev():
     _LOGGER = globals()['_LOGGER'].getChild("wake_up_ev")
@@ -2221,15 +2226,15 @@ def kwh_needed_for_charging(targetLevel = None, battery = None):
 
 def verify_charge_limit(limit):
     _LOGGER = globals()['_LOGGER'].getChild("verify_charge_limit")
-    try:
-        if CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']:
+    if is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
+        try:
             if "kia_uvo" in get_integration(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'])[1]:
                 limit = float(round_up((limit / 10)) * 10)
-        
-        limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
-    except Exception as e:
-        _LOGGER.error(e)
-        limit = get_max_recommended_charge_limit_battery_level()
+            
+            limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
+        except Exception as e:
+            _LOGGER.error(e)
+            limit = get_max_recommended_charge_limit_battery_level()
     return limit
 
 def reset_current_charging_session():
@@ -2787,6 +2792,7 @@ def cheap_grid_charge_hours():
     }
     
     hourPrices = {}
+    price_adder_day_between_divider = 30
     try:
         all_prices_loaded = True
         
@@ -2808,7 +2814,7 @@ def cheap_grid_charge_hours():
             if "forecast" in power_prices_attr:
                 for raw in power_prices_attr['forecast']:
                     if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
-                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / 100) - get_refund(), 2)
+                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
                     else:
                         all_prices_loaded = False
 
@@ -2861,13 +2867,15 @@ def cheap_grid_charge_hours():
                         timestamp = timestamp.replace(tzinfo=None)
                         if timestamp not in hourPrices:
                             missing_hours[timestamp] = price
-                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / 100), 2)
+                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
             except Exception as e:
                 _LOGGER.error(f"Cant get offline prices: {e}")
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
+    
+    sorted_by_cheapest_price = sorted(hourPrices.items(), key=lambda kv: (kv[1], kv[0]))
     
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
@@ -3142,7 +3150,7 @@ def cheap_grid_charge_hours():
                 if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
                     kwh_needed_today = 0.0
                 
-                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                for timestamp, price in sorted_by_cheapest_price:
                     if timestamp <= last_charging and timestamp >= current_hour:
                         hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                         if hour_in_chargeHours and not kwhAvailable:
@@ -3395,21 +3403,22 @@ def cheap_grid_charge_hours():
                         rules.append("fill_up")
                         
                     if kwh_needed_to_fill_up_day > 0.0:
-                        for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                        for timestamp, price in sorted_by_cheapest_price:
                             hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                             if hour_in_chargeHours and not kwhAvailable:
                                 continue
                             
                             what_day = daysBetween(getTime(), timestamp)
                             battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
+                            
+                            if not battery_level_id:
+                                continue
+                            
                             if need_recommended_full_charge:
                                 max_recommended_charge_limit_battery_level = 100.0 #Ignore solar over production
                                 
                                 if not is_ev_configured(): #Sets battery level to 0.0 at midnight
                                     battery_level_id = "battery_level_at_midnight"
-                            else:
-                                if not battery_level_id:
-                                    continue
 
                             if timestamp <= last_charging and timestamp >= current_hour:
                                 very_cheap_price, ultra_cheap_price = cheap_price_check(price)
@@ -3486,7 +3495,7 @@ def cheap_grid_charge_hours():
                     total_cost_alternative.append(kwh_solar_alternative * solar_price)
                 
                 total_alternative_cost = []
-                for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0])):
+                for timestamp, price in sorted_by_cheapest_price:
                     if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
                         working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
@@ -4029,17 +4038,20 @@ def cheap_grid_charge_hours():
         
         work_overview_total_kwh_sum = sum(work_overview_total_kwh)
         work_overview_total_cost_sum = sum(work_overview_total_cost)
+        work_overview_per_kwh = work_overview_total_cost_sum / work_overview_total_kwh_sum if work_overview_total_kwh_sum > 0.0 else 0.0
+        
         total_cost_alternative_sum = sum(total_cost_alternative)
         total_kwh_alternative_sum = sum(total_kwh_alternative)
+        total_per_kwh_alternative = total_cost_alternative_sum / total_kwh_alternative_sum if total_kwh_alternative_sum > 0.0 else 0.0
         total_kwh_charge_hours_alternative = []
         total_cost_charge_hours_alternative = []
         
         if work_overview_total_kwh_sum > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_total_cost_sum / work_overview_total_kwh_sum, 2):.2f} kr/kWh)**")
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
         
         if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
             overview.append("<details>")
-            overview.append(f"<summary>Skøn ved daglig opladning {round((total_cost_alternative_sum / total_kwh_alternative_sum) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_cost_alternative_sum / total_kwh_alternative_sum, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
+            overview.append(f"<summary>Skøn ved daglig opladning {round((total_per_kwh_alternative) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
             
             if work_overview_total_kwh_sum > 0.0:
                 work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
@@ -4057,8 +4069,9 @@ def cheap_grid_charge_hours():
                 
             total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
             total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
+            total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
             
-            overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum, 2):.2f}kr/kWh**")
+            overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh**")
 
             overview.append("</details>\n")
             
@@ -4836,10 +4849,8 @@ def trip_charging():
     _LOGGER = globals()['_LOGGER'].getChild("trip_charging")
     if get_trip_date_time() == resetDatetime(): return
     if get_trip_homecoming_date_time() == resetDatetime(): return
-    
-    charger_port = "open" if not is_ev_configured() else get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id'], float_type=False, error_state="unknown")
-        
-    if is_trip_planned() and charger_port in ("open", "on"):
+     
+    if is_trip_planned() and ev_power_connected():
         _LOGGER.debug("trip_charging:True")
         return True
     
@@ -4957,6 +4968,7 @@ def ready_to_charge():
     
     def entity_unavailable(entity_id):
         if is_entity_configured(entity_id) and not is_entity_available(entity_id):
+            #is_entity_available() function restarts integration
             set_charging_rule(f"⛔{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen")
             my_notify(message = f"{get_integration(entity_id).capitalize()} integrationen er nede\nGenstarter integrationen", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{get_integration(entity_id)}restart")
             return True
@@ -4972,11 +4984,9 @@ def ready_to_charge():
         send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
         
     
-    if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+    if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
         return
-    
-    ev_charger_port = "open" if not is_ev_configured() else get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id'], float_type=False, error_state="open")
-    
+        
     if charger_status == "disconnected":
         _LOGGER.info("Charger cable disconnected")
         set_charging_rule(f"Lader kabel frakoblet")
@@ -4987,7 +4997,7 @@ def ready_to_charge():
         return
     elif manual_charging_enabled() or manual_charging_solar_enabled():
         return True
-    elif charger_status in ("awaiting_authorization", "awaiting_start") and ev_charger_port in ("closed", "off"):
+    elif charger_status in ("awaiting_authorization", "awaiting_start") and not ev_power_connected():
         _LOGGER.info("Charger cable connected, but car not updated")
         set_charging_rule(f"⛔Lader kabel forbundet, men bilen ikke opdateret")
         wake_up_ev()
@@ -5007,15 +5017,16 @@ def ready_to_charge():
                     _LOGGER.info("To long away from home")
                     set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
                     return
-            
-            if ev_charger_port not in ("open", "on"):
-                _LOGGER.info("Chargeport not open")
-                set_charging_rule(f"⛔Elbilens ladeport er ikke åben")
-                return
+                
             #TODO check charger_connector on monta
             if charger_connector != "on" and ev_charger_connector != "on":
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
+                return
+            
+            if not ev_power_connected():
+                _LOGGER.info("Chargeport not open")
+                set_charging_rule(f"⛔Elbilens ladeport er ikke åben")
                 return
             
     return True
@@ -5032,10 +5043,9 @@ def is_charging():
     def reset():
         global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT
         
-        if is_entity_available(CONFIG['charger']['entity_ids']['enabled_entity_id']) and is_entity_available(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']):
-            if RESTARTING_CHARGER_COUNT > 0 or (charger_enabled != "on"):
-                send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-                ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
+        if RESTARTING_CHARGER_COUNT > 0 or charger_enabled != "on":
+            send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
+            ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
             
         CHARGING_IS_BEGINNING = False
         RESTARTING_CHARGER = False
@@ -5258,7 +5268,7 @@ def charge_if_needed():
                 solar_amps[1] = 0.0
                 
         if is_calculating_charging_loss():
-            completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() else get_completed_battery_level()
+            completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) else get_completed_battery_level()
             _LOGGER.info(f"Calculating charging loss {completed_battery_level}%")
             
             if completed_battery_level < get_max_recommended_charge_limit_battery_level():
@@ -5946,15 +5956,24 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
             global ENTITY_INTEGRATION_DICT
             preheat_ev()
-            
-        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
-        def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
+        
+        def ev_power_connected_trigger(value):
             if value not in ["open", "closed", "on", "off"]:
                 return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
+        
+        if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+            @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
+            def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
+                _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
+                ev_power_connected_trigger(value)
+        else:
+            @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
+            def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
+                _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
+                ev_power_connected_trigger(value)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -5979,7 +5998,7 @@ if INITIALIZATION_COMPLETE:
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_append_kwh_prices")
         append_kwh_prices()
-
+    
     @state_trigger(f"input_boolean.{__name__}_calculate_charging_loss")#TODO Add phase and amp levels measurements
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     @state_trigger(f"{CONFIG['charger']['entity_ids']['kwh_meter_entity_id']}")
