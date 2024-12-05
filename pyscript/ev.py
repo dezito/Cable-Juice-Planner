@@ -969,11 +969,11 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
 
 def welcome():
     _LOGGER = globals()['_LOGGER'].getChild("welcome")
-    _LOGGER.info(f'''
+    return f'''
 -------------------------------------------------------------------
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
 -------------------------------------------------------------------
-''')
+'''
 
 def is_charger_configured():
     global CHARGER_CONFIGURED
@@ -1327,7 +1327,7 @@ def init():
 
         return content
     
-    welcome()
+    _LOGGER.info(welcome())
     try:
         CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
         
@@ -5791,51 +5791,68 @@ if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("startup")
-        _LOGGER.info(f"{BASENAME} started")
-        set_charging_rule(f"📟Sætter entities op")
-        set_entity_friendlynames()
-        emoji_description()
-        set_default_entity_states()
-        
-        set_charging_rule(f"📟Indlæser databaserne")
-        
-        load_solar_available_db()
-        load_kwh_prices()
-        load_drive_efficiency()
-        load_km_kwh_efficiency()
-        
-        if benchmark_loaded: start_benchmark("load_charging_history")
-        load_charging_history()
-        if benchmark_loaded: end_benchmark("load_charging_history")
-        
-        solar_charged_percentage()
-        is_battery_fully_charged()
-        set_estimated_range()
-        
-        _LOGGER.info(f"EV solar charging max to {get_max_recommended_charge_limit_battery_level()}%")
-        _LOGGER.info(f"EV solar charging 1phase min amps {CONFIG['solar']['charging_three_phase_min_amp'] } ({CONFIG['solar']['charging_three_phase_min_amp']  * CONFIG['charger']['power_voltage'] } Watts)")
-        _LOGGER.info(f"EV solar charging 3phase max amps {CONFIG['charger']['charging_max_amp']} ({(CONFIG['charger']['charging_max_amp'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['power_voltage'] } Watts)")
-        _LOGGER.info(f"EV solar charging trigger ON {SOLAR_CHARGING_TRIGGER_ON} Watts")
-        _LOGGER.info(f"EV grid charging min to {get_min_daily_battery_level()}%")
-        _LOGGER.info(f"EV every cheap grid charging max to {get_very_cheap_grid_charging_max_battery_level()}%")
-        _LOGGER.info(f"EV grid charging max amps {CONFIG['charger']['charging_max_amp'] } ({CONFIG['charger']['charging_max_amp']  * (CONFIG['charger']['power_voltage']  * CONFIG['charger']['charging_phases'])} Watts)")
-        _LOGGER.info(f"battery_range: {battery_range()}")
-        _LOGGER.info(f"battery_level: {battery_level()}")
-        distance_per_percent = avg_distance_per_percentage()
-        _LOGGER.info(f"avg_distance_per_percentage: {distance_per_percent}")
-        _LOGGER.info(f"HA estimated range: {battery_level() * distance_per_percent}")
-        _LOGGER.info(f"range_to_battery_level: {range_to_battery_level()}")
-        _LOGGER.info(f"kwh_needed_for_charging: {kwh_needed_for_charging()}")
-        _LOGGER.info(f"calc_charging_amps: {calc_charging_amps(0.0, report = True)}")
-
-        calc_kwh_price(getMinute(), update_entities = True)
-        
-        set_charging_rule(f"📟Beregner ladeplan")
-        if benchmark_loaded: start_benchmark("charge_if_needed")
-        charge_if_needed()
-        if benchmark_loaded: end_benchmark("charge_if_needed")
-        
-        preheat_ev()
+        log_lines = []
+        try:
+            log_lines.append(welcome())
+            log_lines.append(f"📟{BASENAME} started")
+            set_charging_rule(f"📟Sætter entities op")
+            log_lines.append(f"📟Sætter entities op")
+            set_entity_friendlynames()
+            emoji_description()
+            set_default_entity_states()
+            
+            set_charging_rule(f"📟Indlæser databaserne")
+            log_lines.append(f"📟Indlæser databaserne")
+            
+            load_solar_available_db()
+            load_kwh_prices()
+            load_drive_efficiency()
+            load_km_kwh_efficiency()
+            
+            log_lines.append(f"📟Indlæser ladnings historik")
+            if benchmark_loaded: start_benchmark("load_charging_history")
+            load_charging_history()
+            if benchmark_loaded:
+                log_lines.append(f"📟Indlæsning af ladnings historik tog {end_benchmark("load_charging_history"):.4f} sekunder")
+            
+            log_lines.append(f"📟Sætter småting op")
+            solar_charged_percentage()
+            is_battery_fully_charged()
+            set_estimated_range()
+            calc_kwh_price(getMinute(), update_entities = True)
+            
+            log_lines.append(f"")
+            log_lines.append(f"EV solar charging max to {get_max_recommended_charge_limit_battery_level()}%")
+            log_lines.append(f"EV solar charging 1phase min amps {CONFIG['solar']['charging_three_phase_min_amp'] } ({CONFIG['solar']['charging_three_phase_min_amp']  * CONFIG['charger']['power_voltage'] } Watts)")
+            log_lines.append(f"EV solar charging 3phase max amps {CONFIG['charger']['charging_max_amp']} ({(CONFIG['charger']['charging_max_amp'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['power_voltage'] } Watts)")
+            log_lines.append(f"EV solar charging trigger ON {SOLAR_CHARGING_TRIGGER_ON} Watts")
+            log_lines.append(f"EV grid charging min to {get_min_daily_battery_level()}%")
+            log_lines.append(f"EV every cheap grid charging max to {get_very_cheap_grid_charging_max_battery_level()}%")
+            log_lines.append(f"EV grid charging max amps {CONFIG['charger']['charging_max_amp'] } ({CONFIG['charger']['charging_max_amp'] * (CONFIG['charger']['power_voltage']  * CONFIG['charger']['charging_phases'])} Watts)")
+            log_lines.append(f"battery_range: {battery_range()}")
+            log_lines.append(f"battery_level: {battery_level()}")
+            distance_per_percent = avg_distance_per_percentage()
+            log_lines.append(f"avg_distance_per_percentage: {distance_per_percent}")
+            log_lines.append(f"HA estimated range: {battery_level() * distance_per_percent}")
+            log_lines.append(f"range_to_battery_level: {range_to_battery_level()}")
+            log_lines.append(f"kwh_needed_for_charging: {kwh_needed_for_charging()}")
+            log_lines.append(f"calc_charging_amps: {calc_charging_amps(0.0, report = True)}")
+            log_lines.append(f"")
+            
+            log_lines.append(f"📟Beregner ladeplan")
+            set_charging_rule(f"📟Beregner ladeplan")
+            if benchmark_loaded: start_benchmark("charge_if_needed")
+            charge_if_needed()
+            if benchmark_loaded:
+                log_lines.append(f"📟Beregning af ladeplan tog {end_benchmark("charge_if_needed"):.4f} sekunder")
+                
+            preheat_ev()
+        finally:
+            for line in log_lines:
+                _LOGGER.info(line)
+                
+            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
+            
     
     #Fill up and days to charge only 1 allowed
     '''@state_trigger(f"input_boolean.{__name__}_fill_up")
