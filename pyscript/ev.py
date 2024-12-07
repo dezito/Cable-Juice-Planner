@@ -5319,9 +5319,9 @@ def charge_if_needed():
                 set_charging_rule(f"Lader op til {emoji}")
                 _LOGGER.info(f"Charging because of {emoji} {CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['Price']}kr. {int(CONFIG['charger']['charging_phases'])}x{CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
             elif get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
-                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours']:
+                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
                     set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm")
-                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['ExpensiveHours'], format = '%H:%M')}")
+                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours'], format = '%H:%M')}")
                 else:
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
