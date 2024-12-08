@@ -26,6 +26,7 @@ if [ ! -d "$REPO_DIR/Cable-Juice-Planner/.git" ]; then
 else
   echo -e "\nHenter seneste ændringer fra branch $BRANCH i $REPO_DIR/Cable-Juice-Planner"
   cd "$REPO_DIR/Cable-Juice-Planner"
+  git config --global --add safe.directory $REPO_DIR/Cable-Juice-Planner
   git fetch --all && git reset --hard origin/$BRANCH
   git checkout $BRANCH
   git pull --force origin $BRANCH
