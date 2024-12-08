@@ -5196,7 +5196,7 @@ def charging_without_rule():
     power = get_state(entity_id, float_type=True, error_state=0.0)
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
-    if power != 0.0 or (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
+    if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
         if CHARGING_NO_RULE_COUNT > 2:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
