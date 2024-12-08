@@ -193,17 +193,21 @@ def get_identifiers(entity_id):
         if device_class is None:
             return None
         
-        return device_class.identifiers
+        return list(device_class.identifiers)
     except Exception as e:
         _LOGGER.error(f"Cant get identifiers from {entity_id} {device_class}: {e}")
     return None
 
 def get_integration(entity_id):
+    """
+    Retrieves the integration name of a specified entity in Home Assistant.
+    return: entity_id, integration
+    """
     try:
-        integration = [item[0] for item in get_identifiers(entity_id)][0]
+        integration = get_identifiers(entity_id)[0][0]
     except:
         integration = None
-    return entity_id, integration
+    return integration
 
 
 def reload_integration(entity_id=None):

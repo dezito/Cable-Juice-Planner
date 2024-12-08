@@ -371,3 +371,15 @@ def limit_dict_size(dct, size):
     _LOGGER = globals()['_LOGGER'].getChild("limit_dict_size")
     # Convert dictionary items to a list, slice to keep the last 30 items, and convert back to dictionary
     return dict(list(dct.items())[:size])
+
+def contains_any(first, second):
+    """
+    Checks if at least one element from 'first' exists in 'second'.
+    Uses set operations for efficiency.
+    """
+    # Convert both inputs to sets
+    first_set = set(first) if not isinstance(first, str) else {first}
+    second_set = set(second) if not isinstance(second, str) else {second}
+
+    # Check if there's any intersection
+    return bool(first_set & second_set)
