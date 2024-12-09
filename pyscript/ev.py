@@ -1680,10 +1680,10 @@ def get_trip_target_level():
     return trip_target_level
 
 def is_trip_planned():
-    if not is_entity_configured(f"input_number.{__name__}_trip_charge_procent") or \
-        not is_entity_configured(f"input_number.{__name__}_trip_range_needed") or \
-        not is_entity_configured(f"input_datetime.{__name__}_trip_date_time") or \
-        not is_entity_configured(f"input_datetime.{__name__}_trip_homecoming_date_time"):
+    if not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or \
+        not is_entity_available(f"input_number.{__name__}_trip_range_needed") or \
+        not is_entity_available(f"input_datetime.{__name__}_trip_date_time") or \
+        not is_entity_available(f"input_datetime.{__name__}_trip_homecoming_date_time"):
             return False
         
     if get_trip_range() == 0.0 and get_trip_target_level() == 0.0:
@@ -1887,7 +1887,7 @@ def wake_up_ev():
         _LOGGER.info(f"Wake up call already called")
         return
     
-    if is_entity_configured(CONFIG['ev_car']['entity_ids']['last_update_entity_id']):
+    if is_entity_available(CONFIG['ev_car']['entity_ids']['last_update_entity_id']):
         last_update = get_state(CONFIG['ev_car']['entity_ids']['last_update_entity_id'], error_state=resetDatetime())
         
         if minutesBetween(last_update, getTime()) <= 14:
