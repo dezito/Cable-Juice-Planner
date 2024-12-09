@@ -1046,7 +1046,7 @@ def is_entity_available(entity):
         return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
-        my_persistent_notification(message = f"Entity {entity} ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
+        my_persistent_notification(message = f"Entity \"{entity}\" ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
         
         reload_entity_integration(entity)
         
@@ -1903,10 +1903,7 @@ def wake_up_ev():
 def send_command(entity_id, command):
     _LOGGER = globals()['_LOGGER'].getChild("send_command")
     
-    if not is_entity_configured(entity_id): return
-    if not is_entity_available(entity_id):
-        _LOGGER.warning(f"Entity not available: {entity_id}")
-        return
+    if not is_entity_available(entity_id): return
     
     if TESTING:
         _LOGGER.info(f"TESTING: Not sending command: {entity_id} {command}")
@@ -1934,10 +1931,7 @@ def ev_send_command(entity_id, command): #TODO Add start/stop service for EVs
     
     if not is_ev_configured(): return
     
-    if not is_entity_configured(entity_id): return
-    if not is_entity_available(entity_id):
-        _LOGGER.warning(f"Entity not available: {entity_id}")
-        return
+    if not is_entity_available(entity_id): return
     
     if not ready_to_charge(): return
     
@@ -2163,15 +2157,9 @@ def drive_efficiency(state = None):
             distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
             efficiency = 100.0
         else:
-            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"):
-                _LOGGER.error(f"sensor.{__name__}_drive_efficiency_last_odometer is not available")
-                return
-            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
-                _LOGGER.error(f"sensor.{__name__}_drive_efficiency_last_battery_level is not available")
-                return
-            if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
-                _LOGGER.error(f"{CONFIG['ev_car']['entity_ids']['odometer_entity_id']} is not available")
-                return
+            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"): return
+            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"): return
+            if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']): return
             
             current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
             last_current_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
@@ -4175,21 +4163,30 @@ def calc_charging_amps(power = 0.0, report = False):
             }
     
     if report:
+        log_lines = []
         if is_solar_configured():
+            log_lines.append("### Charging amps ###")
             example_1 = 500 + CONFIG['solar']['allow_grid_charging_above_solar_available']
             example_2 = 1500 + CONFIG['solar']['allow_grid_charging_above_solar_available']
             example_3 = 3000 + CONFIG['solar']['allow_grid_charging_above_solar_available']
             example_4 = 4000 + CONFIG['solar']['allow_grid_charging_above_solar_available']
             example_5 = 5000 + CONFIG['solar']['allow_grid_charging_above_solar_available']
-            _LOGGER.info(f"Voltage above(+)/under(-) overproduction available: {CONFIG['solar']['allow_grid_charging_above_solar_available']}W examples:")
-            _LOGGER.info(f"  1. overproduction 500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_1}W {get_closest_key(example_1, powerDict)}")
-            _LOGGER.info(f"  2. overproduction 1500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_2}W {get_closest_key(example_2, powerDict)})")
-            _LOGGER.info(f"  3. overproduction 3000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_3}W {get_closest_key(example_3, powerDict)})")
-            _LOGGER.info(f"  4. overproduction 4000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_4}W {get_closest_key(example_4, powerDict)})")
-            _LOGGER.info(f"  5. overproduction 5000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_5}W {get_closest_key(example_5, powerDict)})")
+            log_lines.append(f"Voltage above(+)/under(-) overproduction available: {CONFIG['solar']['allow_grid_charging_above_solar_available']}W")
+            log_lines.append("Solar overproduction examples:")
+            log_lines.append(f"1. overproduction 500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_1}W {get_closest_key(example_1, powerDict)}")
+            log_lines.append(f"2. overproduction 1500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_2}W {get_closest_key(example_2, powerDict)})")
+            log_lines.append(f"3. overproduction 3000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_3}W {get_closest_key(example_3, powerDict)})")
+            log_lines.append(f"4. overproduction 4000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_4}W {get_closest_key(example_4, powerDict)})")
+            log_lines.append(f"5. overproduction 5000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_5}W {get_closest_key(example_5, powerDict)})\n")
+            log_lines.append("Solar overproduction charging:")
             
-        for key in sorted(powerDict):
-            _LOGGER.info(f"{key}: {powerDict[key]}")
+            first = "<"
+            for key in sorted(powerDict):
+                log_lines.append(f"{first}{int(key)} W: {int(powerDict[key]['amp'])} A {int(powerDict[key]['phase'])} phase = {int(powerDict[key]['watt'])} W")
+                first = ""
+        else:
+            log_lines.append(f"Max charging: {CONFIG['charger']['charging_max_amp']}A {CONFIG['charger']['charging_phases']} phase = {MAX_WATT_CHARGING}W")
+        return "\n".join(log_lines)
     output = get_closest_key(power, powerDict)
     return [output['phase'], output['amp'], output['watt']]
 
@@ -4452,7 +4449,7 @@ def inverter_available(error = ""):
     
     if not is_solar_configured(): return False
     
-    if is_entity_available(CONFIG['home']['entity_ids']['power_consumption_entity_id']) or not is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']):
+    if not is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']) or is_entity_available(CONFIG['home']['entity_ids']['power_consumption_entity_id']):
         return True
     
     _LOGGER.error(f"Inverter not available ({CONFIG['home']['entity_ids']['power_consumption_entity_id']} = {get_state(CONFIG['home']['entity_ids']['power_consumption_entity_id'])}): {error}")
@@ -4888,11 +4885,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     if not is_ev_configured() or not workplan_charging_enabled():
         return
     
-    if not is_entity_configured(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]):
-        return
-    if not is_entity_available(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]):
-        _LOGGER.warning(f"Entity {CONFIG['ev_car']['entity_ids']['climate_entity_id']} not available")
-        return
+    if not is_entity_available(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]): return
     
     try:
         preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before"))
@@ -5203,7 +5196,7 @@ def is_charging():
     if RESTARTING_CHARGER_COUNT == 0 and minutesBetween(getTime(), when, error_value=CONFIG['cron_interval'] + 5) <= CONFIG['cron_interval'] * 2:
         return
     
-    if is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']) and "easee" == get_integration(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
+    if "easee" == get_integration(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']) and is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
         error_dict = {
             "state_dynamicCircuitCurrentP1": CONFIG['charger']['charging_max_amp'],
             "state_dynamicCircuitCurrentP2": CONFIG['charger']['charging_max_amp'],
@@ -5267,12 +5260,12 @@ def is_charging():
             RESTARTING_CHARGER = True
             RESTARTING_CHARGER_COUNT += 1
             
-            if RESTARTING_CHARGER_COUNT == 1 and is_entity_available(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
+            if RESTARTING_CHARGER_COUNT == 1 and is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
                 _LOGGER.warning(f"Restarting charger control integration (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger control integration for now")
                 restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
                 send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
             else:
-                if is_entity_available(CONFIG['charger']['entity_ids']['enabled_entity_id']):
+                if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
                     _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
                     restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
                     send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
@@ -5928,21 +5921,13 @@ if INITIALIZATION_COMPLETE:
             calc_kwh_price(getMinute(), update_entities = True)
             
             log_lines.append(f"")
-            log_lines.append(f"EV solar charging max to {get_max_recommended_charge_limit_battery_level()}%")
-            log_lines.append(f"EV solar charging 1phase min amps {CONFIG['solar']['charging_three_phase_min_amp'] } ({CONFIG['solar']['charging_three_phase_min_amp']  * CONFIG['charger']['power_voltage'] } Watts)")
-            log_lines.append(f"EV solar charging 3phase max amps {CONFIG['charger']['charging_max_amp']} ({(CONFIG['charger']['charging_max_amp'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['power_voltage'] } Watts)")
-            log_lines.append(f"EV solar charging trigger ON {SOLAR_CHARGING_TRIGGER_ON} Watts")
-            log_lines.append(f"EV grid charging min to {get_min_daily_battery_level()}%")
-            log_lines.append(f"EV every cheap grid charging max to {get_very_cheap_grid_charging_max_battery_level()}%")
-            log_lines.append(f"EV grid charging max amps {CONFIG['charger']['charging_max_amp'] } ({CONFIG['charger']['charging_max_amp'] * (CONFIG['charger']['power_voltage']  * CONFIG['charger']['charging_phases'])} Watts)")
-            log_lines.append(f"battery_range: {battery_range()}")
-            log_lines.append(f"battery_level: {battery_level()}")
+            log_lines.append(f"🚗 Batteri rækkevidde: {battery_range():.2f} km")
+            log_lines.append(f"🚗 Batteri niveau: {battery_level():.0f}%")
             distance_per_percent = avg_distance_per_percentage()
-            log_lines.append(f"avg_distance_per_percentage: {distance_per_percent}")
-            log_lines.append(f"HA estimated range: {battery_level() * distance_per_percent}")
-            log_lines.append(f"range_to_battery_level: {range_to_battery_level()}")
-            log_lines.append(f"kwh_needed_for_charging: {kwh_needed_for_charging()}")
-            log_lines.append(f"calc_charging_amps: {calc_charging_amps(0.0, report = True)}")
+            log_lines.append(f"🚗 km/%: {distance_per_percent:.2f} km")
+            log_lines.append(f"🚗 HA estimeret rækkevidde: {(battery_level() * distance_per_percent):.2f} km")
+            
+            log_lines.append(f"{calc_charging_amps(0.0, report = True)}")
             log_lines.append(f"")
             
             log_lines.append(f"📟Beregner ladeplan")
