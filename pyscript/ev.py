@@ -1150,7 +1150,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
             ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] if dt[0] >= now - datetime.timedelta(hours=1)]
 
             if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
-                if is_entity_available(entity_id) and entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"]:
+                if entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] and is_entity_available(entity_id):
                     command = float(command)
                     charging_limit_list = []
                     for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
@@ -4888,6 +4888,12 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     if not is_ev_configured() or not workplan_charging_enabled():
         return
     
+    if not is_entity_configured(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]):
+        return
+    if not is_entity_available(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]):
+        _LOGGER.warning(f"Entity {CONFIG['ev_car']['entity_ids']['climate_entity_id']} not available")
+        return
+    
     try:
         preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before"))
         if preheat_min_before <= 0.0:
@@ -4959,11 +4965,11 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     except Exception as e:
         _LOGGER.error(f"Cant get forecast temp from entity {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}['temperature']: {e}")
                 
-    
-    integration = get_integration(CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'])
+    climate_state = get_state(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"], error_state="unknown")
+    integration = get_integration(CONFIG['ev_car']['entity_ids']['climate_entity_id'])
     
     if "tessie" == integration:
-        if preheat and get_state(CONFIG['ev_car']['entity_ids']['climate_entity_id'], error_state="unknown") == "off" and service.has_service("climate", "turn_on"):
+        if preheat and climate_state == "off" and service.has_service("climate", "turn_on"):
             if not allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration): return
             
             _LOGGER.info("Preheating ev car")
@@ -4976,7 +4982,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                 
             drive_efficiency("preheat")
             my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
-        elif get_state(CONFIG['ev_car']['entity_ids']['climate_entity_id'], error_state="unknown") == "heat_cool" and service.has_service("climate", "turn_off"):
+        elif climate_state == "heat_cool" and service.has_service("climate", "turn_off"):
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
                     if not allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration): return
@@ -4986,29 +4992,27 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     drive_efficiency("preheat_cancel")
                     my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_set_climatisation"):
-        if is_entity_available(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]):
-            vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
-            climate_state = get_state(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"], error_state="unknown")
-            if preheat and vin and climate_state == "off":
+        vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
+        if preheat and vin and climate_state == "off":
+            
+            if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration): return
+            
+            _LOGGER.info("Preheating ev car")
+            service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="start", blocking=True)
+            drive_efficiency("preheat")
+            
+            if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
+                heating_type = "Optøer"
+            my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+        elif climate_state == "heating":
+            if ready_to_charge():
+                if stop_preheat_no_driving(next_drive, now, preheat_min_before):
+                    if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration): return
                 
-                if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration): return
-                
-                _LOGGER.info("Preheating ev car")
-                service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="start", blocking=True)
-                drive_efficiency("preheat")
-                
-                if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
-                    heating_type = "Optøer"
-                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
-            elif climate_state == "heating":
-                if ready_to_charge():
-                    if stop_preheat_no_driving(next_drive, now, preheat_min_before):
-                        if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration): return
-                    
-                        _LOGGER.info("Car not moved stopping preheating ev car")
-                        service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
-                        drive_efficiency("preheat_cancel")
-                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                    _LOGGER.info("Car not moved stopping preheating ev car")
+                    service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
+                    drive_efficiency("preheat_cancel")
+                    my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     else:
         _LOGGER.warning(f"Integration {integration} not supported")
 
@@ -5103,6 +5107,7 @@ def start_charging():
                         _LOGGER.warning(f"Vin not found for {entity_id}")
                         continue
                     
+                    _LOGGER.info(f"Starting charging for {entity_id} with service {integration}.volkswagen_id_start_stop_charging")
                     service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="start", blocking=True)
             elif config_domain == "charger":
                 send_command(entity_id, "on")
@@ -5130,6 +5135,7 @@ def stop_charging():
                         _LOGGER.warning(f"Vin not found for {entity_id}")
                         continue
                     
+                    _LOGGER.info(f"Stopping charging for {entity_id} with service {integration}.volkswagen_id_start_stop_charging")
                     service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="start", blocking=True)
             elif config_domain == "charger":
                 send_command(entity_id, "off")
