@@ -1875,7 +1875,7 @@ def ev_power_connected():
     if not is_ev_configured():
         return True
     
-    return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) == "on" or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in ("open", "on")
+    return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) in ("on", "plugged", "plugged_waiting_for_charge") or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in ("open", "on")
     
 def wake_up_ev():
     _LOGGER = globals()['_LOGGER'].getChild("wake_up_ev")
