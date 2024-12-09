@@ -135,6 +135,8 @@ CHARGING_HISTORY_RUNNING = False
 CHARGING_HISTORY_QUEUE = []
 EV_SEND_COMMAND_QUEUE = []
 
+INTEGRATION_OFFLINE_TIMESTAMP = {}
+
 CURRENT_CHARGING_SESSION = {}
 WEATHER_CONDITION_DICT = {
     "sunny": 100,                # Maksimal solproduktion, ideelle forhold
@@ -1036,19 +1038,36 @@ def is_entity_configured(entity):
 
 def is_entity_available(entity):
     _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
+    global INTEGRATION_OFFLINE_TIMESTAMP
+    
+    if not is_entity_configured(entity):
+        return
+    
+    integration = get_integration(entity)
+    
     try:
-        if not is_entity_configured(entity):
-            return
-        
         entity_state = get_state(entity, error_state="unknown")
         if entity_state in ("unknown", "unavailable"):
             raise Exception(f"Entity state is {entity_state}")
+        
+        if integration is not None:
+            if integration in INTEGRATION_OFFLINE_TIMESTAMP:
+                del INTEGRATION_OFFLINE_TIMESTAMP[integration]
+                _LOGGER.warning(f"Removing {integration} from offline timestamp")
+                
         return True
     except Exception as e:
         _LOGGER.warning(f"Entity {entity} not available: {e}")
-        my_persistent_notification(message = f"Entity \"{entity}\" ikke tilgængelig", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
         
-        reload_entity_integration(entity)
+        if integration is not None:
+            if integration not in INTEGRATION_OFFLINE_TIMESTAMP:
+                INTEGRATION_OFFLINE_TIMESTAMP[integration] = getTime()
+                _LOGGER.warning(f"Adding {integration} to offline timestamp")
+                
+            if minutesBetween(INTEGRATION_OFFLINE_TIMESTAMP[integration], getTime()) > 30:
+                _LOGGER.warning(f"Reloading {integration} integration")
+                my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
+                reload_entity_integration(entity)
         
 def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
@@ -1150,7 +1169,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
             ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] if dt[0] >= now - datetime.timedelta(hours=1)]
 
             if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
-                if entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] and is_entity_available(entity_id):
+                if entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] and is_entity_configured(entity_id):
                     command = float(command)
                     charging_limit_list = []
                     for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
@@ -1661,10 +1680,10 @@ def get_trip_target_level():
     return trip_target_level
 
 def is_trip_planned():
-    if not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or \
-        not is_entity_available(f"input_number.{__name__}_trip_range_needed") or \
-        not is_entity_available(f"input_datetime.{__name__}_trip_date_time") or \
-        not is_entity_available(f"input_datetime.{__name__}_trip_homecoming_date_time"):
+    if not is_entity_configured(f"input_number.{__name__}_trip_charge_procent") or \
+        not is_entity_configured(f"input_number.{__name__}_trip_range_needed") or \
+        not is_entity_configured(f"input_datetime.{__name__}_trip_date_time") or \
+        not is_entity_configured(f"input_datetime.{__name__}_trip_homecoming_date_time"):
             return False
         
     if get_trip_range() == 0.0 and get_trip_target_level() == 0.0:
@@ -1868,7 +1887,7 @@ def wake_up_ev():
         _LOGGER.info(f"Wake up call already called")
         return
     
-    if is_entity_available(CONFIG['ev_car']['entity_ids']['last_update_entity_id']):
+    if is_entity_configured(CONFIG['ev_car']['entity_ids']['last_update_entity_id']):
         last_update = get_state(CONFIG['ev_car']['entity_ids']['last_update_entity_id'], error_state=resetDatetime())
         
         if minutesBetween(last_update, getTime()) <= 14:
@@ -1877,7 +1896,7 @@ def wake_up_ev():
 
     LAST_WAKE_UP_DATETIME = getTime()
     
-    if is_entity_available(CONFIG['ev_car']['entity_ids']['wake_up_entity_id']):
+    if is_entity_configured(CONFIG['ev_car']['entity_ids']['wake_up_entity_id']):
         entity_id = CONFIG['ev_car']['entity_ids']['wake_up_entity_id']
         domain = entity_id.split(".")[0]
         
@@ -2232,7 +2251,7 @@ def kwh_needed_for_charging(targetLevel = None, battery = None):
 
 def verify_charge_limit(limit):
     _LOGGER = globals()['_LOGGER'].getChild("verify_charge_limit")
-    if is_entity_available(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
+    if is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
         try:
             if get_integration(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) in ('kia_uvo', 'cupra_we_connect'):
                 limit = float(round_up((limit / 10)) * 10)
@@ -4275,7 +4294,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             my_persistent_notification(f"Cant set charging amps: {e_second}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
     finally:
         try:
-            if is_ev_configured() and is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
+            if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
                 max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
                 current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
                 if current_amps == 0.0:
@@ -4328,7 +4347,7 @@ def power_from_powerwall(from_time_stamp, to_time_stamp):
     return powerwall_charging
 
 def power_values(from_time_stamp, to_time_stamp):
-    power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2)) if is_entity_available(CONFIG['home']['entity_ids']['power_consumption_entity_id']) else 0.0
+    power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2)) if is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']) else 0.0
     ignored_consumption = abs(power_from_ignored(from_time_stamp, to_time_stamp))
     powerwall_charging = power_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
@@ -5013,12 +5032,7 @@ def ready_to_charge():
     _LOGGER = globals()['_LOGGER'].getChild("ready_to_charge")
     
     def entity_unavailable(entity_id):
-        if is_entity_configured(entity_id) and not is_entity_available(entity_id):
-            #is_entity_available() function restarts integration
-            integration = get_integration(entity_id)
-            set_charging_rule(f"⛔{integration.capitalize()} integrationen er nede\nGenstarter integrationen")
-            my_notify(message = f"{integration.capitalize()} integrationen er nede\nGenstarter integrationen", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{integration}_restart")
-            return True
+        if is_entity_configured(entity_id) and not is_entity_available(entity_id): return True
         
     if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
         return
