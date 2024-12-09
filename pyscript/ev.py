@@ -5080,7 +5080,7 @@ def ready_to_charge():
                     return
                 
             #TODO check charger_connector on monta
-            if charger_connector != "on" and ev_charger_connector != "on":
+            if charger_connector != "on" and ev_charger_connector not in ("on", "plugged", "plugged_waiting_for_charge"):
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
                 return
