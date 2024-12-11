@@ -2830,14 +2830,14 @@ def cheap_grid_charge_hours():
             
             if "raw_today" in power_prices_attr:
                 for raw in power_prices_attr['raw_today']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
                         hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
                     else:
                         all_prices_loaded = False
                         
             if "forecast" in power_prices_attr:
                 for raw in power_prices_attr['forecast']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
                         hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
                     else:
                         all_prices_loaded = False
@@ -2848,7 +2848,7 @@ def cheap_grid_charge_hours():
                         _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
                     else:
                         for raw in power_prices_attr['raw_tomorrow']:
-                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)):
+                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
                                 hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
                             else:
                                 all_prices_loaded = False
