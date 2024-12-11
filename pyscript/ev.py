@@ -5472,10 +5472,9 @@ def charge_if_needed():
         
         if fill_up_charging_enabled():
             charging_limit = max(charging_limit, get_max_recommended_charge_limit_battery_level())
-            
-        ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
         
         if amps[1] > 0.0:
+            ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
             start_charging()
         else:
             stop_charging()
