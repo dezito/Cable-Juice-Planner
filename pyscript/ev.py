@@ -2165,12 +2165,12 @@ def drive_efficiency(state = None):
     elif state == "preheat_cancel":
         PREHEATING = False
     
-    if state in ("closed", "off"):
+    if state in ("closed", "off", "unplugged"):
         if not PREHEATING:
             _save_car_stats()
             
         PREHEATING = False
-    elif state in ("open", "on"):
+    elif state in ("open", "on", "plugged", "plugged_waiting_for_charge"):
         if not is_ev_configured():
             distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
             efficiency = 100.0
@@ -2915,7 +2915,7 @@ def cheap_grid_charge_hours():
                 if in_between(timestamp, trip_datetime, trip_homecoming_datetime):
                     on_trip = True
         except Exception as e:
-            _LOGGER.error(e)
+            _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e}")
         
         return working, on_trip
     
@@ -6074,8 +6074,7 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            if value not in ("open", "closed", "on", "off"):
-                return
+            if value not in ("open", "closed", "on", "off", "plugged", "plugged_waiting_for_charge", "unplugged"): return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
