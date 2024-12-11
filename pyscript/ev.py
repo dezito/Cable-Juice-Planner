@@ -5109,7 +5109,8 @@ def start_charging(entities = None):
             
             if integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_start_stop_charging"):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
-                if charging_state == "off":
+                charging_power = get_state(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], float_type=True, error_state=0.0)
+                if charging_state == "off" and charging_power <= CONFIG['charger']['power_voltage']:
                     if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Start charging", "start_charging()", integration = integration):
                         continue
                     
@@ -5139,7 +5140,8 @@ def stop_charging(entities = None):
             
             if integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_start_stop_charging"):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
-                if charging_state in ("on"):
+                charging_power = get_state(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], float_type=True, error_state=0.0)
+                if charging_state in ("manual", "on") and charging_power > CONFIG['charger']['power_voltage']:
                     if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration):
                         continue
                     
