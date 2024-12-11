@@ -1094,8 +1094,7 @@ def create_integration_dict():
         return max(1, int(daily_limit / 24))
 
     def add_to_dict(integration):
-        daily_limit = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
-        ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = daily_limit
+        ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [(getTime(), "Startup")]
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
@@ -3878,6 +3877,10 @@ def cheap_grid_charge_hours():
     todays_max_battery_level = max(sum(charging_plan[0]["battery_level_before_work"]), sum(charging_plan[0]["battery_level_at_midnight"]), sum(charging_plan[0]["battery_level_after_work"]))
     tomorrow_max_battery_level = max(sum(charging_plan[1]["battery_level_before_work"]), sum(charging_plan[1]["battery_level_at_midnight"]), sum(charging_plan[1]["battery_level_after_work"]))
     chargeHours['max_charging_level_today'] = round(max(todays_max_battery_level, tomorrow_max_battery_level, charging_plan[day]['total_needed_battery_level'], get_min_charge_limit_battery_level()), 2)
+    
+    if chargeHours['max_charging_level_today'] > get_max_recommended_charge_limit_battery_level():
+        chargeHours['max_charging_level_today'] = max(get_max_recommended_charge_limit_battery_level(), get_trip_target_level())
+        
     '''_LOGGER.error(f"todays_max_battery_level:{todays_max_battery_level}")
     _LOGGER.error(f"tomorrow_max_battery_level:{tomorrow_max_battery_level}")
     _LOGGER.error(f"charging_plan[day]['total_needed_battery_level']:{charging_plan[day]['total_needed_battery_level']}")
@@ -5048,7 +5051,7 @@ def ready_to_charge():
     if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
         return
         
-    if charger_status == "disconnected":
+    if charger_status in ("disconnected", "off"):
         _LOGGER.info("Charger cable disconnected")
         set_charging_rule(f"Lader kabel frakoblet")
         
@@ -6027,17 +6030,17 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
-        if "disconnected" in old_value:
+        if old_value in ("disconnected", "off"):
             notify_set_battery_level()
             wake_up_ev()
             charge_if_needed()
-        elif "disconnected" in value:
+        elif value in ("disconnected", "off"):
             wake_up_ev()
             stop_current_charging_session()
             set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
-        elif "charging" in old_value and "complete" in value:
+        elif old_value in ("charging") and value in ("complete"):
             if not is_ev_configured():
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
@@ -6156,7 +6159,7 @@ if INITIALIZATION_COMPLETE:
             if var_name == f"input_boolean.{__name__}_calculate_charging_loss":
                 return
             elif var_name == f"{CONFIG['charger']['entity_ids']['status_entity_id']}":
-                if value in ("completed", "awaiting_start", "awaiting_authorization") and "charging" in old_value:
+                if value in ("completed", "awaiting_start", "awaiting_authorization") and old_value in ("charging"):
                     CHARGING_LOSS_CHARGING_COMPLETED = True
             elif var_name == f"{CONFIG['charger']['entity_ids']['kwh_meter_entity_id']}":
                     if CHARGING_LOSS_CHARGING_COMPLETED:
