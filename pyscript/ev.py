@@ -410,8 +410,8 @@ COMMENT_DB_YAML = {
     "odometer_entity_id": "**Required**",
     "estimated_battery_range_entity_id": "**Required** Must precise battery range",
     "usable_battery_level_entity_id": "**Required** Must precise battery level",
-    "charge_port_door_entity_id": "**At least one is required charge_port_door_entity_id or/and charge_cable_entity_id** Used to determine if ev charge port is open/closed",
-    "charge_cable_entity_id": "**At least one is required charge_port_door_entity_id or/and charge_cable_entity_id** Used to determine if ev is connected to charger",
+    "charge_port_door_entity_id": " Used to determine if ev charge port is open/closed",
+    "charge_cable_entity_id": "Used to determine if ev is connected to charger",
     "charge_switch_entity_id": "Start/stop charging on EV",
     "charging_limit_entity_id": "Setting charging battery limit on EV",
     "charging_amps_entity_id": "Setting charging amps on EV",
@@ -1020,9 +1020,7 @@ def is_ev_configured():
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and \
             CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and \
             CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['location_entity_id'] and \
-            (CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'] or \
-            CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+            CONFIG['ev_car']['entity_ids']['location_entity_id']:
             EV_CONFIGURED = True
         else:
             EV_CONFIGURED = False
@@ -1872,6 +1870,9 @@ def calc_battery_level_to_distance(battery_level):
 
 def ev_power_connected():
     if not is_ev_configured():
+        return True
+    
+    if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
         return True
     
     return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) in ("on", "plugged", "plugged_waiting_for_charge") or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in ("open", "on")
@@ -5067,9 +5068,6 @@ def ready_to_charge():
         return
     else:
         if is_ev_configured():
-            if entity_unavailable(CONFIG['ev_car']['entity_ids']['location_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
-                return
-            
             currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
             
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
@@ -6054,12 +6052,6 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
             wake_up_ev()
             
-    if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
-        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
-        def state_trigger_ev_charge_cable(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charge_cable")
-            wake_up_ev()
-            
     if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
         def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -6079,16 +6071,17 @@ if INITIALIZATION_COMPLETE:
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
         
-        if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
-            @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
-            def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
-                _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
-                ev_power_connected_trigger(value)
-        else:
-            @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
-            def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
-                _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
-                ev_power_connected_trigger(value)
+        if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+            if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
+                @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
+                def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
+                    _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
+                    ev_power_connected_trigger(value)
+            else:
+                @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
+                def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
+                    _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
+                    ev_power_connected_trigger(value)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
