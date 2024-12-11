@@ -1091,7 +1091,7 @@ def create_integration_dict():
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
     
     def hourly_limit(daily_limit):
-        return max(1, int(daily_limit / 24))
+        return max(1, int(daily_limit / 24)) + 5
 
     def add_to_dict(integration):
         ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
@@ -5136,7 +5136,7 @@ def stop_charging():
             
             if integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_start_stop_charging"):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
-                if charging_state in ("manual", "on"):
+                if charging_state in ("on"):
                     if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration):
                         continue
                     
@@ -5146,7 +5146,7 @@ def stop_charging():
                         continue
                     
                     _LOGGER.info(f"Stopping charging for {entity_id} with service {integration}.volkswagen_id_start_stop_charging")
-                    service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="start", blocking=True)
+                    service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="stop", blocking=True)
             elif config_domain == "charger":
                 send_command(entity_id, "off")
                 break
