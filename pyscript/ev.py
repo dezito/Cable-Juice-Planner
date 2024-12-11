@@ -5045,8 +5045,7 @@ def ready_to_charge():
     
     if charger_enabled != "on":
         _LOGGER.warning(f"Charger was off, turning it on")
-        send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-        
+        start_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"})
     
     if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
         return
@@ -5095,12 +5094,14 @@ def ready_to_charge():
             
     return True
 
-def start_charging():
-    entities = {
-        CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger",
-        CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger",
-        CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car",
-    }
+def start_charging(entities = None):
+    _LOGGER = globals()['_LOGGER'].getChild("start_charging")
+    if entities is None:
+        entities = {
+            CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger",
+            CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger",
+            CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car",
+        }
     
     for entity_id, config_domain in entities.items():
         if is_entity_available(entity_id):
@@ -5124,11 +5125,13 @@ def start_charging():
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "on")
 
-def stop_charging():
-    entities = {
-        CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger",
-        CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car",
-    }
+def stop_charging(entities = None):
+    _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
+    if entities is None:
+        entities = {
+            CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger",
+            CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car",
+        }
 
     for entity_id, config_domain in entities.items():
         if is_entity_available(entity_id):
@@ -5162,8 +5165,7 @@ def is_charging():
         global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT
         
         if RESTARTING_CHARGER_COUNT > 0 or charger_enabled != "on":
-            send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "on")
-            ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "on")
+            start_charging()
             
         CHARGING_IS_BEGINNING = False
         RESTARTING_CHARGER = False
@@ -5280,16 +5282,16 @@ def is_charging():
             if RESTARTING_CHARGER_COUNT == 1 and is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
                 _LOGGER.warning(f"Restarting charger control integration (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger control integration for now")
                 restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
-                send_command(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id'], "off")
+                stop_charging({CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger"})
             else:
                 if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
                     _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
                     restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
-                    send_command(CONFIG['charger']['entity_ids']['enabled_entity_id'], "off")
+                    stop_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"})
                 else:
                     _LOGGER.warning(f"Restarting ev charging (attempts {RESTARTING_CHARGER_COUNT}): Stopping ev charging for now")
                     restarting = f"\nGenstarter elbil ladningen, {RESTARTING_CHARGER_COUNT} forsøg"
-                    ev_send_command(CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'], "off")
+                    stop_charging({CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car"})
                 
         my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
