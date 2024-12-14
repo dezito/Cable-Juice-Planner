@@ -5165,7 +5165,7 @@ def is_charging():
         global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT
         
         if RESTARTING_CHARGER_COUNT > 0 or charger_enabled != "on":
-            start_charging()
+            start_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"})
             
         CHARGING_IS_BEGINNING = False
         RESTARTING_CHARGER = False
