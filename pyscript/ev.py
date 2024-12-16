@@ -1,15 +1,3 @@
-"""
-Home Assistant integration requirement:
-    - Pyscript: Python Scripting for Home Assistant
-        - Allow All Imports - Enabled
-        - Access hass as a global variable - Enabled
-    - Config: forecast.entity_ids.daily_service_entity_id = AccuWeather entity
-    - Config: forecast.entity_ids.hourly_service_entity_id = OpenWeatherMap entity
-    - Energi Data Service
-    - Easee EV charger
-    - Sun
-"""
-
 import datetime
 from typing import Optional
 from pprint import pformat
