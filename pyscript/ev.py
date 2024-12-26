@@ -3164,59 +3164,65 @@ def cheap_grid_charge_hours():
                     kwh_needed_today = 0.0
                 
                 for timestamp, price in sorted_by_cheapest_price:
-                    if timestamp <= last_charging and timestamp >= current_hour:
-                        hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
-                        if hour_in_chargeHours and not kwhAvailable:
-                            continue
-                        
-                        what_day = daysBetween(getTime(), timestamp)
-                        battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
-                        if not battery_level_id:
-                            continue
-                        
-                        if battery_level_full_on_next_departure(what_day):
-                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
-                            continue
-                        
-                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
-                        if working or on_trip:
-                            continue
-                        
-                        if len(chargeHours) > 0:
-                            filteredDict = {k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}
-                            if len(filteredDict) > 0:
-                                first_charging_session = sorted(filteredDict.keys())[0]
-                                
-                                try:
-                                    if chargeHours[first_charging_session]['trip'] and timestamp < first_charging_session and (get_min_trip_battery_level() + charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']) != 100:
-                                        if what_day != 0 and not charging_plan[day]['workday']:
-                                            continue
-                                except:
-                                    pass
-                                
-                        if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
-                            if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
-                                #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
-                                continue
-                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
+                    if not in_between(timestamp, current_hour, last_charging):
+                        continue
+                    
+                    hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
+                    if hour_in_chargeHours and not kwhAvailable:
+                        continue
+                    
+                    what_day = daysBetween(getTime(), timestamp)
+                    battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
+                    if not battery_level_id:
+                        continue
+                    
+                    if battery_level_full_on_next_departure(what_day):
+                        _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                        continue
+
+                    working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
+                    if working or on_trip:
+                        continue
+                    
+                    #Code below temporary disabled, maybe not needed anymore
+                    '''if len(chargeHours) > 1:
+                        filteredDict = {k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}
+                        if len(filteredDict) > 1:
+                            first_charging_session = sorted(filteredDict.keys())[0]
+                            trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                             
-                            if timestamp in chargeHours and battery_level_added:
-                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                            try:
+                                if (chargeHours[first_charging_session]['trip'] and
+                                timestamp < first_charging_session and
+                                trip_battery_level_needed != 100):
+                                    if what_day != 0 and not charging_plan[day]['workday']:
+                                        continue
+                            except:
+                                pass'''
+                    
+                    if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
+                        if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
+                            #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
+                            continue
+                        kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
+                        
+                        if timestamp in chargeHours and battery_level_added:
+                            total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                            
+                            battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                            if "trip" in charging_plan[day]['rules']:
+                                cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
+                                charging_plan[day]['trip_total_cost'] += cost_trip
                                 
-                                battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
-                                if "trip" in charging_plan[day]['rules']:
-                                    cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
-                                    charging_plan[day]['trip_total_cost'] += cost_trip
-                                    
-                                if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
-                                    cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
-                                    charging_plan[day]['work_total_cost'] += cost_work
-                                    
-                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
-                                add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
-                        else:
-                            break
-                
+                            if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
+                                cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                charging_plan[day]['work_total_cost'] += cost_work
+                                
+                            charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
+                            add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                    else:
+                        break
+            
                 try:
                     solar_kwh = 0.0
                     solar_percentage = 0.0
@@ -3432,41 +3438,47 @@ def cheap_grid_charge_hours():
                                 
                                 if not is_ev_configured(): #Sets battery level to 0.0 at midnight
                                     battery_level_id = "battery_level_at_midnight"
-
-                            if timestamp <= last_charging and timestamp >= current_hour:
-                                very_cheap_price, ultra_cheap_price = cheap_price_check(price)
-                                if charging_plan['workday_in_week'] and not very_cheap_price and not ultra_cheap_price:
-                                    continue
+                                    
+                                    '''if battery_level_id not in charging_plan[what_day]:
+                                        battery_level_id = "battery_level_after_work"
+                                        
+                                    if battery_level_id not in charging_plan[what_day]:
+                                        battery_level_id = "battery_level_before_work"'''
+                                        
+                            very_cheap_price, ultra_cheap_price = cheap_price_check(price)
+                            if charging_plan['workday_in_week'] and not very_cheap_price and not ultra_cheap_price:
+                                continue
+                        
+                            if ultra_cheap_price:
+                                rules.append("half_min_avg_price")
+                            elif very_cheap_price:
+                                rules.append("under_min_avg_price")
                             
-                                if ultra_cheap_price:
-                                    rules.append("half_min_avg_price")
-                                elif very_cheap_price:
-                                    rules.append("under_min_avg_price")
+                            if kwh_needed_to_fill_up_day <= 0.01:
+                                break
+                            elif kwh_needed_to_fill_up_day > 0.0:
+                                _LOGGER.warning(f"DEBUG: what_day: {what_day}, battery_level_id: {battery_level_id}, rules: {rules} Exist charging_plan[{what_day}][{battery_level_id}]: {battery_level_id in charging_plan[what_day]} Exist charging_plan[{what_day}]: {what_day in charging_plan}")
+                                kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                _LOGGER.warning(f"DEBUG: {timestamp}: {battery_level_added} {kwh_needed_to_fill_up_day}, {totalCost}, {totalkWh}, {timestamp}, {price}, {None}, {None}, {kwhAvailable}, {sum(charging_plan[what_day][battery_level_id])}, {max_recommended_charge_limit_battery_level}, {rules}")
                                 
-                                if kwh_needed_to_fill_up_day <= 0.01:
-                                    break
-                                elif kwh_needed_to_fill_up_day > 0.0:
-                                    kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
-                                    #_LOGGER.error(f"{timestamp}: {battery_level_added} {kwh_needed_to_fill_up_day}, {totalCost}, {totalkWh}, {timestamp}, {price}, {None}, {None}, {kwhAvailable}, {sum(charging_plan[what_day][battery_level_id])}, {max_recommended_charge_limit_battery_level}, {rules}")
-                                    
-                                    very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                    ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                            
+                            elif ultra_cheap_price and ultra_cheap_kwh_needed_today > 0.0:
+                                ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 
-                                elif ultra_cheap_price and ultra_cheap_kwh_needed_today > 0.0:
-                                    ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
-                                    very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                    kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                    
-                                elif very_cheap_price and very_cheap_kwh_needed_today > 0.0:
-                                    very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
-                                    ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                    kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                else:
-                                    continue
-                                
-                                if timestamp in chargeHours and battery_level_added:
-                                    charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
-                                    add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                            elif very_cheap_price and very_cheap_kwh_needed_today > 0.0:
+                                very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
+                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                            else:
+                                continue
+                            
+                            if timestamp in chargeHours and battery_level_added:
+                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
+                                add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
                         kwh_needed_to_fill_up_day -= kwh_needed_to_fill_up_share
             except Exception as e:
                 _LOGGER.warning(f"Cant create fill up or need recommended full charge for day {day}: {e}")
