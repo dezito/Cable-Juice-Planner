@@ -3423,6 +3423,9 @@ def cheap_grid_charge_hours():
                         
                     if kwh_needed_to_fill_up_day > 0.0:
                         for timestamp, price in sorted_by_cheapest_price:
+                            if not in_between(timestamp, current_hour, last_charging):
+                                continue
+                            
                             hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
                             if hour_in_chargeHours and not kwhAvailable:
                                 continue
