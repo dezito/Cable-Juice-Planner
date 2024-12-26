@@ -1,6 +1,8 @@
 import datetime
+import subprocess
 from typing import Optional
 from pprint import pformat
+
 
 try:
     from benchmark import (
@@ -12,6 +14,7 @@ except:
     benchmark_loaded = False
 
 from filesystem import (
+    get_config_folder,
     file_exists,
     create_yaml,
     load_yaml,
@@ -966,6 +969,36 @@ def welcome():
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
 -------------------------------------------------------------------
 '''
+
+@service(f"pyscript.{__name__}_check_master_updates")
+def check_master_updates():
+    _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
+    config_path = get_config_folder()
+    repo_path = f"{config_path}/custom_components/{__name__}"
+    result = {"has_updates": False, "commits_behind": 0}
+    try:
+        process = subprocess.Popen(
+            ["git", "-C", repo_path, "remote", "show", "origin"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        stdout, _ = process.communicate(timeout=10)
+        commits_behind = 0
+        for line in stdout.splitlines():
+            if "master" in line and "(local out of date)" in line:
+                commits_behind =+ 1
+            elif "master is behind by" in line:
+                commits_behind = int(line.split("by")[1].split("commits")[0].strip())
+                break
+
+        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind}
+    except subprocess.TimeoutExpired:
+        result = {"has_updates": False, "commits_behind": 0, "error": "Timeout expired"}
+    except Exception as e:
+        result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
+    
+    _LOGGER.info(f"Check master updates: {result}")
+    if result["has_updates"]:
+        my_persistent_notification(f"Ny version tilgængelig\nNuværende version er {result['commits_behind']} version{'er' if result['commits_behind'] > 1 else ''} bagud", title = f"{TITLE} opdatering tilgængelig", persistent_notification_id = f"{__name__}_check_master_updates")
 
 def is_charger_configured():
     global CHARGER_CONFIGURED
@@ -5950,6 +5983,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.info(line)
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
+        check_master_updates()
             
     
     #Fill up and days to charge only 1 allowed
@@ -6104,6 +6138,7 @@ if INITIALIZATION_COMPLETE:
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_new_day")
         reset_counter_entity_integration()
+        check_master_updates()
         
     @time_trigger(f"cron(0 1 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
