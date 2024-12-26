@@ -971,12 +971,15 @@ def welcome():
 '''
 
 @service(f"pyscript.{__name__}_check_master_updates")
-def check_master_updates():
+def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
     config_path = get_config_folder()
-    repo_path = f"{config_path}/custom_components/{__name__}"
+    repo_path = f"{config_path}/Cable-Juice-Planner"
     result = {"has_updates": False, "commits_behind": 0}
     try:
+        if not file_exists(repo_path):
+            raise Exception(f"Cable-Juice-Planner repository folder not found in config folder({config_path})")
+            
         process = subprocess.Popen(
             ["git", "-C", repo_path, "remote", "show", "origin"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
@@ -999,6 +1002,10 @@ def check_master_updates():
     _LOGGER.info(f"Check master updates: {result}")
     if result["has_updates"]:
         my_persistent_notification(f"Ny version tilgængelig\nNuværende version er {result['commits_behind']} version{'er' if result['commits_behind'] > 1 else ''} bagud", title = f"{TITLE} opdatering tilgængelig", persistent_notification_id = f"{__name__}_check_master_updates")
+    elif "error" in result:
+        my_persistent_notification(f"Kan ikke tjekke efter opdateringer: {result['error']}", title = f"{TITLE} fejl", persistent_notification_id = f"{__name__}_check_master_updates")
+    elif trigger_type == "service":
+        my_persistent_notification(f"Ingen opdateringer tilgængelig", title = f"{TITLE} opdatering tjek", persistent_notification_id = f"{__name__}_check_master_updates")
 
 def is_charger_configured():
     global CHARGER_CONFIGURED
