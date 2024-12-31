@@ -3084,7 +3084,7 @@ def cheap_grid_charge_hours():
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
             
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
-            if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
+            if charging_plan[day]["trip"] and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
                 max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
             
             what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
@@ -3242,6 +3242,7 @@ def cheap_grid_charge_hours():
                     what_day = daysBetween(getTime(), timestamp)
                     battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                     if not battery_level_id:
+                        _LOGGER.error(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
                         continue
                     
                     if battery_level_full_on_next_departure(what_day):
