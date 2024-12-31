@@ -19,7 +19,8 @@ from .time_helpers import (
     getMonth, getMonthFirstDay, getMonthLastDay,
     getYear,
     date_to_string, toDateTime,
-    resetDatetime, reset_time_to_hour
+    resetDatetime, reset_time_to_hour,
+    is_day
 )
 
 __all__ = ["datetime_to_unix", "getTimestampSeconds", "getTimestampMinutes", "getTime", "getTimePlusSeconds", "getTimePlusMinutes", "getTimePlusHours", "getTimePlusDays", "getTimePlusMonths", "getTimePlusYears",
