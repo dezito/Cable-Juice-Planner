@@ -5,6 +5,9 @@ import calendar
 
 from .get_time import getTime
 
+from homeassistant.helpers.sun import get_astral_event_date
+from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
+
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
@@ -138,3 +141,15 @@ def reset_time_to_hour(date = None):
     if not date:
         date = getTime()
     return date.replace(minute=0, second=0, microsecond=0)
+
+def is_day(timestamp = None):
+    if not timestamp:
+        timestamp = getTime()
+
+    sunrise = get_astral_event_date(hass, SUN_EVENT_SUNRISE, timestamp.date()).replace(tzinfo=None)
+    sunset = get_astral_event_date(hass, SUN_EVENT_SUNSET, timestamp.date()).replace(tzinfo=None)
+
+    if not sunrise or not sunset:
+        raise ValueError(f"Could find sunrise or sunset: timestamp: {timestamp} sunrise:{sunrise}, sunset:{sunset}")
+
+    return sunrise <= timestamp.replace(tzinfo=None) <= sunset
