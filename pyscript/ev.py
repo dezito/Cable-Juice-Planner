@@ -53,7 +53,8 @@ from mytime import (
     date_to_string,
     toDateTime,
     resetDatetime,
-    reset_time_to_hour)
+    reset_time_to_hour,
+    is_day)
 from utils import (
     in_between,
     round_up,
@@ -2439,7 +2440,9 @@ def charging_history_combine_and_set():
             "cost": {"total": 0.0},
             "kwh": {"total": 0.0},
             "percentage": {"total": 0.0},
-            "solar_kwh": {"total": 0.0}
+            "solar_kwh": {"total": 0.0},
+            "charging_kwh_day": {"total": 0.0},
+            "charging_kwh_night": {"total": 0.0}
         }
         
         details = False
@@ -2454,7 +2457,7 @@ def charging_history_combine_and_set():
         sub_length = 50
         sub_details_count = 0
         
-        max_history_length = 175
+        max_history_length = 160
         max_history_length -= length
         
         append_counter = 0
@@ -2584,10 +2587,19 @@ def charging_history_combine_and_set():
                 total['kwh'][month] = 0.0
                 total['percentage'][month] = 0.0
                 total['solar_kwh'][month] = 0.0
+                total['charging_kwh_day'][month] = 0.0
+                total['charging_kwh_night'][month] = 0.0
                 
             total['cost'][month] += d['cost']
             total['kwh'][month] += d["kWh"]
             total['percentage'][month] += d['percentage']
+            
+            if is_day(when):
+                total['charging_kwh_day'][month] += d["kWh"]
+                total['charging_kwh_day']["total"] += d["kWh"]
+            else:
+                total['charging_kwh_night'][month] += d["kWh"]
+                total['charging_kwh_night']["total"] += d["kWh"]
             
             if "kWh_solar" in d and d['kWh_solar'] > 0.0:
                 total['solar_kwh'][month] += d['kWh_solar']
@@ -2597,7 +2609,7 @@ def charging_history_combine_and_set():
             total['cost']["total"] += d['cost']
             total['kwh']["total"] += d["kWh"]
             total['percentage']["total"] += d['percentage']
-                
+        
         if details:
             solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
             history.extend([
@@ -2629,7 +2641,23 @@ def charging_history_combine_and_set():
             solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
             
         if total['kwh']["total"] > 0.0:
-            history.append(f"\n**Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f} kr)**")
+            history.append("<details>")
+            history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f} kr)</b></summary>\n")
+            history.append("Ladnings fordeling")
+            history.append("| Måned | Dag kWh | Nat kWh |")
+            history.append("|:---|:---:|:---:|")
+            for month in sorted(total['charging_kwh_day'].keys()):
+                if month == "total":
+                    continue
+                
+                procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1)
+                procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1)
+                
+                history.append(f"| {month.split()[2]} {month.split()[0]} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
+            procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1)
+            procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1)
+            history.append(f"| **Ialt** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
+            history.append("\n</details>\n")
             
         history.append("</center>")
         
