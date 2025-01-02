@@ -1008,6 +1008,101 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     elif trigger_type == "service":
         my_persistent_notification(f"Ingen opdateringer tilgængelig", title = f"{TITLE} opdatering tjek", persistent_notification_id = f"{__name__}_check_master_updates")
 
+@service(f"pyscript.{__name__}_debug_info")
+def debug_info(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("debug_info")
+    debug_info = []
+
+    # Structured data for debug information
+    sections = {
+        "Status and Initialization": {
+            "table": {
+                "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
+                "PREHEATING": PREHEATING,
+            },
+            "details": None,
+        },
+        "Configuration": {
+            "table": {
+                "CHARGER_CONFIGURED": CHARGER_CONFIGURED,
+                "SOLAR_CONFIGURED": SOLAR_CONFIGURED,
+                "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
+                "EV_CONFIGURED": EV_CONFIGURED,
+            },
+            "details": {"CONFIG": CONFIG},
+        },
+        "Entities Integration Limits & Counters": {
+            "table": None,
+            "details": {"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT},
+        },
+        "Charging Plan": {
+            "table": {
+                "CURRENT_CHARGING_AMPS": CURRENT_CHARGING_AMPS,
+                "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
+            },
+            "details": {
+                "LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS": LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS,
+                "CHEAP_GRID_CHARGE_HOURS_DICT": CHEAP_GRID_CHARGE_HOURS_DICT,
+            },
+        },
+        "Charging Loss": {
+            "table": {
+                "CHARGING_LOSS_CAR_BEGIN_KWH": CHARGING_LOSS_CAR_BEGIN_KWH,
+                "CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL": CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL,
+                "CHARGING_LOSS_CHARGER_BEGIN_KWH": CHARGING_LOSS_CHARGER_BEGIN_KWH,
+                "CHARGING_LOSS_CHARGING_COMPLETED": CHARGING_LOSS_CHARGING_COMPLETED,
+            },
+            "details": None,
+        },
+        "Errors and Counters": {
+            "table": {
+                "CHARGING_IS_BEGINNING": CHARGING_IS_BEGINNING,
+                "CHARGING_NO_RULE_COUNT": CHARGING_NO_RULE_COUNT,
+                "ERROR_COUNT": ERROR_COUNT,
+                "RESTARTING_CHARGER": RESTARTING_CHARGER,
+                "RESTARTING_CHARGER_COUNT": RESTARTING_CHARGER_COUNT,
+            },
+            "details": None,
+        },
+        "Timestamps and Sessions": {
+            "table": {
+                "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
+                "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
+                "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
+            },
+            "details": {"CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION},
+        },
+    }
+
+    # Generate debug info from structured data
+    for section, content in sections.items():
+        debug_info.append(f"### {section}")
+        if content["table"]:
+            debug_info.append("| Key | Value |")
+            debug_info.append("|---:|:---|")
+            for key, value in content["table"].items():
+                debug_info.append(f"| {key} | {value} |")
+                
+        if content["table"] and content["details"]:
+            debug_info.append("<br>\n") # Insert an extra line between the table and the dictionary
+        
+        if content["details"]:
+            for detail_key, detail_value in content["details"].items():
+                debug_info.append("<details>")
+                debug_info.append(f"<summary>{detail_key}: Show dictionary</summary>\n")
+                debug_info.append(f"```\n{pformat(detail_value)}\n```")
+                debug_info.append("</details>\n")
+                if len(content["details"]) > 1:
+                    debug_info.append("<br>\n") # Insert an extra line between the dictionaries
+        debug_info.append("---")
+
+    # Join the debug_info list into a single string
+    debug_info_output = "\n".join(debug_info)
+
+    _LOGGER.info(f"Debug Info: \n{debug_info_output}")
+    my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
+
+    
 def is_charger_configured():
     global CHARGER_CONFIGURED
     
