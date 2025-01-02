@@ -1179,9 +1179,11 @@ def reset_counter_entity_integration():
     for integration in ENTITY_INTEGRATION_DICT["counter"].keys():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
     
-def allow_command_entity_integration(entity_id = None, command = "None", integration = None):
+def allow_command_entity_integration(entity_id = None, command = "None", integration = None, check_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
+    
+    allowed = None
     
     if integration is None:
         integration = get_integration(entity_id)
@@ -1193,29 +1195,8 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
         now = getTime()
         try:
             ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] if dt[0] >= now - datetime.timedelta(hours=1)]
-
-            if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
-                if entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] and is_entity_configured(entity_id):
-                    command = float(command)
-                    charging_limit_list = []
-                    for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
-                        if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] in item[1]:
-                            charging_limit_list.append(float(item[1].split(": ")[1]))
-                    
-                    if charging_limit_list:
-                        charging_limit_max = max(charging_limit_list)
-                        if charging_limit_max == command:
-                            _LOGGER.warning(f"Trying to set charging limit, to the same to often")
-                            return
-                        
-                        if charging_limit_max > command:
-                            _LOGGER.warning(f"Trying to set charging limit, to lower value to often, using max value")
-                            command = charging_limit_max
-                            
-                            if float(get_state(CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"], float_type=True)) == command:
-                                _LOGGER.warning(f"Charging limit, already the same")
-                                return
                 
+            if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
                 extra_buffer = 0
                 if "wake" in str(entity_id).lower():
                     extra_buffer = 3
@@ -1224,19 +1205,24 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
                 hourly_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] - extra_buffer
                 
                 _LOGGER.info(f"DEBUG {entity_id} {command} {integration} {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration])} < {hourly_limit} = {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit} and {ENTITY_INTEGRATION_DICT['counter'][integration]} < {daily_limit} = {ENTITY_INTEGRATION_DICT['counter'][integration] < daily_limit} extra_buffer:{extra_buffer}")
-                if len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit and ENTITY_INTEGRATION_DICT["counter"][integration] < daily_limit:
-                    ENTITY_INTEGRATION_DICT["commands_last_hour"][integration].append((now, f"{entity_id}: {command}"))
-                    ENTITY_INTEGRATION_DICT["counter"][integration] += 1
-                    return True
+                if len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit and ENTITY_INTEGRATION_DICT["counter"][integration] < daily_limit and ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] != command:
+                    if not check_only:
+                        ENTITY_INTEGRATION_DICT["commands_last_hour"][integration].append((now, f"{entity_id}: {command}"))
+                        ENTITY_INTEGRATION_DICT["counter"][integration] += 1
+                    allowed = True if allowed is None else allowed
             else:
-                return True
+                allowed = True if allowed is None else allowed
         except Exception as e:
             _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}")
-            return True
+            allowed = True if allowed is None else allowed
     else:
         _LOGGER.warning(f"integration was none allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})")
-        return True
-    return False
+        allowed = True if allowed is None else allowed
+    
+    if allowed is None:
+        allowed = False
+    
+    return allowed
 
 def set_charging_rule(text=""):
     _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
@@ -1929,10 +1915,12 @@ def wake_up_ev():
         entity_id = CONFIG['ev_car']['entity_ids']['wake_up_entity_id']
         domain = entity_id.split(".")[0]
         
-        if not allow_command_entity_integration(entity_id, "wake_up_ev()"):
+        if not allow_command_entity_integration(entity_id, "wake_up_ev()", check_only=True):
             _LOGGER.warning(f"Limit reached, cant wake up ev")
             return
-    
+
+        allow_command_entity_integration(entity_id, "wake_up_ev()")
+        
         _LOGGER.info("Waking up car")
 
         if domain == "button":
@@ -1943,12 +1931,13 @@ def wake_up_ev():
         integration = get_integration(CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'])
         
         if integration == "kia_uvo" and service.has_service(integration, "force_update"):
-            if allow_command_entity_integration("Wake Up service","wake_up_ev()" , integration = integration):
+            if allow_command_entity_integration("Wake Up service","wake_up_ev()", integration = integration, check_only=True):
+                allow_command_entity_integration("Wake Up service","wake_up_ev()", integration = integration)
                 service.call(integration, "force_update", blocking=True)
             else:
                 _LOGGER.warning(f"Limit reached, cant wake up ev")
     
-def send_command(entity_id, command):
+def send_command(entity_id, command, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("send_command")
     
     if not is_entity_available(entity_id): return
@@ -1964,17 +1953,19 @@ def send_command(entity_id, command):
     except:
         pass
     
-    if current_state != command:
-        if not allow_command_entity_integration(entity_id, command):
+    if current_state != command or force:
+        if not allow_command_entity_integration(entity_id, command, check_only=True) and not force:
             _LOGGER.warning(f"Limit reached, cant send command to ev {entity_id}: {command}")
             return
+        
+        allow_command_entity_integration(entity_id, command)
         
         _LOGGER.debug(f"Sending command: {entity_id} {command}")
         set_state(entity_id, command)
     else:
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
         
-def ev_send_command(entity_id, command): #TODO Add start/stop service for EVs
+def ev_send_command(entity_id, command, force = False): #TODO Add start/stop service for EVs
     _LOGGER = globals()['_LOGGER'].getChild("ev_send_command")
     
     if not is_ev_configured(): return
@@ -1993,14 +1984,35 @@ def ev_send_command(entity_id, command): #TODO Add start/stop service for EVs
        command = float(command)
     except:
         pass
+
+    if entity_id == CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] and is_entity_configured(entity_id):
+        integration = get_integration(entity_id)
         
-    if current_state != command:
+        if integration is None and entity_id.split(".")[0] in ("input_number", "input_select", "input_boolean", "input_text", "input_datetime"):
+            integration = entity_id.split(".")[0]
+        
+        if integration is not None and integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
+            charging_limit_list = []
+            for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
+                if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] in item[1]:
+                    charging_limit_list.append(float(item[1].split(": ")[1]))
+            
+            if charging_limit_list:
+                charging_limit_max = max(charging_limit_list)
+                
+                if charging_limit_max > command:
+                    _LOGGER.warning(f"Trying to set charging limit, to lower value to often, using max value")
+                    command = charging_limit_max
+                        
+    if current_state != command or force:
         '''if entity_id == CONFIG['ev_car']['entity_ids']['charge_switch_entity_id'] and command == "on":
             wake_up_ev()'''
     
-        if not allow_command_entity_integration(entity_id, command):
+        if not allow_command_entity_integration(entity_id, command, check_only=True) and not force:
             _LOGGER.warning(f"Limit reached, cant send command to ev {entity_id}: {command}")
             return
+        
+        allow_command_entity_integration(entity_id, command)
         
         _LOGGER.debug(f"Sending command: {entity_id} {command}")
         set_state(entity_id, command)
@@ -3242,7 +3254,7 @@ def cheap_grid_charge_hours():
                     what_day = daysBetween(getTime(), timestamp)
                     battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                     if not battery_level_id:
-                        _LOGGER.error(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                        _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
                         continue
                     
                     if battery_level_full_on_next_departure(what_day):
@@ -5058,7 +5070,8 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     
     if "tessie" == integration:
         if preheat and climate_state == "off" and service.has_service("climate", "turn_on"):
-            if not allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration): return
+            if not allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration, check_only=True): return
+            allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration)
             
             _LOGGER.info("Preheating ev car")
             
@@ -5073,8 +5086,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         elif climate_state == "heat_cool" and service.has_service("climate", "turn_off"):
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
-                    if not allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration): return
-                
+                    if not allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration, check_only=True): return
+                    allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration)
+                    
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call("climate", "turn_off", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
                     drive_efficiency("preheat_cancel")
@@ -5083,7 +5097,8 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
         if preheat and vin and climate_state == "off":
             
-            if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration): return
+            if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration, check_only=True): return
+            allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration)
             
             _LOGGER.info("Preheating ev car")
             service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="start", blocking=True)
@@ -5095,8 +5110,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         elif climate_state == "heating":
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
-                    if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration): return
-                
+                    if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration, check_only=True): return
+                    allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration)
+                    
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
                     drive_efficiency("preheat_cancel")
@@ -5164,7 +5180,7 @@ def ready_to_charge():
             
     return True
 
-def start_charging(entities = None):
+def start_charging(entities = None, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("start_charging")
     if entities is None:
         entities = {
@@ -5181,13 +5197,16 @@ def start_charging(entities = None):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
                 charging_power = get_state(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], float_type=True, error_state=0.0)
                 if charging_state == "off" and charging_power <= CONFIG['charger']['power_voltage']:
-                    if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Start charging", "start_charging()", integration = integration):
-                        continue
+                    if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Start charging", "start_charging()", integration = integration, check_only=True):
+                        if not force:
+                            continue
                     
                     vin = get_vin_cupra_born(entity_id)
                     if not vin:
                         _LOGGER.warning(f"Vin not found for {entity_id}")
                         continue
+                    
+                    allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Start charging", "start_charging()", integration = integration)
                     
                     _LOGGER.info(f"Starting charging for {entity_id} with service {integration}.volkswagen_id_start_stop_charging")
                     service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="start", blocking=True)
@@ -5196,7 +5215,7 @@ def start_charging(entities = None):
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "on")
 
-def stop_charging(entities = None):
+def stop_charging(entities = None, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
     if entities is None:
         entities = {
@@ -5212,14 +5231,16 @@ def stop_charging(entities = None):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
                 charging_power = get_state(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], float_type=True, error_state=0.0)
                 if charging_state in ("manual", "on") and charging_power > CONFIG['charger']['power_voltage']:
-                    if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration):
-                        continue
+                    if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration, check_only=True):
+                        if not force:
+                            continue
                     
                     vin = get_vin_cupra_born(entity_id)
                     if not vin:
                         _LOGGER.warning(f"Vin not found for {entity_id}")
                         continue
                     
+                    allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration)
                     _LOGGER.info(f"Stopping charging for {entity_id} with service {integration}.volkswagen_id_start_stop_charging")
                     service.call(integration, "volkswagen_id_start_stop_charging", vin=vin, start_stop="stop", blocking=True)
             elif config_domain == "charger":
@@ -5309,7 +5330,7 @@ def is_charging():
             _LOGGER.warning(f"Starting charging (attempts {RESTARTING_CHARGER_COUNT}): Starting charging again")
             my_notify(message = f"Starter ladningen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
-            start_charging()
+            start_charging(force = True)
             RESTARTING_CHARGER = False
         elif charger_status in ("unknown", "unavailable"):
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nLader ikke tilgængelig")
@@ -5354,16 +5375,16 @@ def is_charging():
             if RESTARTING_CHARGER_COUNT == 1 and is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
                 _LOGGER.warning(f"Restarting charger control integration (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger control integration for now")
                 restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
-                stop_charging({CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger"})
+                stop_charging({CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger"}, force = True)
             else:
                 if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
                     _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
                     restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
-                    stop_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"})
+                    stop_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"}, force = True)
                 else:
                     _LOGGER.warning(f"Restarting ev charging (attempts {RESTARTING_CHARGER_COUNT}): Stopping ev charging for now")
                     restarting = f"\nGenstarter elbil ladningen, {RESTARTING_CHARGER_COUNT} forsøg"
-                    stop_charging({CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car"})
+                    stop_charging({CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car"}, force = True)
                 
         my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
             
@@ -5391,6 +5412,7 @@ def charging_without_rule():
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
             set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
             _LOGGER.warning("Charging without rule")
+            stop_charging()
             return True
         CHARGING_NO_RULE_COUNT += 1
     else:
