@@ -1099,7 +1099,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
 
-    _LOGGER.info(f"Debug Info: \n{debug_info_output}")
+    _LOGGER.info(f"Debug Info: \n{sections}")
     my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
 
     
