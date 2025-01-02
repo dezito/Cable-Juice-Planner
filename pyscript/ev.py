@@ -151,7 +151,7 @@ WEATHER_CONDITION_DICT = {
 INTEGRATION_DAILY_LIMIT_BUFFER = 50
 ENTITY_INTEGRATION_DICT = {
     "supported_integrations": {
-        "cupra_we_connect": {"daily_limit": 200},
+        "cupra_we_connect": {"daily_limit": 500},
         "kia_uvo": {"daily_limit": 200},
         "monta": {"daily_limit": 144000},
         "tesla": {"daily_limit": 200},
