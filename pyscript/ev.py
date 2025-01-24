@@ -971,50 +971,8 @@ def welcome():
 -------------------------------------------------------------------
 '''
 
-@service(f"pyscript.{__name__}_check_master_updates")
-def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
-    _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
-    config_path = get_config_folder()
-    repo_path = f"{config_path}/Cable-Juice-Planner"
-    result = {"has_updates": False, "commits_behind": 0}
-    try:
-        if not file_exists(repo_path):
-            raise Exception(f"Cable-Juice-Planner repository folder not found in config folder({config_path})")
-            
-        process = subprocess.Popen(
-            ["git", "-C", repo_path, "remote", "show", "origin"],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
-        stdout, _ = process.communicate(timeout=10)
-        commits_behind = 0
-        for line in stdout.splitlines():
-            if "master" in line and "(local out of date)" in line:
-                commits_behind =+ 1
-            elif "master is behind by" in line:
-                commits_behind = int(line.split("by")[1].split("commits")[0].strip())
-                break
-
-        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind}
-    except subprocess.TimeoutExpired:
-        result = {"has_updates": False, "commits_behind": 0, "error": "Timeout expired"}
-    except Exception as e:
-        result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
-    
-    _LOGGER.info(f"Check master updates: {result}")
-    if result["has_updates"]:
-        my_persistent_notification(f"Ny version tilgængelig\nNuværende version er {result['commits_behind']} version{'er' if result['commits_behind'] > 1 else ''} bagud", title = f"{TITLE} opdatering tilgængelig", persistent_notification_id = f"{__name__}_check_master_updates")
-    elif "error" in result:
-        my_persistent_notification(f"Kan ikke tjekke efter opdateringer: {result['error']}", title = f"{TITLE} fejl", persistent_notification_id = f"{__name__}_check_master_updates")
-    elif trigger_type == "service":
-        my_persistent_notification(f"Ingen opdateringer tilgængelig", title = f"{TITLE} opdatering tjek", persistent_notification_id = f"{__name__}_check_master_updates")
-
-@service(f"pyscript.{__name__}_debug_info")
-def debug_info(trigger_type=None, trigger_id=None, **kwargs):
-    _LOGGER = globals()['_LOGGER'].getChild("debug_info")
-    debug_info = []
-
-    # Structured data for debug information
-    sections = {
+def get_debug_info_sections():
+    return {
         "Status and Initialization": {
             "table": {
                 "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
@@ -1074,14 +1032,73 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
         },
     }
 
+@service(f"pyscript.{__name__}_check_master_updates")
+def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
+    config_path = get_config_folder()
+    repo_path = f"{config_path}/Cable-Juice-Planner"
+    result = {"has_updates": False, "commits_behind": 0}
+    try:
+        if not file_exists(repo_path):
+            raise Exception(f"Cable-Juice-Planner repository folder not found in config folder({config_path})")
+        
+        # Synkront subprocess-kald
+        process = subprocess.Popen(
+            ["git", "-C", repo_path, "remote", "show", "origin"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        try:
+            stdout, _ = process.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            result = {"has_updates": False, "commits_behind": 0, "error": "Timeout expired"}
+            raise
+
+        commits_behind = 0
+        for line in stdout.splitlines():
+            if "master" in line and "(local out of date)" in line:
+                commits_behind += 1
+            elif "master is behind by" in line:
+                commits_behind = int(line.split("by")[1].split("commits")[0].strip())
+                break
+
+        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind}
+    except Exception as e:
+        result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
+    
+    _LOGGER.info(f"Check master updates: {result}")
+    if result["has_updates"]:
+        my_persistent_notification(
+            f"Ny version tilgængelig\nNuværende version er {result['commits_behind']} version{'er' if result['commits_behind'] > 1 else ''} bagud",
+            title=f"{TITLE} opdatering tilgængelig",
+            persistent_notification_id=f"{__name__}_check_master_updates"
+        )
+    elif "error" in result:
+        my_persistent_notification(
+            f"Kan ikke tjekke efter opdateringer: {result['error']}",
+            title=f"{TITLE} fejl",
+            persistent_notification_id=f"{__name__}_check_master_updates"
+        )
+    elif trigger_type == "service":
+        my_persistent_notification(
+            f"Ingen opdateringer tilgængelig",
+            title=f"{TITLE} opdatering tjek",
+            persistent_notification_id=f"{__name__}_check_master_updates"
+        )
+        
+@service(f"pyscript.{__name__}_debug_info")
+def debug_info(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("debug_info")
+    debug_info = []
+
     # Generate debug info from structured data
-    for section, content in sections.items():
-        debug_info.append(f"### {section}")
+    for section, content in get_debug_info_sections().items():
+        debug_info.append(f"<center>\n\n### {section}\n</center>\n")
         if content["table"]:
-            debug_info.append("| Key | Value |")
+            debug_info.append("| Variable | Value |")
             debug_info.append("|---:|:---|")
             for key, value in content["table"].items():
-                debug_info.append(f"| {key} | {value} |")
+                debug_info.append(f"| {key}: | {value} |")
                 
         if content["table"] and content["details"]:
             debug_info.append("<br>\n") # Insert an extra line between the table and the dictionary
@@ -1099,9 +1116,57 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
 
-    _LOGGER.info(f"Debug Info: \n{sections}")
+    _LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
     my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
 
+def save_error_to_file(error_message, caller_function_name = None):
+    _LOGGER = globals()['_LOGGER'].getChild("save_error_to_file")
+    # Convert get_debug_info_sections() to ensure compatibility with YAML
+    def convert_tuples_to_lists(obj):
+        if isinstance(obj, tuple):
+            return list(obj)
+        elif isinstance(obj, dict):
+            return {k: convert_tuples_to_lists(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_tuples_to_lists(item) for item in obj]
+        else:
+            return obj
+        
+    def remove_anchors(data):
+        if isinstance(data, list):
+            return [remove_anchors(item) for item in data]
+        elif isinstance(data, dict):
+            return {key: remove_anchors(value) for key, value in data.items()}
+        else:
+            return data
+    
+    filename = f"{__name__}_error_log.yaml"
+    
+    error_log = load_yaml(filename)
+    
+    if not error_log:
+        error_log = dict()
+    
+    try:
+        debug_dict = {
+            "caller_function_name": caller_function_name,
+            "error_message": error_message,
+            "live_image": convert_tuples_to_lists(get_debug_info_sections().copy()),
+        }
+        if error_log:
+            error_log = limit_dict_size(error_log, 30)
+            for timestamp in sorted(list(error_log.keys()), reverse=True):
+                _LOGGER.info(f"Checking timestamp: {timestamp}")
+                continue
+                if minutesBetween(timestamp, getTime()) < 60:
+                    _LOGGER.warning("Ignoring error log, as there is already an error logged within the last hour")
+                    return
+                break
+                
+        error_log[getTime()] = remove_anchors(debug_dict)
+        save_changes(filename, error_log)
+    except Exception as e:
+        _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     
 def is_charger_configured():
     global CHARGER_CONFIGURED
@@ -1195,6 +1260,9 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
     global COMMENT_DB_YAML
     db_disk = load_yaml(file)
+    
+    if db_disk is None:
+        db_disk = {}
     
     if "version" in db_disk:
         del db_disk["version"]
@@ -2164,8 +2232,10 @@ def load_drive_efficiency():
         create_yaml(f"{__name__}_drive_efficiency_db", db=DRIVE_EFFICIENCY_DB)
         DRIVE_EFFICIENCY_DB = load_yaml(f"{__name__}_drive_efficiency_db")
     except Exception as e:
-        _LOGGER.error(f"Cant load {__name__}_drive_efficiency_db: {e}")
-        my_persistent_notification(f"Cant load {__name__}_drive_efficiency_db: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_drive_efficiency")
+        error_message = f"Cant load {__name__}_drive_efficiency_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_drive_efficiency()")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_drive_efficiency")
     
     if DRIVE_EFFICIENCY_DB == {} or not DRIVE_EFFICIENCY_DB:
         DRIVE_EFFICIENCY_DB = []
@@ -2214,8 +2284,10 @@ def load_km_kwh_efficiency():
         create_yaml(f"{__name__}_km_kwh_efficiency_db", db=KM_KWH_EFFICIENCY_DB)
         KM_KWH_EFFICIENCY_DB = load_yaml(f"{__name__}_km_kwh_efficiency_db")
     except Exception as e:
-        _LOGGER.error(f"Cant load {__name__}_km_kwh_efficiency_db: {e}")
-        my_persistent_notification(f"Cant load {__name__}_km_kwh_efficiency_db: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_km_kwh_efficiency")
+        error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_km_kwh_efficiency()")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_km_kwh_efficiency")
     
     if KM_KWH_EFFICIENCY_DB == {} or not KM_KWH_EFFICIENCY_DB:
         KM_KWH_EFFICIENCY_DB = []
@@ -2417,8 +2489,10 @@ def load_charging_history():
         create_yaml(f"{__name__}_charging_history_db", db=CHARGING_HISTORY_DB)
         CHARGING_HISTORY_DB = load_yaml(f"{__name__}_charging_history_db")
     except Exception as e:
-        _LOGGER.error(f"Cant load {__name__}_charging_history_db: {e}")
-        my_persistent_notification(f"Cant load {__name__}_charging_history_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
+        error_message = f"Cant load {__name__}_charging_history_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_charging_history()")
+        my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
     
     if CHARGING_HISTORY_DB == {} or not CHARGING_HISTORY_DB:
         CHARGING_HISTORY_DB = {}
@@ -2458,8 +2532,10 @@ def save_charging_history():
         
             save_changes(f"{__name__}_charging_history_db", CHARGING_HISTORY_DB)
         except Exception as e:
-            _LOGGER.error(f"Cant save {__name__}_charging_history_db: {e}")
-            my_persistent_notification(f"Cant save {__name__}_charging_history_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_save_charging_history")
+            error_message = f"Cant save {__name__}_charging_history_db: {e}"
+            _LOGGER.error(error_message)
+            save_error_to_file(error_message, caller_function_name = "save_charging_history()")
+            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_save_charging_history")
         
 def charging_history_recalc_price():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_recalc_price")
@@ -3059,7 +3135,9 @@ def cheap_grid_charge_hours():
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
             except Exception as e:
-                _LOGGER.error(f"Cant get offline prices: {e}")
+                error_message = f"Cant get offline prices: {e}"
+                _LOGGER.error(error_message)
+                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
     
@@ -3338,67 +3416,82 @@ def cheap_grid_charge_hours():
                 if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
                     kwh_needed_today = 0.0
                 
-                for timestamp, price in sorted_by_cheapest_price:
-                    if not in_between(timestamp, current_hour, last_charging):
-                        continue
-                    
-                    hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
-                    if hour_in_chargeHours and not kwhAvailable:
-                        continue
-                    
-                    what_day = daysBetween(getTime(), timestamp)
-                    battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
-                    if not battery_level_id:
-                        _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
-                        continue
-                    
-                    if battery_level_full_on_next_departure(what_day):
-                        _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
-                        continue
-
-                    working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
-                    if working or on_trip:
-                        continue
-                    
-                    #Code below temporary disabled, maybe not needed anymore
-                    '''if len(chargeHours) > 1:
-                        filteredDict = {k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}
-                        if len(filteredDict) > 1:
-                            first_charging_session = sorted(filteredDict.keys())[0]
-                            trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                while_count = 0
+                while_loop = True
+                
+                while while_loop and while_count < 2:
+                    for timestamp, price in sorted_by_cheapest_price:
+                        if charging_plan[day]['workday'] and charging_plan[day]['trip'] and while_count == 0:
+                            #_LOGGER.info(f"DEBUG {timestamp} {price} {charging_plan[day]['work_homecoming']} < {charging_plan[day]['trip_last_charging']} {charging_plan[day]['work_homecoming'] < charging_plan[day]['trip_last_charging']} {sum(charging_plan[day]['battery_level_before_work'])} >= ({charging_plan[day]['work_battery_level_needed']} + {get_min_daily_battery_level()}) {sum(charging_plan[day]['battery_level_before_work']) >= (charging_plan[day]['work_battery_level_needed'] + get_min_daily_battery_level())}")
                             
-                            try:
-                                if (chargeHours[first_charging_session]['trip'] and
-                                timestamp < first_charging_session and
-                                trip_battery_level_needed != 100):
-                                    if what_day != 0 and not charging_plan[day]['workday']:
-                                        continue
-                            except:
-                                pass'''
-                    
-                    if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
-                        if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
-                            #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
+                            if (charging_plan[day]['work_homecoming'] < charging_plan[day]['trip_last_charging']
+                                and sum(charging_plan[day]['battery_level_before_work']) >= (charging_plan[day]['work_battery_level_needed'] + get_min_trip_battery_level())):
+                                last_charging = charging_plan[day]['trip_last_charging']
+                                _LOGGER.info(f"Enought battery level for work, planning for trip {sum(charging_plan[day]['battery_level_before_work'])} >= ({charging_plan[day]['work_battery_level_needed']} + {get_min_trip_battery_level()})")
+                                break
+                            
+                        if not in_between(timestamp, current_hour, last_charging):
                             continue
-                        kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
                         
-                        if timestamp in chargeHours and battery_level_added:
-                            total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                        hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(timestamp)
+                        if hour_in_chargeHours and not kwhAvailable:
+                            continue
+                        
+                        what_day = daysBetween(getTime(), timestamp)
+                        battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
+                        if not battery_level_id:
+                            _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                            continue
+                        
+                        if battery_level_full_on_next_departure(what_day):
+                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                            continue
+
+                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
+                        if working or on_trip:
+                            continue
+                        
+                        #Code below temporary disabled, maybe not needed anymore
+                        '''if len(chargeHours) > 1:
+                            filteredDict = {k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}
+                            if len(filteredDict) > 1:
+                                first_charging_session = sorted(filteredDict.keys())[0]
+                                trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                                
+                                try:
+                                    if (chargeHours[first_charging_session]['trip'] and
+                                    timestamp < first_charging_session and
+                                    trip_battery_level_needed != 100):
+                                        if what_day != 0 and not charging_plan[day]['workday']:
+                                            continue
+                                except:
+                                    pass'''
+                        
+                        if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
+                            if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
+                                #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
+                                continue
+                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, charging_plan[day]['rules'])
                             
-                            battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
-                            if "trip" in charging_plan[day]['rules']:
-                                cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
-                                charging_plan[day]['trip_total_cost'] += cost_trip
+                            if timestamp in chargeHours and battery_level_added:
+                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                                 
-                            if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
-                                cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
-                                charging_plan[day]['work_total_cost'] += cost_work
-                                
-                            charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
-                            add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
-                    else:
-                        break
-            
+                                battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                                if "trip" in charging_plan[day]['rules']:
+                                    cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
+                                    charging_plan[day]['trip_total_cost'] += cost_trip
+                                    
+                                if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
+                                    cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                    charging_plan[day]['work_total_cost'] += cost_work
+                                    
+                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
+                                add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                        else:
+                            while_loop = False
+                            break
+                    while_count += 1
+                
                 try:
                     solar_kwh = 0.0
                     solar_percentage = 0.0
@@ -3660,8 +3753,10 @@ def cheap_grid_charge_hours():
                                 add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
                         kwh_needed_to_fill_up_day -= kwh_needed_to_fill_up_share
             except Exception as e:
-                _LOGGER.warning(f"Cant create fill up or need recommended full charge for day {day}: {e}")
-                my_persistent_notification(f"Error in fill up or need recommended full charge for day {day}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_fill_up_or_need_recommended_full_charge_error")
+                error_message = f"Error in fill up or need recommended full charge for day {day}: {e}"
+                _LOGGER.warning(error_message)
+                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours().future_charging().fill_up_or_need_recommended_full_charge")
+                my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_fill_up_or_need_recommended_full_charge_error")
             
             try: #Alternative charging estimate
                 charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
@@ -4473,8 +4568,10 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             successful = True
         
         except Exception as e_second:
-            _LOGGER.error(f"Cant set charging amps: {e_second}")
-            my_persistent_notification(f"Cant set charging amps: {e_second}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
+            error_message = f"Cant set dynamic amps on charger: {e}\nCant set ev charging amps: {e_second}"
+            _LOGGER.error(error_message)
+            save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
+            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
     finally:
         try:
             if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
@@ -4484,8 +4581,10 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
                     _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
                     ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
         except Exception as e:
-            _LOGGER.warning(f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}")
-            my_persistent_notification(f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
+            error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
+            _LOGGER.warning(error_message)
+            save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
+            my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
             
             
     if successful:
@@ -4818,7 +4917,9 @@ def load_solar_available_db():
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
             create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
     except Exception as e:
-        _LOGGER.error(f"Cant load {__name__}_solar_production_available_db: {e}")
+        error_message = f"Cant load {__name__}_solar_production_available_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_solar_available_db()")
         my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_solar_available_db")
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
@@ -5670,10 +5771,12 @@ def charge_if_needed():
     except Exception as e:
         global ERROR_COUNT
         
-        _LOGGER.error(f"Error running charge_if_needed(), setting charger and car to max: {e}")
+        error_message = f"Error running charge_if_needed(), setting charger and car to max: {e}"
+        _LOGGER.error(error_message)
         my_persistent_notification(f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_restart_count_error")
         
         if ERROR_COUNT == 3:
+            save_error_to_file(error_message, caller_function_name = "charge_if_needed()")
             _LOGGER.error(f"Restarting script to maybe fix error!!!")
             my_persistent_notification(f"Restarting script to maybe fix error!!!", f"{TITLE} error", persistent_notification_id=f"{__name__}_restart_script")
             
@@ -5934,7 +6037,9 @@ def load_kwh_prices():
         if not KWH_AVG_PRICES_DB:
             create_yaml(f"{__name__}_kwh_avg_prices_db", db=KWH_AVG_PRICES_DB)
     except Exception as e:
-        _LOGGER.error(f"Cant load {__name__}_kwh_avg_prices_db: {e}")
+        error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_kwh_prices()")
         my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_kwh_prices")
     
     if KWH_AVG_PRICES_DB == {} or not KWH_AVG_PRICES_DB:
