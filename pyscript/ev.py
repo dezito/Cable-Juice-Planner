@@ -3323,7 +3323,12 @@ def cheap_grid_charge_hours():
                     last_charging = charging_plan[day]['work_last_charging']
                     
                 if charging_plan[day]['trip']:
-                    last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging']) if charging_plan[day]['workday'] else charging_plan[day]['trip_last_charging']
+                    if (charging_plan[day]['workday']
+                        and charging_plan[day]['work_homecoming'] < charging_plan[day]['trip_homecoming']
+                        and sum(charging_plan[day]['battery_level_before_work']) >= charging_plan[day]['work_battery_level_needed']):
+                        last_charging = charging_plan[day]['trip_last_charging']
+                    else:
+                        last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging']) if charging_plan[day]['workday'] else charging_plan[day]['trip_last_charging']
                                     
                 _LOGGER.debug(f"charging_plan[{day}]['work_goto'] {charging_plan[day]['work_goto']} / charging_plan[{day}]['trip_last_charging'] {charging_plan[day]['trip_last_charging']} / last_charging {last_charging}")
                 
