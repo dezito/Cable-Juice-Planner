@@ -3268,6 +3268,10 @@ def cheap_grid_charge_hours():
             max_recommended_charge_limit_battery_level = get_max_recommended_charge_limit_battery_level()
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
             
+            if what_day < 0:
+                _LOGGER.warning(f"Error in hourPrices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
+                return return_fail_list
+            
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
             if charging_plan[day]["trip"] and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
                 max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
@@ -3275,10 +3279,6 @@ def cheap_grid_charge_hours():
             what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
             what_day_battery_level_after_work = max(sum(charging_plan[what_day]['battery_level_after_work']), sum(charging_plan[what_day]['battery_level_at_midnight']))
             after_what_day_battery_level_after_work = max(sum(charging_plan[min(what_day + 1, 7)]['battery_level_after_work']), sum(charging_plan[min(what_day + 1, 7)]['battery_level_at_midnight']))
-            
-            if what_day < 0:
-                _LOGGER.warning(f"Error in hourPrices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
-                return return_fail_list
             
             if price >= 0.0:
                 if charging_plan[what_day]['workday']:
