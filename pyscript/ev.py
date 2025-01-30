@@ -116,6 +116,10 @@ DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
 CHARGING_HISTORY_DB = {}
 CHEAP_GRID_CHARGE_HOURS_DICT = {}
+OVERVIEW_HISTORY = {}
+
+CHARGING_PLAN = {}
+CHARGE_HOURS = {}
 
 SOLAR_SELL_TARIFF = {
     "energinets_network_tariff": 0.0030,
@@ -1001,6 +1005,8 @@ def get_debug_info_sections():
             "details": {
                 "LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS": LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS,
                 "CHEAP_GRID_CHARGE_HOURS_DICT": CHEAP_GRID_CHARGE_HOURS_DICT,
+                "CHARGING_PLAN": CHARGING_PLAN,
+                "CHARGE_HOURS": CHARGE_HOURS,
             },
         },
         "Charging Loss": {
@@ -1116,7 +1122,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
 
-    _LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
+    #_LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
     my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
 
 def save_error_to_file(error_message, caller_function_name = None):
@@ -1286,6 +1292,7 @@ def create_integration_dict():
     def add_to_dict(integration):
         ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [(getTime(), "Startup")]
+        ENTITY_INTEGRATION_DICT["commands_history"][integration] = [(getTime(), "Startup")]
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
     
@@ -1341,6 +1348,13 @@ def reset_counter_entity_integration():
     
     for integration in ENTITY_INTEGRATION_DICT["counter"].keys():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
+        
+def commands_history_clean_entity_integration():
+    global ENTITY_INTEGRATION_DICT
+    
+    now = getTime()
+    for integration in ENTITY_INTEGRATION_DICT["commands_history"].keys():
+        ENTITY_INTEGRATION_DICT["commands_history"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_history"][integration] if dt[0] >= now - datetime.timedelta(days=1)]
     
 def allow_command_entity_integration(entity_id = None, command = "None", integration = None, check_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
@@ -1384,6 +1398,9 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
     
     if allowed is None:
         allowed = False
+    
+    if allowed is True and check_only is False:
+        ENTITY_INTEGRATION_DICT["commands_history"][integration].append((now, f"{entity_id}: {command}"))
     
     return allowed
 
@@ -4232,6 +4249,8 @@ def cheap_grid_charge_hours():
     
     set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
     set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
+    CHARGING_PLAN = charging_plan
+    CHARGE_HOURS = chargeHours
     
     overview = []
     
@@ -6391,6 +6410,7 @@ if INITIALIZATION_COMPLETE:
         stop_current_charging_session()
         kwh_charged_by_solar()
         solar_charged_percentage()
+        commands_history_clean_entity_integration()
         
     @time_trigger(f"cron(0 0 * * *)")
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
