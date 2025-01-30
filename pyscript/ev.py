@@ -163,6 +163,7 @@ ENTITY_INTEGRATION_DICT = {
     },
     "entities": {},
     "commands_last_hour": {},
+    "commands_history": {},
     "last_reload": {},
     "counter": {}
 }
