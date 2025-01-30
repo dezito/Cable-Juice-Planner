@@ -2706,7 +2706,7 @@ def charging_history_combine_and_set():
                 
                 from_to = "-"
                 
-                combine_after = 2
+                combine_after = 5
                 
                 if i > combine_after and ended != ">":
                     charging_session = None
