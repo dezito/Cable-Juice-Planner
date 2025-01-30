@@ -5430,6 +5430,8 @@ def start_charging(entities = None, force = False):
                 send_command(entity_id, "on")
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "on")
+        else:
+            _LOGGER.warning(f"Entity {entity_id} not available")
 
 def stop_charging(entities = None, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
@@ -5465,6 +5467,8 @@ def stop_charging(entities = None, force = False):
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "off")
                 break
+        else:
+            _LOGGER.warning(f"Entity {entity_id} not available")
     
 def is_charging():
     _LOGGER = globals()['_LOGGER'].getChild("is_charging")
