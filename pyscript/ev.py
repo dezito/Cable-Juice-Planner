@@ -989,7 +989,7 @@ def get_debug_info_sections():
             },
             "details": {"CONFIG": CONFIG},
         },
-        "Entities Integration Limits & Counters": {
+        "Entities Integration Limits, Counters & Command history": {
             "table": None,
             "details": {"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT},
         },
