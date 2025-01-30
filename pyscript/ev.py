@@ -1679,14 +1679,14 @@ def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
     return emoji_sorting(" ".join(emojis))
 
-def emoji_text_format(text):
+def emoji_text_format(text, group_size = 3):
     words = text.split()
     result = []
 
-    if len(words) > 3:
-        for i in range(0, len(words), 3):
+    if len(words) > group_size:
+        for i in range(0, len(words), group_size):
             # Join two adjacent words, if possible, else just take the single word left
-            pair = ''.join(words[i:i+3])
+            pair = ''.join(words[i:i+group_size])
             result.append(pair)
         return '<br>'.join(result)
     else:
