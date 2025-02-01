@@ -87,7 +87,7 @@ POWERWALL_CONFIGURED = None
 EV_CONFIGURED = None
 
 USING_OFFLINE_PRICES = False
-LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {}
+LAST_SUCCESSFUL_GRID_PRICES = {}
 
 CHARGING_IS_BEGINNING = False
 RESTARTING_CHARGER = False
@@ -1004,10 +1004,9 @@ def get_debug_info_sections():
                 "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
             },
             "details": {
-                "LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS": LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS,
-                "CHEAP_GRID_CHARGE_HOURS_DICT": CHEAP_GRID_CHARGE_HOURS_DICT,
                 "CHARGING_PLAN": CHARGING_PLAN,
                 "CHARGE_HOURS": CHARGE_HOURS,
+                "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
             },
         },
         "Charging Loss": {
@@ -3038,7 +3037,7 @@ def stop_current_charging_session():
 
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
-    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS
+    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES, CHARGING_PLAN, CHARGE_HOURS
     
     USING_OFFLINE_PRICES = False
     
@@ -3081,8 +3080,8 @@ def cheap_grid_charge_hours():
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
             
-        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 60:
-            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
+            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
         else:
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
             
@@ -3124,13 +3123,13 @@ def cheap_grid_charge_hours():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
-                LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {
+                LAST_SUCCESSFUL_GRID_PRICES = {
                     "last_update": getTime(),
                     "prices": hourPrices
                 }
     except Exception as e:
-        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 120:
-            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
+            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
