@@ -2810,10 +2810,22 @@ def charging_history_combine_and_set():
             total['percentage']["total"] += d['percentage']
         
         if details:
-            solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
             history.extend([
                 "</details>",
-                "\n",
+                "\n"
+            ])
+        solar_string = ""
+        if total['solar_kwh']["total"] > 0.0:
+            total_solar_percentage = round(total['solar_kwh']["total"] / total['kwh']["total"] * 100.0, 1)
+            solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
+            
+        if total['kwh']["total"] > 0.0:
+            history.append("---")
+            history.append("<details>")
+            history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
+            
+            solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
+            history.extend([
                 f"| Måned | kWh | {solar_header} | Pris | Kr/kWh |",
                 "|:---:|:---:|:---:|---:|:---:|"
             ])
@@ -2833,16 +2845,8 @@ def charging_history_combine_and_set():
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 
                 history.append(f"| {month.split()[2]} {month.split()[0]} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
-
-        solar_string = ""
-        if total['solar_kwh']["total"] > 0.0:
-            total_solar_percentage = round(total['solar_kwh']["total"] / total['kwh']["total"] * 100.0, 1)
-            solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
-            
-        if total['kwh']["total"] > 0.0:
-            history.append("<details>")
-            history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f} kr)</b></summary>\n")
-            history.append("Ladnings fordeling")
+            history.append("---")
+            history.append("\n**Ladnings fordeling**")
             history.append("| Måned | Dag kWh | Nat kWh |")
             history.append("|:---|:---:|:---:|")
             for month in sorted(total['charging_kwh_day'].keys()):
