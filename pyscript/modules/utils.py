@@ -1,7 +1,9 @@
 __version__ = "1.0.0"
+import datetime
 import functools
 import math
 from pprint import pformat
+
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
@@ -362,15 +364,16 @@ def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name',
 
 def limit_dict_size(dct, size):
     """
-    Limits the dictionary to the first X items based on insertion order.
+    Limits the dictionary to the last X items based on insertion order.
 
     :param dct: The dictionary to be limited.
     :param size: The dictionary size.
-    :return: A dictionary with a maximum of X key-value pairs.
+    :return: A dictionary with a maximum of X key-value pairs, keeping the newest.
     """
     _LOGGER = globals()['_LOGGER'].getChild("limit_dict_size")
-    # Convert dictionary items to a list, slice to keep the last 30 items, and convert back to dictionary
-    return dict(list(dct.items())[:size])
+    
+    # Konverter dictionary til en liste, behold kun de nyeste X elementer, og lav det tilbage til en dictionary
+    return dict(list(dct.items())[-size:])
 
 def contains_any(first, second):
     """
@@ -383,3 +386,28 @@ def contains_any(first, second):
 
     # Check if there's any intersection
     return bool(first_set & second_set)
+
+
+def check_next_24_hours_diff(dict1, dict2):
+    now = datetime.datetime.now()
+    end_time = now + datetime.timedelta(hours=24)
+
+    differences = {}
+
+    # Gather all datetime keys in the next 24 hours from both dictionaries
+    keys = set()
+    for d in (dict1, dict2):
+        for key in d:
+            if isinstance(key, datetime.datetime) and now <= key < end_time:
+                keys.add(key)
+
+    # Compare values for each key in both dictionaries
+    for key in keys:
+        value1 = dict1.get(key)
+        value2 = dict2.get(key)
+        if value1 != value2:
+            differences[key] = {
+                'dict1': value1,
+                'dict2': value2
+            }
+    return differences

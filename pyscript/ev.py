@@ -87,7 +87,7 @@ POWERWALL_CONFIGURED = None
 EV_CONFIGURED = None
 
 USING_OFFLINE_PRICES = False
-LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {}
+LAST_SUCCESSFUL_GRID_PRICES = {}
 
 CHARGING_IS_BEGINNING = False
 RESTARTING_CHARGER = False
@@ -115,7 +115,10 @@ KWH_AVG_PRICES_DB_VERSION = 2.0
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
 CHARGING_HISTORY_DB = {}
-CHEAP_GRID_CHARGE_HOURS_DICT = {}
+OVERVIEW_HISTORY = {}
+
+CHARGING_PLAN = {}
+CHARGE_HOURS = {}
 
 SOLAR_SELL_TARIFF = {
     "energinets_network_tariff": 0.0030,
@@ -159,6 +162,7 @@ ENTITY_INTEGRATION_DICT = {
     },
     "entities": {},
     "commands_last_hour": {},
+    "commands_history": {},
     "last_reload": {},
     "counter": {}
 }
@@ -989,7 +993,7 @@ def get_debug_info_sections():
             },
             "details": {"CONFIG": CONFIG},
         },
-        "Entities Integration Limits & Counters": {
+        "Entities Integration Limits, Counters & Command history": {
             "table": None,
             "details": {"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT},
         },
@@ -999,8 +1003,9 @@ def get_debug_info_sections():
                 "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
             },
             "details": {
-                "LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS": LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS,
-                "CHEAP_GRID_CHARGE_HOURS_DICT": CHEAP_GRID_CHARGE_HOURS_DICT,
+                "CHARGING_PLAN": CHARGING_PLAN,
+                "CHARGE_HOURS": CHARGE_HOURS,
+                "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
             },
         },
         "Charging Loss": {
@@ -1116,7 +1121,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
 
-    _LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
+    #_LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
     my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
 
 def save_error_to_file(error_message, caller_function_name = None):
@@ -1286,6 +1291,7 @@ def create_integration_dict():
     def add_to_dict(integration):
         ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [(getTime(), "Startup")]
+        ENTITY_INTEGRATION_DICT["commands_history"][integration] = [(getTime(), "Startup")]
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
     
@@ -1341,6 +1347,13 @@ def reset_counter_entity_integration():
     
     for integration in ENTITY_INTEGRATION_DICT["counter"].keys():
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
+        
+def commands_history_clean_entity_integration():
+    global ENTITY_INTEGRATION_DICT
+    
+    now = getTime()
+    for integration in ENTITY_INTEGRATION_DICT["commands_history"].keys():
+        ENTITY_INTEGRATION_DICT["commands_history"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_history"][integration] if dt[0] >= now - datetime.timedelta(days=1)]
     
 def allow_command_entity_integration(entity_id = None, command = "None", integration = None, check_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
@@ -1384,6 +1397,9 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
     
     if allowed is None:
         allowed = False
+    
+    if allowed is True and check_only is False:
+        ENTITY_INTEGRATION_DICT["commands_history"][integration].append((now, f"{entity_id}: {command}"))
     
     return allowed
 
@@ -1662,14 +1678,14 @@ def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
     return emoji_sorting(" ".join(emojis))
 
-def emoji_text_format(text):
+def emoji_text_format(text, group_size = 3):
     words = text.split()
     result = []
 
-    if len(words) > 3:
-        for i in range(0, len(words), 3):
+    if len(words) > group_size:
+        for i in range(0, len(words), group_size):
             # Join two adjacent words, if possible, else just take the single word left
-            pair = ''.join(words[i:i+3])
+            pair = ''.join(words[i:i+group_size])
             result.append(pair)
         return '<br>'.join(result)
     else:
@@ -2689,7 +2705,7 @@ def charging_history_combine_and_set():
                 
                 from_to = "-"
                 
-                combine_after = 2
+                combine_after = 5
                 
                 if i > combine_after and ended != ">":
                     charging_session = None
@@ -3020,7 +3036,7 @@ def stop_current_charging_session():
 
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
-    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS
+    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES, CHARGING_PLAN, CHARGE_HOURS
     
     USING_OFFLINE_PRICES = False
     
@@ -3063,8 +3079,8 @@ def cheap_grid_charge_hours():
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
             
-        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 60:
-            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
+            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
         else:
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
             
@@ -3106,13 +3122,13 @@ def cheap_grid_charge_hours():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
-                LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS = {
+                LAST_SUCCESSFUL_GRID_PRICES = {
                     "last_update": getTime(),
                     "prices": hourPrices
                 }
     except Exception as e:
-        if "last_update" in LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS and minutesBetween(LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["last_update"], now) <= 120:
-            hourPrices = LAST_SUCCESSFUL_CHEAP_GRID_CHARGE_HOURS["prices"]
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
+            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
@@ -3467,7 +3483,7 @@ def cheap_grid_charge_hours():
                                 except:
                                     pass'''
                         
-                        if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
+                        if round(kwh_needed_today, 1) > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True):
                             if sum(charging_plan[what_day][battery_level_id]) >= get_max_recommended_charge_limit_battery_level() - 1.0:
                                 #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
                                 continue
@@ -4273,19 +4289,17 @@ def cheap_grid_charge_hours():
         overview.append("<center>\n")
         
         if charging_plan_list:
+            overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
+            overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
-            if charging_plan_list:
-                overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
-                overview.append("|---:|:---:|---:|---:|:---:|---:|")
-                
-                for d in charging_plan_list.values():
-                    d['when'] = f"**{d['when']}**" if d['when'] else ""
-                    d['type'] = f"**{d['type']}**" if d['type'] else ""
-                    d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
-                    d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
-                    d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
-                    d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
-                    overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
+            for d in charging_plan_list.values():
+                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['type'] = f"**{d['type']}**" if d['type'] else ""
+                d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
+                d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
+                d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
+                d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
+                overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
             
             if totalkWh > 0.0:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
@@ -4992,7 +5006,7 @@ def solar_available_append_to_db(power):
 
 def solar_available_prediction(start_trip = None, end_trip=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction")
-    global SOLAR_PRODUCTION_AVAILABLE_DB, CHEAP_GRID_CHARGE_HOURS_DICT
+    global SOLAR_PRODUCTION_AVAILABLE_DB, CHARGE_HOURS
     
     def get_power(cloudiness: int | float, date: datetime.datetime) -> list:
         _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction.get_power")
@@ -5076,8 +5090,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             
         expensive_hours = []
             
-        if "expensive_hours" in CHEAP_GRID_CHARGE_HOURS_DICT:
-            for hour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
+        if "expensive_hours" in CHARGE_HOURS:
+            for hour in CHARGE_HOURS['expensive_hours']:
                 expensive_hours.append(hour.hour)
             
         from_hour = sunrise if day > 0 else max(sunrise, getHour())
@@ -5347,9 +5361,9 @@ def ready_to_charge():
         return True
     elif charger_status in ("awaiting_authorization", "awaiting_start") and not ev_power_connected():
         _LOGGER.info("Charger cable connected, but car not updated")
-        set_charging_rule(f"⛔Lader kabel forbundet, men bilen ikke opdateret")
+        set_charging_rule(f"⚠️Lader kabel forbundet, men bilen ikke opdateret<br>Prøver at vække bilen")
         wake_up_ev()
-        return
+        return True #Test to charge anyway
     else:
         if is_ev_configured():
             currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
@@ -5366,13 +5380,15 @@ def ready_to_charge():
             #TODO check charger_connector on monta
             if charger_connector != "on" and ev_charger_connector not in ("on", "plugged", "plugged_waiting_for_charge"):
                 _LOGGER.info("Charger cable is Disconnected")
-                set_charging_rule(f"⛔Ladekabel ikke forbundet til bilen")
-                return
+                set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen<br>Prøver at vække bilen")
+                wake_up_ev()
+                return True #Test to charge anyway
             
             if not ev_power_connected():
                 _LOGGER.info("Chargeport not open")
-                set_charging_rule(f"⛔Elbilens ladeport er ikke åben")
-                return
+                set_charging_rule(f"⚠️Elbilens ladeport er ikke åben<br>Prøver at vække bilen")
+                wake_up_ev()
+                return True #Test to charge anyway
             
     return True
 
@@ -5410,6 +5426,8 @@ def start_charging(entities = None, force = False):
                 send_command(entity_id, "on")
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "on")
+        else:
+            _LOGGER.warning(f"Entity {entity_id} not available")
 
 def stop_charging(entities = None, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
@@ -5445,6 +5463,8 @@ def stop_charging(entities = None, force = False):
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "off")
                 break
+        else:
+            _LOGGER.warning(f"Entity {entity_id} not available")
     
 def is_charging():
     _LOGGER = globals()['_LOGGER'].getChild("is_charging")
@@ -5617,19 +5637,19 @@ def charging_without_rule():
 
 def charge_if_needed():
     _LOGGER = globals()['_LOGGER'].getChild("charge_if_needed")
-    global CHEAP_GRID_CHARGE_HOURS_DICT
+    global CHARGE_HOURS
     
     try:
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
         
-        CHEAP_GRID_CHARGE_HOURS_DICT = cheap_grid_charge_hours()
+        cheap_grid_charge_hours()
         
         if trip_planned:
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
-                CHEAP_GRID_CHARGE_HOURS_DICT = cheap_grid_charge_hours()
+                CHARGE_HOURS = cheap_grid_charge_hours()
                 
         solar_available = max_solar_watts_available_remaining_hour()
         solar_period = solar_available['period']
@@ -5642,9 +5662,9 @@ def charge_if_needed():
         charging_limit = min(range_to_battery_level(), get_max_recommended_charge_limit_battery_level())
         amps = [3.0, 0.0]
         
-        if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT:
+        if currentHour in CHARGE_HOURS:
             if solar_amps[1] > 0.0:
-                CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['solar'] = True
+                CHARGE_HOURS[currentHour]['solar'] = True
                 
             if trip_planned:
                 solar_amps[1] = 0.0
@@ -5659,21 +5679,21 @@ def charge_if_needed():
             if is_solar_configured():
                 solar_using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
         
-            if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT:
-                if "half_min_avg_price" in CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]:
+            if currentHour in CHARGE_HOURS:
+                if "half_min_avg_price" in CHARGE_HOURS[currentHour]:
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
                     charging_limit = charging_limit if charging_limit > get_ultra_cheap_grid_charging_max_battery_level() else get_ultra_cheap_grid_charging_max_battery_level()
                     alsoCheapPower = " + Ultra cheap power"
-                elif "under_min_avg_price" in CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]:
+                elif "under_min_avg_price" in CHARGE_HOURS[currentHour]:
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
                     charging_limit = charging_limit if charging_limit > get_very_cheap_grid_charging_max_battery_level() else get_very_cheap_grid_charging_max_battery_level()
                     alsoCheapPower = " + Cheap power"
                 else:
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
-                    charging_limit = round_up(battery_level() + CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['battery_level'])
+                    charging_limit = round_up(battery_level() + CHARGE_HOURS[currentHour]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif solar_using_grid_price and currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
+            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours']:
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 solar_amps[1] = 0.0
                 
@@ -5709,26 +5729,26 @@ def charge_if_needed():
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
-            if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT:
-                CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['solar'] = True if solar_watt > 0.0 else False
-                charging_history(CHEAP_GRID_CHARGE_HOURS_DICT[currentHour], "planned")
+            if currentHour in CHARGE_HOURS:
+                CHARGE_HOURS[currentHour]['solar'] = True if solar_watt > 0.0 else False
+                charging_history(CHARGE_HOURS[currentHour], "planned")
                 
-                battery_level_plus_charge = battery_level() + CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['battery_level']
-                max_level_today = CHEAP_GRID_CHARGE_HOURS_DICT['max_charging_level_today']
+                battery_level_plus_charge = battery_level() + CHARGE_HOURS[currentHour]['battery_level']
+                max_level_today = CHARGE_HOURS['max_charging_level_today']
                 charging_limit = min(round_up(max(battery_level_plus_charge, max_level_today, range_to_battery_level())), 100.0)
-                amps = [CONFIG['charger']['charging_phases'], CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['ChargingAmps']]
+                amps = [CONFIG['charger']['charging_phases'], CHARGE_HOURS[currentHour]['ChargingAmps']]
                 '''_LOGGER.error(f"battery_level_plus_charge:{battery_level_plus_charge}")
                 _LOGGER.error(f"max_level_today:{max_level_today}")
                 _LOGGER.error(f"range_to_battery_level():{range_to_battery_level()}")
                 _LOGGER.error(f"charging_limit:{charging_limit}")'''
-                emoji = emoji_parse(CHEAP_GRID_CHARGE_HOURS_DICT[currentHour])
+                emoji = emoji_parse(CHARGE_HOURS[currentHour])
 
                 set_charging_rule(f"Lader op til {emoji}")
-                _LOGGER.info(f"Charging because of {emoji} {CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['Price']}kr. {int(CONFIG['charger']['charging_phases'])}x{CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
+                _LOGGER.info(f"Charging because of {emoji} {CHARGE_HOURS[currentHour]['Price']}kr. {int(CONFIG['charger']['charging_phases'])}x{CHARGE_HOURS[currentHour]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
             elif get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level():
-                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours']:
+                if currentHour in CHARGE_HOURS['expensive_hours']:
                     set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm")
-                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHEAP_GRID_CHARGE_HOURS_DICT['expensive_hours'], format = '%H:%M')}")
+                    _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHARGE_HOURS['expensive_hours'], format = '%H:%M')}")
                 else:
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
@@ -5739,9 +5759,9 @@ def charge_if_needed():
                     set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%")
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
             elif solar_charging_enabled() and solar_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
-                if currentHour in CHEAP_GRID_CHARGE_HOURS_DICT:
-                    CHEAP_GRID_CHARGE_HOURS_DICT[currentHour]['solar'] = True
-                    charging_history(CHEAP_GRID_CHARGE_HOURS_DICT[currentHour], "planned")
+                if currentHour in CHARGE_HOURS:
+                    CHARGE_HOURS[currentHour]['solar'] = True
+                    charging_history(CHARGE_HOURS[currentHour], "planned")
                 else:
                     charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': True}, "solar")
                 amps = solar_amps
@@ -6391,6 +6411,7 @@ if INITIALIZATION_COMPLETE:
         stop_current_charging_session()
         kwh_charged_by_solar()
         solar_charged_percentage()
+        commands_history_clean_entity_integration()
         
     @time_trigger(f"cron(0 0 * * *)")
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
