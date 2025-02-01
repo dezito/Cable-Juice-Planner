@@ -4272,36 +4272,76 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"Failed to calculate battery level cost: {e}")
         
     try:
-        charging_plan_list = {}
+        charging_plan_list = []
+        sorted_charge_hours = sorted(
+            {k: v for k, v in chargeHours.items() if isinstance(k, datetime.datetime)}.items(),
+            key=lambda kv: kv[0]
+        )
         
-        for timestamp, value in sorted({k: v for k, v in chargeHours.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
-            if type(timestamp) is datetime.datetime:
-                charging_plan_list[timestamp] = {
-                    "when": f"{timestamp.strftime('%d/%m %H:%M')}",
-                    "type": f"{emoji_parse(chargeHours[timestamp])}",
-                    "percentage": f"{int(round(chargeHours[timestamp]['battery_level'],0))}",
-                    'kWh': f"{round(chargeHours[timestamp]['kWh'], 2):.2f}",
-                    "cost": f"{round(chargeHours[timestamp]['Cost'], 2):.2f}",
-                    "unit": f"{round(chargeHours[timestamp]['Price'], 2):.2f}"
+        merged_intervals = []
+        has_combined = False
+        current_interval = None
+        join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split()))) if str1 and str2 else str1 or str2
+        
+        for timestamp, value in sorted_charge_hours:
+            if current_interval is None:
+                current_interval = {
+                    "start": timestamp,
+                    "end": timestamp,
+                    "type": emoji_parse(value),
+                    "percentage": value['battery_level'],
+                    "kWh": round(value['kWh'], 2),
+                    "cost": round(value['Cost'], 2),
+                    "unit": round(value['Price'], 2),
                 }
+            else:
+                if timestamp == current_interval["end"] + datetime.timedelta(hours=1):
+                    has_combined = True
+                    current_interval["end"] = timestamp
+                    current_interval["type"] = join_unique_emojis(current_interval["type"], emoji_parse(value))
+                    current_interval["percentage"] += value['battery_level']
+                    current_interval["kWh"] += round(value['kWh'], 2)
+                    current_interval["cost"] += round(value['Cost'], 2)
+                else:
+                    merged_intervals.append(current_interval)
+                    current_interval = {
+                        "start": timestamp,
+                        "end": timestamp,
+                        "type": emoji_parse(value),
+                        "percentage": value['battery_level'],
+                        "kWh": round(value['kWh'], 2),
+                        "cost": round(value['Cost'], 2),
+                        "unit": round(value['Price'], 2),
+                    }
+        
+        if current_interval:
+            merged_intervals.append(current_interval)
         
         overview.append("## Lade oversigt ##")
         overview.append("<center>\n")
         
-        if charging_plan_list:
+        if merged_intervals:
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
             overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
-            for d in charging_plan_list.values():
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['type'] = f"**{d['type']}**" if d['type'] else ""
-                d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
-                d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
-                d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
-                d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
-                overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
+            for d in merged_intervals:
+                if d['start'].strftime('%H') == d['end'].strftime('%H'):
+                    time_range = f"{d['start'].strftime('%d/%m %H:%M')}"
+                else:
+                    time_range = f"{d['start'].strftime('%d/%m %H')}-{d['end'].strftime('%H:%M')}"
+                
+                overview.append(f"| {d['type']} | **{time_range}** | **{int(round(d['percentage'], 0))}** | **{d['kWh']:.2f}** | **{d['unit']:.2f}** | **{d['cost']:.2f}** |")
             
-            if totalkWh > 0.0:
+            if has_combined:
+                overview.append(f"\n<details><summary><b>Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)</b></summary>")
+                overview.append("\n|  | Tid | % | kWh | Kr/kWh | Pris |")
+                overview.append("|---:|:---:|---:|---:|:---:|---:|")
+                
+                for timestamp, value in sorted_charge_hours:
+                    overview.append(f"| {emoji_parse(value)} | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(value['battery_level'], 0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
+                
+                overview.append("</details>\n")
+            else:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
             
             if USING_OFFLINE_PRICES:
@@ -4314,7 +4354,7 @@ def cheap_grid_charge_hours():
             
             if work_overview and solar_over_production:
                 overview.append("**Nok i solcelle overproduktion**")
-            
+        
         overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan overview: {e}")
