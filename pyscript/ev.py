@@ -1066,9 +1066,9 @@ def get_hours_plan():
                         text_format_start, text_format_end = "~~", "~~"
                         color = not_home_color
                         if timestamp == trip_start:
-                            not_home_start_emoji += CHARGING_PLAN[day]["emoji"]
+                            not_home_start_emoji += emoji_parse({'trip': True})
                         elif timestamp == trip_end:
-                            not_home_end_emoji += CHARGING_PLAN[day]["emoji"]
+                            not_home_end_emoji += emoji_parse({'trip': True})
                         
                 if CHARGING_PLAN[day]["workday"]:
                     workday_start = reset_time_to_hour(CHARGING_PLAN[day]["work_goto"])
@@ -3708,9 +3708,10 @@ def cheap_grid_charge_hours():
                         from_battery_solar = False
                         if charging_plan[day][event_type]:
                             goto_key = 'trip_goto' if event_type == 'trip' else 'work_goto'
-                            event_time = charging_plan[day][goto_key]
+                            event_time_start = charging_plan[day][goto_key]
+                            event_time_end = charging_plan[day]['trip_homecoming'] if event_type == 'trip' else charging_plan[day]['work_homecoming']
                             
-                            if event_time is None or getTime() > event_time:
+                            if event_time_start is None or getTime() > event_time_start:
                                 continue
                             
                             emoji = emoji_parse({'trip': True}) if event_type == 'trip' else charging_plan[day]['emoji']
@@ -3814,7 +3815,9 @@ def cheap_grid_charge_hours():
                                         "data": {
                                             "emoji": emoji_parse({'low_battery': True}),
                                             "day": f"*{getDayOfWeekText(getTime(), translate=True).capitalize()}*",
-                                            "when": f"*{date_to_string(date = getTime(), format = "%d/%m %H:%M")}*",
+                                            "date": f"*{date_to_string(date = getTime(), format = "%d/%m")}*",
+                                            "goto": f"*{date_to_string(date = getTime(), format = "%H:%M")}*",
+                                            "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                             "solar": "",
                                             "battery_needed": diff,
                                             "kwh_needed": percentage_to_kwh(diff, include_charging_loss=True),
@@ -3827,11 +3830,13 @@ def cheap_grid_charge_hours():
                                     cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                             
                             temp_events.append({
-                                "time": event_time,
+                                "time": event_time_start,
                                 "data": {
                                     "emoji": emoji,
-                                    "day": f"*{getDayOfWeekText(event_time, translate=True).capitalize()}*",
-                                    "when": f"*{date_to_string(date = event_time, format = "%d/%m %H:%M")}*",
+                                    "day": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
+                                    "date": f"*{date_to_string(date = event_time_start, format = "%d/%m")}*",
+                                    "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
+                                    "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                     "solar": solar_label,
                                     "battery_needed": battery_level_needed,
                                     "kwh_needed": percentage_to_kwh(battery_level_needed, include_charging_loss=True),
@@ -4576,7 +4581,9 @@ def cheap_grid_charge_hours():
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
                 d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['date'] = f"**{d['date']}**" if d['date'] else ""
+                d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
+                d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
                 d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
@@ -4584,7 +4591,7 @@ def cheap_grid_charge_hours():
                 d['from_battery'] = f"🔋" if d['from_battery'] else ""
                 d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else ""
                 
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
+                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
             overview.append(f"**Ingen kommende arbejdsdag**")
         
