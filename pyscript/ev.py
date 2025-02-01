@@ -4292,19 +4292,17 @@ def cheap_grid_charge_hours():
         overview.append("<center>\n")
         
         if charging_plan_list:
+            overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
+            overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
-            if charging_plan_list:
-                overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
-                overview.append("|---:|:---:|---:|---:|:---:|---:|")
-                
-                for d in charging_plan_list.values():
-                    d['when'] = f"**{d['when']}**" if d['when'] else ""
-                    d['type'] = f"**{d['type']}**" if d['type'] else ""
-                    d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
-                    d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
-                    d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
-                    d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
-                    overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
+            for d in charging_plan_list.values():
+                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['type'] = f"**{d['type']}**" if d['type'] else ""
+                d['percentage'] = f"**{d['percentage']}**" if d['percentage'] else ""
+                d['kWh'] = f"**{d['kWh']}**" if d['kWh'] else ""
+                d['cost'] = f"**{d['cost']}**" if d['cost'] else ""
+                d['unit'] = f"**{d['unit']}**" if d['unit'] else ""
+                overview.append(f"| {d['type']} | {d['when']} | {d['percentage']} | {d['kWh']} | {d['unit']} | {d['cost']} |")
             
             if totalkWh > 0.0:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
