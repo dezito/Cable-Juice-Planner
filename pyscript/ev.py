@@ -67,7 +67,8 @@ from utils import (
     compare_dicts_unique_to_dict1,
     update_dict_with_new_keys,
     limit_dict_size,
-    contains_any)
+    contains_any,
+    check_next_24_hours_diff)
 
 import homeassistant.helpers.sun as sun
 
@@ -975,6 +976,169 @@ def welcome():
 -------------------------------------------------------------------
 '''
 
+# Definer faste prisniveauer og tilhørende farver
+COLOR_THRESHOLDS = [
+    ("price1", "#0064FF"),
+    ("price2", "#0096FF"),
+    ("price3", "#00B496"),
+    ("price4", "#00FA50"),
+    ("price5", "#00FF32"),
+    ("price6", "#00FF00"),
+    ("price7", "#FFFF00"),
+    ("price8", "#FFA500"),
+    ("price9", "#FF5000"),
+    ("price10", "#C81919"),
+    ("price11", "#C800C8"),
+]
+
+def calculate_price_levels(prices):
+    """ Beregner de forskellige prisniveauer baseret på lowest, mean og highest price. """
+    lowest_price = min(prices)
+    highest_price = max(prices)
+    mean_price = sum(prices) / len(prices)
+    step_under = (mean_price - lowest_price) / 5
+    step_over = (highest_price - mean_price) / 5
+
+    return {
+        "price1": lowest_price,
+        "price2": mean_price - step_under * 4,
+        "price3": mean_price - step_under * 3,
+        "price4": mean_price - step_under * 2,
+        "price5": mean_price - step_under * 1,
+        "price6": mean_price,
+        "price7": mean_price + step_over * 1,
+        "price8": mean_price + step_over * 2,
+        "price9": mean_price + step_over * 3,
+        "price10": mean_price + step_over * 4,
+        "price11": highest_price,
+    }
+
+def get_color(price, price_levels):
+    """ Finder den passende farve for en given pris. """
+    for key, color in reversed(COLOR_THRESHOLDS):  # Starter fra højeste pris
+        if price >= price_levels[key]:
+            return color
+    return "#FFFFFF"  # Default farve hvis ingen matcher
+
+def get_hours_plan():
+    output = []
+    
+    if "prices" in LAST_SUCCESSFUL_GRID_PRICES:
+        prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+        if not prices:
+            return output
+
+        # Beregn prisniveauer én gang
+        price_levels = calculate_price_levels(prices.values())
+
+        # Organiser data
+        data = {}
+        now = getTime().replace(minute=0, second=0, microsecond=0)
+        date_objects = set()
+        not_home_color = "#666666"
+        
+        for timestamp, price in prices.items():
+            date_obj = timestamp.date()  # Gem dato som et `datetime.date` objekt
+            date_objects.add(date_obj)  # Tilføj til sorteringssættet
+            date_str = f"{timestamp.strftime('%a')}<br>{timestamp.strftime('%-d/%-m')}"  # Format: 31/1/24
+            time_str = timestamp.strftime("%H:%M")  # Format: 06:00
+            color = get_color(price, price_levels)
+
+            if time_str not in data:
+                data[time_str] = {}
+
+            text_format_start, text_format_end = "**", "**"
+            color_start, color_end = "", ""
+            emojis = ""
+            not_home_start_emoji, not_home_end_emoji = "", ""
+
+            day = daysBetween(now, timestamp)
+            if day in CHARGING_PLAN:
+                if timestamp < now:
+                    text_format_start, text_format_end = "", ""
+                    color = not_home_color
+                    price = ""
+                    
+                if CHARGING_PLAN[day]["trip"]:
+                    trip_start = reset_time_to_hour(CHARGING_PLAN[day]["trip_goto"])
+                    trip_end = reset_time_to_hour(CHARGING_PLAN[day]["trip_homecoming"])
+                    if in_between(timestamp, trip_start, CHARGING_PLAN[day]["trip_homecoming"] + datetime.timedelta(seconds=1)):
+                        text_format_start, text_format_end = "~~", "~~"
+                        color = not_home_color
+                        if timestamp == trip_start:
+                            not_home_start_emoji += emoji_parse({'trip': True})
+                        elif timestamp == trip_end:
+                            not_home_end_emoji += emoji_parse({'trip': True})
+                        
+                if CHARGING_PLAN[day]["workday"]:
+                    workday_start = reset_time_to_hour(CHARGING_PLAN[day]["work_goto"])
+                    workday_end = reset_time_to_hour(CHARGING_PLAN[day]["work_homecoming"])
+                    if in_between(timestamp, workday_start, CHARGING_PLAN[day]["work_homecoming"] + datetime.timedelta(seconds=1)):
+                        text_format_start, text_format_end = "~~", "~~"
+                        color = not_home_color
+                        if timestamp == workday_start:
+                            not_home_start_emoji += CHARGING_PLAN[day]["emoji"]
+                        elif timestamp == workday_end:
+                            not_home_end_emoji += CHARGING_PLAN[day]["emoji"]
+                        
+                for charging_session_timestamp, charging_session in CHARGE_HOURS.items():
+                    if charging_session_timestamp == timestamp:
+                        emojis = emoji_parse(charging_session)
+            
+            if color:
+                color_start, color_end = f'<font color="{color}">', "</font>"
+                        
+            if emojis:
+                emojis = f"<br>{emoji_text_format(emojis, group_size = 2)}"
+                
+            if not_home_start_emoji:
+                not_home_start_emoji = f"{not_home_start_emoji}⤵️<br>"
+                
+            if not_home_end_emoji:
+                not_home_end_emoji = f"<br>{not_home_end_emoji}⤴️"
+                
+            data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
+
+        # Sorter datoer som `datetime.date` og konverter tilbage til str
+        sorted_dates = [f"{d.strftime('%a')}<br>{d.strftime('%-d/%-m')}" for d in sorted(date_objects)]
+        sorted_hours = sorted({t.strftime("%H:%M") for t in prices})
+
+        prices_output = []
+        prices_output.append("### Strøm priser ###")
+        
+        # Opret tabel-header
+        prices_output.append("| " + " | ".join([""] + sorted_dates) + " |")
+        prices_output.append("|" + "|".join([":---:"] * (len(sorted_dates) + 1)) + "|")
+
+        # Tilføj rækker med farvede priser
+        for hour in sorted_hours:
+            row = [f"**{hour}**"] + [data[hour].get(date, "") for date in sorted_dates]
+            prices_output.append("| " + " | ".join(row) + " |")
+
+        output.append("\n".join(prices_output))
+    return output
+
+def get_overview_output():
+    output = [get_attr(f"sensor.{__name__}_overview", "overview", error_state=f"Cant get sensor.{__name__}_overview.overview")]
+    #output.extend(get_hours_plan())
+    
+    return output
+
+def append_overview_output(title = None, timestamp = None):
+    global OVERVIEW_HISTORY
+    
+    if timestamp is None:
+        timestamp = getTime().strftime("%Y-%m-%d %H:%M")
+    
+    key = f"{timestamp} {title}"
+    
+    if key in OVERVIEW_HISTORY:
+        return
+    
+    OVERVIEW_HISTORY[key] = get_overview_output()
+    
+    OVERVIEW_HISTORY = limit_dict_size(OVERVIEW_HISTORY, 10)
+    
 def get_debug_info_sections():
     return {
         "Status and Initialization": {
@@ -1117,6 +1281,14 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
                 if len(content["details"]) > 1:
                     debug_info.append("<br>\n") # Insert an extra line between the dictionaries
         debug_info.append("---")
+    
+    if OVERVIEW_HISTORY:
+        debug_info.append(f"<center>\n\n### Overview History\n</center>\n")
+        for title, overview in sorted(OVERVIEW_HISTORY.items(), reverse=True):
+            debug_info.append("<details>")
+            debug_info.append(f"<summary>{title}: Show snapshot</summary>\n")
+            debug_info.extend(overview)
+            debug_info.append("</details>\n")
 
     # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
@@ -1676,7 +1848,7 @@ def emoji_sorting(text):
 
 def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
-    return emoji_sorting(" ".join(emojis))
+    return emoji_sorting("".join(emojis))
 
 def emoji_text_format(text, group_size = 3):
     words = text.split()
@@ -3010,6 +3182,7 @@ def _charging_history(charging_data = None, charging_type = ""):
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
             "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter']
         }
+        append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
         
         charging_power_to_emulated_battery_level()
         
@@ -3535,9 +3708,10 @@ def cheap_grid_charge_hours():
                         from_battery_solar = False
                         if charging_plan[day][event_type]:
                             goto_key = 'trip_goto' if event_type == 'trip' else 'work_goto'
-                            event_time = charging_plan[day][goto_key]
+                            event_time_start = charging_plan[day][goto_key]
+                            event_time_end = charging_plan[day]['trip_homecoming'] if event_type == 'trip' else charging_plan[day]['work_homecoming']
                             
-                            if event_time is None or getTime() > event_time:
+                            if event_time_start is None or getTime() > event_time_start:
                                 continue
                             
                             emoji = emoji_parse({'trip': True}) if event_type == 'trip' else charging_plan[day]['emoji']
@@ -3641,7 +3815,9 @@ def cheap_grid_charge_hours():
                                         "data": {
                                             "emoji": emoji_parse({'low_battery': True}),
                                             "day": f"*{getDayOfWeekText(getTime(), translate=True).capitalize()}*",
-                                            "when": f"*{date_to_string(date = getTime(), format = "%d/%m %H:%M")}*",
+                                            "date": f"*{date_to_string(date = getTime(), format = "%d/%m")}*",
+                                            "goto": f"*{date_to_string(date = getTime(), format = "%H:%M")}*",
+                                            "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                             "solar": "",
                                             "battery_needed": diff,
                                             "kwh_needed": percentage_to_kwh(diff, include_charging_loss=True),
@@ -3654,11 +3830,13 @@ def cheap_grid_charge_hours():
                                     cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                             
                             temp_events.append({
-                                "time": event_time,
+                                "time": event_time_start,
                                 "data": {
                                     "emoji": emoji,
-                                    "day": f"*{getDayOfWeekText(event_time, translate=True).capitalize()}*",
-                                    "when": f"*{date_to_string(date = event_time, format = "%d/%m %H:%M")}*",
+                                    "day": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
+                                    "date": f"*{date_to_string(date = event_time_start, format = "%d/%m")}*",
+                                    "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
+                                    "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                     "solar": solar_label,
                                     "battery_needed": battery_level_needed,
                                     "kwh_needed": percentage_to_kwh(battery_level_needed, include_charging_loss=True),
@@ -4253,6 +4431,14 @@ def cheap_grid_charge_hours():
     set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
     set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
     
+    old_charge_hours = CHARGE_HOURS.copy()
+    
+    CHARGING_PLAN = charging_plan
+    CHARGE_HOURS = chargeHours
+    
+    if check_next_24_hours_diff(old_charge_hours, chargeHours) and old_charge_hours:
+        append_overview_output("Changing plan changed, next 24 hours updated")
+        
     overview = []
     
     try:
@@ -4344,9 +4530,19 @@ def cheap_grid_charge_hours():
                 for timestamp, value in sorted_charge_hours:
                     overview.append(f"| {emoji_parse(value)} | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(value['battery_level'], 0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
                 
+                if LAST_SUCCESSFUL_GRID_PRICES:
+                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
+                    overview.extend(get_hours_plan())
+                    overview.append("</details>\n")
+                    
                 overview.append("</details>\n")
             else:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
+                
+                if LAST_SUCCESSFUL_GRID_PRICES:
+                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
+                    overview.extend(get_hours_plan())
+                    overview.append("</details>\n")
             
             if USING_OFFLINE_PRICES:
                 overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
@@ -4385,7 +4581,9 @@ def cheap_grid_charge_hours():
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
                 d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['date'] = f"**{d['date']}**" if d['date'] else ""
+                d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
+                d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
                 d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
@@ -4393,7 +4591,7 @@ def cheap_grid_charge_hours():
                 d['from_battery'] = f"🔋" if d['from_battery'] else ""
                 d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else ""
                 
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['when']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
+                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
             overview.append(f"**Ingen kommende arbejdsdag**")
         
@@ -6306,8 +6504,8 @@ if INITIALIZATION_COMPLETE:
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
         check_master_updates()
+        append_overview_output(f"📟{BASENAME} started")
             
-    
     #Fill up and days to charge only 1 allowed
     '''@state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
@@ -6337,6 +6535,9 @@ if INITIALIZATION_COMPLETE:
             
         is_battery_fully_charged()
         set_estimated_range()
+        
+        if var_name == f"input_button.{__name__}_enforce_planning":
+            append_overview_output(f"enforce planning")
 
     @state_trigger(f"input_number.{__name__}_trip_charge_procent")
     @state_trigger(f"input_number.{__name__}_trip_range_needed")
