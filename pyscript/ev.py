@@ -1061,7 +1061,7 @@ def get_hours_plan():
                 if CHARGING_PLAN[day]["trip"]:
                     trip_start = reset_time_to_hour(CHARGING_PLAN[day]["trip_goto"])
                     trip_end = reset_time_to_hour(CHARGING_PLAN[day]["trip_homecoming"])
-                    if in_between(timestamp, trip_start, CHARGING_PLAN[day]["trip_homecoming"] + datetime.timedelta(seconds=1)):
+                    if in_between(timestamp, trip_start, trip_end + datetime.timedelta(seconds=1)):
                         text_format_start, text_format_end = "~~", "~~"
                         color = not_home_color
                         if timestamp == trip_start:
@@ -1072,29 +1072,22 @@ def get_hours_plan():
                 if CHARGING_PLAN[day]["workday"]:
                     workday_start = reset_time_to_hour(CHARGING_PLAN[day]["work_goto"])
                     workday_end = reset_time_to_hour(CHARGING_PLAN[day]["work_homecoming"])
-                    if in_between(timestamp, workday_start, CHARGING_PLAN[day]["work_homecoming"] + datetime.timedelta(seconds=1)):
+                    if in_between(timestamp, workday_start, workday_end + datetime.timedelta(seconds=1)):
                         text_format_start, text_format_end = "~~", "~~"
                         color = not_home_color
                         if timestamp == workday_start:
                             not_home_start_emoji += CHARGING_PLAN[day]["emoji"]
                         elif timestamp == workday_end:
                             not_home_end_emoji += CHARGING_PLAN[day]["emoji"]
-                        
-                for charging_session_timestamp, charging_session in CHARGE_HOURS.items():
-                    if charging_session_timestamp == timestamp:
-                        emojis = emoji_parse(charging_session)
+                
+            emojis = emoji_parse(CHARGE_HOURS.get(timestamp, ""))
             
-            if color:
-                color_start, color_end = f'<font color="{color}">', "</font>"
-                        
-            if emojis:
-                emojis = f"<br>{emoji_text_format(emojis, group_size = 2)}"
-                
-            if not_home_start_emoji:
-                not_home_start_emoji = f"{not_home_start_emoji}⤵️<br>"
-                
-            if not_home_end_emoji:
-                not_home_end_emoji = f"<br>{not_home_end_emoji}⤴️"
+            color_start, color_end = (f'<font color="{color}">', "</font>") if color else ("", "")
+            
+            emojis = f"<br>{emoji_text_format(emojis, group_size=2)}" if emojis else ""
+            
+            not_home_start_emoji = f"{not_home_start_emoji}⤵️<br>" if not_home_start_emoji else ""
+            not_home_end_emoji = f"<br>{not_home_end_emoji}⤴️" if not_home_end_emoji else ""
                 
             data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
 
@@ -1348,10 +1341,10 @@ def is_charger_configured():
     global CHARGER_CONFIGURED
     
     if CHARGER_CONFIGURED is None:
-        if CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and \
-            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and \
-            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and \
-            CONFIG['charger']['entity_ids']['status_entity_id']:
+        if (CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and
+            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and
+            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and
+            CONFIG['charger']['entity_ids']['status_entity_id']):
             CHARGER_CONFIGURED = True
         else:
             CHARGER_CONFIGURED = False
@@ -1382,10 +1375,10 @@ def is_ev_configured():
     _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
     global EV_CONFIGURED
     if EV_CONFIGURED is None:
-        if CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and \
-            CONFIG['ev_car']['entity_ids']['location_entity_id']:
+        if (CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and
+            CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
+            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and
+            CONFIG['ev_car']['entity_ids']['location_entity_id']):
             EV_CONFIGURED = True
         else:
             EV_CONFIGURED = False
@@ -1607,8 +1600,7 @@ def restart_script():
     _LOGGER.info("Restarting script")
     set_charging_rule(f"📟Genstarter scriptet")
     if service.has_service("pyscript", "reload"):
-        service.call("pyscript", "reload", blocking=True,
-                            global_ctx=f"file.{__name__}")
+        service.call("pyscript", "reload", blocking=True, global_ctx=f"file.{__name__}")
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
@@ -1720,47 +1712,36 @@ def init():
         set_charging_rule(f"📟Indlæser konfigurationen")
         
         if is_ev_configured():
-            if f"{__name__}_battery_level" in DEFAULT_ENTITIES['input_number']:
-                del DEFAULT_ENTITIES['input_number'][f'{__name__}_battery_level']
-                
-            if f"{__name__}_completed_battery_level" in DEFAULT_ENTITIES['input_number']:
-                del DEFAULT_ENTITIES['input_number'][f'{__name__}_completed_battery_level']
-                
-            if f"{__name__}_estimated_total_range" in DEFAULT_ENTITIES['input_number']:
-                del DEFAULT_ENTITIES['input_number'][f'{__name__}_estimated_total_range']
+            for key in [f"{__name__}_battery_level", f"{__name__}_completed_battery_level", f"{__name__}_estimated_total_range"]:
+                DEFAULT_ENTITIES['input_number'].pop(key, None)
         else:
-            for key in list(DEFAULT_ENTITIES['input_boolean'].keys()):
-                if "preheat" in key:
-                    if key in DEFAULT_ENTITIES['input_boolean']:
-                        del DEFAULT_ENTITIES['input_boolean'][key]
-                    
-            for key in list(DEFAULT_ENTITIES['input_number'].keys()):
-                if "preheat" in key:
-                    if key in DEFAULT_ENTITIES['input_number']:
-                        del DEFAULT_ENTITIES['input_number'][key]
-                    
-            for key in list(DEFAULT_ENTITIES['sensor'][0]['sensors'].keys()):
-                if "drive_efficiency" in key:
-                    if key in DEFAULT_ENTITIES['sensor'][0]['sensors']:
-                        del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
+            for entity_type in ['input_boolean', 'input_number']:
+                DEFAULT_ENTITIES[entity_type] = {
+                    key: value for key, value in DEFAULT_ENTITIES[entity_type].items() if "preheat" not in key
+                }
+
+            DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
+                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key
+            }
                     
             if f"{__name__}_km_per_kwh" in DEFAULT_ENTITIES['sensor'][0]['sensors']:
                 del DEFAULT_ENTITIES['sensor'][0]['sensors'][f'{__name__}_km_per_kwh']
         
         if not is_solar_configured():
-            if f"{__name__}_solar_charging" in DEFAULT_ENTITIES['input_boolean']:
-                del DEFAULT_ENTITIES['input_boolean'][f"{__name__}_solar_charging"]
-                
-            if f"{__name__}_kwh_charged_by_solar" in DEFAULT_ENTITIES['input_number']:
-                del DEFAULT_ENTITIES['input_number'][f"{__name__}_kwh_charged_by_solar"]
-                
-            if f"{__name__}_solar_sell_fixed_price" in DEFAULT_ENTITIES['input_number']:
-                del DEFAULT_ENTITIES['input_number'][f"{__name__}_solar_sell_fixed_price"]
-                
-            for key in list(DEFAULT_ENTITIES['sensor'][0]['sensors'].keys()):
-                if "solar" in key:
-                    if key in DEFAULT_ENTITIES['sensor'][0]['sensors']:
-                        del DEFAULT_ENTITIES['sensor'][0]['sensors'][key]
+            keys_to_remove = [
+                f"{__name__}_solar_charging",
+                f"{__name__}_kwh_charged_by_solar",
+                f"{__name__}_solar_sell_fixed_price"
+            ]
+
+            for key in keys_to_remove:
+                DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
+                DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+
+            if 'sensor' in DEFAULT_ENTITIES and isinstance(DEFAULT_ENTITIES['sensor'], list) and DEFAULT_ENTITIES['sensor']:
+                DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
+                    key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "solar" not in key
+                }
         
         handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
 
@@ -1824,15 +1805,20 @@ def set_entity_friendlynames():
 
 def emoji_description():
     _LOGGER = globals()['_LOGGER'].getChild("emoji_description")
-    emoji_sorted = {}
-    for nested_dict in CHARGING_TYPES.values():
-        emoji_sorted[float(nested_dict['priority'])] = nested_dict
-    descriptions = ['## Emoji forklaring: ##']
-    for key, nested_dict in sorted(emoji_sorted.items()):
-        descriptions.append(f"* **{nested_dict['emoji']} {nested_dict['description']}**")
-        
+
+    emoji_sorted = sorted(CHARGING_TYPES.values(), key=lambda x: float(x.get('priority', 0)))
+
+    descriptions = ["## Emoji forklaring: ##"] + [
+        f"* **{entry.get('emoji', '❓')} {entry.get('description', 'Ingen beskrivelse')}**"
+        for entry in emoji_sorted
+    ]
+
     _LOGGER.info(f"Setting sensor.{__name__}_emoji_description")
-    set_state(f"sensor.{__name__}_emoji_description", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_emoji_description.attributes.description }}}}")
+
+    set_state(
+        f"sensor.{__name__}_emoji_description",
+        f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_emoji_description.attributes.description }}}}"
+    )
     set_attr(f"sensor.{__name__}_emoji_description.description", "\n".join(descriptions))
 
 def emoji_sorting(text):
@@ -1843,24 +1829,21 @@ def emoji_sorting(text):
             emoji_sorted[emoji_to_priority[emoji]] = emoji
     
     emojis = [emoji for _, emoji in sorted(emoji_sorted.items())]
-    return " ".join(emojis)
+    return "".join(emojis)
 
 def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
     return emoji_sorting("".join(emojis))
 
-def emoji_text_format(text, group_size = 3):
+def emoji_text_format(text, group_size=3):
     words = text.split()
-    result = []
-
-    if len(words) > group_size:
-        for i in range(0, len(words), group_size):
-            # Join two adjacent words, if possible, else just take the single word left
-            pair = ''.join(words[i:i+group_size])
-            result.append(pair)
-        return '<br>'.join(result)
-    else:
+    
+    if len(words) <= group_size:
         return ''.join(words)
+
+    grouped_text = [''.join(words[i:i+group_size]) for i in range(0, len(words), group_size)]
+    
+    return '<br>'.join(grouped_text)
 
 def set_default_entity_states():
     set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
@@ -2042,10 +2025,10 @@ def get_trip_target_level():
     return trip_target_level
 
 def is_trip_planned():
-    if not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or \
-        not is_entity_available(f"input_number.{__name__}_trip_range_needed") or \
-        not is_entity_available(f"input_datetime.{__name__}_trip_date_time") or \
-        not is_entity_available(f"input_datetime.{__name__}_trip_homecoming_date_time"):
+    if (not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or
+        not is_entity_available(f"input_number.{__name__}_trip_range_needed") or
+        not is_entity_available(f"input_datetime.{__name__}_trip_date_time") or
+        not is_entity_available(f"input_datetime.{__name__}_trip_homecoming_date_time")):
             return False
         
     if get_trip_range() == 0.0 and get_trip_target_level() == 0.0:
@@ -2446,6 +2429,11 @@ def set_state_drive_efficiency():
     
     try:
         drive_efficiency = get_list_values(DRIVE_EFFICIENCY_DB)
+        
+        if not drive_efficiency:
+            _LOGGER.warning("DRIVE_EFFICIENCY_DB is empty or contains no valid float values.")
+            return
+        
         set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
         
@@ -2494,21 +2482,23 @@ def save_km_kwh_efficiency():
     
 def set_state_km_kwh_efficiency():
     _LOGGER = globals()['_LOGGER'].getChild("set_state_km_kwh_efficiency")
-    
-    if not is_ev_configured(): return
-    
+
+    if not is_ev_configured():
+        return
+
     try:
         km_kwh_efficiency = get_list_values(KM_KWH_EFFICIENCY_DB)
-        value = km_kwh_efficiency[0] if len(km_kwh_efficiency) > 0 else 3.0
-        
+        value = km_kwh_efficiency[0] if km_kwh_efficiency else 3.0
+
         set_state(f"sensor.{__name__}_km_per_kwh", round(value, 2))
-        km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
-        
-        if km_kwh_mean > 0.0:
+
+        if km_kwh_efficiency:
+            km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} km/kWh - {wh_km_mean:.2f} Wh/km")
-        
-        for item in get_attr(f"sensor.{__name__}_km_per_kwh"):
+
+        existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
+        for item in existing_attributes:
             if "dato" in item:
                 state.delete(f"sensor.{__name__}_km_per_kwh.{item}")
 
@@ -2517,144 +2507,193 @@ def set_state_km_kwh_efficiency():
                 km_kwh = round(item[1], 2)
                 wh_km = round(1000 / km_kwh, 2)
                 set_attr(f"sensor.{__name__}_km_per_kwh.dato_{item[0]}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
-            except:
+            except (IndexError, TypeError):
                 km_kwh = round(item, 2)
                 wh_km = round(1000 / km_kwh, 2)
                 set_attr(f"sensor.{__name__}_km_per_kwh.dato_{i}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
+
         set_estimated_range()
+
     except Exception as e:
-        _LOGGER.error(f"Cant set km/kwh efficiency: {e}")
-        my_persistent_notification(f"Cant set km/kwh efficiency: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_set_state_km_kwh_efficiency")
-    
+        _LOGGER.error(f"Cant set km/kwh efficiency: {e}", exc_info=True)
+        my_persistent_notification(
+            f"Cant set km/kwh efficiency: {e}",
+            f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_set_state_km_kwh_efficiency"
+        )
+
 def set_estimated_range():
     _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
     try:
-        range_per_percentage = km_kwh_to_km_percentage(float(average(get_list_values(KM_KWH_EFFICIENCY_DB))))
-        range_at_battery_level = round(range_per_percentage * battery_level(), 2)
+        efficiency_values = get_list_values(KM_KWH_EFFICIENCY_DB)
+
+        if not efficiency_values:
+            _LOGGER.warning("KM_KWH_EFFICIENCY_DB is empty or contains no valid float values.")
+            return
+
+        avg_efficiency = float(average(efficiency_values))
+        range_per_percentage = km_kwh_to_km_percentage(avg_efficiency)
+
+        if range_per_percentage <= 0:
+            _LOGGER.warning("Calculated range_per_percentage is not valid (<= 0). Skipping update.")
+            return
+
+        battery_lvl = battery_level()
+        range_at_battery_level = round(range_per_percentage * battery_lvl, 2)
         range_total = round(range_per_percentage * 100.0, 2)
-        
-        set_attr(f"input_number.{__name__}_trip_range_needed.max", round(range_total + 100.0, 0)) #Must be above _estimated_range to update attr
+
+        set_attr(f"input_number.{__name__}_trip_range_needed.max", round(range_total + 100.0, 0))
+
         set_state(f"sensor.{__name__}_estimated_range", range_at_battery_level)
         set_attr(f"sensor.{__name__}_estimated_range.total", range_total)
+
     except Exception as e:
-        _LOGGER.warning(f"Cant set estimated range: {e}")
-        my_persistent_notification(f"Cant set estimated range: {e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_estimated_range")
+        _LOGGER.error(f"Cant set estimated range: {e}", exc_info=True)
+        my_persistent_notification(
+            f"Cant set estimated range: {e}",
+            f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_estimated_range"
+        )
             
-def drive_efficiency(state = None):
+def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
-    
+
     def _save_car_stats():
         if is_ev_configured():
-            set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown")))
+            odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
+            set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
+
         set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
-        
-    if len(DRIVE_EFFICIENCY_DB) == 0:
+
+    if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
-        
-    if len(KM_KWH_EFFICIENCY_DB) == 0:
+    if not KM_KWH_EFFICIENCY_DB:
         load_km_kwh_efficiency()
-    
+
     if state == "preheat":
         _save_car_stats()
         PREHEATING = True
+        return
     elif state == "preheat_cancel":
         PREHEATING = False
-    
+        return
+
     if state in ("closed", "off", "unplugged"):
         if not PREHEATING:
             _save_car_stats()
-            
         PREHEATING = False
     elif state in ("open", "on", "plugged", "plugged_waiting_for_charge"):
         if not is_ev_configured():
             distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
             efficiency = 100.0
         else:
-            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"): return
-            if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"): return
-            if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']): return
-            
-            current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
-            last_current_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
-            
-            last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
-            
-            usedBattery = last_battery_level - battery_level()
-            kilometers = current_odometer - last_current_odometer
-            usedkWh = percentage_to_kwh(usedBattery)
-            distancePerkWh = 3.0
-            if usedkWh != 0.0:
-                distancePerkWh = kilometers / usedkWh
-            else:
-                _LOGGER.warning("Used kWh is 0.0 ignoring drive")
+            required_entities = [
+                f"sensor.{__name__}_drive_efficiency_last_odometer",
+                f"sensor.{__name__}_drive_efficiency_last_battery_level",
+                CONFIG['ev_car']['entity_ids']['odometer_entity_id']
+            ]
+            if not all(is_entity_available(ent) for ent in required_entities):
                 return
-            
-            
+
+            current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
+            last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
+            last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+
+            usedBattery = last_battery_level - battery_level()
+            kilometers = current_odometer - last_odometer
+            usedkWh = percentage_to_kwh(usedBattery)
+
+            if usedkWh == 0.0 or usedBattery == 0.0:
+                _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
+                return
+
+            distancePerkWh = kilometers / usedkWh
             distancePerPercentage = kilometers / usedBattery
             cars_distance_per_percentage = round(battery_range() / battery_level(), 2)
             efficiency = abs(round((distancePerPercentage / cars_distance_per_percentage) * 100.0, 2))
-            
+
             _LOGGER.info(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
             _LOGGER.info(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
-            _LOGGER.info(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {round(battery_range() / battery_level(), 2)}")
-            _LOGGER.info(f"efficiency {kilometers} / {usedBattery} = {kilometers / usedBattery}")
-            
-            _LOGGER.debug(f"battery_range(): {battery_range()} battery_level(): {battery_level()} usedBattery:{usedBattery} kilometers:{kilometers} usedkWh:{usedkWh} cars_distance_per_percentage:{cars_distance_per_percentage} distancePerkWh:{distancePerkWh} efficiency:{efficiency}%")
+            _LOGGER.info(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
+            _LOGGER.info(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
+
+            _LOGGER.debug(
+                f"battery_range(): {battery_range()} battery_level(): {battery_level()} "
+                f"usedBattery: {usedBattery} kilometers: {kilometers} usedkWh: {usedkWh} "
+                f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
+            )
+
             if kilometers <= 10.0 or usedBattery <= 5.0:
                 _LOGGER.warning(f"{kilometers}km <= 10.0 or {usedBattery} usedBattery <= 5.0, ignoring drive")
                 return
-            
+
             if efficiency > 150.0:
-                _LOGGER.warning(f"usedBattery:{usedBattery} usedkWh:{usedkWh} kilometers:{kilometers} (start odometer:{get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True)} end odometer:{get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True)})")
-                _LOGGER.warning(f"Efficiency is to high, ignoring it: {efficiency}%")
+                _LOGGER.warning(
+                    f"Efficiency too high: {efficiency}%. Ignoring. "
+                    f"UsedBattery: {usedBattery}, usedkWh: {usedkWh}, kilometers: {kilometers} "
+                    f"(start odometer: {last_odometer}, end odometer: {current_odometer})"
+                )
                 return
-        
+
         DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
         DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
         save_drive_efficiency()
-        
+
         KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
         KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
         save_km_kwh_efficiency()
 
-def range_to_battery_level(extraRange = None, batteryBuffer = None, date = None):
+def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
     _LOGGER = globals()['_LOGGER'].getChild("range_to_battery_level")
+
     minRangeInBatteryLevel = get_min_charge_limit_battery_level()
-    if extraRange is None:
-        extraRange = get_entity_daily_distance(day_text = None, date = date)
-    if batteryBuffer is None:
-        batteryBuffer = get_min_daily_battery_level()
+    extraRange = extraRange if extraRange is not None else get_entity_daily_distance(day_text=None, date=date)
+    batteryBuffer = batteryBuffer if batteryBuffer is not None else get_min_daily_battery_level()
 
     try:
+        if not isinstance(extraRange, (int, float)):
+            raise ValueError(f"extraRange should be a number, but got: {extraRange}")
+
         minRangeInBatteryLevel = round_up(calc_distance_to_battery_level(extraRange)) + batteryBuffer
-        _LOGGER.debug(f"extraRange:{extraRange} minRangeInBatteryLevel:{minRangeInBatteryLevel}")
+        _LOGGER.debug(f"extraRange: {extraRange}, minRangeInBatteryLevel: {minRangeInBatteryLevel}")
+
     except Exception as e:
-        _LOGGER.error(f"extraRange:{extraRange} batteryBuffer:{batteryBuffer} minRangeInBatteryLevel:{minRangeInBatteryLevel}: {e}")
+        _LOGGER.error(
+            f"Error calculating battery level - extraRange: {extraRange}, batteryBuffer: {batteryBuffer}, "
+            f"minRangeInBatteryLevel: {minRangeInBatteryLevel}: {e}"
+        )
+
     return min(minRangeInBatteryLevel, 100.0)
 
-def kwh_needed_for_charging(targetLevel = None, battery = None):
+def kwh_needed_for_charging(targetLevel=None, battery=None):
     _LOGGER = globals()['_LOGGER'].getChild("kwh_needed_for_charging")
-    if targetLevel is None:
-        targetLevel = get_min_daily_battery_level()
-    if battery is None:
-        battery = battery_level()
 
-    kwh = percentage_to_kwh(targetLevel - battery, include_charging_loss = True)
-    _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss kwh:{percentage_to_kwh(targetLevel - battery, include_charging_loss = True)}")
+    targetLevel = targetLevel if targetLevel is not None else get_min_daily_battery_level()
+    battery = battery if battery is not None else battery_level()
+
+    kwh = percentage_to_kwh(targetLevel - battery, include_charging_loss=True)
+    _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss kwh:{percentage_to_kwh(targetLevel - battery, include_charging_loss=True)}")
+
     return max(kwh, 0.0)
 
 def verify_charge_limit(limit):
     _LOGGER = globals()['_LOGGER'].getChild("verify_charge_limit")
-    if is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
-        try:
-            if get_integration(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) in ('kia_uvo', 'cupra_we_connect'):
-                limit = float(round_up((limit / 10)) * 10)
-            
-            limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
-        except Exception as e:
-            _LOGGER.error(e)
-            limit = get_max_recommended_charge_limit_battery_level()
+
+    if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
+        return limit
+
+    try:
+        integration = get_integration(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'])
+        if integration in ('kia_uvo', 'cupra_we_connect'):
+            limit = float(round_up(limit / 10) * 10)
+
+        limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
+
+    except Exception as e:
+        _LOGGER.error(f"Error verifying charge limit: {e}")
+        limit = get_max_recommended_charge_limit_battery_level()
+
     return limit
 
 def reset_current_charging_session():
@@ -3042,53 +3081,66 @@ def charging_history_combine_and_set():
     
 def charging_power_to_emulated_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("charging_power_to_emulated_battery_level")
-    
-    if is_ev_configured(): return
-    
-    global CURRENT_CHARGING_SESSION
-    now = getTime()
-    past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
-    
-    watt = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
-    
-    if watt == 0.0:
-        _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} watt:{watt}")
-    else:
-        if CURRENT_CHARGING_SESSION['start']:
-            current_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
-            added_kwh = round(current_charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
-                
-            if "last_charger_meter" in CURRENT_CHARGING_SESSION:
-                added_kwh = round(current_charger_meter - CURRENT_CHARGING_SESSION['last_charger_meter'], 1)
-            
-            CURRENT_CHARGING_SESSION['last_charger_meter'] = current_charger_meter
-            added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True))
-            current_battery_level = battery_level()
-            new_battery_level = min(round(current_battery_level + added_percentage,0), get_completed_battery_level() - 1.0)
-            _LOGGER.info(f"Adding {added_percentage}% to virtuel battery level from {current_battery_level}% to {new_battery_level}%")
-            
-            set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
 
-def charging_history(charging_data = None, charging_type = ""):
-    _LOGGER = globals()['_LOGGER'].getChild("charging_history")
-    global CHARGING_HISTORY_RUNNING, CHARGING_HISTORY_QUEUE
-    
-    CHARGING_HISTORY_QUEUE.append([charging_data, charging_type])
-    
-    if CHARGING_HISTORY_RUNNING:
-        _LOGGER.warning(f"Queue running already CHARGING_HISTORY_QUEUE: {CHARGING_HISTORY_QUEUE}")
+    if is_ev_configured():
+        return
+
+    global CURRENT_CHARGING_SESSION
+
+    if not CURRENT_CHARGING_SESSION.get('start'):
         return
     
+    now = getTime()
+    past = now - datetime.timedelta(minutes=CONFIG['cron_interval'])
+
+    watt = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+
+    if watt == 0.0:
+        _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION: {CURRENT_CHARGING_SESSION}, watt: {watt}")
+        return
+
+    current_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=0.0))
+    added_kwh = round(current_charger_meter - CURRENT_CHARGING_SESSION.get('start_charger_meter', 0.0), 1)
+
+    if "last_charger_meter" in CURRENT_CHARGING_SESSION:
+        added_kwh = round(current_charger_meter - CURRENT_CHARGING_SESSION['last_charger_meter'], 1)
+
+    CURRENT_CHARGING_SESSION['last_charger_meter'] = current_charger_meter
+    added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss=True))
+
+    current_battery_level = battery_level()
+    completed_battery_level = get_completed_battery_level() - 1.0
+    new_battery_level = min(round(current_battery_level + added_percentage, 0), completed_battery_level)
+
+    _LOGGER.info(f"Adding {added_percentage}% to virtual battery level: {current_battery_level}% → {new_battery_level}%")
+
+    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
+
+def charging_history(charging_data=None, charging_type=""):
+    _LOGGER = globals()['_LOGGER'].getChild("charging_history")
+    global CHARGING_HISTORY_RUNNING, CHARGING_HISTORY_QUEUE
+
+    CHARGING_HISTORY_QUEUE.append([charging_data, charging_type])
+
+    if CHARGING_HISTORY_RUNNING:
+        _LOGGER.warning(f"Queue is already running, current queue size: {len(CHARGING_HISTORY_QUEUE)}")
+        return
+
+    CHARGING_HISTORY_RUNNING = True
+
     try:
-        CHARGING_HISTORY_RUNNING = True
-        
         while CHARGING_HISTORY_QUEUE:
             job = CHARGING_HISTORY_QUEUE.pop(0)
-            _charging_history(charging_data = job[0], charging_type = job[1])
+            _charging_history(charging_data=job[0], charging_type=job[1])
+
     except Exception as e:
-        _LOGGER.error(f"Charging history queue failed  CHARGING_HISTORY_QUEUE: {CHARGING_HISTORY_QUEUE}")
-        _LOGGER.error(f"{e}")
-        my_persistent_notification(f"Charging history queue failed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_queue_failed")
+        _LOGGER.error(f"Charging history queue failed: {e}")
+        my_persistent_notification(
+            f"Charging history queue failed: {e}",
+            f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+        )
+
     finally:
         CHARGING_HISTORY_RUNNING = False
 
@@ -3179,9 +3231,10 @@ def _charging_history(charging_data = None, charging_type = ""):
             "unit": round(charging_data['Price'], 3),
             "charging_session": CURRENT_CHARGING_SESSION,
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-            "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter']
+            "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
+            #"current_overview": ''.join(get_overview_output())
         }
-        append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
+        #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
         
         charging_power_to_emulated_battery_level()
         
@@ -4207,9 +4260,9 @@ def cheap_grid_charge_hours():
                 
                 last_charging = charging_plan[day]['trip_last_charging']
                 
-                if charging_plan[day]['workday'] and \
-                ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or \
-                (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1)):
+                if (charging_plan[day]['workday'] and
+                ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or
+                (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1))):
                     charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour(getTime()))
                     last_charging = charging_plan[day]['trip_last_charging']
 
@@ -4436,7 +4489,7 @@ def cheap_grid_charge_hours():
     CHARGE_HOURS = chargeHours
     
     if check_next_24_hours_diff(old_charge_hours, chargeHours) and old_charge_hours:
-        append_overview_output("Changing plan changed, next 24 hours updated")
+        append_overview_output("Charging plan changed, next 24 hours updated")
         
     overview = []
     
@@ -5668,7 +5721,8 @@ def start_charging(entities = None, force = False):
             elif config_domain == "ev_car":
                 ev_send_command(entity_id, "on")
         else:
-            _LOGGER.warning(f"Entity {entity_id} not available")
+            if entity_id:
+                _LOGGER.warning(f"Entity {entity_id} not available")
 
 def stop_charging(entities = None, force = False):
     _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
@@ -5705,7 +5759,8 @@ def stop_charging(entities = None, force = False):
                 ev_send_command(entity_id, "off")
                 break
         else:
-            _LOGGER.warning(f"Entity {entity_id} not available")
+            if entity_id:
+                _LOGGER.warning(f"Entity {entity_id} not available")
     
 def is_charging():
     _LOGGER = globals()['_LOGGER'].getChild("is_charging")
@@ -6535,8 +6590,8 @@ if INITIALIZATION_COMPLETE:
         is_battery_fully_charged()
         set_estimated_range()
         
-        if var_name == f"input_button.{__name__}_enforce_planning":
-            append_overview_output(f"enforce planning")
+        '''if var_name == f"input_button.{__name__}_enforce_planning":
+            append_overview_output(f"enforce planning")'''
 
     @state_trigger(f"input_number.{__name__}_trip_charge_procent")
     @state_trigger(f"input_number.{__name__}_trip_range_needed")

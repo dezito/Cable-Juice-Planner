@@ -392,22 +392,16 @@ def check_next_24_hours_diff(dict1, dict2):
     now = datetime.datetime.now()
     end_time = now + datetime.timedelta(hours=24)
 
-    differences = {}
+    keys1 = {key for key in dict1 if isinstance(key, datetime.datetime) and now <= key < end_time}
+    keys2 = {key for key in dict2 if isinstance(key, datetime.datetime) and now <= key < end_time}
 
-    # Gather all datetime keys in the next 24 hours from both dictionaries
-    keys = set()
-    for d in (dict1, dict2):
-        for key in d:
-            if isinstance(key, datetime.datetime) and now <= key < end_time:
-                keys.add(key)
+    only_in_dict1 = keys1 - keys2
+    only_in_dict2 = keys2 - keys1
 
-    # Compare values for each key in both dictionaries
-    for key in keys:
-        value1 = dict1.get(key)
-        value2 = dict2.get(key)
-        if value1 != value2:
-            differences[key] = {
-                'dict1': value1,
-                'dict2': value2
-            }
-    return differences
+    if not only_in_dict1 and not only_in_dict2:
+        return {}
+
+    return {
+        'only_in_dict1': list(only_in_dict1),
+        'only_in_dict2': list(only_in_dict2)
+    }
