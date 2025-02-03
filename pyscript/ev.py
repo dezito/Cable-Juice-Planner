@@ -121,6 +121,20 @@ OVERVIEW_HISTORY = {}
 CHARGING_PLAN = {}
 CHARGE_HOURS = {}
 
+COLOR_THRESHOLDS = [
+    ("price1", "#0064FF"),
+    ("price2", "#0096FF"),
+    ("price3", "#00B496"),
+    ("price4", "#00FA50"),
+    ("price5", "#00FF32"),
+    ("price6", "#00FF00"),
+    ("price7", "#FFFF00"),
+    ("price8", "#FFA500"),
+    ("price9", "#FF5000"),
+    ("price10", "#C81919"),
+    ("price11", "#C800C8"),
+]
+
 SOLAR_SELL_TARIFF = {
     "energinets_network_tariff": 0.0030,
     "energinets_balance_tariff": 0.0024,
@@ -975,21 +989,6 @@ def welcome():
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
 -------------------------------------------------------------------
 '''
-
-# Definer faste prisniveauer og tilhørende farver
-COLOR_THRESHOLDS = [
-    ("price1", "#0064FF"),
-    ("price2", "#0096FF"),
-    ("price3", "#00B496"),
-    ("price4", "#00FA50"),
-    ("price5", "#00FF32"),
-    ("price6", "#00FF00"),
-    ("price7", "#FFFF00"),
-    ("price8", "#FFA500"),
-    ("price9", "#FF5000"),
-    ("price10", "#C81919"),
-    ("price11", "#C800C8"),
-]
 
 def calculate_price_levels(prices):
     """ Beregner de forskellige prisniveauer baseret på lowest, mean og highest price. """
