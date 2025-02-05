@@ -1829,11 +1829,11 @@ def emoji_sorting(text):
             emoji_sorted[emoji_to_priority[emoji]] = emoji
     
     emojis = [emoji for _, emoji in sorted(emoji_sorted.items())]
-    return "".join(emojis)
+    return " ".join(emojis)
 
 def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
-    return emoji_sorting("".join(emojis))
+    return emoji_sorting(" ".join(emojis))
 
 def emoji_text_format(text, group_size=3):
     words = text.split()
@@ -4537,7 +4537,7 @@ def cheap_grid_charge_hours():
                     "unit": round(value['Price'], 2),
                 }
             else:
-                if timestamp == current_interval["end"] + datetime.timedelta(hours=1):
+                if timestamp == current_interval["end"] + datetime.timedelta(hours=1) and daysBetween(current_interval["start"], timestamp) == 0:
                     has_combined = True
                     current_interval["end"] = timestamp
                     current_interval["type"] = join_unique_emojis(current_interval["type"], emoji_parse(value))
@@ -4572,7 +4572,7 @@ def cheap_grid_charge_hours():
                 else:
                     time_range = f"{d['start'].strftime('%d/%m %H')}-{d['end'].strftime('%H:%M')}"
                 
-                overview.append(f"| {d['type']} | **{time_range}** | **{int(round(d['percentage'], 0))}** | **{d['kWh']:.2f}** | **{d['unit']:.2f}** | **{d['cost']:.2f}** |")
+                overview.append(f"| {emoji_text_format(d['type'], group_size=3)} | **{time_range}** | **{int(round(d['percentage'], 0))}** | **{d['kWh']:.2f}** | **{d['unit']:.2f}** | **{d['cost']:.2f}** |")
             
             if has_combined:
                 overview.append(f"\n<details><summary><b>Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)</b></summary>")
