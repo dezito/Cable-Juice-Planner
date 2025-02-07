@@ -1204,7 +1204,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         """ Runs a git command and returns output or error """
         try:
             process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={"GIT_CONFIG_GLOBAL": "/dev/null"}
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
             stdout, stderr = process.communicate(timeout=10)
             if process.returncode != 0:
@@ -1215,26 +1215,20 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             raise Exception("Git command timeout")
 
     try:
-        if not file_exists(repo_path):
-            raise Exception(f"Repository not found in config folder ({config_path})")
-
-        # Add repo as a safe directory to prevent ownership errors
-        run_git_command(["git", "config", "--global", "--add", "safe.directory", repo_path])
-
-        # Fetch the latest branch info
+        run_git_command(["git", "-C", repo_path, "config", "--local", "--add", "safe.directory", repo_path])
         run_git_command(["git", "-C", repo_path, "fetch", "origin", "master"])
 
-        # Count commits behind
-        commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
+        total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
 
-        # Get commit log excluding "Merge pull request"
+        merge_commits = run_git_command(["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", "HEAD..origin/master"])
+        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
+
+        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
+
         commit_log_lines = run_git_command(["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]).split("\n")
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
 
-        # Remove "- " if it appears at the beginning of a commit message
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "Ingen ændringer fundet"
-
-        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind, "commit_log": commit_log_md}
-
+        result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
 
@@ -1276,10 +1270,8 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
 
-        # Fetch latest updates
         subprocess.run(["git", "-C", repo_path, "fetch", "--all"], check=True)
 
-        # Check if updates are available
         local_head = subprocess.run(["git", "-C", repo_path, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
         remote_head = subprocess.run(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"], capture_output=True, text=True, check=True).stdout.strip()
 
@@ -1292,28 +1284,37 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        # Reset local branch to match remote
+        total_commits_behind = int(subprocess.run(
+            ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"],
+            capture_output=True, text=True, check=True
+        ).stdout.strip() or "0")
+
+        merge_commits = subprocess.run(
+            ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"],
+            capture_output=True, text=True, check=True
+        ).stdout.strip().split("\n")
+        merge_commit_count = len(merge_commits) if merge_commits[0] else 0
+
+        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
+
         subprocess.run(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"], check=True)
+        subprocess.run(["git", "-C", repo_path, "pull", "--force", "origin", branch], check=True)
 
-        # Pull changes and capture output
-        pull_output = subprocess.run(["git", "-C", repo_path, "pull", "--force", "origin", branch], capture_output=True, text=True, check=True).stdout.strip()
-
-        # Get commit log for pulled changes (excluding "Merge pull request" commits)
         commit_log_lines = subprocess.run(
             ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"],
             capture_output=True, text=True, check=True
         ).stdout.strip().split("\n")
-
-        # Format commit log properly (remove "- " if present at start)
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
         _LOGGER.info("Repository updated successfully.")
         my_persistent_notification(
-            f"🚀 Opdatering gennemført!\n\n**Ændringer hentet fra GitHub:**\n{commit_log_md}",
+            f"🚀 Opdatering gennemført!\n\n📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} bagud**\n\n"
+            f"**Ændringer hentet fra GitHub:**\n{commit_log_md}",
             title=f"{TITLE} Opdatering fuldført",
             persistent_notification_id=f"{__name__}_update_repo"
         )
-
+        task.wait_until(timeout=5)
+        restart_script()
     except subprocess.CalledProcessError as e:
         _LOGGER.error(f"Update failed: {e.stderr}")
         my_persistent_notification(
@@ -1321,7 +1322,6 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Fejl under opdatering",
             persistent_notification_id=f"{__name__}_update_repo"
         )
-
     except Exception as e:
         _LOGGER.error(f"Unexpected error: {str(e)}")
         my_persistent_notification(
