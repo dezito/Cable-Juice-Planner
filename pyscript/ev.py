@@ -6259,6 +6259,10 @@ def solar_charged_percentage():
         return
     
     try:
+        if float(total_ev_kwh) == 0.0:
+            set_state(f"sensor.{__name__}_solar_charged_percentage", 0.0)
+            return
+            
         set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
