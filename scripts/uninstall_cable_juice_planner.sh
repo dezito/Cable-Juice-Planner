@@ -143,3 +143,10 @@ ask_and_delete_databases
 echo -e "${BLUE}------------------------------------------${RESET}"
 echo -e "${BLUE}       Uninstall Process Completed        ${RESET}"
 echo -e "${BLUE}------------------------------------------${RESET}"
+echo -e ""
+echo -e "${YELLOW}Removed these lines from $REPO_DIR/configuration.yaml:${RESET}"
+echo -e "${YELLOW}shell_command:${RESET}"
+echo -e "${YELLOW}  update_cable_juice_planner: \"bash $REPO_DIR/scripts/update_cable_juice_planner.sh\"${RESET}"
+echo -e ""
+echo -e "${YELLOW}Please restart Home Assistant to complete the uninstall.${RESET}"
+read -p "Press any key to continue... " -n1 -s
