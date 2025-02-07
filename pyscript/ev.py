@@ -1263,7 +1263,73 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Opdateringstjek",
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
- 
+
+@service(f"pyscript.{__name__}_update_repo")
+def update_repo(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("update_repo")
+
+    # Get Home Assistant's config folder
+    config_path = get_config_folder()
+    repo_path = f"{config_path}/Cable-Juice-Planner"
+    branch = kwargs.get("branch", "master")
+
+    try:
+        _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
+
+        # Fetch latest updates
+        subprocess.run(["git", "-C", repo_path, "fetch", "--all"], check=True)
+
+        # Check if updates are available
+        local_head = subprocess.run(["git", "-C", repo_path, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        remote_head = subprocess.run(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"], capture_output=True, text=True, check=True).stdout.strip()
+
+        if local_head == remote_head:
+            _LOGGER.info("No updates available.")
+            my_persistent_notification(
+                "✅ Ingen opdateringer tilgængelige",
+                title=f"{TITLE} Opdateringstjek",
+                persistent_notification_id=f"{__name__}_update_repo"
+            )
+            return
+
+        # Reset local branch to match remote
+        subprocess.run(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"], check=True)
+
+        # Pull changes and capture output
+        pull_output = subprocess.run(["git", "-C", repo_path, "pull", "--force", "origin", branch], capture_output=True, text=True, check=True).stdout.strip()
+
+        # Get commit log for pulled changes (excluding "Merge pull request" commits)
+        commit_log_lines = subprocess.run(
+            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"],
+            capture_output=True, text=True, check=True
+        ).stdout.strip().split("\n")
+
+        # Format commit log properly (remove "- " if present at start)
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
+
+        _LOGGER.info("Repository updated successfully.")
+        my_persistent_notification(
+            f"🚀 Opdatering gennemført!\n\n**Ændringer hentet fra GitHub:**\n{commit_log_md}",
+            title=f"{TITLE} Opdatering fuldført",
+            persistent_notification_id=f"{__name__}_update_repo"
+        )
+
+    except subprocess.CalledProcessError as e:
+        _LOGGER.error(f"Update failed: {e.stderr}")
+        my_persistent_notification(
+            f"⚠️ Opdateringsfejl: {e.stderr.strip()}",
+            title=f"{TITLE} Fejl under opdatering",
+            persistent_notification_id=f"{__name__}_update_repo"
+        )
+
+    except Exception as e:
+        _LOGGER.error(f"Unexpected error: {str(e)}")
+        my_persistent_notification(
+            f"⚠️ Uventet fejl: {str(e)}",
+            title=f"{TITLE} Fejl under opdatering",
+            persistent_notification_id=f"{__name__}_update_repo"
+        )
+
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("debug_info")
