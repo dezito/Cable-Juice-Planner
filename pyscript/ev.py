@@ -1199,54 +1199,71 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     config_path = get_config_folder()
     repo_path = f"{config_path}/Cable-Juice-Planner"
     result = {"has_updates": False, "commits_behind": 0}
-    try:
-        if not file_exists(repo_path):
-            raise Exception(f"Cable-Juice-Planner repository folder not found in config folder({config_path})")
-        
-        # Synkront subprocess-kald
-        process = subprocess.Popen(
-            ["git", "-C", repo_path, "remote", "show", "origin"],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+
+    def run_git_command(cmd):
+        """ Runs a git command and returns output or error """
         try:
-            stdout, _ = process.communicate(timeout=10)
+            process = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env={"GIT_CONFIG_GLOBAL": "/dev/null"}
+            )
+            stdout, stderr = process.communicate(timeout=10)
+            if process.returncode != 0:
+                raise Exception(stderr.strip())
+            return stdout.strip()
         except subprocess.TimeoutExpired:
             process.kill()
-            result = {"has_updates": False, "commits_behind": 0, "error": "Timeout expired"}
-            raise
+            raise Exception("Git command timeout")
 
-        commits_behind = 0
-        for line in stdout.splitlines():
-            if "master" in line and "(local out of date)" in line:
-                commits_behind += 1
-            elif "master is behind by" in line:
-                commits_behind = int(line.split("by")[1].split("commits")[0].strip())
-                break
+    try:
+        if not file_exists(repo_path):
+            raise Exception(f"Repository not found in config folder ({config_path})")
 
-        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind}
+        # Add repo as a safe directory to prevent ownership errors
+        run_git_command(["git", "config", "--global", "--add", "safe.directory", repo_path])
+
+        # Fetch the latest branch info
+        run_git_command(["git", "-C", repo_path, "fetch", "origin", "master"])
+
+        # Count commits behind
+        commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
+
+        # Get commit log excluding "Merge pull request"
+        commit_log_lines = run_git_command(["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]).split("\n")
+
+        # Remove "- " if it appears at the beginning of a commit message
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "Ingen ændringer fundet"
+
+        result = {"has_updates": commits_behind > 0, "commits_behind": commits_behind, "commit_log": commit_log_md}
+
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
-    
+
     _LOGGER.info(f"Check master updates: {result}")
+
     if result["has_updates"]:
+        _LOGGER.info(f"New version available: {result['commits_behind']} commits behind")
         my_persistent_notification(
-            f"Ny version tilgængelig\nNuværende version er {result['commits_behind']} version{'er' if result['commits_behind'] > 1 else ''} bagud",
-            title=f"{TITLE} opdatering tilgængelig",
+            f"**Ny version tilgængelig**\n\n"
+            f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} bagud**\n\n"
+            f"**Ændringer:**\n{result['commit_log']}",
+            title=f"{TITLE} Opdatering tilgængelig",
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
     elif "error" in result:
+        _LOGGER.error(f"Could not check for updates: {result['error']}")
         my_persistent_notification(
-            f"Kan ikke tjekke efter opdateringer: {result['error']}",
-            title=f"{TITLE} fejl",
+            f"⚠️ Kan ikke tjekke efter opdateringer: {result['error']}",
+            title=f"{TITLE} Fejl",
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
     elif trigger_type == "service":
+        _LOGGER.info("No updates available")
         my_persistent_notification(
-            f"Ingen opdateringer tilgængelig",
-            title=f"{TITLE} opdatering tjek",
+            "✅ Ingen opdateringer tilgængelige",
+            title=f"{TITLE} Opdateringstjek",
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
-        
+ 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("debug_info")
