@@ -5745,7 +5745,7 @@ def ready_to_charge():
         return True
     elif charger_status in ("awaiting_authorization", "awaiting_start") and not ev_power_connected():
         _LOGGER.info("Charger cable connected, but car not updated")
-        set_charging_rule(f"⚠️Lader kabel forbundet, men bilen ikke opdateret<br>Prøver at vække bilen")
+        set_charging_rule(f"⚠️Lader kabel forbundet, men bilen ikke opdateret\nPrøver at vække bilen")
         wake_up_ev()
         return True #Test to charge anyway
     else:
@@ -5764,13 +5764,13 @@ def ready_to_charge():
             #TODO check charger_connector on monta
             if charger_connector != "on" and ev_charger_connector not in ("on", "plugged", "plugged_waiting_for_charge"):
                 _LOGGER.info("Charger cable is Disconnected")
-                set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen<br>Prøver at vække bilen")
+                set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen\nPrøver at vække bilen")
                 wake_up_ev()
                 return True #Test to charge anyway
             
             if not ev_power_connected():
                 _LOGGER.info("Chargeport not open")
-                set_charging_rule(f"⚠️Elbilens ladeport er ikke åben<br>Prøver at vække bilen")
+                set_charging_rule(f"⚠️Elbilens ladeport er ikke åben\nPrøver at vække bilen")
                 wake_up_ev()
                 return True #Test to charge anyway
             
