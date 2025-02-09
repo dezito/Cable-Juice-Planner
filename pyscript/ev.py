@@ -6820,7 +6820,7 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            if value not in ("open", "closed", "on", "off", "plugged", "plugged_waiting_for_charge", "unplugged"): return
+            if value not in ("open", "closed", "on", "off", "plugged", "plugged_waiting_for_charge", "unplugged", "connected", "disconnected"): return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
