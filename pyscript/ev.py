@@ -2661,6 +2661,8 @@ def drive_efficiency(state=None):
     if not KM_KWH_EFFICIENCY_DB:
         load_km_kwh_efficiency()
 
+    state = str(state).lower()
+    
     try:
         if state == "preheat":
             _save_car_stats()
@@ -2670,11 +2672,11 @@ def drive_efficiency(state=None):
             PREHEATING = False
             return
 
-        if state in ("closed", "off", "unplugged"):
+        if state in ("closed", "off", "unplugged", "disconnected"):
             if not PREHEATING:
                 _save_car_stats()
             PREHEATING = False
-        elif state in ("open", "on", "plugged", "plugged_waiting_for_charge"):
+        elif state in ("open", "on", "plugged", "plugged_waiting_for_charge", "connected"):
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
                 efficiency = 100.0
