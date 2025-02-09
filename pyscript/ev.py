@@ -5105,7 +5105,7 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
     ev_charge_after_powerwall_battery_level = 0.0
     
     if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']), error_state=100.0)
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
         ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         
         if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
