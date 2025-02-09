@@ -2654,78 +2654,85 @@ def drive_efficiency(state=None):
     if not KM_KWH_EFFICIENCY_DB:
         load_km_kwh_efficiency()
 
-    if state == "preheat":
-        _save_car_stats()
-        PREHEATING = True
-        return
-    elif state == "preheat_cancel":
-        PREHEATING = False
-        return
-
-    if state in ("closed", "off", "unplugged"):
-        if not PREHEATING:
+    try:
+        if state == "preheat":
             _save_car_stats()
-        PREHEATING = False
-    elif state in ("open", "on", "plugged", "plugged_waiting_for_charge"):
-        if not is_ev_configured():
-            distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
-            efficiency = 100.0
-        else:
-            required_entities = [
-                f"sensor.{__name__}_drive_efficiency_last_odometer",
-                f"sensor.{__name__}_drive_efficiency_last_battery_level",
-                CONFIG['ev_car']['entity_ids']['odometer_entity_id']
-            ]
-            if not all(is_entity_available(ent) for ent in required_entities):
-                return
+            PREHEATING = True
+            return
+        elif state == "preheat_cancel":
+            PREHEATING = False
+            return
 
-            current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
-            last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
-            last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+        if state in ("closed", "off", "unplugged"):
+            if not PREHEATING:
+                _save_car_stats()
+            PREHEATING = False
+        elif state in ("open", "on", "plugged", "plugged_waiting_for_charge"):
+            if not is_ev_configured():
+                distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
+                efficiency = 100.0
+            else:
+                if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"):
+                    raise Exception(f"sensor.{__name__}_drive_efficiency_last_odometer is not available, ignoring drive")
+                if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
+                    raise Exception(f"sensor.{__name__}_drive_efficiency_last_battery_level is not available, ignoring drive")
+                if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
+                    raise Exception(f"{CONFIG['ev_car']['entity_ids']['odometer_entity_id']} is not available, ignoring drive")
 
-            usedBattery = last_battery_level - battery_level()
-            kilometers = current_odometer - last_odometer
-            usedkWh = percentage_to_kwh(usedBattery)
+                current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
+                last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
+                last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
 
-            if usedkWh == 0.0 or usedBattery == 0.0:
-                _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
-                return
+                usedBattery = last_battery_level - battery_level()
+                kilometers = current_odometer - last_odometer
+                usedkWh = percentage_to_kwh(usedBattery)
 
-            distancePerkWh = kilometers / usedkWh
-            distancePerPercentage = kilometers / usedBattery
-            cars_distance_per_percentage = round(battery_range() / battery_level(), 2)
-            efficiency = abs(round((distancePerPercentage / cars_distance_per_percentage) * 100.0, 2))
+                if usedkWh == 0.0 or usedBattery == 0.0:
+                    _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
+                    return
 
-            _LOGGER.info(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
-            _LOGGER.info(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
-            _LOGGER.info(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
-            _LOGGER.info(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
+                distancePerkWh = kilometers / usedkWh
+                distancePerPercentage = kilometers / usedBattery
+                cars_distance_per_percentage = round(battery_range() / battery_level(), 2)
+                efficiency = abs(round((distancePerPercentage / cars_distance_per_percentage) * 100.0, 2))
 
-            _LOGGER.debug(
-                f"battery_range(): {battery_range()} battery_level(): {battery_level()} "
-                f"usedBattery: {usedBattery} kilometers: {kilometers} usedkWh: {usedkWh} "
-                f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
-            )
+                _LOGGER.info(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
+                _LOGGER.info(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
+                _LOGGER.info(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
+                _LOGGER.info(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
 
-            if kilometers <= 10.0 or usedBattery <= 5.0:
-                _LOGGER.warning(f"{kilometers}km <= 10.0 or {usedBattery} usedBattery <= 5.0, ignoring drive")
-                return
-
-            if efficiency > 150.0:
-                _LOGGER.warning(
-                    f"Efficiency too high: {efficiency}%. Ignoring. "
-                    f"UsedBattery: {usedBattery}, usedkWh: {usedkWh}, kilometers: {kilometers} "
-                    f"(start odometer: {last_odometer}, end odometer: {current_odometer})"
+                _LOGGER.debug(
+                    f"battery_range(): {battery_range()} battery_level(): {battery_level()} "
+                    f"usedBattery: {usedBattery} kilometers: {kilometers} usedkWh: {usedkWh} "
+                    f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
                 )
-                return
 
-        DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
-        DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
-        save_drive_efficiency()
+                if kilometers <= 10.0 or usedBattery <= 5.0:
+                    _LOGGER.warning(f"{kilometers}km <= 10.0 or {usedBattery} usedBattery <= 5.0, ignoring drive")
+                    return
 
-        KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
-        KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
-        save_km_kwh_efficiency()
+                if efficiency > 150.0:
+                    _LOGGER.warning(
+                        f"Efficiency too high: {efficiency}%. Ignoring. "
+                        f"UsedBattery: {usedBattery}, usedkWh: {usedkWh}, kilometers: {kilometers} "
+                        f"(start odometer: {last_odometer}, end odometer: {current_odometer})"
+                    )
+                    return
+
+            DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
+            DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
+            save_drive_efficiency()
+
+            KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
+            KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
+            save_km_kwh_efficiency()
+    except Exception as e:
+        _LOGGER.error(f"Error in drive_efficiency: {e}")
+        my_persistent_notification(
+            f"Error in drive_efficiency:\n{e}",
+            f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_drive_efficiency"
+        )
 
 def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
     _LOGGER = globals()['_LOGGER'].getChild("range_to_battery_level")
