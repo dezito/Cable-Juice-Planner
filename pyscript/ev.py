@@ -1215,7 +1215,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             raise Exception("Git command timeout")
 
     try:
-        run_git_command(["git", "-C", repo_path, "config", "--local", "--add", "safe.directory", repo_path])
+        run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
         run_git_command(["git", "-C", repo_path, "fetch", "origin", "master"])
 
         total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
