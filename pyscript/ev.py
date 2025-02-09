@@ -381,6 +381,7 @@ DEFAULT_CONFIG = {
         "entity_ids": {
             "power_consumption_entity_id": "",
             "powerwall_watt_flow_entity_id": "",
+            "powerwall_battery_level_entity_id": "",
             "ignore_consumption_from_entity_ids": []
         },
     },
@@ -402,7 +403,8 @@ DEFAULT_CONFIG = {
         "charging_single_phase_min_amp": 6.0,
         "charging_single_phase_max_amp": 16.0,
         "charging_three_phase_min_amp": 5.0,
-        "production_price": -1.00
+        "production_price": -1.00,
+        "ev_charge_after_powerwall_battery_level": 0.0
     },
     "testing_mode": False
 }
@@ -451,6 +453,8 @@ COMMENT_DB_YAML = {
     "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
     "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
     "powerwall_watt_flow_entity_id": "Powerwall watt flow (Entity setup plus value for discharging, negative for charging)",
+    "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
+    "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
     "production_entity_id": "Solar power production Watt",
@@ -1711,8 +1715,8 @@ def init():
 
         updated, content = update_dict_with_new_keys(content, default_content, check_nested_keys=check_nested_keys)
         if updated:
-            if "first_run" in content and "config.yaml" in file_path:
-                content['first_run'] = True
+            '''if "first_run" in content and "config.yaml" in file_path:
+                content['first_run'] = True'''
             save_yaml(file_path, content, comment_db)
             
         if key_renaming:
@@ -1776,10 +1780,13 @@ def init():
                 
         if updated:
             msg = f"{'Config' if "config.yaml" in file_path else 'Entities package'} updated."
+            
             if check_first_run:
                 msg += " Set first_run to false and reload."
             msg += " Please restart Home Assistant to apply changes."
-            raise Exception(msg)
+            
+            if ("first_run" in content and content['first_run']) or "config.yaml" not in file_path:
+                raise Exception(msg)
 
         if prompt_restart and (updated or deprecated_keys):
             raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
@@ -5012,31 +5019,47 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
         _LOGGER.warning(f"Cant get ignore values from {from_time_stamp} to {to_time_stamp}: {e}")
     return round(total, 2)
 
-def power_from_powerwall(from_time_stamp, to_time_stamp):
-    _LOGGER = globals()['_LOGGER'].getChild("power_from_powerwall")
+def charge_from_powerwall(from_time_stamp, to_time_stamp):
+    _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
     
-    powerwall_charging = 0.0
+    powerwall_discharging_consumption = 0.0
     
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_charging = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
-    return powerwall_charging
+    return powerwall_discharging_consumption
+
+def discharge_from_powerwall(from_time_stamp, to_time_stamp):
+    _LOGGER = globals()['_LOGGER'].getChild("discharge_from_powerwall")
+    
+    powerwall_discharging_consumption = 0.0
+    
+    try:
+        if is_powerwall_configured():
+            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
+            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
+        
+    return powerwall_discharging_consumption
 
 def power_values(from_time_stamp, to_time_stamp):
     power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2)) if is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']) else 0.0
     ignored_consumption = abs(power_from_ignored(from_time_stamp, to_time_stamp))
-    powerwall_charging = power_from_powerwall(from_time_stamp, to_time_stamp)
+    powerwall_charging_consumption = charge_from_powerwall(from_time_stamp, to_time_stamp)
+    powerwall_discharging_consumption = discharge_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     
     return {
         "power_consumption": power_consumption,
         "ignored_consumption": ignored_consumption,
-        "powerwall_charging": powerwall_charging,
+        "powerwall_charging_consumption": powerwall_charging_consumption,
+        "powerwall_discharging_consumption": powerwall_discharging_consumption,
         "ev_used_consumption": ev_used_consumption,
         "solar_production": solar_production,
     }
@@ -5063,12 +5086,13 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
     values = power_values(from_time_stamp, to_time_stamp)
     power_consumption = values['power_consumption']
     ignored_consumption = values['ignored_consumption']
-    powerwall_charging = values['powerwall_charging']
+    powerwall_charging_consumption = values['powerwall_charging_consumption']
+    powerwall_discharging_consumption = values['powerwall_discharging_consumption']
     ev_used_consumption = values['ev_used_consumption']
     solar_production = values['solar_production']
-
+    
     power_consumption_without_ignored = round(power_consumption - ignored_consumption, 2)
-    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_charging, 2)
+    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_discharging_consumption, 2)
     power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
 
     if withoutEV:
@@ -5077,6 +5101,21 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         solar_production_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
     solar_production_available = max(solar_production_available, 0.0)
 
+    powerwall_battery_level = 100.0
+    ev_charge_after_powerwall_battery_level = 0.0
+    
+    if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']), error_state=100.0)
+        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
+        
+        if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
+            _LOGGER.info(f"DEBUG Powerwall battery level is below {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
+            _LOGGER.info(f"DEBUG max({solar_production_available} - {powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
+            solar_production_available = max(solar_production_available - powerwall_charging_consumption, 0.0)
+        else:
+            _LOGGER.info(f"DEBUG Powerwall battery level is above {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
+            _LOGGER.info(f"DEBUG powerwall_charging_consumption:{powerwall_charging_consumption} solar_production_available:{solar_production_available}")
+        
     '''if timeTo is not None:
         txt = "without" if withoutEV else "with"
         _LOGGER.info(f"sum period:{timeFrom}-{timeTo} {txt} EV, solar_production_available:{solar_production_available}")
@@ -5088,13 +5127,18 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging", powerwall_charging)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_powerwall", power_consumption_without_ignored_powerwall)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_production_available)
+        
+        if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and ev_charge_after_powerwall_battery_level:
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available_without_powerwall_charging", solar_production_available + powerwall_charging_consumption)
 
     return solar_production_available
 
