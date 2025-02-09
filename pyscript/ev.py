@@ -1711,8 +1711,8 @@ def init():
 
         updated, content = update_dict_with_new_keys(content, default_content, check_nested_keys=check_nested_keys)
         if updated:
-            if "first_run" in content and "config.yaml" in file_path:
-                content['first_run'] = True
+            '''if "first_run" in content and "config.yaml" in file_path:
+                content['first_run'] = True'''
             save_yaml(file_path, content, comment_db)
             
         if key_renaming:
@@ -1776,10 +1776,13 @@ def init():
                 
         if updated:
             msg = f"{'Config' if "config.yaml" in file_path else 'Entities package'} updated."
+            
             if check_first_run:
                 msg += " Set first_run to false and reload."
             msg += " Please restart Home Assistant to apply changes."
-            raise Exception(msg)
+            
+            if ("first_run" in content and content['first_run']) or "config.yaml" not in file_path:
+                raise Exception(msg)
 
         if prompt_restart and (updated or deprecated_keys):
             raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
