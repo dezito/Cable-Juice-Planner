@@ -3013,10 +3013,14 @@ def charging_history_combine_and_set():
                 unit = d['unit']
                 start_charger_meter = None
                 end_charger_meter = None
+                odometer = None
                 
                 if "start_charger_meter" in d and "end_charger_meter" in d:
                     start_charger_meter = d["start_charger_meter"]
                     end_charger_meter = d["end_charger_meter"]
+                    
+                if "odometer" in d:
+                    odometer = d["odometer"]
                 
                 from_to = "-"
                 
@@ -3050,6 +3054,10 @@ def charging_history_combine_and_set():
                             
                             if "start_charger_meter" in next_d:
                                 start_charger_meter = next_d["start_charger_meter"]
+                            
+                            if "odometer" in next_d:
+                                if odometer:
+                                    odometer = min(odometer, next_d["odometer"])
                                 
                             skip_counter += 1
                         else:
@@ -3070,8 +3078,12 @@ def charging_history_combine_and_set():
                 if start_charger_meter is not None and end_charger_meter is not None:
                     combined_db[started]["start_charger_meter"] = start_charger_meter
                     combined_db[started]["end_charger_meter"] = end_charger_meter
+                    
+                if odometer is not None:
+                    combined_db[started]["odometer"] = odometer
                 
-                if charging_session: combined_db[started]["charging_session"] = charging_session
+                if charging_session:
+                    combined_db[started]["charging_session"] = charging_session
                 
                 if append_counter <= max_history_length:
                     ended_hour = int(ended.split(":")[0]) if ended != ">" and len(ended) > 0 else getHour()
@@ -3337,8 +3349,11 @@ def _charging_history(charging_data = None, charging_type = ""):
             "charging_session": CURRENT_CHARGING_SESSION,
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
             "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-            #"current_overview": ''.join(get_overview_output())
         }
+        if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
+            odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
+            if odometer:
+                CHARGING_HISTORY_DB[start]["odometer"] = int(odometer)
         #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
         
         charging_power_to_emulated_battery_level()
