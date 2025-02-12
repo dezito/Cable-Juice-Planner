@@ -3468,9 +3468,12 @@ def cheap_grid_charge_hours():
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
             my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
 
+            USING_OFFLINE_PRICES = True
             missing_hours = {}
             try:
-                USING_OFFLINE_PRICES = True
+                if "history" not in KWH_AVG_PRICES_DB:
+                    raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
+                
                 for h in range(24):
                     for d in range(7):
                         if d not in KWH_AVG_PRICES_DB['history'][h]:
