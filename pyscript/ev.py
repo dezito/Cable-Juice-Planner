@@ -105,6 +105,8 @@ CHARGING_ALLOWED_AFTER_GOTO_TIME = -120 #Negative value in minutes
 CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
 
+POWERWALL_CHARGING_TEXT = ""
+
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
@@ -1656,6 +1658,8 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
 
 def set_charging_rule(text=""):
     _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
+    global POWERWALL_CHARGING_TEXT, RESTARTING_CHARGER_COUNT, TESTING
+    
     if RESTARTING_CHARGER_COUNT < 3:
         testing = "🧪" if TESTING else ""
         
@@ -1677,8 +1681,10 @@ def set_charging_rule(text=""):
         if integration_limited_daily:
             limit_string += f"\n🚧Dagliggrænse nået {' & '.join(integration_limited_daily)}"
         
+        powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
+        
         try:
-            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}")
+            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}{powerwall_sting}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
             
@@ -5068,6 +5074,7 @@ def power_values(from_time_stamp, to_time_stamp):
     
 def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_production_available")
+    global POWERWALL_CHARGING_TEXT
     
     if not is_solar_configured(): return 0.0
     
@@ -5112,11 +5119,13 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         
         if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
             _LOGGER.info(f"DEBUG Powerwall battery level is below {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
-            _LOGGER.info(f"DEBUG max({solar_production_available} - {powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
+            _LOGGER.info(f"DEBUG max(solar_production_available:{solar_production_available} - powerwall_charging_consumption:{powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
             solar_production_available = max(solar_production_available - powerwall_charging_consumption, 0.0)
+            POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
         else:
             _LOGGER.info(f"DEBUG Powerwall battery level is above {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
             _LOGGER.info(f"DEBUG powerwall_charging_consumption:{powerwall_charging_consumption} solar_production_available:{solar_production_available}")
+            POWERWALL_CHARGING_TEXT = ""
         
     '''if timeTo is not None:
         txt = "without" if withoutEV else "with"
