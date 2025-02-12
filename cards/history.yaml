@@ -22,6 +22,10 @@ cards:
           padding-bottom: 10px !important;
           padding-top: 10px !important;
           }
+          .primary {
+            text-align: center !important;
+            white-space: pre-wrap !important;
+          }
   - type: conditional
     conditions:
       - condition: numeric_state
