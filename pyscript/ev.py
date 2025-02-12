@@ -2620,6 +2620,10 @@ def set_state_km_kwh_efficiency():
 
 def set_estimated_range():
     _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
+    
+    if not is_ev_configured():
+        return
+    
     try:
         efficiency_values = get_list_values(KM_KWH_EFFICIENCY_DB)
 
