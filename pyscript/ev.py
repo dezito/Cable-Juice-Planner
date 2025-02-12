@@ -105,6 +105,8 @@ CHARGING_ALLOWED_AFTER_GOTO_TIME = -120 #Negative value in minutes
 CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
 
+POWERWALL_CHARGING_TEXT = ""
+
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
@@ -1656,6 +1658,8 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
 
 def set_charging_rule(text=""):
     _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
+    global POWERWALL_CHARGING_TEXT, RESTARTING_CHARGER_COUNT, TESTING
+    
     if RESTARTING_CHARGER_COUNT < 3:
         testing = "🧪" if TESTING else ""
         
@@ -1677,8 +1681,10 @@ def set_charging_rule(text=""):
         if integration_limited_daily:
             limit_string += f"\n🚧Dagliggrænse nået {' & '.join(integration_limited_daily)}"
         
+        powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
+        
         try:
-            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}")
+            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}{powerwall_sting}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
             
@@ -2614,6 +2620,10 @@ def set_state_km_kwh_efficiency():
 
 def set_estimated_range():
     _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
+    
+    if not is_ev_configured():
+        return
+    
     try:
         efficiency_values = get_list_values(KM_KWH_EFFICIENCY_DB)
 
@@ -3007,10 +3017,14 @@ def charging_history_combine_and_set():
                 unit = d['unit']
                 start_charger_meter = None
                 end_charger_meter = None
+                odometer = None
                 
                 if "start_charger_meter" in d and "end_charger_meter" in d:
                     start_charger_meter = d["start_charger_meter"]
                     end_charger_meter = d["end_charger_meter"]
+                    
+                if "odometer" in d:
+                    odometer = d["odometer"]
                 
                 from_to = "-"
                 
@@ -3044,6 +3058,10 @@ def charging_history_combine_and_set():
                             
                             if "start_charger_meter" in next_d:
                                 start_charger_meter = next_d["start_charger_meter"]
+                            
+                            if "odometer" in next_d:
+                                if odometer:
+                                    odometer = min(odometer, next_d["odometer"])
                                 
                             skip_counter += 1
                         else:
@@ -3064,8 +3082,12 @@ def charging_history_combine_and_set():
                 if start_charger_meter is not None and end_charger_meter is not None:
                     combined_db[started]["start_charger_meter"] = start_charger_meter
                     combined_db[started]["end_charger_meter"] = end_charger_meter
+                    
+                if odometer is not None:
+                    combined_db[started]["odometer"] = odometer
                 
-                if charging_session: combined_db[started]["charging_session"] = charging_session
+                if charging_session:
+                    combined_db[started]["charging_session"] = charging_session
                 
                 if append_counter <= max_history_length:
                     ended_hour = int(ended.split(":")[0]) if ended != ">" and len(ended) > 0 else getHour()
@@ -3331,8 +3353,11 @@ def _charging_history(charging_data = None, charging_type = ""):
             "charging_session": CURRENT_CHARGING_SESSION,
             "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
             "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-            #"current_overview": ''.join(get_overview_output())
         }
+        if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
+            odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
+            if odometer:
+                CHARGING_HISTORY_DB[start]["odometer"] = int(odometer)
         #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
         
         charging_power_to_emulated_battery_level()
@@ -3462,9 +3487,12 @@ def cheap_grid_charge_hours():
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
             my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
 
+            USING_OFFLINE_PRICES = True
             missing_hours = {}
             try:
-                USING_OFFLINE_PRICES = True
+                if "history" not in KWH_AVG_PRICES_DB:
+                    raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
+                
                 for h in range(24):
                     for d in range(7):
                         if d not in KWH_AVG_PRICES_DB['history'][h]:
@@ -5068,6 +5096,7 @@ def power_values(from_time_stamp, to_time_stamp):
     
 def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_production_available")
+    global POWERWALL_CHARGING_TEXT
     
     if not is_solar_configured(): return 0.0
     
@@ -5112,11 +5141,13 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         
         if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
             _LOGGER.info(f"DEBUG Powerwall battery level is below {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
-            _LOGGER.info(f"DEBUG max({solar_production_available} - {powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
+            _LOGGER.info(f"DEBUG max(solar_production_available:{solar_production_available} - powerwall_charging_consumption:{powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
             solar_production_available = max(solar_production_available - powerwall_charging_consumption, 0.0)
+            POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
         else:
             _LOGGER.info(f"DEBUG Powerwall battery level is above {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
             _LOGGER.info(f"DEBUG powerwall_charging_consumption:{powerwall_charging_consumption} solar_production_available:{solar_production_available}")
+            POWERWALL_CHARGING_TEXT = ""
         
     '''if timeTo is not None:
         txt = "without" if withoutEV else "with"
