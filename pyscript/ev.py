@@ -5207,7 +5207,14 @@ def max_solar_watts_available_remaining_hour():
     allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if returnDict['predictedSolarPower']['watt'] >= solar_threadhold else 0.0
     predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
-    multiple = 1 + round((getMinute() / 60 if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes']) * 0.75, 2)
+    multiple = 1.0
+    if CONFIG['solar']['max_to_current_hour']:
+        multiple = 1 + round((getMinute() / 60), 2)
+    elif CONFIG['solar']['solarpower_use_before_minutes'] > 0 and CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
+        multiple = 1 + round(CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'], 2)
+    else:
+        multiple = 0.0
+        
     extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
     
     returnDict['output'] = {
