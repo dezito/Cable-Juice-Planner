@@ -5052,16 +5052,16 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
     
-    powerwall_discharging_consumption = 0.0
+    powerwall_charging_consumption = 0.0
     
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
+            powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
-    return powerwall_discharging_consumption
+    return powerwall_charging_consumption
 
 def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("discharge_from_powerwall")
@@ -5071,7 +5071,7 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
