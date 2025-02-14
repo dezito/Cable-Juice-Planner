@@ -2654,17 +2654,34 @@ def set_estimated_range():
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_estimated_range"
         )
+
+def drive_efficiency_save_car_stats(bootup=False):
+    _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
+    def set_last_odometer():
+        odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
+        set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
+        
+    def set_last_battery_level():
+        set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
+    
+    if bootup:
+        if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ("unknown", "unavailable"):
+            _LOGGER.info("Setting last odometer")
+            set_last_odometer()
             
+        if get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", try_history=False) in ("unknown", "unavailable"):
+            _LOGGER.info("Setting last battery level")
+            set_last_battery_level()
+    else:
+        if is_ev_configured():
+            set_last_odometer()
+        set_last_battery_level()
+    
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
 
-    def _save_car_stats():
-        if is_ev_configured():
-            odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
-            set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
 
-        set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
 
     if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
@@ -2675,7 +2692,7 @@ def drive_efficiency(state=None):
     
     try:
         if state == "preheat":
-            _save_car_stats()
+            drive_efficiency_save_car_stats()
             PREHEATING = True
             return
         elif state == "preheat_cancel":
@@ -2684,7 +2701,7 @@ def drive_efficiency(state=None):
 
         if state in ("closed", "off", "unplugged", "disconnected"):
             if not PREHEATING:
-                _save_car_stats()
+                drive_efficiency_save_car_stats()
             PREHEATING = False
         elif state in ("open", "on", "plugged", "plugged_waiting_for_charge", "connected"):
             if not is_ev_configured():
@@ -5052,16 +5069,16 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
     
-    powerwall_discharging_consumption = 0.0
+    powerwall_charging_consumption = 0.0
     
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
+            powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
-    return powerwall_discharging_consumption
+    return powerwall_charging_consumption
 
 def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("discharge_from_powerwall")
@@ -5071,7 +5088,7 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
@@ -6735,6 +6752,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.info(line)
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
+        drive_efficiency_save_car_stats(bootup=True)
         check_master_updates()
         append_overview_output(f"📟{BASENAME} started")
             
