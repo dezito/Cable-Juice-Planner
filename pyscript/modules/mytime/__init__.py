@@ -20,7 +20,7 @@ from .time_helpers import (
     getYear,
     date_to_string, toDateTime,
     resetDatetime, reset_time_to_hour,
-    is_day
+    is_day, add_months
 )
 
 __all__ = ["datetime_to_unix", "getTimestampSeconds", "getTimestampMinutes", "getTime", "getTimePlusSeconds", "getTimePlusMinutes", "getTimePlusHours", "getTimePlusDays", "getTimePlusMonths", "getTimePlusYears",
