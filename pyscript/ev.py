@@ -1199,6 +1199,20 @@ def get_debug_info_sections():
         },
     }
 
+def run_git_command(cmd):
+    """ Runs a git command using subprocess.Popen asynchronously """
+    try:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = process.communicate(timeout=15)
+        if process.returncode != 0:
+            raise Exception(stderr.strip())
+        return stdout.strip()
+    except subprocess.TimeoutExpired:
+        process.kill()
+        raise Exception("Git command timeout")
+    except Exception as e:
+        raise Exception(str(e))
+
 @service(f"pyscript.{__name__}_check_master_updates")
 def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
@@ -1206,23 +1220,23 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     repo_path = f"{config_path}/Cable-Juice-Planner"
     result = {"has_updates": False, "commits_behind": 0}
 
-    def run_git_command(cmd):
-        """ Runs a git command and returns output or error """
-        try:
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            stdout, stderr = process.communicate(timeout=10)
-            if process.returncode != 0:
-                raise Exception(stderr.strip())
-            return stdout.strip()
-        except subprocess.TimeoutExpired:
-            process.kill()
-            raise Exception("Git command timeout")
-
     try:
+        _LOGGER.info(f"Checking for updates in {repo_path}")
+
         run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
         run_git_command(["git", "-C", repo_path, "fetch", "origin", "master"])
+
+        local_head = run_git_command(["git", "-C", repo_path, "rev-parse", "HEAD"])
+        remote_head = run_git_command(["git", "-C", repo_path, "rev-parse", "origin/master"])
+
+        if local_head == remote_head:
+            _LOGGER.info("No updates available.")
+            my_persistent_notification(
+                "✅ Ingen opdateringer tilgængelige",
+                title=f"{TITLE} Opdateringstjek",
+                persistent_notification_id=f"{__name__}_check_master_updates"
+            )
+            return
 
         total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
 
@@ -1231,10 +1245,14 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        commit_log_lines = run_git_command(["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]).split("\n")
+        commit_log_lines = run_git_command(
+            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]
+        ).split("\n")
+
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
 
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
+
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
 
@@ -1264,11 +1282,11 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
 
+
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("update_repo")
 
-    # Get Home Assistant's config folder
     config_path = get_config_folder()
     repo_path = f"{config_path}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
@@ -1276,10 +1294,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
 
-        subprocess.run(["git", "-C", repo_path, "fetch", "--all"], check=True)
+        run_git_command(["git", "-C", repo_path, "fetch", "--all"])
 
-        local_head = subprocess.run(["git", "-C", repo_path, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-        remote_head = subprocess.run(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"], capture_output=True, text=True, check=True).stdout.strip()
+        local_head = run_git_command(["git", "-C", repo_path, "rev-parse", "HEAD"])
+        remote_head = run_git_command(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
 
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
@@ -1290,26 +1308,20 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        total_commits_behind = int(subprocess.run(
-            ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip() or "0")
+        total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"]) or "0")
 
-        merge_commits = subprocess.run(
-            ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip().split("\n")
-        merge_commit_count = len(merge_commits) if merge_commits[0] else 0
+        merge_commits = run_git_command(["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
+        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        subprocess.run(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"], check=True)
-        subprocess.run(["git", "-C", repo_path, "pull", "--force", "origin", branch], check=True)
+        run_git_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
+        run_git_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
 
-        commit_log_lines = subprocess.run(
-            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip().split("\n")
+        commit_log_lines = run_git_command(
+            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
+        ).split("\n")
+
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
         _LOGGER.info("Repository updated successfully.")
@@ -1319,19 +1331,14 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Opdatering fuldført",
             persistent_notification_id=f"{__name__}_update_repo"
         )
+
         task.wait_until(timeout=5)
         restart_script()
-    except subprocess.CalledProcessError as e:
-        _LOGGER.error(f"Update failed: {e.stderr}")
-        my_persistent_notification(
-            f"⚠️ Opdateringsfejl: {e.stderr.strip()}",
-            title=f"{TITLE} Fejl under opdatering",
-            persistent_notification_id=f"{__name__}_update_repo"
-        )
+
     except Exception as e:
-        _LOGGER.error(f"Unexpected error: {str(e)}")
+        _LOGGER.error(f"Update failed: {str(e)}")
         my_persistent_notification(
-            f"⚠️ Uventet fejl: {str(e)}",
+            f"⚠️ Opdateringsfejl: {str(e)}",
             title=f"{TITLE} Fejl under opdatering",
             persistent_notification_id=f"{__name__}_update_repo"
         )
@@ -2680,9 +2687,7 @@ def drive_efficiency_save_car_stats(bootup=False):
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
-
-
-
+    
     if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
     if not KM_KWH_EFFICIENCY_DB:
