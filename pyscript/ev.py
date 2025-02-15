@@ -340,7 +340,7 @@ DEFAULT_CONFIG = {
         "kwh_avg_prices_db_data_to_save": 15,
         "drive_efficiency_db_data_to_save": 15,
         "km_kwh_efficiency_db_data_to_save": 15,
-        "charging_history_db_data_to_save": 6
+        "charging_history_db_data_to_save": 12
     },
     "ev_car": {
         "entity_ids": {
