@@ -16,61 +16,78 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 ---
 
 ### Funktioner:
-- Detaljeret opladningshistorik
-- Solcelle over produktion til rådighed i nuværende time (tilvalg)
-- Nuværende strømpris med fratrukket solcelle overproduktion
-- Oversigter:
-  - Planlagte opladninger
-  - Afgangsplan
-  - Solcelle over produktion prognose
-- Tur planlægning
-- Manuel opladning
-- Emoji forklaring
-- Tvangsladning under daglig batteri niveau (op til **Daglig hjemkomst batteri niveau** f.eks. 30%)
-- Udregning af reel (med detaljeret historik):
-  - Kørsel effektivitet
-  - km/kWh
-  - Estimerede rækkevidde
-- Refusion af elafgift
+- **Elbil integration eller virtuel elbil**<br>*(Elbil i Home Assistant ellers virtuel elbil, hvor man selv indtaster ladeprocent, ved strømtilkobling)*
+- **Meget detaljeret opladningshistorik**
+  - Hver ladning (Tid, ladegrund, procent, kWh, pris, kr/kWh)
+  - Måned oversigt (Måned, Km, kWh, solcelle overproduktion andel, pris, kr/kWh)
+  - Ladningsfordeling (Måned, Dag kWh andel, Nat kWh andel)
+- **Solcelle over produktion til rådighed i nuværende time (tilvalg)**
+- **Powerwall understøttelse (tilvalg)**<br>*(oplades op først og bruges ikke til opladning af elbil)*
+- **Nuværende strømpris med fratrukket solcelle overproduktion**
+- **Oversigter**:
+  - **Nuværende batteri niveau udgifter**<br>*(Nuværende batteri niveau, solcelle andel, udgift, enhedspris)*
+  - **Planlagte opladninger**<br>*(Ladegrund, tid, procent, kWh, kr/kWh, pris)*
+  - **Afgangsplan**<br>*(Dag/Dato, procent/kWh behov, solcelle overproduktion andel, pris)*
+  - Skøn ved daglig opladning<br>*(Så man kan se forskellen, ved dette script og alternative løsninger f.eks. Clever, Monta, TrueEnergy osv. som lader op til f.eks. 90% inden et klokkeslæt næste dag)*
+  - **Solcelle over produktion prognose**
+- **Tur planlægning**
+  - *Ladning til procent* eller *Tur km forbrug*
+  - Forvarmning af elbilen
+  - Afgang dato/tidspunkt
+  - Hjemkomst dato/tidspunkt
+- **Manuel opladning (bruges evt. ved gæsteladning)**<br>*(Understøtter også evt. kun på solcelle overproduktion)*
+- **Emoji forklaring**
+- **Tvangsladning under daglig batteri niveau**<br>*(op til **Daglig hjemkomst batteri niveau** f.eks. 30%)*
+- **Udregning af realistisk forbrug**:<br>*(udfra kørselsmønster & forbrug, inkl. detaljeret historik)*
+  - **Kørsel effektivitet**
+  - **km/kWh & Wh/km**
+  - **Estimerede rækkevidde ved nuværende batteri niveau**<br>*(og total rækkevidde)*
+- **Refusion af elafgift**
+- **Notifikation ved ny version af Cable Juice Planner**
+- **Opdaterer Cable Juice Planner via Home Assistant GUI**
 
 - ### Indstillinger:
-  - Opladningsregler:
+  - **Opladningsregler**:
     - Solcelleoverskud til opladning
     - Arbejdsplan opladning
     - Optimal ugeopladning (uden Arbejdsplan)
-  - Automatisk fuld opladning, hver X antal dage
-  - Automatisk opladning ved billig og meget billig strøm
-  - **Batteriniveau- og Forvarmningsindstillinger for Elbil** indstillinger:
+  - **Automatisk fuld opladning, hver X antal dage**<br>*(bruges ved ikke lithium batterier, der skal lades op til 100%, med jævne mellemrum)*
+  - **Automatisk opladning ved billig og meget billig strøm**
+  - **Batteriniveau- og Forvarmningsindstillinger for Elbil indstillinger**:
     - Daglig hjemkomst batteri niveau efter arbejde (minimum)
     - Tur hjemkomst batteri niveau
     - Elbilens minimum ladingsprocent
     - Elbilens maks anbefalet ladingsprocent
-  - Solcelleoverproduktion Salgspris, fastpris eller nuværende salgspris (fratrukket udgifter for at sælge det)
-  - Kalkulering af lade tab
+  - **Solcelleoverproduktion Salgspris, fastpris eller nuværende salgspris**<br>*(fratrukket udgifter for at sælge det)*
+  - **Kalkulering af lade tab**
 
-### Understøttet og testet integrationer
-- [Easee Charger](https://github.com/nordicopen/easee_hass)
-- [Kia UVO](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
-- [Tessie](https://www.home-assistant.io/integrations/tessie/)
-- [TeslaFi](https://github.com/jhansche/ha-teslafi)
-- [Tesla](https://github.com/alandtse/tesla)
-- [Fronius](https://www.home-assistant.io/integrations/fronius/)
-- [Kostal](https://www.home-assistant.io/integrations/kostal_plenticore/)
-- [Huawei Solar](https://github.com/wlcrs/huawei_solar)
+### Understøttet og testet integrationer<br>*(Mulig understøttelse af andre, dog ikke testet)*
+- **Lader integrationer:**
+  - [Easee Charger](https://github.com/nordicopen/easee_hass)
+
+- **Elbil integrationer:**
+  - [Cupra WeConnect](https://github.com/daernsinstantfortress/cupra_we_connect)
+  - [Kia UVO](https://github.com/Hyundai-Kia-Connect/kia_uvo) (Forvarmning ikke understøttet endnu)
+  - [Polestar API](https://github.com/pypolestar/polestar_api)
+  - [Tesla](https://github.com/alandtse/tesla)
+  - [TeslaFi](https://github.com/jhansche/ha-teslafi)
+  - [Tessie](https://www.home-assistant.io/integrations/tessie/)
+
+- **Inverter integrationer:**
+  - [Fronius](https://www.home-assistant.io/integrations/fronius/)
+  - [Huawei Solar](https://github.com/wlcrs/huawei_solar)
+  - [Kostal](https://www.home-assistant.io/integrations/kostal_plenticore/)
 
 ### Todo
-1. Monta understøttelse
-2. Kia UVO understøttelse
-3. [Zaptec EV charger](https://github.com/custom-components/zaptec)
-3. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
-4. Gør at scriptet ikke låser Home Assistant når den kører charge_if_needed()
+1. [Zaptec EV charger](https://github.com/custom-components/zaptec) (Mangler test personer)
+2. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
+3. Gør at scriptet ikke låser Home Assistant når den kører charge_if_needed()
 ---
 ### Fremtiden
 - Konvertere scriptet til en integration
 
 ---
 ### Påkrævet integrationer
-- [Easee charger](https://github.com/nordicopen/easee_hass)
 - [HACS](https://github.com/hacs/integration)
 - [PyScript](https://github.com/custom-components/pyscript)
   - Allow All Imports - Aktiveret
@@ -78,6 +95,12 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
 - [Energi Data Service](https://github.com/MTrab/energidataservice)
   - [Carnot](https://www.carnot.dk/) - Aktiveret
 - [Sun](https://www.home-assistant.io/integrations/sun/)
+
+<center>
+
+#### Det anbefales kraftigt at bruge MariaDB istedet for SQLite (standard home assistant database),<br>(Home Assistant laver en fejl ved kald af historik data med SQLite)
+
+</center>
 
 ### Installation:
 1. Kopiere koden her under og sæt ind i Terminal eller SSH, Cable Juice Planner installeres og nødvendig ændringer i configuration.yaml tilføjes automatisk
@@ -92,7 +115,7 @@ curl -s https://raw.githubusercontent.com/dezito/Cable-Juice-Planner/master/scri
       - Dette variere afhængig af om der er integrationer til solceller, el bilen osv. der bliver registreret i konfig filen
       - Alle entitier navne starter med ev_ der laves
 5. Genstart Home Assistant
-7. Følg [Lav et script og modtag resultat i en notifikation](#lav-et-script-og-modtag-resultat-i-en-notifikation)
+7. Følg [Lav et script til opdatering af Cable Juice Planner](#lav-et-script-og-modtag-resultat-i-en-notifikation)
 6. Evt. kopier & sæt ind fra kortene i [Cable-Juice-Planner/cards mappen](cards) mappen
     - Der står i kortene, hvad der evt skal ændres i dem
 
@@ -117,27 +140,24 @@ curl -s https://raw.githubusercontent.com/dezito/Cable-Juice-Planner/master/scri
 >     - >>Indsæt her<<
 > ```
 
-### Opdatering fra ældre version:
-
-- Hvis man opdaterer fra en ældre version med Cable-Juice-Planner-Readme i config mappen, skal man kører opdateringen 3 gange.
-  - Hvis Cable-Juice-Planner-Readme stadig er i config mappen, skal man copy & paste alt i [update_cable_juice_planner.sh](scripts/update_cable_juice_planner.sh) og sætte ind i /config/scripts/update_cable_juice_planner.sh og opdatere 3 gange igen
-
 
 ---
 ### [Konfiguration eksempler](config_examples)
 ---
 
 ### Filer der laves i roden af Home Assistant mappen:
-- ev_config.yaml **(Konfigurations filen)**
-- ev_charging_history_db.yaml **(Opladningshistorik database)**
-- ev_drive_efficiency_db.yaml **(Kørselseffiktivitet procent database)**
-- ev_km_kwh_efficiency_db.yaml **(Km/Kwh database)**
-- ev_kwh_avg_prices_db.yaml **(Offline strøm priser database)**
-- ev_solar_production_available_db.yaml **(Solcelle over produktion database)**
+- **ev_config.yaml** *(Konfigurations filen)*
+- **ev_charging_history_db.yaml** *(Opladningshistorik database)*
+- **ev_drive_efficiency_db.yaml** *(Kørselseffiktivitet procent database)*
+- **ev_km_kwh_efficiency_db.yaml** *(Km/Kwh database)*
+- **ev_kwh_avg_prices_db.yaml** *(Offline strøm priser database)*
+- **ev_solar_production_available_db.yaml** *(Solcelle over produktion database)*
+- **ev_error_log** *(Ved kritisk fejl gemmes vigtig data, der kan sendes til mig)*
+- **packages/ev.yaml** *(Alle entitetterne)*
 
 ---
 > [!Note]
-> ### Lav et script og modtag resultat i en notifikation
+> ### Lav et script til opdatering af Cable Juice Planner
 > 1. Indstillinger
 > 2. Automatiseringer & Scener
 > 3. Scripts
