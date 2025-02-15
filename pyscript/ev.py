@@ -46,6 +46,7 @@ from mytime import (
     getHour,
     getMonth,
     getYear,
+    getMonthFirstDay,
     getTimeStartOfDay,
     getTimeEndOfDay,
     getDayOfWeek,
@@ -54,7 +55,8 @@ from mytime import (
     toDateTime,
     resetDatetime,
     reset_time_to_hour,
-    is_day)
+    is_day,
+    add_months)
 from utils import (
     in_between,
     round_up,
@@ -1199,6 +1201,20 @@ def get_debug_info_sections():
         },
     }
 
+def run_git_command(cmd):
+    """ Runs a git command using subprocess.Popen asynchronously """
+    try:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = process.communicate(timeout=15)
+        if process.returncode != 0:
+            raise Exception(stderr.strip())
+        return stdout.strip()
+    except subprocess.TimeoutExpired:
+        process.kill()
+        raise Exception("Git command timeout")
+    except Exception as e:
+        raise Exception(str(e))
+
 @service(f"pyscript.{__name__}_check_master_updates")
 def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
@@ -1206,23 +1222,23 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     repo_path = f"{config_path}/Cable-Juice-Planner"
     result = {"has_updates": False, "commits_behind": 0}
 
-    def run_git_command(cmd):
-        """ Runs a git command and returns output or error """
-        try:
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            stdout, stderr = process.communicate(timeout=10)
-            if process.returncode != 0:
-                raise Exception(stderr.strip())
-            return stdout.strip()
-        except subprocess.TimeoutExpired:
-            process.kill()
-            raise Exception("Git command timeout")
-
     try:
+        _LOGGER.info(f"Checking for updates in {repo_path}")
+
         run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
         run_git_command(["git", "-C", repo_path, "fetch", "origin", "master"])
+
+        local_head = run_git_command(["git", "-C", repo_path, "rev-parse", "HEAD"])
+        remote_head = run_git_command(["git", "-C", repo_path, "rev-parse", "origin/master"])
+
+        if local_head == remote_head:
+            _LOGGER.info("No updates available.")
+            my_persistent_notification(
+                "✅ Ingen opdateringer tilgængelige",
+                title=f"{TITLE} Opdateringstjek",
+                persistent_notification_id=f"{__name__}_check_master_updates"
+            )
+            return
 
         total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", "HEAD..origin/master"]) or "0")
 
@@ -1231,10 +1247,14 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        commit_log_lines = run_git_command(["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]).split("\n")
+        commit_log_lines = run_git_command(
+            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", "HEAD..origin/master"]
+        ).split("\n")
+
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
 
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
+
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
 
@@ -1264,11 +1284,11 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             persistent_notification_id=f"{__name__}_check_master_updates"
         )
 
+
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("update_repo")
 
-    # Get Home Assistant's config folder
     config_path = get_config_folder()
     repo_path = f"{config_path}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
@@ -1276,10 +1296,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
 
-        subprocess.run(["git", "-C", repo_path, "fetch", "--all"], check=True)
+        run_git_command(["git", "-C", repo_path, "fetch", "--all"])
 
-        local_head = subprocess.run(["git", "-C", repo_path, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
-        remote_head = subprocess.run(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"], capture_output=True, text=True, check=True).stdout.strip()
+        local_head = run_git_command(["git", "-C", repo_path, "rev-parse", "HEAD"])
+        remote_head = run_git_command(["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
 
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
@@ -1290,26 +1310,20 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        total_commits_behind = int(subprocess.run(
-            ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip() or "0")
+        total_commits_behind = int(run_git_command(["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"]) or "0")
 
-        merge_commits = subprocess.run(
-            ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip().split("\n")
-        merge_commit_count = len(merge_commits) if merge_commits[0] else 0
+        merge_commits = run_git_command(["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
+        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        subprocess.run(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"], check=True)
-        subprocess.run(["git", "-C", repo_path, "pull", "--force", "origin", branch], check=True)
+        run_git_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
+        run_git_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
 
-        commit_log_lines = subprocess.run(
-            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"],
-            capture_output=True, text=True, check=True
-        ).stdout.strip().split("\n")
+        commit_log_lines = run_git_command(
+            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
+        ).split("\n")
+
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
         _LOGGER.info("Repository updated successfully.")
@@ -1319,19 +1333,14 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Opdatering fuldført",
             persistent_notification_id=f"{__name__}_update_repo"
         )
+
         task.wait_until(timeout=5)
         restart_script()
-    except subprocess.CalledProcessError as e:
-        _LOGGER.error(f"Update failed: {e.stderr}")
-        my_persistent_notification(
-            f"⚠️ Opdateringsfejl: {e.stderr.strip()}",
-            title=f"{TITLE} Fejl under opdatering",
-            persistent_notification_id=f"{__name__}_update_repo"
-        )
+
     except Exception as e:
-        _LOGGER.error(f"Unexpected error: {str(e)}")
+        _LOGGER.error(f"Update failed: {str(e)}")
         my_persistent_notification(
-            f"⚠️ Uventet fejl: {str(e)}",
+            f"⚠️ Opdateringsfejl: {str(e)}",
             title=f"{TITLE} Fejl under opdatering",
             persistent_notification_id=f"{__name__}_update_repo"
         )
@@ -2680,9 +2689,7 @@ def drive_efficiency_save_car_stats(bootup=False):
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
-
-
-
+    
     if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
     if not KM_KWH_EFFICIENCY_DB:
@@ -2977,7 +2984,9 @@ def charging_history_combine_and_set():
             "percentage": {"total": 0.0},
             "solar_kwh": {"total": 0.0},
             "charging_kwh_day": {"total": 0.0},
-            "charging_kwh_night": {"total": 0.0}
+            "charging_kwh_night": {"total": 0.0},
+            "km": {"total": 0.0},
+            "odometer": {},
         }
         
         details = False
@@ -3127,7 +3136,7 @@ def charging_history_combine_and_set():
             if append_counter > length and (len(CHARGING_HISTORY_DB) - i) == 1:
                 history.extend(["</details>", "\n"] * (sub_details_count + 1))
             
-            month = when.strftime('%Y %m %B')
+            month = getMonthFirstDay(when)
             
             if month not in total['cost']:
                 total['cost'][month] = 0.0
@@ -3136,6 +3145,7 @@ def charging_history_combine_and_set():
                 total['solar_kwh'][month] = 0.0
                 total['charging_kwh_day'][month] = 0.0
                 total['charging_kwh_night'][month] = 0.0
+                total['km'][month] = 0.0
                 
             total['cost'][month] += d['cost']
             total['kwh'][month] += d["kWh"]
@@ -3156,31 +3166,83 @@ def charging_history_combine_and_set():
             total['cost']["total"] += d['cost']
             total['kwh']["total"] += d["kWh"]
             total['percentage']["total"] += d['percentage']
-        
+            
+            if "odometer" in d:
+                if month not in total['odometer']:
+                    total['odometer'][month] = d["odometer"]
+                else:
+                    total['odometer'][month] = min(total['odometer'][month], d["odometer"])
         if details:
             history.extend([
                 "</details>",
                 "\n"
             ])
-        solar_string = ""
-        if total['solar_kwh']["total"] > 0.0:
-            total_solar_percentage = round(total['solar_kwh']["total"] / total['kwh']["total"] * 100.0, 1)
-            solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
+            
+        for month in total['odometer']:
+            if add_months(month, 1) in total['odometer']:
+                total['km'][month] = round(total['odometer'][add_months(month, 1)] - total['odometer'][month], 1)
+            else:
+                total['km'][month] = round(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=total['odometer'][month]) - total['odometer'][month], 1)
+                
+            total['km']["total"] += total['km'][month]
+        
+        estimated_values_used = False
+        
+        if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
+            efficiency_adjustment = 1.10
+            
+            efficiency_factors = {
+                1: 0.89,  # January
+                2: 0.91,  # February
+                3: 0.92,  # March
+                4: 1.01,  # April
+                5: 1.08,  # May
+                6: 1.07,  # June
+                7: 1.05,  # July
+                8: 1.10,  # August
+                9: 1.11,  # September
+                10: 1.00,  # October
+                11: 0.95,  # November
+                12: 0.91   # December
+            }
+            efficiency_factors = {month: factor * efficiency_adjustment for month, factor in efficiency_factors.items()}
+            
+            current_month = getTime().month
+            for month in total['km']:
+                if month != "total" and total['km'][month] == 0.0:
+                    try:
+                        efficiency_factor = efficiency_factors.get(current_month, 1.0)
+                        efficiency_factor_diff = 1.0 + (1.0 - efficiency_factor)
+                        km_per_kwh = get_state(f"sensor.{__name__}_km_per_kwh", float_type=True, error_state=0.0)
+                        adjusted_km_per_kwh = km_per_kwh * efficiency_factor
+                        
+                        estimated_km = round(total['kwh'][month] * adjusted_km_per_kwh, 1)
+                        estimated_values_used = True
+                    except:
+                        estimated_km = 0.0
+
+                    total['km'][month] = f"~{estimated_km}"
+                    total['km']["total"] += estimated_km
             
         if total['kwh']["total"] > 0.0:
+            solar_string = ""
+            if total['solar_kwh']["total"] > 0.0:
+                total_solar_percentage = round(total['solar_kwh']["total"] / total['kwh']["total"] * 100.0, 1)
+                solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
+                
             history.append("---")
             history.append("<details>")
             history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
             
             solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
+            km_header = "Km" if total['km']["total"] > 0.0 else ""
             history.extend([
-                f"| Måned | kWh | {solar_header} | Pris | Kr/kWh |",
-                "|:---:|:---:|:---:|---:|:---:|"
+                f"| Måned | {km_header} | kWh | {solar_header} | Pris | Kr/kWh |",
+                "|:---:|:---:|:---:|:---:|---:|:---:|"
             ])
-            for month in sorted(total['cost'].keys()):
-                if month == "total":
-                    continue
-                
+            
+            datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
+            for month in sorted(datetime_keys):
                 solar_kwh = ""
                 solar_percentage = ""
                 
@@ -3192,19 +3254,31 @@ def charging_history_combine_and_set():
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 
-                history.append(f"| {month.split()[2]} {month.split()[0]} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
+                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month] if total['km'][month] else ''} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
+            
+            total_solar = ""
+            if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
+                total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
+                
+            total_km = f"**{total['km']['total']}**" if total['km']["total"] > 0.0 else ""
+            
+            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
+            
+            if estimated_values_used:
+                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet #####")
+                
             history.append("---")
             history.append("\n**Ladnings fordeling**")
             history.append("| Måned | Dag kWh | Nat kWh |")
             history.append("|:---|:---:|:---:|")
-            for month in sorted(total['charging_kwh_day'].keys()):
-                if month == "total":
-                    continue
-                
+            
+            datetime_keys = [key for key in total['charging_kwh_day'].keys() if isinstance(key, datetime.datetime)]
+            for month in sorted(datetime_keys):
                 procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1)
                 procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1)
                 
-                history.append(f"| {month.split()[2]} {month.split()[0]} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
+                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
             procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1)
             procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1)
             history.append(f"| **Ialt** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
