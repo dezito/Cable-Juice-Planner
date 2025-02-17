@@ -3940,13 +3940,14 @@ def cheap_grid_charge_hours():
                                 total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                                 
                                 battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
-                                if "trip" in charging_plan[day]['rules']:
-                                    cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
-                                    charging_plan[day]['trip_total_cost'] += cost_trip
-                                    
-                                if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
-                                    cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
-                                    charging_plan[day]['work_total_cost'] += cost_work
+                                if battery_level_sum > 0.0:
+                                    if "trip" in charging_plan[day]['rules']:
+                                        cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
+                                        charging_plan[day]['trip_total_cost'] += cost_trip
+                                        
+                                    if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
+                                        cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                        charging_plan[day]['work_total_cost'] += cost_work
                                     
                                 charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
                                 add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
@@ -4016,7 +4017,7 @@ def cheap_grid_charge_hours():
                                     if ignored_reference_battery_level > reference_battery_level:
                                         diff = ignored_reference_battery_level - reference_battery_level
                                         
-                                        amount = diff / current_battery_level_expenses[key]["percentage"]
+                                        amount = diff / current_battery_level_expenses[key]["percentage"] if current_battery_level_expenses[key]["percentage"] > 0.0 else 0.0
                                         current_battery_level_expenses[key]["percentage"] *= amount
                                         current_battery_level_expenses[key]["solar_percentage"] *= amount
                                         
