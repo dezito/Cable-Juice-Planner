@@ -1,8 +1,8 @@
 import datetime
 import subprocess
+from itertools import chain
 from typing import Optional
 from pprint import pformat
-
 
 try:
     from benchmark import (
@@ -111,6 +111,16 @@ POWERWALL_CHARGING_TEXT = ""
 
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
+
+ENTITY_UNAVAILABLE_STATES = ("unavailable", "unknown")
+CHARGER_READY_STATUS = ("on", "connected", "ready_to_charge", "awaiting_authorization", "awaiting_start")
+CHARGER_NOT_READY_STATUS = ("off", "disconnected")
+CHARGER_COMPLETED_STATUS = ("completed", "finished")
+CHARGER_CHARGING_STATUS = ("charging")
+EV_PLUGGED_STATES = ("on", "open", "plugged", "connected", "plugged_waiting_for_charge", "manual")
+EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnected")
+
+
 
 CONFIG = {}
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
@@ -427,8 +437,8 @@ COMMENT_DB_YAML = {
     "odometer_entity_id": "**Required**",
     "estimated_battery_range_entity_id": "**Required** Must precise battery range",
     "usable_battery_level_entity_id": "**Required** Must precise battery level",
-    "charge_port_door_entity_id": " Used to determine if ev charge port is open/closed",
-    "charge_cable_entity_id": "Used to determine if ev is connected to charger",
+    "charge_port_door_entity_id": f"Used to determine if ev charge port is open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
+    "charge_cable_entity_id": f"Used to determine if ev is connected to charger (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
     "charge_switch_entity_id": "Start/stop charging on EV",
     "charging_limit_entity_id": "Setting charging battery limit on EV",
     "charging_amps_entity_id": "Setting charging amps on EV",
@@ -442,14 +452,14 @@ COMMENT_DB_YAML = {
     "very_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
     "ultra_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
     "typical_daily_distance_non_working_day": "**Required** Also editable via WebGUI",
-    "status_entity_id": "**Required** Charger status",
+    "status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
     "power_consumtion_entity_id": "**Required** Charging power in Watt",
     "kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
     "lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
     "enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
     "dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
     "co2_entity_id": "Energi Data Service CO2 entity_id",
-    "cable_connected_entity_id": "If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger",
+    "cable_connected_entity_id": f"If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
     "start_stop_charging_entity_id": "If using other integration than Easee to start stop charging, like Monta",
     "power_voltage": "**Required** Grid power voltage",
     "charging_phases": "**Required** Phases available for the ev",
@@ -1501,7 +1511,7 @@ def is_entity_available(entity):
     
     try:
         entity_state = get_state(entity, error_state="unknown")
-        if entity_state in ("unknown", "unavailable"):
+        if entity_state in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Entity state is {entity_state}")
         
         if integration is not None:
@@ -2328,7 +2338,7 @@ def ev_power_connected():
     if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
         return True
     
-    return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) in ("on", "plugged", "plugged_waiting_for_charge") or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in ("open", "on")
+    return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) in EV_PLUGGED_STATES or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in EV_PLUGGED_STATES
     
 def wake_up_ev():
     _LOGGER = globals()['_LOGGER'].getChild("wake_up_ev")
@@ -2674,11 +2684,11 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
     
     if bootup:
-        if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ("unknown", "unavailable"):
+        if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ENTITY_UNAVAILABLE_STATES:
             _LOGGER.info("Setting last odometer")
             set_last_odometer()
             
-        if get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", try_history=False) in ("unknown", "unavailable"):
+        if get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", try_history=False) in ENTITY_UNAVAILABLE_STATES:
             _LOGGER.info("Setting last battery level")
             set_last_battery_level()
     else:
@@ -2706,11 +2716,11 @@ def drive_efficiency(state=None):
             PREHEATING = False
             return
 
-        if state in ("closed", "off", "unplugged", "disconnected"):
+        if state in EV_UNPLUGGED_STATES:
             if not PREHEATING:
                 drive_efficiency_save_car_stats()
             PREHEATING = False
-        elif state in ("open", "on", "plugged", "plugged_waiting_for_charge", "connected"):
+        elif state in EV_PLUGGED_STATES:
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
                 efficiency = 100.0
@@ -4230,7 +4240,7 @@ def cheap_grid_charge_hours():
             try: #Alternative charging estimate
                 charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
                 
-                dates = [date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in ["awaiting_authorization", "awaiting_start", "charging", "ready_to_charge", "completed"] else None] if date is not None]
+                dates = [date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS)) else None] if date is not None]
                 homecoming_alternative = min(dates) if dates else charging_plan[day_before]['start_of_day']
                 
                 if day < 7:
@@ -5780,7 +5790,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     trip_date_time = resetDatetime()
     try:
         trip_date_time = get_trip_date_time()
-        if trip_date_time in ("unknown", "unavailable"):
+        if trip_date_time in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"input_datetime.{__name__}_trip_date_time is unknown")
     except Exception as e:
         _LOGGER.error(e)
@@ -5790,7 +5800,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         dayName = getDayOfWeekText(getTime())
         workday = get_state(f"input_boolean.{__name__}_workday_{dayName}")
         work_time = get_state(f"input_datetime.{__name__}_workday_departure_{dayName}")
-        if workday == "on" and work_time not in ("unknown", "unavailable"):
+        if workday == "on" and work_time not in ENTITY_UNAVAILABLE_STATES:
             next_work_time = getTime().replace(hour=work_time.hour, minute=work_time.minute, second=0, microsecond=0)
     except Exception as e:
         _LOGGER.error(e)
@@ -5905,11 +5915,8 @@ def ready_to_charge():
     if charger_enabled != "on":
         _LOGGER.warning(f"Charger was off, turning it on")
         start_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"})
-    
-    if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
-        return
         
-    if charger_status in ("disconnected", "off"):
+    if charger_status in CHARGER_NOT_READY_STATUS:
         _LOGGER.info("Charger cable disconnected")
         set_charging_rule(f"Lader kabel frakoblet")
         
@@ -5919,11 +5926,6 @@ def ready_to_charge():
         return
     elif manual_charging_enabled() or manual_charging_solar_enabled():
         return True
-    elif charger_status in ("awaiting_authorization", "awaiting_start") and not ev_power_connected():
-        _LOGGER.info("Charger cable connected, but car not updated")
-        set_charging_rule(f"⚠️Lader kabel forbundet, men bilen ikke opdateret\nPrøver at vække bilen")
-        wake_up_ev()
-        return True #Test to charge anyway
     else:
         if is_ev_configured():
             currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
@@ -5931,14 +5933,19 @@ def ready_to_charge():
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
             
-            if ev_charger_connector == "on" or charger_connector == "on":
-                if currentLocation != "home":
-                    _LOGGER.info("To long away from home")
-                    set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
-                    return
-                
+            #_LOGGER.info(f"currentLocation: {currentLocation}, charger_connector: {charger_connector}, ev_charger_connector: {ev_charger_connector}")
+            if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
+                charger_status in CHARGER_READY_STATUS) and currentLocation != "home":
+                _LOGGER.info("To long away from home")
+                set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
+                return
+            '''elif charger_status in CHARGER_READY_STATUS and not ev_power_connected():
+                _LOGGER.info("Charger cable connected, but car not updated")
+                set_charging_rule(f"⚠️Ladekabel forbundet, men bilen ikke opdateret")
+                return True #Test to charge anyway'''
+
             #TODO check charger_connector on monta
-            if charger_connector != "on" and ev_charger_connector not in ("on", "plugged", "plugged_waiting_for_charge"):
+            if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen\nPrøver at vække bilen")
                 wake_up_ev()
@@ -5949,6 +5956,12 @@ def ready_to_charge():
                 set_charging_rule(f"⚠️Elbilens ladeport er ikke åben\nPrøver at vække bilen")
                 wake_up_ev()
                 return True #Test to charge anyway
+            
+            if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                _LOGGER.info("Chargeport or charge cable entity not available")
+                set_charging_rule(f"⛔Elbilens ladeport eller ladekabel er ikke tilgængelig\nPrøver at vække bilen")
+                wake_up_ev()
+                return
             
     return True
 
@@ -6005,7 +6018,7 @@ def stop_charging(entities = None, force = False):
             if integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_start_stop_charging"):
                 charging_state = get_state(entity_id, float_type=False, error_state="off")
                 charging_power = get_state(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], float_type=True, error_state=0.0)
-                if charging_state in ("manual", "on") and charging_power > CONFIG['charger']['power_voltage']:
+                if charging_state in EV_PLUGGED_STATES and charging_power > CONFIG['charger']['power_voltage']:
                     if not allow_command_entity_integration(f"{integration}.volkswagen_id_start_stop_charging service Stop charging", "stop_charging()", integration = integration, check_only=True):
                         if not force:
                             continue
@@ -6058,7 +6071,7 @@ def is_charging():
     emoji_charging_problem = f"{emoji_parse({'charging_problem': True})}"
     emoji_charging_error = f"{emoji_parse({'charging_error': True})}"
     
-    if charger_status in ("charging", "completed"):
+    if charger_status in CHARGER_COMPLETED_STATUS or charger_status in CHARGER_CHARGING_STATUS:
         if RESTARTING_CHARGER_COUNT > 0:
             _LOGGER.info("Ev is charging as it should again")
             
@@ -6073,7 +6086,7 @@ def is_charging():
             my_notify(message = f"Elbilen lader, som den skal igen", title = f"{TITLE} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
         reset()
         
-        if charger_status in ("charging"):
+        if charger_status in CHARGER_CHARGING_STATUS:
             return True
         else:
             return
@@ -6110,13 +6123,13 @@ def is_charging():
             
             start_charging(force = True)
             RESTARTING_CHARGER = False
-        elif charger_status in ("unknown", "unavailable"):
+        elif charger_status in ENTITY_UNAVAILABLE_STATES:
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nLader ikke tilgængelig")
             raise Exception(f"Charger is unavailable, entity id: {CONFIG['charger']['entity_ids']['status_entity_id']}")
         elif charger_status == "error":
             set_charging_rule(f"⛔Fejl i ladning af elbilen\nKritisk fejl på lader, tjek integration eller Easee app")
             raise Exception(f"Charger critical error, check Easee app or Home Assistant")
-        elif charger_status in ("awaiting_start", "awaiting_authorization", "ready_to_charge"):
+        elif charger_status in CHARGER_READY_STATUS:
             if current_charging_amps == 0:
                 if CHARGING_IS_BEGINNING or RESTARTING_CHARGER or RESTARTING_CHARGER_COUNT or charger_enabled != "on":
                     reset()
@@ -6830,7 +6843,7 @@ if INITIALIZATION_COMPLETE:
         drive_efficiency_save_car_stats(bootup=True)
         check_master_updates()
         append_overview_output(f"📟{BASENAME} started")
-            
+   
     #Fill up and days to charge only 1 allowed
     '''@state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
@@ -6874,22 +6887,22 @@ if INITIALIZATION_COMPLETE:
         global LAST_TRIP_CHANGE_DATETIME
         
         if var_name == f"input_number.{__name__}_trip_charge_procent":
-            if value in ("unknown", "unavailable"): return
+            if value in ENTITY_UNAVAILABLE_STATES: return
             if get_trip_target_level() != 0.0:
                 set_state(f"input_number.{__name__}_trip_range_needed", 0.0)
         elif var_name == f"input_number.{__name__}_trip_range_needed":
-            if value in ("unknown", "unavailable"): return
+            if value in ENTITY_UNAVAILABLE_STATES: return
             if get_trip_range() != 0.0:
                 set_state(f"input_number.{__name__}_trip_charge_procent", 0.0)
         elif var_name == f"input_datetime.{__name__}_trip_date_time":
-            if value in ("unknown", "unavailable"): return
+            if value in ENTITY_UNAVAILABLE_STATES: return
             value = toDateTime(value)
             
             if value != resetDatetime() and (get_trip_homecoming_date_time() == resetDatetime() or get_trip_homecoming_date_time() < value):
                 set_state(f"input_datetime.{__name__}_trip_homecoming_date_time", getTimeEndOfDay(value))
                 
         elif var_name == f"input_datetime.{__name__}_trip_homecoming_date_time":
-            if value in ("unknown", "unavailable"): return
+            if value in ENTITY_UNAVAILABLE_STATES: return
             value = toDateTime(value)
             
             if value != resetDatetime() and (get_trip_date_time() == resetDatetime() or get_trip_date_time() > value):
@@ -6916,17 +6929,17 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
-        if old_value in ("disconnected", "off"):
+        if old_value in CHARGER_NOT_READY_STATUS:
             notify_set_battery_level()
             wake_up_ev()
             charge_if_needed()
-        elif value in ("disconnected", "off"):
+        elif value in CHARGER_NOT_READY_STATUS:
             wake_up_ev()
             stop_current_charging_session()
             set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
-        elif old_value in ("charging") and value in ("completed"):
+        elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
             if not is_ev_configured():
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
@@ -6951,7 +6964,7 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            if value not in ("open", "closed", "on", "off", "plugged", "plugged_waiting_for_charge", "unplugged", "connected", "disconnected"): return
+            if value not in tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES)): return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
@@ -7041,7 +7054,7 @@ if INITIALIZATION_COMPLETE:
             if var_name == f"input_boolean.{__name__}_calculate_charging_loss":
                 return
             elif var_name == f"{CONFIG['charger']['entity_ids']['status_entity_id']}":
-                if value in ("completed", "awaiting_start", "awaiting_authorization") and old_value in ("charging"):
+                if value in tuple(chain(CHARGER_READY_STATUS, CHARGER_COMPLETED_STATUS)) and old_value in CHARGER_CHARGING_STATUS:
                     CHARGING_LOSS_CHARGING_COMPLETED = True
             elif var_name == f"{CONFIG['charger']['entity_ids']['kwh_meter_entity_id']}":
                     if CHARGING_LOSS_CHARGING_COMPLETED:
