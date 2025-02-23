@@ -1652,7 +1652,7 @@ def allow_command_entity_integration(entity_id = None, command = "None", integra
                 daily_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"] - INTEGRATION_DAILY_LIMIT_BUFFER
                 hourly_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] - extra_buffer
                 
-                _LOGGER.info(f"DEBUG {entity_id} {command} {integration} {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration])} < {hourly_limit} = {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit} and {ENTITY_INTEGRATION_DICT['counter'][integration]} < {daily_limit} = {ENTITY_INTEGRATION_DICT['counter'][integration] < daily_limit} extra_buffer:{extra_buffer}")
+                #_LOGGER.info(f"DEBUG {entity_id} {command} {integration} {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration])} < {hourly_limit} = {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit} and {ENTITY_INTEGRATION_DICT['counter'][integration]} < {daily_limit} = {ENTITY_INTEGRATION_DICT['counter'][integration] < daily_limit} extra_buffer:{extra_buffer}")
                 if len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit and ENTITY_INTEGRATION_DICT["counter"][integration] < daily_limit and ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] != command:
                     if not check_only:
                         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration].append((now, f"{entity_id}: {command}"))
@@ -4245,10 +4245,8 @@ def cheap_grid_charge_hours():
                             if kwh_needed_to_fill_up_day <= 0.01:
                                 break
                             elif kwh_needed_to_fill_up_day > 0.0:
-                                _LOGGER.warning(f"DEBUG: what_day: {what_day}, battery_level_id: {battery_level_id}, rules: {rules} Exist charging_plan[{what_day}][{battery_level_id}]: {battery_level_id in charging_plan[what_day]} Exist charging_plan[{what_day}]: {what_day in charging_plan}")
                                 kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwhAvailable, sum(charging_plan[what_day][battery_level_id]), max_recommended_charge_limit_battery_level, rules)
-                                _LOGGER.warning(f"DEBUG: {timestamp}: {battery_level_added} {kwh_needed_to_fill_up_day}, {totalCost}, {totalkWh}, {timestamp}, {price}, {None}, {None}, {kwhAvailable}, {sum(charging_plan[what_day][battery_level_id])}, {max_recommended_charge_limit_battery_level}, {rules}")
-                                
+
                                 very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
                             
