@@ -3261,7 +3261,7 @@ def charging_history_combine_and_set():
                 total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
                 total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
                 
-            total_km = f"**{total['km']['total']}**" if total['km']["total"] > 0.0 else ""
+            total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
             
             history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
             
