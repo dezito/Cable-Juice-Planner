@@ -2879,6 +2879,21 @@ def load_charging_history():
                 _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
                 my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
     
+    if is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
+        now = getTime()
+        added_odometer = False
+        for key, value in CHARGING_HISTORY_DB.items():
+            if "odometer" not in value:
+                from_time_stamp = key
+                to_time_stamp = from_time_stamp + datetime.timedelta(minutes=1)
+                history_odometer = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_time_stamp, to_time_stamp, float_type=True, error_state=None)
+                if history_odometer:
+                    added_odometer = True
+                    _LOGGER.info(f"Adding odometer to history key {key}: {int(min(history_odometer))} km")
+                    CHARGING_HISTORY_DB[key]["odometer"] = int(min(history_odometer))
+        if added_odometer:
+            save_charging_history()
+    
     set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
     charging_history_combine_and_set()
     
@@ -2984,6 +2999,43 @@ def charging_history_combine_and_set():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_combine_and_set")
     global CHARGING_HISTORY_DB
     
+    efficiency_adjustment = 1.15
+    
+    efficiency_factors = {
+        1: 0.85,  # Januar
+        2: 0.87,  # Februar
+        3: 0.90,  # Marts
+        4: 0.95,  # April
+        5: 1.00,  # Maj
+        6: 1.02,  # Juni
+        7: 1.03,  # Juli
+        8: 1.02,  # August
+        9: 1.00,  # September
+        10: 0.95, # Oktober
+        11: 0.90, # November
+        12: 0.87  # December
+    }
+    efficiency_factors = {month: factor * efficiency_adjustment for month, factor in efficiency_factors.items()}
+    
+    def calculate_estimated_km(kwh, efficiency_factors, month):
+        try:
+            efficiency_factor = efficiency_factors.get(month, 1.0)
+            efficiency_factor_diff = 1.0 + (1.0 - efficiency_factor)
+            
+            km_per_kwh = float(get_state(f"sensor.{__name__}_km_per_kwh", float_type=True, error_state=0.0))
+            
+            try:
+                km_per_kwh = get_attr(f"sensor.{__name__}_km_per_kwh", "mean", error_state=None)
+                km_per_kwh = float(km_per_kwh.split(" ")[0])
+            except (TypeError, AttributeError, ValueError):
+                pass
+            
+            adjusted_km_per_kwh = km_per_kwh * efficiency_factor
+            return round(kwh * adjusted_km_per_kwh, 1), True
+        except Exception as e:
+            _LOGGER.error(f"Error calculating estimated km: {e}")
+            return 0.0, False
+    
     history = []
     combined_db = {}
     
@@ -2997,6 +3049,7 @@ def charging_history_combine_and_set():
             "charging_kwh_night": {"total": 0.0},
             "km": {"total": 0.0},
             "odometer": {},
+            "odometer_first_charge_datetime": None,
         }
         
         details = False
@@ -3061,6 +3114,12 @@ def charging_history_combine_and_set():
                     
                 if "odometer" in d:
                     odometer = d["odometer"]
+                    
+                    month = getMonthFirstDay(when)
+                    if not total["odometer_first_charge_datetime"]:
+                        total["odometer_first_charge_datetime"] = when
+                    else:
+                        total["odometer_first_charge_datetime"] = min(total["odometer_first_charge_datetime"], when)
                 
                 from_to = "-"
                 
@@ -3187,7 +3246,7 @@ def charging_history_combine_and_set():
                 "</details>",
                 "\n"
             ])
-            
+        
         for month in total['odometer']:
             if add_months(month, 1) in total['odometer']:
                 total['km'][month] = round(total['odometer'][add_months(month, 1)] - total['odometer'][month], 1)
@@ -3199,39 +3258,17 @@ def charging_history_combine_and_set():
         estimated_values_used = False
         
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
-            efficiency_adjustment = 1.10
-            
-            efficiency_factors = {
-                1: 0.89,  # January
-                2: 0.91,  # February
-                3: 0.92,  # March
-                4: 1.01,  # April
-                5: 1.08,  # May
-                6: 1.07,  # June
-                7: 1.05,  # July
-                8: 1.10,  # August
-                9: 1.11,  # September
-                10: 1.00,  # October
-                11: 0.95,  # November
-                12: 0.91   # December
-            }
-            efficiency_factors = {month: factor * efficiency_adjustment for month, factor in efficiency_factors.items()}
-            
-            current_month = getTime().month
             for month in total['km']:
                 if month != "total" and total['km'][month] == 0.0:
-                    try:
-                        efficiency_factor = efficiency_factors.get(current_month, 1.0)
-                        efficiency_factor_diff = 1.0 + (1.0 - efficiency_factor)
-                        km_per_kwh = get_state(f"sensor.{__name__}_km_per_kwh", float_type=True, error_state=0.0)
-                        adjusted_km_per_kwh = km_per_kwh * efficiency_factor
-                        
-                        estimated_km = round(total['kwh'][month] * adjusted_km_per_kwh, 1)
-                        estimated_values_used = True
-                    except:
-                        estimated_km = 0.0
-
+                    estimated_km, estimated_values_used = calculate_estimated_km(
+                        total['kwh'].get(month, 0.0), efficiency_factors, month.month
+                    )
                     total['km'][month] = f"~{estimated_km}"
+                    total['km']["total"] += estimated_km
+                elif month != "total" and month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
+                    kwh = sum([ value['kWh'] for key, value in CHARGING_HISTORY_DB.items() if getMonthFirstDay(key) == month and "odometer" not in value])
+                    estimated_km, estimated_values_used = calculate_estimated_km(kwh, efficiency_factors, month.month)
+                    total['km'][month] = f"~{round(estimated_km + total['km'][month], 1)}"
                     total['km']["total"] += estimated_km
             
         if total['kwh']["total"] > 0.0:
