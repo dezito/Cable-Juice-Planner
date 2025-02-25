@@ -5906,7 +5906,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                 service.call("climate", "turn_on", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
                 
             drive_efficiency("preheat")
-            my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
         elif climate_state == "heat_cool" and service.has_service("climate", "turn_off"):
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
@@ -5916,7 +5918,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call("climate", "turn_off", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
                     drive_efficiency("preheat_cancel")
-                    my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                    
+                    if CONFIG['notification']['preheating']:
+                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_set_climatisation"):
         vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
         if preheat and vin and climate_state == "off":
@@ -5930,7 +5934,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
                 heating_type = "Optøer"
-            my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
         elif climate_state == "heating":
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
@@ -5940,7 +5946,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
                     drive_efficiency("preheat_cancel")
-                    my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                    
+                    if CONFIG['notification']['preheating']:
+                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     else:
         _LOGGER.warning(f"Integration {integration} not supported")
 
