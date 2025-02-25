@@ -3545,9 +3545,6 @@ def cheap_grid_charge_hours():
     
     totalCost = 0.0
     totalkWh = 0.0
-        
-    total_cost_alternative = []
-    total_kwh_alternative = []
     
     solar_over_production = {}
     work_overview = {}
@@ -3769,8 +3766,6 @@ def cheap_grid_charge_hours():
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
         nonlocal trip_date_time
         nonlocal trip_target_level
-        nonlocal total_cost_alternative
-        nonlocal total_kwh_alternative
         nonlocal current_battery_level_expenses
         
         def what_battery_level(what_day, hour, price, day):
@@ -4278,67 +4273,68 @@ def cheap_grid_charge_hours():
                 dates = [date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS)) else None] if date is not None]
                 homecoming_alternative = min(dates) if dates else charging_plan[day_before]['start_of_day']
                 
-                if day < 7:
-                    dates = [date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_last_charging']] if date is not None]
-                    last_charging_alternative = min(dates) if dates else charging_plan[day_after]['end_of_day']
-                else:
-                    work_last_charging = charging_plan[0]['work_last_charging']
-                    last_charging_alternative = charging_plan[0]['work_last_charging'] + datetime.timedelta(days=7) if work_last_charging else charging_plan[0]['end_of_day'] + datetime.timedelta(days=7)
-
-                if day == 0:
-                    used_battery_level_alternative = max(get_max_recommended_charge_limit_battery_level() - battery_level(), 0.0)
-                else:
-                    work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed']
-                    trip_battery_level_needed_alternative = charging_plan[day_before]['trip_battery_level_needed'] + charging_plan[day_before]['trip_battery_level_above_max']
-                    typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
-                    total_battery_level_needed_alternative = work_battery_level_needed_alternative + trip_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
-                    used_battery_level_alternative = max(total_battery_level_needed_alternative, 0.0)
-                
-                    if charging_plan[day]["trip"]:
-                        diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
-                        used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
-
-                kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
-                kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative)
-                kwh_needed_today_alternative -= kwh_solar_alternative
-
-                if kwh_solar_alternative > 0.0 and day > 1:
-                    solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
-                    total_kwh_alternative.append(kwh_solar_alternative)
-                    total_cost_alternative.append(kwh_solar_alternative * solar_price)
-                
-                total_alternative_cost = []
-                for timestamp, price in sorted_by_cheapest_price:
-                    if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
-                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
-                        if working or on_trip:
-                            continue
+                dates = [date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_last_charging'], charging_plan[day]['trip_last_charging']] if date is not None]
+                last_charging_alternative = min(dates) if dates else charging_plan[day_after]['end_of_day']
+                    
+                if now <= last_charging_alternative and day < 7:
+                    if day == 0:
+                        used_battery_level_alternative = max(get_max_recommended_charge_limit_battery_level() - battery_level(), 0.0)
+                    else:
+                        work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed']
+                        trip_battery_level_needed_alternative = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + charging_plan[day_after]['trip_battery_level_needed'] + charging_plan[day_after]['trip_battery_level_above_max']
+                        typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
+                        total_battery_level_needed_alternative = work_battery_level_needed_alternative + trip_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
+                        used_battery_level_alternative = max(total_battery_level_needed_alternative, 0.0)
+                    
+                        if charging_plan[day]["trip"]:
+                            diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
+                            used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
+                    
+                    kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
+                    kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative)
+                    kwh_needed_today_alternative -= kwh_solar_alternative
+                    
+                    if kwh_solar_alternative > 0.0:
+                        solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
                         
-                        if kwh_needed_today_alternative > 0.0:
-                            if (kwh_needed_today_alternative - MAX_KWH_CHARGING) < 0.0:
-                                kwh = kwh_needed_today_alternative
-                                kwh_needed_today_alternative = 0.0
+                        location = sun.get_astral_location(hass)
+                        sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
+                        charge_hours_alternative[sunrise] = {
+                            "emoji": emoji_parse({'solar': True}),
+                            "day": f"{day} {charging_plan[day]['day_text']}",
+                            "used_battery_level_alternative": used_battery_level_alternative,
+                            "Price": solar_price,
+                            "kWh": kwh_solar_alternative,
+                            "Cost": kwh_solar_alternative * solar_price,
+                            "solar": True
+                        }
+                    
+                    for timestamp, price in sorted_by_cheapest_price:
+                        if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
+                            working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
+                            if working or on_trip:
+                                continue
+                            
+                            if round(kwh_needed_today_alternative, 1) > 0.0:
+                                if (kwh_needed_today_alternative - MAX_KWH_CHARGING) < 0.0:
+                                    kwh = kwh_needed_today_alternative
+                                    kwh_needed_today_alternative = 0.0
+                                else:
+                                    kwh = MAX_KWH_CHARGING
+                                    kwh_needed_today_alternative -= kwh
+                                cost = kwh * price
+                                
+                                emoji = charging_plan[day_after]['emoji'] if charging_plan[day_after]['emoji'] else "⛽"
+                                charge_hours_alternative[timestamp] = {
+                                    "emoji": f"{emoji}",
+                                    "day": f"{day_after} {charging_plan[day_after]['day_text']}",
+                                    "used_battery_level_alternative": used_battery_level_alternative,
+                                    "Price": price,
+                                    "kWh": kwh,
+                                    "Cost": cost
+                                }
                             else:
-                                kwh = MAX_KWH_CHARGING
-                                kwh_needed_today_alternative -= MAX_KWH_CHARGING
-                            cost = kwh * price
-                            
-                            total_kwh_alternative.append(kwh)
-                            total_alternative_cost.append(cost)
-                            
-                            charge_hours_alternative[timestamp] = {
-                                "emoji": charging_plan[day]['emoji'],
-                                "day": f"{day} {charging_plan[day]['day_text']}",
-                                "used_battery_level_alternative": used_battery_level_alternative,
-                                "Price": price,
-                                "kWh": kwh,
-                                "Cost": cost
-                            }
-                        else:
-                            break
-                
-                if sum(total_alternative_cost) > 0.0:
-                    total_cost_alternative.append(sum(total_alternative_cost))
+                                break
             except Exception as e:
                 _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e}")
             
@@ -4386,8 +4382,6 @@ def cheap_grid_charge_hours():
                 total_trip_battery_level_needed = max((charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0) * -1
                 charging_plan[day]['battery_level_at_midnight'].append(total_trip_battery_level_needed)
         #_LOGGER.error(f"charge_hours_alternative:\n{pformat(charge_hours_alternative, width=200, compact=True)}")
-        #_LOGGER.error(f"total_kwh_alternative ({round(sum(total_kwh_alternative), 2)} len({len(total_kwh_alternative)})):\n{pformat(total_kwh_alternative, width=200, compact=True)}")
-        #_LOGGER.error(f"total_cost_alternative ({round(sum(total_cost_alternative), 2)} len({len(total_cost_alternative)})):\n{pformat(total_cost_alternative, width=200, compact=True)}")
         return [totalCost, totalkWh]
     
     trip_planned = is_trip_planned()
@@ -4625,8 +4619,6 @@ def cheap_grid_charge_hours():
                     current_battery_level_expenses["battery_level_expenses_percentage"] += percentage
                     current_battery_level_expenses["battery_level_expenses_solar_percentage"] += solar_percentage
                     current_battery_level_expenses["battery_level_expenses_cost"] += cost
-                    total_cost_alternative.append(cost)
-                    total_kwh_alternative.append(kwh)
                 else:
                     break
     except Exception as e:
@@ -4904,7 +4896,7 @@ def cheap_grid_charge_hours():
                 d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                d['from_battery'] = f"🔋" if d['from_battery'] else ""
+                d['from_battery'] = f"🔋" if d['from_battery'] else "⚡"
                 d['from_battery_solar'] = f"{emoji_parse({'solar': True})}" if d['from_battery_solar'] else ""
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
@@ -4915,36 +4907,39 @@ def cheap_grid_charge_hours():
         work_overview_total_cost_sum = sum(work_overview_total_cost)
         work_overview_per_kwh = work_overview_total_cost_sum / work_overview_total_kwh_sum if work_overview_total_kwh_sum > 0.0 else 0.0
         
-        total_cost_alternative_sum = sum(total_cost_alternative)
-        total_kwh_alternative_sum = sum(total_kwh_alternative)
-        total_per_kwh_alternative = total_cost_alternative_sum / total_kwh_alternative_sum if total_kwh_alternative_sum > 0.0 else 0.0
+        if work_overview_total_kwh_sum > 0.0:
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
+            
+            work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
+            overview.append(f"##### 📎Afgangsplan inkludere {work_overview_solar_text}batteri niveau udgifter #####")
+        
+        overview_alternative = []
         total_kwh_charge_hours_alternative = []
         total_cost_charge_hours_alternative = []
         
-        if work_overview_total_kwh_sum > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
+        for timestamp, value in sorted({k: v for k, v in charge_hours_alternative.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
+            timestamp_str = timestamp.strftime('%d/%m %H:%M')
+            if "solar" in value:
+                timestamp_str = timestamp.strftime('%d/%m')
+
+            overview_alternative.append(f"| {value['emoji']} | **{timestamp_str}** | **{int(round(kwh_to_percentage(value['kWh'], include_charging_loss=True),0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
+            total_kwh_charge_hours_alternative.append(value['kWh'])
+            total_cost_charge_hours_alternative.append(value['Cost'])
+            
+        total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
+        total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
+        total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
         
-        if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
+        
+        if work_overview_total_kwh_sum > 0.0 and total_kwh_charge_hours_alternative_sum > 0.0:
             overview.append("<details>")
-            overview.append(f"<summary>Skøn ved daglig opladning {round((total_per_kwh_alternative) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
-            
-            if work_overview_total_kwh_sum > 0.0:
-                work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
-                overview.append(f"##### 📎Afgangsplan & Dagligt opladningsskøn inkludere {work_overview_solar_text}batteri niveau udgifter #####")
-            
+            overview.append(f"<summary>Skøn ved daglig opladning {round(total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh forskel {round((total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum) - work_overview_total_cost_sum, 2):.2f}kr</summary>\n")
+                        
             overview.append("### Lade oversigt (**Dagligt opladningsskøn**) ###")
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
             overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
-            for timestamp, value in sorted({k: v for k, v in charge_hours_alternative.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
-                charge_hours_alternative[timestamp]['emoji'] = charge_hours_alternative[timestamp]['emoji'] if charge_hours_alternative[timestamp]['emoji'] else "⛽"
-                overview.append(f"| **{value['emoji']}** | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(kwh_to_percentage(value['kWh'], include_charging_loss=True),0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
-                total_kwh_charge_hours_alternative.append(value['kWh'])
-                total_cost_charge_hours_alternative.append(value['Cost'])
-                
-            total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
-            total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
-            total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
+            overview.extend(overview_alternative)
             
             overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh**")
 
