@@ -6893,7 +6893,9 @@ if INITIALIZATION_COMPLETE:
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
         drive_efficiency_save_car_stats(bootup=True)
-        check_master_updates()
+        
+        if CONFIG['notification']['update_available']:
+            check_master_updates()
         append_overview_output(f"📟{BASENAME} started")
    
     #Fill up and days to charge only 1 allowed
@@ -7052,7 +7054,8 @@ if INITIALIZATION_COMPLETE:
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_new_day")
         reset_counter_entity_integration()
-        check_master_updates()
+        if CONFIG['notification']['update_available']:
+            check_master_updates()
         
     @time_trigger(f"cron(0 1 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
