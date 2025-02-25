@@ -493,7 +493,10 @@ COMMENT_DB_YAML = {
     "drive_efficiency_db_data_to_save": "Amount to save",
     "km_kwh_efficiency_db_data_to_save": "Amount to save",
     "charging_history_db_data_to_save": "Save X month back",
-    "refund": "Refund amount given by the state/country/nation/energy-provider"
+    "refund": "Refund amount given by the state/country/nation/energy-provider",
+    "efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
+    "update_available": "Notification of new version available at midnight and on script start",
+    "preheating": "Notification of preheating start/stop",
 }
 
 DEFAULT_ENTITIES = {
