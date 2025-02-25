@@ -129,6 +129,8 @@ KWH_AVG_PRICES_DB = {}
 KWH_AVG_PRICES_DB_VERSION = 2.0
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
+
+CHARGING_HISTORY_ENDING_BYTE_SIZE = None
 CHARGING_HISTORY_DB = {}
 OVERVIEW_HISTORY = {}
 
@@ -399,6 +401,11 @@ DEFAULT_CONFIG = {
             "ignore_consumption_from_entity_ids": []
         },
     },
+    "notification": {
+        "update_available": True,
+        "efficiency_on_cable_plug_in": True,
+        "preheating": True,
+    },
     "notify_list": [],
     "prices": {
         "entity_ids": {
@@ -488,7 +495,10 @@ COMMENT_DB_YAML = {
     "drive_efficiency_db_data_to_save": "Amount to save",
     "km_kwh_efficiency_db_data_to_save": "Amount to save",
     "charging_history_db_data_to_save": "Save X month back",
-    "refund": "Refund amount given by the state/country/nation/energy-provider"
+    "refund": "Refund amount given by the state/country/nation/energy-provider",
+    "efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
+    "update_available": "Notification of new version available at midnight and on script start",
+    "preheating": "Notification of preheating start/stop",
 }
 
 DEFAULT_ENTITIES = {
@@ -2779,6 +2789,10 @@ def drive_efficiency(state=None):
             KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
             KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
             save_km_kwh_efficiency()
+            
+            if CONFIG['notification']['efficiency_on_cable_plug_in']:
+                wh_km = round(1000 / distancePerkWh, 2)
+                my_notify(message = f"Kilometer: {round(kilometers, 1)}km\nBrugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)\n\nKørsel effektivitet: {round(efficiency, 1)}%\n{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)", title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
@@ -2895,6 +2909,8 @@ def load_charging_history():
             save_charging_history()
     
     set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
+    
+    charging_history_combine_and_set(get_ending_byte_size=True if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else False)
     charging_history_combine_and_set()
     
 def save_charging_history():
@@ -2995,9 +3011,9 @@ def charging_history_recalc_price():
                 my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_recalc_price")
     return False
 
-def charging_history_combine_and_set():
+def charging_history_combine_and_set(get_ending_byte_size=False):
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_combine_and_set")
-    global CHARGING_HISTORY_DB
+    global CHARGING_HISTORY_DB, CHARGING_HISTORY_ENDING_BYTE_SIZE
     
     efficiency_adjustment = 1.15
     
@@ -3053,21 +3069,22 @@ def charging_history_combine_and_set():
         }
         
         details = False
-        header = "| Tid |  | % | kWh | Pris |"
-        align = "|:---:|:---|:---:|:---:|:---:|"
-        
-        history.append("<center>\n")
-        history.append(header)
-        history.append(align)
         
         length = 10
         sub_length = 50
         sub_details_count = 0
         
-        max_history_length = 160
-        max_history_length -= length
+        current_history_bytes_size = 0
+        max_entity_attributes_bytes_size = 16384
+        history_bytes_buffer = 0 if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else CHARGING_HISTORY_ENDING_BYTE_SIZE # Safe buffer bootup size
         
-        append_counter = 0
+        max_history_bytes_size = max_entity_attributes_bytes_size - history_bytes_buffer
+        history_to_big_anounced = False
+        
+        current_history_counter = 0
+        max_history_length = 250
+        #max_history_length -= length # Buffer to details
+        
         skip_counter = 0
         solar_in_months = False
         sorted_db = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)
@@ -3075,18 +3092,35 @@ def charging_history_combine_and_set():
         
         now = getTime()
         
-        for i, (when, d) in enumerate(sorted_db):
+        header = "| Tid |  | % | kWh | Pris |"
+        align = "|:---:|:---|:---:|:---:|:---:|"
+        
+        def history_loop_append(d):
+            nonlocal history, current_history_bytes_size
+            
+            if isinstance(d, list):
+                history.extend(d)
+                current_history_bytes_size += len("\n".join(d).encode('utf-8'))
+            else:
+                history.append(d)
+                current_history_bytes_size += len(d.encode('utf-8'))
+        
+        history_loop_append("<center>\n")
+        history_loop_append(header)
+        history_loop_append(align)
+            
+        for i, (when, data) in enumerate(sorted_db):
             if skip_counter == 0:
-                if append_counter == length and not details:
+                if current_history_counter == length and not details:
                     details = True
-                    history.extend([
+                    history_loop_append([
                         "<details>",
                         "<summary><b>Se mere historik</b></summary>\n",
                         header,
                         align
                     ])
-                elif append_counter > length and append_counter >= sub_length and append_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length:
-                    history.extend([
+                elif current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
+                    history_loop_append([
                         "\n",
                         "<details>",
                         "<summary><b>Se mere historik</b></summary>\n",
@@ -3094,26 +3128,29 @@ def charging_history_combine_and_set():
                         align
                     ])
                     sub_details_count += 1
-                    
+                elif not history_to_big_anounced and current_history_bytes_size >= max_history_bytes_size:
+                    history_to_big_anounced = True
+                    history_loop_append("##### Home Assistant tillader ikke at vise mere historik")
+                
                 started = when
-                charging_session = d["charging_session"] if "charging_session" in d else None
-                ended = d['ended']
-                emoji = d['emoji']
-                percentage = d['percentage']
-                kWh = d["kWh"]
-                kWh_solar = d["kWh_solar"] if "kWh_solar" in d else 0.0
-                cost = d['cost']
-                unit = d['unit']
+                charging_session = data["charging_session"] if "charging_session" in data else None
+                ended = data['ended']
+                emoji = data['emoji']
+                percentage = data['percentage']
+                kWh = data["kWh"]
+                kWh_solar = data["kWh_solar"] if "kWh_solar" in data else 0.0
+                cost = data['cost']
+                unit = data['unit']
                 start_charger_meter = None
                 end_charger_meter = None
                 odometer = None
                 
-                if "start_charger_meter" in d and "end_charger_meter" in d:
-                    start_charger_meter = d["start_charger_meter"]
-                    end_charger_meter = d["end_charger_meter"]
+                if "start_charger_meter" in data and "end_charger_meter" in data:
+                    start_charger_meter = data["start_charger_meter"]
+                    end_charger_meter = data["end_charger_meter"]
                     
-                if "odometer" in d:
-                    odometer = d["odometer"]
+                if "odometer" in data:
+                    odometer = data["odometer"]
                     
                     month = getMonthFirstDay(when)
                     if not total["odometer_first_charge_datetime"]:
@@ -3130,33 +3167,33 @@ def charging_history_combine_and_set():
                     
                     for x in range(i+1, sorted_db_length+1):
                         if x+1 <= sorted_db_length:
-                            next_when, next_d = sorted_db[x]
-                            if daysBetween(when, now) > 40:
+                            next_when, next_data = sorted_db[x]
+                            if daysBetween(when, now) > 7:
                                 if daysBetween(when, next_when) == 0:
                                     join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
-                                    emoji = join_unique_emojis(emoji, next_d['emoji'])
+                                    emoji = join_unique_emojis(emoji, next_data['emoji'])
                                 else:
                                     break
                             else:
-                                if daysBetween(when, next_when) == 0 and hoursBetween(when, next_when) <= 1 and emoji == next_d['emoji']:
+                                if daysBetween(when, next_when) == 0 and hoursBetween(when, next_when) <= 1 and emoji == next_data['emoji']:
                                     pass
                                 else:
                                     break
                                 
                             started = next_when
-                            percentage += next_d['percentage']
-                            kWh += next_d["kWh"]
-                            kWh_solar += next_d["kWh_solar"] if "kWh_solar" in d else 0.0
-                            cost += next_d['cost']
+                            percentage += next_data['percentage']
+                            kWh += next_data["kWh"]
+                            kWh_solar += next_data["kWh_solar"] if "kWh_solar" in data else 0.0
+                            cost += next_data['cost']
                             if kWh > 0.0:
                                 unit = cost / kWh
                             
-                            if "start_charger_meter" in next_d:
-                                start_charger_meter = next_d["start_charger_meter"]
+                            if "start_charger_meter" in next_data:
+                                start_charger_meter = next_data["start_charger_meter"]
                             
-                            if "odometer" in next_d:
+                            if "odometer" in next_data:
                                 if odometer:
-                                    odometer = min(odometer, next_d["odometer"])
+                                    odometer = min(odometer, next_data["odometer"])
                                 
                             skip_counter += 1
                         else:
@@ -3184,7 +3221,7 @@ def charging_history_combine_and_set():
                 if charging_session:
                     combined_db[started]["charging_session"] = charging_session
                 
-                if append_counter <= max_history_length:
+                if current_history_bytes_size < max_history_bytes_size: #current_history_counter <= max_history_length and current_history_bytes_size <= max_history_bytes_size
                     ended_hour = int(ended.split(":")[0]) if ended != ">" and len(ended) > 0 else getHour()
                     if getHour(started) != ended_hour:
                         from_to = "»"
@@ -3197,13 +3234,14 @@ def charging_history_combine_and_set():
                     cost = f"**{cost:.2f}**" if isinstance(cost, (float, int)) else ""
                     unit = f"**{unit:.2f}**" if isinstance(unit, (float, int)) else ""
                     
-                    history.append(f"| {started}{from_to}{ended} | {emoji} | {percentage} | {kWh} | {cost} ({unit}) |")
-                append_counter += 1
+                    history_loop_append(f"| {started}{from_to}{ended} | {emoji} | {percentage} | {kWh} | {cost} ({unit}) |")
+                    
+                    current_history_counter += 1
             else:
                 skip_counter = max(skip_counter - 1, 0)
                 
-            if append_counter > length and (len(CHARGING_HISTORY_DB) - i) == 1:
-                history.extend(["</details>", "\n"] * (sub_details_count + 1))
+            if current_history_counter > length and (len(CHARGING_HISTORY_DB) - i) == 1:
+                history_loop_append(["</details>", "\n"] * (sub_details_count + 1))
             
             month = getMonthFirstDay(when)
             
@@ -3216,31 +3254,32 @@ def charging_history_combine_and_set():
                 total['charging_kwh_night'][month] = 0.0
                 total['km'][month] = 0.0
                 
-            total['cost'][month] += d['cost']
-            total['kwh'][month] += d["kWh"]
-            total['percentage'][month] += d['percentage']
+            total['cost'][month] += data['cost']
+            total['kwh'][month] += data["kWh"]
+            total['percentage'][month] += data['percentage']
             
             if is_day(when):
-                total['charging_kwh_day'][month] += d["kWh"]
-                total['charging_kwh_day']["total"] += d["kWh"]
+                total['charging_kwh_day'][month] += data["kWh"]
+                total['charging_kwh_day']["total"] += data["kWh"]
             else:
-                total['charging_kwh_night'][month] += d["kWh"]
-                total['charging_kwh_night']["total"] += d["kWh"]
+                total['charging_kwh_night'][month] += data["kWh"]
+                total['charging_kwh_night']["total"] += data["kWh"]
             
-            if "kWh_solar" in d and d['kWh_solar'] > 0.0:
-                total['solar_kwh'][month] += d['kWh_solar']
-                total['solar_kwh']["total"] += d['kWh_solar']
+            if "kWh_solar" in data and data['kWh_solar'] > 0.0:
+                total['solar_kwh'][month] += data['kWh_solar']
+                total['solar_kwh']["total"] += data['kWh_solar']
                 solar_in_months = True
 
-            total['cost']["total"] += d['cost']
-            total['kwh']["total"] += d["kWh"]
-            total['percentage']["total"] += d['percentage']
+            total['cost']["total"] += data['cost']
+            total['kwh']["total"] += data["kWh"]
+            total['percentage']["total"] += data['percentage']
             
-            if "odometer" in d:
+            if "odometer" in data:
                 if month not in total['odometer']:
-                    total['odometer'][month] = d["odometer"]
+                    total['odometer'][month] = data["odometer"]
                 else:
-                    total['odometer'][month] = min(total['odometer'][month], d["odometer"])
+                    total['odometer'][month] = min(total['odometer'][month], data["odometer"])
+        
         if details:
             history.extend([
                 "</details>",
@@ -3313,7 +3352,7 @@ def charging_history_combine_and_set():
             history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
             
             if estimated_values_used:
-                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet #####")
+                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
                 
             history.append("---")
             history.append("\n**Ladnings fordeling**")
@@ -3332,11 +3371,15 @@ def charging_history_combine_and_set():
             history.append("\n</details>\n")
             
         history.append("</center>")
-        
-    set_attr(f"sensor.{__name__}_charging_history.history", "\n".join(history) if history else "**Ingen lade historik**")
     
-    CHARGING_HISTORY_DB = combined_db
-    save_charging_history()
+    total_history_bytes_size = len("\n".join(history).encode('utf-8'))
+    CHARGING_HISTORY_ENDING_BYTE_SIZE = total_history_bytes_size - current_history_bytes_size + 1000
+    
+    if not get_ending_byte_size:
+        set_attr(f"sensor.{__name__}_charging_history.history", "\n".join(history) if history else "**Ingen lade historik**")
+        
+        CHARGING_HISTORY_DB = combined_db
+        save_charging_history()
     
 def charging_power_to_emulated_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("charging_power_to_emulated_battery_level")
@@ -3545,9 +3588,6 @@ def cheap_grid_charge_hours():
     
     totalCost = 0.0
     totalkWh = 0.0
-        
-    total_cost_alternative = []
-    total_kwh_alternative = []
     
     solar_over_production = {}
     work_overview = {}
@@ -3769,8 +3809,6 @@ def cheap_grid_charge_hours():
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
         nonlocal trip_date_time
         nonlocal trip_target_level
-        nonlocal total_cost_alternative
-        nonlocal total_kwh_alternative
         nonlocal current_battery_level_expenses
         
         def what_battery_level(what_day, hour, price, day):
@@ -4278,67 +4316,68 @@ def cheap_grid_charge_hours():
                 dates = [date for date in [charging_plan[day]['work_homecoming'], charging_plan[day]['trip_homecoming'], getTime() if day == 0 and charger_status in tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS)) else None] if date is not None]
                 homecoming_alternative = min(dates) if dates else charging_plan[day_before]['start_of_day']
                 
-                if day < 7:
-                    dates = [date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_last_charging']] if date is not None]
-                    last_charging_alternative = min(dates) if dates else charging_plan[day_after]['end_of_day']
-                else:
-                    work_last_charging = charging_plan[0]['work_last_charging']
-                    last_charging_alternative = charging_plan[0]['work_last_charging'] + datetime.timedelta(days=7) if work_last_charging else charging_plan[0]['end_of_day'] + datetime.timedelta(days=7)
-
-                if day == 0:
-                    used_battery_level_alternative = max(get_max_recommended_charge_limit_battery_level() - battery_level(), 0.0)
-                else:
-                    work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed']
-                    trip_battery_level_needed_alternative = charging_plan[day_before]['trip_battery_level_needed'] + charging_plan[day_before]['trip_battery_level_above_max']
-                    typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
-                    total_battery_level_needed_alternative = work_battery_level_needed_alternative + trip_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
-                    used_battery_level_alternative = max(total_battery_level_needed_alternative, 0.0)
-                
-                    if charging_plan[day]["trip"]:
-                        diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
-                        used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
-
-                kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
-                kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative)
-                kwh_needed_today_alternative -= kwh_solar_alternative
-
-                if kwh_solar_alternative > 0.0 and day > 1:
-                    solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
-                    total_kwh_alternative.append(kwh_solar_alternative)
-                    total_cost_alternative.append(kwh_solar_alternative * solar_price)
-                
-                total_alternative_cost = []
-                for timestamp, price in sorted_by_cheapest_price:
-                    if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
-                        working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
-                        if working or on_trip:
-                            continue
+                dates = [date for date in [charging_plan[day_after]['work_last_charging'], charging_plan[day_after]['trip_last_charging'], charging_plan[day]['trip_last_charging']] if date is not None]
+                last_charging_alternative = min(dates) if dates else charging_plan[day_after]['end_of_day']
+                    
+                if now <= last_charging_alternative and day < 7:
+                    if day == 0:
+                        used_battery_level_alternative = max(get_max_recommended_charge_limit_battery_level() - battery_level(), 0.0)
+                    else:
+                        work_battery_level_needed_alternative = charging_plan[day]['work_battery_level_needed']
+                        trip_battery_level_needed_alternative = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + charging_plan[day_after]['trip_battery_level_needed'] + charging_plan[day_after]['trip_battery_level_above_max']
+                        typical_daily_battery_level_needed_alternative = calc_distance_to_battery_level(get_entity_daily_distance()) if fill_up_charging_enabled() else 0.0
+                        total_battery_level_needed_alternative = work_battery_level_needed_alternative + trip_battery_level_needed_alternative + typical_daily_battery_level_needed_alternative
+                        used_battery_level_alternative = max(total_battery_level_needed_alternative, 0.0)
+                    
+                        if charging_plan[day]["trip"]:
+                            diff_min_alternative = max(get_min_daily_battery_level() - get_min_trip_battery_level(), 0.0) if used_battery_level_alternative > 0.0 else 0.0
+                            used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
+                    
+                    kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
+                    kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative)
+                    kwh_needed_today_alternative -= kwh_solar_alternative
+                    
+                    if kwh_solar_alternative > 0.0:
+                        solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
                         
-                        if kwh_needed_today_alternative > 0.0:
-                            if (kwh_needed_today_alternative - MAX_KWH_CHARGING) < 0.0:
-                                kwh = kwh_needed_today_alternative
-                                kwh_needed_today_alternative = 0.0
+                        location = sun.get_astral_location(hass)
+                        sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
+                        charge_hours_alternative[sunrise] = {
+                            "emoji": emoji_parse({'solar': True}),
+                            "day": f"{day} {charging_plan[day]['day_text']}",
+                            "used_battery_level_alternative": used_battery_level_alternative,
+                            "Price": solar_price,
+                            "kWh": kwh_solar_alternative,
+                            "Cost": kwh_solar_alternative * solar_price,
+                            "solar": True
+                        }
+                    
+                    for timestamp, price in sorted_by_cheapest_price:
+                        if timestamp not in charge_hours_alternative and in_between(timestamp, homecoming_alternative - datetime.timedelta(hours=1), last_charging_alternative + datetime.timedelta(hours=1)):
+                            working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
+                            if working or on_trip:
+                                continue
+                            
+                            if round(kwh_needed_today_alternative, 1) > 0.0:
+                                if (kwh_needed_today_alternative - MAX_KWH_CHARGING) < 0.0:
+                                    kwh = kwh_needed_today_alternative
+                                    kwh_needed_today_alternative = 0.0
+                                else:
+                                    kwh = MAX_KWH_CHARGING
+                                    kwh_needed_today_alternative -= kwh
+                                cost = kwh * price
+                                
+                                emoji = charging_plan[day_after]['emoji'] if charging_plan[day_after]['emoji'] else "⛽"
+                                charge_hours_alternative[timestamp] = {
+                                    "emoji": f"{emoji}",
+                                    "day": f"{day_after} {charging_plan[day_after]['day_text']}",
+                                    "used_battery_level_alternative": used_battery_level_alternative,
+                                    "Price": price,
+                                    "kWh": kwh,
+                                    "Cost": cost
+                                }
                             else:
-                                kwh = MAX_KWH_CHARGING
-                                kwh_needed_today_alternative -= MAX_KWH_CHARGING
-                            cost = kwh * price
-                            
-                            total_kwh_alternative.append(kwh)
-                            total_alternative_cost.append(cost)
-                            
-                            charge_hours_alternative[timestamp] = {
-                                "emoji": charging_plan[day]['emoji'],
-                                "day": f"{day} {charging_plan[day]['day_text']}",
-                                "used_battery_level_alternative": used_battery_level_alternative,
-                                "Price": price,
-                                "kWh": kwh,
-                                "Cost": cost
-                            }
-                        else:
-                            break
-                
-                if sum(total_alternative_cost) > 0.0:
-                    total_cost_alternative.append(sum(total_alternative_cost))
+                                break
             except Exception as e:
                 _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e}")
             
@@ -4386,8 +4425,6 @@ def cheap_grid_charge_hours():
                 total_trip_battery_level_needed = max((charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0) * -1
                 charging_plan[day]['battery_level_at_midnight'].append(total_trip_battery_level_needed)
         #_LOGGER.error(f"charge_hours_alternative:\n{pformat(charge_hours_alternative, width=200, compact=True)}")
-        #_LOGGER.error(f"total_kwh_alternative ({round(sum(total_kwh_alternative), 2)} len({len(total_kwh_alternative)})):\n{pformat(total_kwh_alternative, width=200, compact=True)}")
-        #_LOGGER.error(f"total_cost_alternative ({round(sum(total_cost_alternative), 2)} len({len(total_cost_alternative)})):\n{pformat(total_cost_alternative, width=200, compact=True)}")
         return [totalCost, totalkWh]
     
     trip_planned = is_trip_planned()
@@ -4625,8 +4662,6 @@ def cheap_grid_charge_hours():
                     current_battery_level_expenses["battery_level_expenses_percentage"] += percentage
                     current_battery_level_expenses["battery_level_expenses_solar_percentage"] += solar_percentage
                     current_battery_level_expenses["battery_level_expenses_cost"] += cost
-                    total_cost_alternative.append(cost)
-                    total_kwh_alternative.append(kwh)
                 else:
                     break
     except Exception as e:
@@ -4778,6 +4813,14 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"Failed to calculate battery level cost: {e}")
         
     try:
+        def planning_basis_markdown():
+            nonlocal overview
+            
+            if LAST_SUCCESSFUL_GRID_PRICES:
+                overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
+                overview.extend(get_hours_plan())
+                overview.append("</details>\n")
+        
         charging_plan_list = []
         sorted_charge_hours = sorted(
             {k: v for k, v in chargeHours.items() if isinstance(k, datetime.datetime)}.items(),
@@ -4846,19 +4889,13 @@ def cheap_grid_charge_hours():
                 for timestamp, value in sorted_charge_hours:
                     overview.append(f"| {emoji_parse(value)} | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(value['battery_level'], 0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
                 
-                if LAST_SUCCESSFUL_GRID_PRICES:
-                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
-                    overview.extend(get_hours_plan())
-                    overview.append("</details>\n")
+                planning_basis_markdown()
                     
                 overview.append("</details>\n")
             else:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
                 
-                if LAST_SUCCESSFUL_GRID_PRICES:
-                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
-                    overview.extend(get_hours_plan())
-                    overview.append("</details>\n")
+                planning_basis_markdown()
             
             if USING_OFFLINE_PRICES:
                 overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
@@ -4904,7 +4941,7 @@ def cheap_grid_charge_hours():
                 d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                d['from_battery'] = f"🔋" if d['from_battery'] else ""
+                d['from_battery'] = f"🔋" if d['from_battery'] else "⚡"
                 d['from_battery_solar'] = f"{emoji_parse({'solar': True})}" if d['from_battery_solar'] else ""
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
@@ -4915,36 +4952,39 @@ def cheap_grid_charge_hours():
         work_overview_total_cost_sum = sum(work_overview_total_cost)
         work_overview_per_kwh = work_overview_total_cost_sum / work_overview_total_kwh_sum if work_overview_total_kwh_sum > 0.0 else 0.0
         
-        total_cost_alternative_sum = sum(total_cost_alternative)
-        total_kwh_alternative_sum = sum(total_kwh_alternative)
-        total_per_kwh_alternative = total_cost_alternative_sum / total_kwh_alternative_sum if total_kwh_alternative_sum > 0.0 else 0.0
+        if work_overview_total_kwh_sum > 0.0:
+            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
+            
+            work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
+            overview.append(f"##### 📎Afgangsplan inkludere {work_overview_solar_text}batteri niveau udgifter #####")
+        
+        overview_alternative = []
         total_kwh_charge_hours_alternative = []
         total_cost_charge_hours_alternative = []
         
-        if work_overview_total_kwh_sum > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
+        for timestamp, value in sorted({k: v for k, v in charge_hours_alternative.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
+            timestamp_str = timestamp.strftime('%d/%m %H:%M')
+            if "solar" in value:
+                timestamp_str = timestamp.strftime('%d/%m')
+
+            overview_alternative.append(f"| {value['emoji']} | **{timestamp_str}** | **{int(round(kwh_to_percentage(value['kWh'], include_charging_loss=True),0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
+            total_kwh_charge_hours_alternative.append(value['kWh'])
+            total_cost_charge_hours_alternative.append(value['Cost'])
+            
+        total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
+        total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
+        total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
         
-        if work_overview_total_kwh_sum > 0.0 and total_kwh_alternative_sum > 0.0:
+        
+        if work_overview_total_kwh_sum > 0.0 and total_kwh_charge_hours_alternative_sum > 0.0:
             overview.append("<details>")
-            overview.append(f"<summary>Skøn ved daglig opladning {round((total_per_kwh_alternative) * work_overview_total_kwh_sum, 2):.2f}kr {round(total_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh</summary>\n")
-            
-            if work_overview_total_kwh_sum > 0.0:
-                work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
-                overview.append(f"##### 📎Afgangsplan & Dagligt opladningsskøn inkludere {work_overview_solar_text}batteri niveau udgifter #####")
-            
+            overview.append(f"<summary>Skøn ved daglig opladning {round(total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh forskel {round((total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum) - work_overview_total_cost_sum, 2):.2f}kr</summary>\n")
+                        
             overview.append("### Lade oversigt (**Dagligt opladningsskøn**) ###")
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
             overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
-            for timestamp, value in sorted({k: v for k, v in charge_hours_alternative.items() if type(k) is datetime.datetime}.items(), key=lambda kv: (kv[0])):
-                charge_hours_alternative[timestamp]['emoji'] = charge_hours_alternative[timestamp]['emoji'] if charge_hours_alternative[timestamp]['emoji'] else "⛽"
-                overview.append(f"| **{value['emoji']}** | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(kwh_to_percentage(value['kWh'], include_charging_loss=True),0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
-                total_kwh_charge_hours_alternative.append(value['kWh'])
-                total_cost_charge_hours_alternative.append(value['Cost'])
-                
-            total_kwh_charge_hours_alternative_sum = sum(total_kwh_charge_hours_alternative)
-            total_cost_charge_hours_alternative_sum = sum(total_cost_charge_hours_alternative)
-            total_charge_hours_per_kwh_alternative = total_cost_charge_hours_alternative_sum / total_kwh_charge_hours_alternative_sum if total_kwh_charge_hours_alternative_sum > 0.0 else 0.0
+            overview.extend(overview_alternative)
             
             overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh**")
 
@@ -5897,7 +5937,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                 service.call("climate", "turn_on", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
                 
             drive_efficiency("preheat")
-            my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
         elif climate_state == "heat_cool" and service.has_service("climate", "turn_off"):
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
@@ -5907,7 +5949,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call("climate", "turn_off", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
                     drive_efficiency("preheat_cancel")
-                    my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                    
+                    if CONFIG['notification']['preheating']:
+                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_set_climatisation"):
         vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
         if preheat and vin and climate_state == "off":
@@ -5921,7 +5965,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
                 heating_type = "Optøer"
-            my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
         elif climate_state == "heating":
             if ready_to_charge():
                 if stop_preheat_no_driving(next_drive, now, preheat_min_before):
@@ -5931,7 +5977,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     _LOGGER.info("Car not moved stopping preheating ev car")
                     service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
                     drive_efficiency("preheat_cancel")
-                    my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+                    
+                    if CONFIG['notification']['preheating']:
+                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     else:
         _LOGGER.warning(f"Integration {integration} not supported")
 
@@ -6876,7 +6924,9 @@ if INITIALIZATION_COMPLETE:
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
         drive_efficiency_save_car_stats(bootup=True)
-        check_master_updates()
+        
+        if CONFIG['notification']['update_available']:
+            check_master_updates()
         append_overview_output(f"📟{BASENAME} started")
    
     #Fill up and days to charge only 1 allowed
@@ -7035,7 +7085,8 @@ if INITIALIZATION_COMPLETE:
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_new_day")
         reset_counter_entity_integration()
-        check_master_updates()
+        if CONFIG['notification']['update_available']:
+            check_master_updates()
         
     @time_trigger(f"cron(0 1 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
