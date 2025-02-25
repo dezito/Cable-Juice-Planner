@@ -4770,6 +4770,14 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"Failed to calculate battery level cost: {e}")
         
     try:
+        def planning_basis_markdown():
+            nonlocal overview
+            
+            if LAST_SUCCESSFUL_GRID_PRICES:
+                overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
+                overview.extend(get_hours_plan())
+                overview.append("</details>\n")
+        
         charging_plan_list = []
         sorted_charge_hours = sorted(
             {k: v for k, v in chargeHours.items() if isinstance(k, datetime.datetime)}.items(),
@@ -4838,19 +4846,13 @@ def cheap_grid_charge_hours():
                 for timestamp, value in sorted_charge_hours:
                     overview.append(f"| {emoji_parse(value)} | **{timestamp.strftime('%d/%m %H:%M')}** | **{int(round(value['battery_level'], 0))}** | **{round(value['kWh'], 2):.2f}** | **{round(value['Price'], 2):.2f}** | **{round(value['Cost'], 2):.2f}** |")
                 
-                if LAST_SUCCESSFUL_GRID_PRICES:
-                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
-                    overview.extend(get_hours_plan())
-                    overview.append("</details>\n")
+                planning_basis_markdown()
                     
                 overview.append("</details>\n")
             else:
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
                 
-                if LAST_SUCCESSFUL_GRID_PRICES:
-                    overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
-                    overview.extend(get_hours_plan())
-                    overview.append("</details>\n")
+                planning_basis_markdown()
             
             if USING_OFFLINE_PRICES:
                 overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
