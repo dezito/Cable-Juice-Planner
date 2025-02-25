@@ -129,6 +129,8 @@ KWH_AVG_PRICES_DB = {}
 KWH_AVG_PRICES_DB_VERSION = 2.0
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
+
+CHARGING_HISTORY_ENDING_BYTE_SIZE = None
 CHARGING_HISTORY_DB = {}
 OVERVIEW_HISTORY = {}
 
@@ -2907,6 +2909,8 @@ def load_charging_history():
             save_charging_history()
     
     set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
+    
+    charging_history_combine_and_set(get_ending_byte_size=True if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else False)
     charging_history_combine_and_set()
     
 def save_charging_history():
@@ -3007,9 +3011,9 @@ def charging_history_recalc_price():
                 my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_recalc_price")
     return False
 
-def charging_history_combine_and_set():
+def charging_history_combine_and_set(get_ending_byte_size=False):
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_combine_and_set")
-    global CHARGING_HISTORY_DB
+    global CHARGING_HISTORY_DB, CHARGING_HISTORY_ENDING_BYTE_SIZE
     
     efficiency_adjustment = 1.15
     
@@ -3065,21 +3069,22 @@ def charging_history_combine_and_set():
         }
         
         details = False
-        header = "| Tid |  | % | kWh | Pris |"
-        align = "|:---:|:---|:---:|:---:|:---:|"
-        
-        history.append("<center>\n")
-        history.append(header)
-        history.append(align)
         
         length = 10
         sub_length = 50
         sub_details_count = 0
         
-        max_history_length = 160
-        max_history_length -= length
+        current_history_bytes_size = 0
+        max_entity_attributes_bytes_size = 16384
+        history_bytes_buffer = 0 if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else CHARGING_HISTORY_ENDING_BYTE_SIZE # Safe buffer bootup size
         
-        append_counter = 0
+        max_history_bytes_size = max_entity_attributes_bytes_size - history_bytes_buffer
+        history_to_big_anounced = False
+        
+        current_history_counter = 0
+        max_history_length = 250
+        #max_history_length -= length # Buffer to details
+        
         skip_counter = 0
         solar_in_months = False
         sorted_db = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)
@@ -3087,18 +3092,35 @@ def charging_history_combine_and_set():
         
         now = getTime()
         
-        for i, (when, d) in enumerate(sorted_db):
+        header = "| Tid |  | % | kWh | Pris |"
+        align = "|:---:|:---|:---:|:---:|:---:|"
+        
+        def history_loop_append(d):
+            nonlocal history, current_history_bytes_size
+            
+            if isinstance(d, list):
+                history.extend(d)
+                current_history_bytes_size += len("\n".join(d).encode('utf-8'))
+            else:
+                history.append(d)
+                current_history_bytes_size += len(d.encode('utf-8'))
+        
+        history_loop_append("<center>\n")
+        history_loop_append(header)
+        history_loop_append(align)
+            
+        for i, (when, data) in enumerate(sorted_db):
             if skip_counter == 0:
-                if append_counter == length and not details:
+                if current_history_counter == length and not details:
                     details = True
-                    history.extend([
+                    history_loop_append([
                         "<details>",
                         "<summary><b>Se mere historik</b></summary>\n",
                         header,
                         align
                     ])
-                elif append_counter > length and append_counter >= sub_length and append_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length:
-                    history.extend([
+                elif current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
+                    history_loop_append([
                         "\n",
                         "<details>",
                         "<summary><b>Se mere historik</b></summary>\n",
@@ -3106,26 +3128,29 @@ def charging_history_combine_and_set():
                         align
                     ])
                     sub_details_count += 1
-                    
+                elif not history_to_big_anounced and current_history_bytes_size >= max_history_bytes_size:
+                    history_to_big_anounced = True
+                    history_loop_append("##### Home Assistant tillader ikke at vise mere historik")
+                
                 started = when
-                charging_session = d["charging_session"] if "charging_session" in d else None
-                ended = d['ended']
-                emoji = d['emoji']
-                percentage = d['percentage']
-                kWh = d["kWh"]
-                kWh_solar = d["kWh_solar"] if "kWh_solar" in d else 0.0
-                cost = d['cost']
-                unit = d['unit']
+                charging_session = data["charging_session"] if "charging_session" in data else None
+                ended = data['ended']
+                emoji = data['emoji']
+                percentage = data['percentage']
+                kWh = data["kWh"]
+                kWh_solar = data["kWh_solar"] if "kWh_solar" in data else 0.0
+                cost = data['cost']
+                unit = data['unit']
                 start_charger_meter = None
                 end_charger_meter = None
                 odometer = None
                 
-                if "start_charger_meter" in d and "end_charger_meter" in d:
-                    start_charger_meter = d["start_charger_meter"]
-                    end_charger_meter = d["end_charger_meter"]
+                if "start_charger_meter" in data and "end_charger_meter" in data:
+                    start_charger_meter = data["start_charger_meter"]
+                    end_charger_meter = data["end_charger_meter"]
                     
-                if "odometer" in d:
-                    odometer = d["odometer"]
+                if "odometer" in data:
+                    odometer = data["odometer"]
                     
                     month = getMonthFirstDay(when)
                     if not total["odometer_first_charge_datetime"]:
@@ -3142,33 +3167,33 @@ def charging_history_combine_and_set():
                     
                     for x in range(i+1, sorted_db_length+1):
                         if x+1 <= sorted_db_length:
-                            next_when, next_d = sorted_db[x]
-                            if daysBetween(when, now) > 40:
+                            next_when, next_data = sorted_db[x]
+                            if daysBetween(when, now) > 7:
                                 if daysBetween(when, next_when) == 0:
                                     join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
-                                    emoji = join_unique_emojis(emoji, next_d['emoji'])
+                                    emoji = join_unique_emojis(emoji, next_data['emoji'])
                                 else:
                                     break
                             else:
-                                if daysBetween(when, next_when) == 0 and hoursBetween(when, next_when) <= 1 and emoji == next_d['emoji']:
+                                if daysBetween(when, next_when) == 0 and hoursBetween(when, next_when) <= 1 and emoji == next_data['emoji']:
                                     pass
                                 else:
                                     break
                                 
                             started = next_when
-                            percentage += next_d['percentage']
-                            kWh += next_d["kWh"]
-                            kWh_solar += next_d["kWh_solar"] if "kWh_solar" in d else 0.0
-                            cost += next_d['cost']
+                            percentage += next_data['percentage']
+                            kWh += next_data["kWh"]
+                            kWh_solar += next_data["kWh_solar"] if "kWh_solar" in data else 0.0
+                            cost += next_data['cost']
                             if kWh > 0.0:
                                 unit = cost / kWh
                             
-                            if "start_charger_meter" in next_d:
-                                start_charger_meter = next_d["start_charger_meter"]
+                            if "start_charger_meter" in next_data:
+                                start_charger_meter = next_data["start_charger_meter"]
                             
-                            if "odometer" in next_d:
+                            if "odometer" in next_data:
                                 if odometer:
-                                    odometer = min(odometer, next_d["odometer"])
+                                    odometer = min(odometer, next_data["odometer"])
                                 
                             skip_counter += 1
                         else:
@@ -3196,7 +3221,7 @@ def charging_history_combine_and_set():
                 if charging_session:
                     combined_db[started]["charging_session"] = charging_session
                 
-                if append_counter <= max_history_length:
+                if current_history_bytes_size < max_history_bytes_size: #current_history_counter <= max_history_length and current_history_bytes_size <= max_history_bytes_size
                     ended_hour = int(ended.split(":")[0]) if ended != ">" and len(ended) > 0 else getHour()
                     if getHour(started) != ended_hour:
                         from_to = "»"
@@ -3209,13 +3234,14 @@ def charging_history_combine_and_set():
                     cost = f"**{cost:.2f}**" if isinstance(cost, (float, int)) else ""
                     unit = f"**{unit:.2f}**" if isinstance(unit, (float, int)) else ""
                     
-                    history.append(f"| {started}{from_to}{ended} | {emoji} | {percentage} | {kWh} | {cost} ({unit}) |")
-                append_counter += 1
+                    history_loop_append(f"| {started}{from_to}{ended} | {emoji} | {percentage} | {kWh} | {cost} ({unit}) |")
+                    
+                    current_history_counter += 1
             else:
                 skip_counter = max(skip_counter - 1, 0)
                 
-            if append_counter > length and (len(CHARGING_HISTORY_DB) - i) == 1:
-                history.extend(["</details>", "\n"] * (sub_details_count + 1))
+            if current_history_counter > length and (len(CHARGING_HISTORY_DB) - i) == 1:
+                history_loop_append(["</details>", "\n"] * (sub_details_count + 1))
             
             month = getMonthFirstDay(when)
             
@@ -3228,31 +3254,32 @@ def charging_history_combine_and_set():
                 total['charging_kwh_night'][month] = 0.0
                 total['km'][month] = 0.0
                 
-            total['cost'][month] += d['cost']
-            total['kwh'][month] += d["kWh"]
-            total['percentage'][month] += d['percentage']
+            total['cost'][month] += data['cost']
+            total['kwh'][month] += data["kWh"]
+            total['percentage'][month] += data['percentage']
             
             if is_day(when):
-                total['charging_kwh_day'][month] += d["kWh"]
-                total['charging_kwh_day']["total"] += d["kWh"]
+                total['charging_kwh_day'][month] += data["kWh"]
+                total['charging_kwh_day']["total"] += data["kWh"]
             else:
-                total['charging_kwh_night'][month] += d["kWh"]
-                total['charging_kwh_night']["total"] += d["kWh"]
+                total['charging_kwh_night'][month] += data["kWh"]
+                total['charging_kwh_night']["total"] += data["kWh"]
             
-            if "kWh_solar" in d and d['kWh_solar'] > 0.0:
-                total['solar_kwh'][month] += d['kWh_solar']
-                total['solar_kwh']["total"] += d['kWh_solar']
+            if "kWh_solar" in data and data['kWh_solar'] > 0.0:
+                total['solar_kwh'][month] += data['kWh_solar']
+                total['solar_kwh']["total"] += data['kWh_solar']
                 solar_in_months = True
 
-            total['cost']["total"] += d['cost']
-            total['kwh']["total"] += d["kWh"]
-            total['percentage']["total"] += d['percentage']
+            total['cost']["total"] += data['cost']
+            total['kwh']["total"] += data["kWh"]
+            total['percentage']["total"] += data['percentage']
             
-            if "odometer" in d:
+            if "odometer" in data:
                 if month not in total['odometer']:
-                    total['odometer'][month] = d["odometer"]
+                    total['odometer'][month] = data["odometer"]
                 else:
-                    total['odometer'][month] = min(total['odometer'][month], d["odometer"])
+                    total['odometer'][month] = min(total['odometer'][month], data["odometer"])
+        
         if details:
             history.extend([
                 "</details>",
@@ -3325,7 +3352,7 @@ def charging_history_combine_and_set():
             history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
             
             if estimated_values_used:
-                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet #####")
+                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
                 
             history.append("---")
             history.append("\n**Ladnings fordeling**")
@@ -3344,11 +3371,15 @@ def charging_history_combine_and_set():
             history.append("\n</details>\n")
             
         history.append("</center>")
-        
-    set_attr(f"sensor.{__name__}_charging_history.history", "\n".join(history) if history else "**Ingen lade historik**")
     
-    CHARGING_HISTORY_DB = combined_db
-    save_charging_history()
+    total_history_bytes_size = len("\n".join(history).encode('utf-8'))
+    CHARGING_HISTORY_ENDING_BYTE_SIZE = total_history_bytes_size - current_history_bytes_size + 1000
+    
+    if not get_ending_byte_size:
+        set_attr(f"sensor.{__name__}_charging_history.history", "\n".join(history) if history else "**Ingen lade historik**")
+        
+        CHARGING_HISTORY_DB = combined_db
+        save_charging_history()
     
 def charging_power_to_emulated_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("charging_power_to_emulated_battery_level")
