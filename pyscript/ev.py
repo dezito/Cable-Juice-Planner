@@ -399,6 +399,11 @@ DEFAULT_CONFIG = {
             "ignore_consumption_from_entity_ids": []
         },
     },
+    "notification": {
+        "update_available": True,
+        "efficiency_on_cable_plug_in": True,
+        "preheating": True,
+    },
     "notify_list": [],
     "prices": {
         "entity_ids": {
