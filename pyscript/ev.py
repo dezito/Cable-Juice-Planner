@@ -2787,6 +2787,10 @@ def drive_efficiency(state=None):
             KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
             KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
             save_km_kwh_efficiency()
+            
+            if CONFIG['notification']['efficiency_on_cable_plug_in']:
+                wh_km = round(1000 / distancePerkWh, 2)
+                my_notify(message = f"Kilometer: {round(kilometers, 1)}km\nBrugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)\n\nKørsel effektivitet: {round(efficiency, 1)}%\n{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)", title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
