@@ -202,7 +202,7 @@ CHARGING_TYPES = {
     "error": {
         "priority": 1,
         "emoji": "☠️",
-        "description": "Kritisk fejl, nød ladning"
+        "description": "Kritisk fejl, nødladning"
     },
     "no_rule": {
         "priority": 2,
@@ -221,7 +221,7 @@ CHARGING_TYPES = {
     },
     "battery_health": {
         "priority": 5,
-        "emoji": "🔋",
+        "emoji": "📈",
         "description": "Anbefalet fuld ladning"
     },
     "trip": {
@@ -286,10 +286,20 @@ CHARGING_TYPES = {
         "description": f"25% under gennemsnit pris sidste 14 dage",
         "entity_name": f"{__name__}_charge_ultra_cheap_battery_level"
     },
-    "solar": {
+    "grid_charging": {
         "priority": 10,
+        "emoji": "⚡",
+        "description": "Ladning fra elnettet"
+    },
+    "solar": {
+        "priority": 11,
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
+    },
+    "grid_charging": {
+        "priority": 12,
+        "emoji": "🔋",
+        "description": "Forbrug fra batteri"
     },
     "charging_loss": {
         "priority": 95,
