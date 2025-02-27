@@ -4550,11 +4550,11 @@ def cheap_grid_charge_hours():
                     charging_plan[day]['emoji'] = workday_emoji.pop(0)
                     charging_plan[day]['rules'].append(workday_rules.pop(0))
             
-            if charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming']:
-                charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()} afgang og hjemkomst er ens")
-                
-            if charging_plan[day]['work_range_needed'] == 0.0:
-                charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()}safstand i alt er 0 km")
+                if charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming']:
+                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()} afgang og hjemkomst er ens")
+                    
+                if charging_plan[day]['work_range_needed'] == 0.0:
+                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()}safstand i alt er 0 km")
                     
         if is_trip_planned() and trip_date_time and day == daysBetween(getTime(), trip_date_time):
             charging_plan[day]['trip'] = True
