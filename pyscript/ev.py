@@ -6945,7 +6945,7 @@ if INITIALIZATION_COMPLETE:
             for line in log_lines:
                 _LOGGER.info(line)
                 
-            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
+            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_startup")
         drive_efficiency_save_car_stats(bootup=True)
         
         if CONFIG['notification']['update_available']:
