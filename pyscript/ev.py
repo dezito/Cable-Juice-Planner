@@ -4470,6 +4470,15 @@ def cheap_grid_charge_hours():
         workday_labels[i] =  f"{emoji_parse({rule: True})} {workday_labels[i]}"
         workday_emoji.append(f"{emoji_parse({rule: True})}")
     
+    charging_plan_warnings = {}
+    
+    def charging_plan_warnings_add(plan, warning):
+        nonlocal charging_plan_warnings
+        
+        if plan not in charging_plan_warnings:
+            charging_plan_warnings[plan] = []
+        charging_plan_warnings[plan].append(warning)
+    
     for day in range(8):
         start_of_day_datetime = getTimeStartOfDay() + datetime.timedelta(days=day)
         end_of_day_datetime = getTimeEndOfDay() + datetime.timedelta(days=day)
@@ -4530,6 +4539,12 @@ def cheap_grid_charge_hours():
                     charging_plan[day]['label'] = workday_labels.pop(0)
                     charging_plan[day]['emoji'] = workday_emoji.pop(0)
                     charging_plan[day]['rules'].append(workday_rules.pop(0))
+            
+            if charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming']:
+                charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()} afgang og hjemkomst er ens")
+                
+            if charging_plan[day]['work_range_needed'] == 0.0:
+                charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()}safstand i alt er 0 km")
                     
         if is_trip_planned() and trip_date_time and day == daysBetween(getTime(), trip_date_time):
             charging_plan[day]['trip'] = True
@@ -4623,6 +4638,14 @@ def cheap_grid_charge_hours():
         
         if not charging_plan[day]['rules']:
             charging_plan[day]['rules'].append("no_rule")
+    
+    if charging_plan_warnings:
+        warning_message = ""
+        for plan in charging_plan_warnings.keys():
+            warning_message += f"### Fejl i opsætningen af Arbejdsplan opladning\n"
+            for warning in charging_plan_warnings[plan]:
+                warning_message += f"- **{warning}**\n"
+        my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_charging_plan_warnings")
     
     current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
     
