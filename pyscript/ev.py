@@ -4980,7 +4980,7 @@ def cheap_grid_charge_hours():
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
                 d['from_battery'] = f"🔋" if d['from_battery'] else "⚡"
-                d['from_battery_solar'] = f"{emoji_parse({'solar': True})}" if d['from_battery_solar'] else ""
+                d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else f"{emoji_parse({'solar': True})}"
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
@@ -5738,7 +5738,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         "today": 0
     }
     
-    if not is_solar_configured() or inverter_available(f"Inverter not available)"):
+    if not is_solar_configured() or not inverter_available(f"Inverter not available)"):
+        _LOGGER.error("Solar not configured or inverter not available")
         return output, output_sell
     
     now = getTime()
