@@ -1886,6 +1886,10 @@ def init():
         if not is_charger_configured():
             raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
         
+        CONFIG['solar']['charging_single_phase_max_amp'] = min(CONFIG['solar']['charging_single_phase_max_amp'], CONFIG['charger']['charging_max_amp'])
+        CONFIG['solar']['charging_single_phase_min_amp'] = min(CONFIG['solar']['charging_single_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
+        CONFIG['solar']['charging_three_phase_min_amp'] = min(CONFIG['solar']['charging_three_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
+        
         is_powerwall_configured()
         
         create_integration_dict()
