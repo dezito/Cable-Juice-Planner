@@ -202,7 +202,7 @@ CHARGING_TYPES = {
     "error": {
         "priority": 1,
         "emoji": "☠️",
-        "description": "Kritisk fejl, nød ladning"
+        "description": "Kritisk fejl, nødladning"
     },
     "no_rule": {
         "priority": 2,
@@ -221,7 +221,7 @@ CHARGING_TYPES = {
     },
     "battery_health": {
         "priority": 5,
-        "emoji": "🔋",
+        "emoji": "📈",
         "description": "Anbefalet fuld ladning"
     },
     "trip": {
@@ -286,10 +286,20 @@ CHARGING_TYPES = {
         "description": f"25% under gennemsnit pris sidste 14 dage",
         "entity_name": f"{__name__}_charge_ultra_cheap_battery_level"
     },
-    "solar": {
+    "grid_charging": {
         "priority": 10,
+        "emoji": "⚡",
+        "description": "Ladning fra elnettet"
+    },
+    "solar": {
+        "priority": 11,
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
+    },
+    "grid_charging": {
+        "priority": 12,
+        "emoji": "🔋",
+        "description": "Forbrug fra batteri"
     },
     "charging_loss": {
         "priority": 95,
@@ -479,8 +489,8 @@ COMMENT_DB_YAML = {
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
     "production_entity_id": "Solar power production Watt",
-    "solarpower_use_before_minutes": "Minutes back u can use solar overproduction available",
-    "max_to_current_hour": "Must use solar overproduction available in current hour",
+    "solarpower_use_before_minutes": "Minutes back you can use solar overproduction available (Solar charging can exceed available power to use all excess energy)",
+    "max_to_current_hour": "Must use solar overproduction available in current hour (Solar charging can exceed available power to use all excess energy)",
     "allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
     "charging_single_phase_min_amp": "Minimum allowed amps the car can charge, to disable single phase charging set to 0",
     "charging_single_phase_max_amp": "Maximum allowed amps the car can charge, to disable single phase charging set to 0",
@@ -1875,6 +1885,10 @@ def init():
         
         if not is_charger_configured():
             raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
+        
+        CONFIG['solar']['charging_single_phase_max_amp'] = min(CONFIG['solar']['charging_single_phase_max_amp'], CONFIG['charger']['charging_max_amp'])
+        CONFIG['solar']['charging_single_phase_min_amp'] = min(CONFIG['solar']['charging_single_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
+        CONFIG['solar']['charging_three_phase_min_amp'] = min(CONFIG['solar']['charging_three_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
         
         is_powerwall_configured()
         
@@ -3348,8 +3362,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
                 
             total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
+            unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             
-            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
+            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
@@ -4470,6 +4485,15 @@ def cheap_grid_charge_hours():
         workday_labels[i] =  f"{emoji_parse({rule: True})} {workday_labels[i]}"
         workday_emoji.append(f"{emoji_parse({rule: True})}")
     
+    charging_plan_warnings = {}
+    
+    def charging_plan_warnings_add(plan, warning):
+        nonlocal charging_plan_warnings
+        
+        if plan not in charging_plan_warnings:
+            charging_plan_warnings[plan] = []
+        charging_plan_warnings[plan].append(warning)
+    
     for day in range(8):
         start_of_day_datetime = getTimeStartOfDay() + datetime.timedelta(days=day)
         end_of_day_datetime = getTimeEndOfDay() + datetime.timedelta(days=day)
@@ -4530,6 +4554,12 @@ def cheap_grid_charge_hours():
                     charging_plan[day]['label'] = workday_labels.pop(0)
                     charging_plan[day]['emoji'] = workday_emoji.pop(0)
                     charging_plan[day]['rules'].append(workday_rules.pop(0))
+            
+                if charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming']:
+                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()} afgang og hjemkomst er ens")
+                    
+                if charging_plan[day]['work_range_needed'] == 0.0:
+                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()}safstand i alt er 0 km")
                     
         if is_trip_planned() and trip_date_time and day == daysBetween(getTime(), trip_date_time):
             charging_plan[day]['trip'] = True
@@ -4623,6 +4653,14 @@ def cheap_grid_charge_hours():
         
         if not charging_plan[day]['rules']:
             charging_plan[day]['rules'].append("no_rule")
+    
+    if charging_plan_warnings:
+        warning_message = ""
+        for plan in charging_plan_warnings.keys():
+            warning_message += f"### Fejl i opsætningen af Arbejdsplan opladning\n"
+            for warning in charging_plan_warnings[plan]:
+                warning_message += f"- **{warning}**\n"
+        my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_charging_plan_warnings")
     
     current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
     
@@ -4942,7 +4980,7 @@ def cheap_grid_charge_hours():
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
                 d['from_battery'] = f"🔋" if d['from_battery'] else "⚡"
-                d['from_battery_solar'] = f"{emoji_parse({'solar': True})}" if d['from_battery_solar'] else ""
+                d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else f"{emoji_parse({'solar': True})}"
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
@@ -5700,7 +5738,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         "today": 0
     }
     
-    if not is_solar_configured() or inverter_available(f"Inverter not available)"):
+    if not is_solar_configured() or not inverter_available(f"Inverter not available)"):
+        _LOGGER.error("Solar not configured or inverter not available")
         return output, output_sell
     
     now = getTime()
@@ -6307,7 +6346,7 @@ def charge_if_needed():
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
-                CHARGE_HOURS = cheap_grid_charge_hours()
+                cheap_grid_charge_hours()
                 
         solar_available = max_solar_watts_available_remaining_hour()
         solar_period = solar_available['period']
@@ -6922,7 +6961,7 @@ if INITIALIZATION_COMPLETE:
             for line in log_lines:
                 _LOGGER.info(line)
                 
-            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{BASENAME} started", persistent_notification_id=f"{__name__}_startup")
+            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_startup")
         drive_efficiency_save_car_stats(bootup=True)
         
         if CONFIG['notification']['update_available']:
