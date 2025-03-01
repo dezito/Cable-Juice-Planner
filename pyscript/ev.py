@@ -6346,7 +6346,7 @@ def charge_if_needed():
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
-                CHARGE_HOURS = cheap_grid_charge_hours()
+                cheap_grid_charge_hours()
                 
         solar_available = max_solar_watts_available_remaining_hour()
         solar_period = solar_available['period']
