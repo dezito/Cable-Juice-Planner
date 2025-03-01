@@ -3362,8 +3362,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
                 
             total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
+            unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             
-            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{round(total['cost']["total"] / total['kwh']["total"],2):.2f}** |")
+            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
