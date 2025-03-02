@@ -5660,7 +5660,6 @@ def save_solar_available_db():
         db_to_file["version"] = SOLAR_PRODUCTION_AVAILABLE_DB_VERSION
         save_changes(f"{__name__}_solar_production_available_db", db_to_file)
         
-    
 def solar_available_append_to_db(power):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_append_to_db")
     global SOLAR_PRODUCTION_AVAILABLE_DB
