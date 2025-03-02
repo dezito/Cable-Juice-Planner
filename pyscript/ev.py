@@ -7135,7 +7135,10 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            if value not in tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES)): return
+            states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))
+            if str(value).lower() not in states:
+                _LOGGER.warning(f"Ignoring state not in {states}: {value}")
+                return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
