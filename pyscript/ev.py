@@ -1758,7 +1758,7 @@ def init():
         if not content:
             raise Exception(f"Failed to load {file_path}")
 
-        updated, content = update_dict_with_new_keys(content, default_content, check_nested_keys=check_nested_keys)
+        updated, content = update_dict_with_new_keys(content, default_content)
         if updated:
             '''if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True'''
@@ -1833,7 +1833,7 @@ def init():
             if ("first_run" in content and content['first_run']) or "config.yaml" not in file_path:
                 raise Exception(msg)
 
-        if prompt_restart and (updated or deprecated_keys):
+        if prompt_restart and updated:
             raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
 
         return content
