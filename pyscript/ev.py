@@ -5755,9 +5755,9 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         _LOGGER.error("Solar not configured or inverter not available")
         return output, output_sell
     
-    now = getTime()
     
     try:
+        now = getTime()
         location = sun.get_astral_location(hass)
         sunrise = location[0].sunrise(now).replace(tzinfo=None).hour
         sunset = location[0].sunset(now).replace(tzinfo=None).hour
