@@ -2196,6 +2196,42 @@ def manual_charging_enabled():
 def manual_charging_solar_enabled():
     if get_state(f"input_boolean.{__name__}_allow_manual_charging_solar") == "on":
         return True
+    
+def get_tariffs(hour, day_of_week):
+    _LOGGER = globals()['_LOGGER'].getChild("tariffs")
+    try:
+        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
+            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
+        
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        
+        if "tariffs" not in power_prices_attr:
+            raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
+        
+        attr = power_prices_attr["tariffs"]
+        transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
+        systemtarif = attr["additional_tariffs"]["systemtarif"]
+        elafgift = attr["additional_tariffs"]["elafgift"]
+        tariffs = attr["tariffs"][str(hour)]
+        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+        
+        return {
+            "transmissions_nettarif": transmissions_nettarif,
+            "systemtarif": systemtarif,
+            "elafgift": elafgift,
+            "tariffs": tariffs,
+            "tariff_sum": tariff_sum
+        }
+        
+    except Exception as e:
+        _LOGGER.error(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e}")
+        return {
+                "transmissions_nettarif": 0.0,
+                "systemtarif": 0.0,
+                "elafgift": 0.0,
+                "tariffs": 0.0,
+                "tariff_sum": 0.0
+            }
 
 def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False):
     _LOGGER = globals()['_LOGGER'].getChild("get_solar_sell_price")
@@ -2223,19 +2259,15 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
         
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
-        
-        if "tariffs" not in power_prices_attr:
-            raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
-        
         price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
-        attr = power_prices_attr["tariffs"]
-        transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-        systemtarif = attr["additional_tariffs"]["systemtarif"]
-        elafgift = attr["additional_tariffs"]["elafgift"]
-        tariffs = attr["tariffs"][str(getHour())]
         
-        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+        tariff_dict = get_tariffs(getHour(), day_of_week)
+        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
+        systemtarif = tariff_dict["systemtarif"]
+        elafgift = tariff_dict["elafgift"]
+        tariffs = tariff_dict["tariffs"]
+        
+        tariff_sum = tariff_dict["tariff_sum"]
         
         raw_price = price - tariff_sum
         
