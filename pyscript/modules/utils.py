@@ -316,51 +316,54 @@ def compare_dicts_unique_to_dict1(dict1, dict2, path=""):
 
     return unique_to_dict1
 
-def update_dict_with_new_keys(existing_config, new_config, unique_id_key='name', check_nested_keys=False):
-    """
-    Enhanced to handle lists of dictionaries, specifically for configurations like sensors.
-    Assumes each dictionary in a list has a unique identifier specified by unique_id_key.
+def update_dict_with_new_keys(existing_config, default_config):
+    changed = False
 
-    Parameters:
-    - existing_config (dict): The dictionary to be updated.
-    - new_config (dict): The dictionary containing new keys and values to add or update in the existing dictionary.
-    - unique_id_key (str): The key used to uniquely identify items in a list of dictionaries.
+    def recursive_add(saved, default):
+        """ Rekursiv funktion til at tilføje manglende keys uden at ændre eksisterende værdier. """
+        nonlocal changed
 
-    Returns:
-    - updated (bool): True if any updates were made to the existing dictionary, False otherwise.
-    - existing_config (dict): The updated dictionary.
-    """
-    _LOGGER = globals()['_LOGGER'].getChild("update_dict_with_new_keys")
-    updated = False
-    for key, value in new_config.items():
-        if key not in existing_config:
-            existing_config[key] = value
-            updated = True
-        elif isinstance(value, dict):
-            nested_updated, existing_config[key] = update_dict_with_new_keys(existing_config[key], value, unique_id_key)
-            if check_nested_keys and key in existing_config and existing_config.get(key) != new_config.get(key):
-                existing_config[key] = new_config[key]
-                updated = True
-            updated = updated or nested_updated
-        elif isinstance(value, list):
-            if not isinstance(existing_config[key], list):
-                existing_config[key] = []
-            list_updated = False
-            for item in value:
-                if isinstance(item, dict) and unique_id_key in item:
-                    # Find and update the existing item with the same unique_id_key if it exists
-                    found = False
-                    for existing_item in existing_config[key]:
-                        if isinstance(existing_item, dict) and existing_item.get(unique_id_key) == item[unique_id_key]:
-                            found = True
-                            nested_updated, _ = update_dict_with_new_keys(existing_item, item, unique_id_key)
-                            list_updated = list_updated or nested_updated
-                            break
-                    if not found:
-                        existing_config[key].append(item)
-                        list_updated = True
-            updated = updated or list_updated
-    return updated, existing_config
+        if isinstance(default, dict):
+            if not isinstance(saved, dict):
+                saved = {}
+            for key, value in default.items():
+                if key not in saved:
+                    saved[key] = value
+                    changed = True
+                else:
+                    saved[key] = recursive_add(saved[key], value)
+
+        elif isinstance(default, list):
+            if not isinstance(saved, list):
+                saved = []
+            
+            default_dicts = [item for item in default if isinstance(item, dict)]
+            saved_dicts = [item for item in saved if isinstance(item, dict)]
+
+            for default_item in default_dicts:
+                platform = default_item.get("platform")
+                found = False
+
+                for saved_item in saved_dicts:
+                    if saved_item.get("platform") == platform:
+                        recursive_add(saved_item, default_item)
+                        found = True
+                        break
+
+                if not found:
+                    saved.append(default_item)
+                    changed = True
+
+            for default_item in default:
+                if not isinstance(default_item, dict) and default_item not in saved:
+                    saved.append(default_item)
+                    changed = True
+
+        return saved
+
+    updated_config = recursive_add(existing_config, default_config)
+
+    return changed, updated_config
 
 def limit_dict_size(dct, size):
     """

@@ -1758,7 +1758,7 @@ def init():
         if not content:
             raise Exception(f"Failed to load {file_path}")
 
-        updated, content = update_dict_with_new_keys(content, default_content, check_nested_keys=check_nested_keys)
+        updated, content = update_dict_with_new_keys(content, default_content)
         if updated:
             '''if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True'''
@@ -1833,7 +1833,7 @@ def init():
             if ("first_run" in content and content['first_run']) or "config.yaml" not in file_path:
                 raise Exception(msg)
 
-        if prompt_restart and (updated or deprecated_keys):
+        if prompt_restart and updated:
             raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
 
         return content
@@ -5531,33 +5531,37 @@ def get_forecast(forecast_dict = None, date = None):
     
 def forecast_score(data):
     _LOGGER = globals()['_LOGGER'].getChild("forecast_score")
-    normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
-    
-    uv_index = data["uv_index"]
-    max_uv_index = 11
-    normalized_uv_index = min(uv_index / max_uv_index, 1)
-    
-    temperature = data["temperature"]
-    max_temperature = 20
-    if temperature <= max_temperature:
-        normalized_temperature = temperature / max_temperature
-    else:
-        normalized_temperature = max_temperature / temperature
+    try:
+        normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
+        
+        uv_index = data["uv_index"]
+        max_uv_index = 11
+        normalized_uv_index = min(uv_index / max_uv_index, 1)
+        
+        temperature = data["temperature"]
+        max_temperature = 20
+        if temperature <= max_temperature:
+            normalized_temperature = temperature / max_temperature
+        else:
+            normalized_temperature = max_temperature / temperature
 
-    cloud_weight = 0.5
-    uv_weight = 0.3
-    temperature_weight = 0.2
+        cloud_weight = 0.5
+        uv_weight = 0.3
+        temperature_weight = 0.2
 
-    if data["cloud_coverage"] >= 90:
-        normalized_cloud_coverage *= 0.2
-        normalized_uv_index *= 0.1
-        normalized_temperature *= 0.5
+        if data["cloud_coverage"] >= 90:
+            normalized_cloud_coverage *= 0.2
+            normalized_uv_index *= 0.1
+            normalized_temperature *= 0.5
 
-    score = ((
-        normalized_cloud_coverage * cloud_weight +
-        normalized_uv_index * uv_weight +
-        normalized_temperature * temperature_weight
-    ) * 100)
+        score = ((
+            normalized_cloud_coverage * cloud_weight +
+            normalized_uv_index * uv_weight +
+            normalized_temperature * temperature_weight
+        ) * 100)
+    except Exception as e:
+        _LOGGER.error(f"Cant calculate forecast score, using 50.0: {e}")
+        score = 50.0
 
     return score
 
