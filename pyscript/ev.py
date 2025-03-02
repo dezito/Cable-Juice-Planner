@@ -2758,13 +2758,20 @@ def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
     
+    state = str(state).lower()
+    
+    heating_states = ("preheat", "preheat_cancel")
+    states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
+    
+    if state not in states:
+        _LOGGER.warning(f"Ignoring state not in {states}: {state}")
+        return
+    
     if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
     if not KM_KWH_EFFICIENCY_DB:
         load_km_kwh_efficiency()
-
-    state = str(state).lower()
-    
+        
     try:
         if state == "preheat":
             drive_efficiency_save_car_stats()
@@ -7135,11 +7142,6 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))
-            if str(value).lower() not in states:
-                _LOGGER.warning(f"Ignoring state not in {states}: {value}")
-                return
-            
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
         
