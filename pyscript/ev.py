@@ -125,8 +125,10 @@ EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnected")
 CONFIG = {}
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
 SOLAR_PRODUCTION_AVAILABLE_DB_VERSION = 2.0
+
 KWH_AVG_PRICES_DB = {}
 KWH_AVG_PRICES_DB_VERSION = 2.0
+
 DRIVE_EFFICIENCY_DB = []
 KM_KWH_EFFICIENCY_DB = []
 
@@ -2196,6 +2198,42 @@ def manual_charging_enabled():
 def manual_charging_solar_enabled():
     if get_state(f"input_boolean.{__name__}_allow_manual_charging_solar") == "on":
         return True
+    
+def get_tariffs(hour, day_of_week):
+    _LOGGER = globals()['_LOGGER'].getChild("tariffs")
+    try:
+        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
+            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
+        
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        
+        if "tariffs" not in power_prices_attr:
+            raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
+        
+        attr = power_prices_attr["tariffs"]
+        transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
+        systemtarif = attr["additional_tariffs"]["systemtarif"]
+        elafgift = attr["additional_tariffs"]["elafgift"]
+        tariffs = attr["tariffs"][str(hour)]
+        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+        
+        return {
+            "transmissions_nettarif": transmissions_nettarif,
+            "systemtarif": systemtarif,
+            "elafgift": elafgift,
+            "tariffs": tariffs,
+            "tariff_sum": tariff_sum
+        }
+        
+    except Exception as e:
+        _LOGGER.error(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e}")
+        return {
+                "transmissions_nettarif": 0.0,
+                "systemtarif": 0.0,
+                "elafgift": 0.0,
+                "tariffs": 0.0,
+                "tariff_sum": 0.0
+            }
 
 def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False):
     _LOGGER = globals()['_LOGGER'].getChild("get_solar_sell_price")
@@ -2223,19 +2261,15 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
         
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
-        
-        if "tariffs" not in power_prices_attr:
-            raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
-        
         price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
-        attr = power_prices_attr["tariffs"]
-        transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-        systemtarif = attr["additional_tariffs"]["systemtarif"]
-        elafgift = attr["additional_tariffs"]["elafgift"]
-        tariffs = attr["tariffs"][str(getHour())]
         
-        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+        tariff_dict = get_tariffs(getHour(), day_of_week)
+        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
+        systemtarif = tariff_dict["systemtarif"]
+        elafgift = tariff_dict["elafgift"]
+        tariffs = tariff_dict["tariffs"]
+        
+        tariff_sum = tariff_dict["tariff_sum"]
         
         raw_price = price - tariff_sum
         
@@ -5292,13 +5326,23 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
         
     return powerwall_discharging_consumption
 
-def power_values(from_time_stamp, to_time_stamp):
+def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
+    if period is not None:
+        now = getTime()
+        to_time_stamp = now
+        from_time_stamp = now - datetime.timedelta(minutes=period)
+        
     power_consumption = abs(round(float(get_average_value(CONFIG['home']['entity_ids']['power_consumption_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2)) if is_entity_configured(CONFIG['home']['entity_ids']['power_consumption_entity_id']) else 0.0
     ignored_consumption = abs(power_from_ignored(from_time_stamp, to_time_stamp))
     powerwall_charging_consumption = charge_from_powerwall(from_time_stamp, to_time_stamp)
     powerwall_discharging_consumption = discharge_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
+    
+    total_power_consumption = power_consumption + powerwall_charging_consumption
+    power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
+    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_discharging_consumption, 2)
+    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
     
     return {
         "power_consumption": power_consumption,
@@ -5307,8 +5351,12 @@ def power_values(from_time_stamp, to_time_stamp):
         "powerwall_discharging_consumption": powerwall_discharging_consumption,
         "ev_used_consumption": ev_used_consumption,
         "solar_production": solar_production,
+        "total_power_consumption": total_power_consumption,
+        "power_consumption_without_ignored": power_consumption_without_ignored,
+        "power_consumption_without_ignored_powerwall": power_consumption_without_ignored_powerwall,
+        "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
-    
+
 def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_production_available")
     global POWERWALL_CHARGING_TEXT
@@ -5329,7 +5377,7 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         to_time_stamp = now
         from_time_stamp = now - datetime.timedelta(minutes=period)
 
-    values = power_values(from_time_stamp, to_time_stamp)
+    values = power_values(from_time_stamp = from_time_stamp, to_time_stamp = to_time_stamp)
     power_consumption = values['power_consumption']
     ignored_consumption = values['ignored_consumption']
     powerwall_charging_consumption = values['powerwall_charging_consumption']
@@ -5337,9 +5385,10 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
     ev_used_consumption = values['ev_used_consumption']
     solar_production = values['solar_production']
     
-    power_consumption_without_ignored = round(power_consumption - ignored_consumption, 2)
-    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_discharging_consumption, 2)
-    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
+    total_power_consumption = values['total_power_consumption']
+    power_consumption_without_ignored = values['power_consumption_without_ignored']
+    power_consumption_without_ignored_powerwall = values['power_consumption_without_ignored_powerwall']
+    power_consumption_without_all_exclusion = values['power_consumption_without_all_exclusion']
 
     if withoutEV:
         solar_production_available = round(solar_production - power_consumption_without_all_exclusion, 2)
@@ -5350,19 +5399,14 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
     powerwall_battery_level = 100.0
     ev_charge_after_powerwall_battery_level = 0.0
     
+    if powerwall_charging_consumption > 0.0:
+        POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
+    else:
+        POWERWALL_CHARGING_TEXT = ""
+    
     if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
         powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
         ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
-        
-        if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
-            _LOGGER.info(f"DEBUG Powerwall battery level is below {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
-            _LOGGER.info(f"DEBUG max(solar_production_available:{solar_production_available} - powerwall_charging_consumption:{powerwall_charging_consumption}, 0.0) = {max(solar_production_available - powerwall_charging_consumption, 0.0)}")
-            solar_production_available = max(solar_production_available - powerwall_charging_consumption, 0.0)
-            POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
-        else:
-            _LOGGER.info(f"DEBUG Powerwall battery level is above {ev_charge_after_powerwall_battery_level}%: {powerwall_battery_level}%")
-            _LOGGER.info(f"DEBUG powerwall_charging_consumption:{powerwall_charging_consumption} solar_production_available:{solar_production_available}")
-            POWERWALL_CHARGING_TEXT = ""
         
     '''if timeTo is not None:
         txt = "without" if withoutEV else "with"
@@ -5384,9 +5428,9 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_production_available)
         
-        if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and ev_charge_after_powerwall_battery_level:
+        if is_powerwall_configured():
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available_without_powerwall_charging", solar_production_available + powerwall_charging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_power_consumption", total_power_consumption)
 
     return solar_production_available
 
@@ -5650,7 +5694,6 @@ def save_solar_available_db():
         db_to_file["version"] = SOLAR_PRODUCTION_AVAILABLE_DB_VERSION
         save_changes(f"{__name__}_solar_production_available_db", db_to_file)
         
-    
 def solar_available_append_to_db(power):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_append_to_db")
     global SOLAR_PRODUCTION_AVAILABLE_DB
@@ -5746,9 +5789,9 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         _LOGGER.error("Solar not configured or inverter not available")
         return output, output_sell
     
-    now = getTime()
     
     try:
+        now = getTime()
         location = sun.get_astral_location(hass)
         sunrise = location[0].sunrise(now).replace(tzinfo=None).hour
         sunset = location[0].sunset(now).replace(tzinfo=None).hour
@@ -7092,7 +7135,10 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            if value not in tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES)): return
+            states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))
+            if str(value).lower() not in states:
+                _LOGGER.warning(f"Ignoring state not in {states}: {value}")
+                return
             
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
