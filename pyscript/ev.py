@@ -5075,12 +5075,12 @@ def cheap_grid_charge_hours():
                 d['date'] = f"**{d['date']}**" if d['date'] else ""
                 d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
                 d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
-                d['solar'] = f"**{d['solar']}**" if d['solar'] and is_solar_configured() else ""
+                d['solar'] = f"**{emoji_parse({'solar': True})}{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 d['battery_needed'] = f"**{int(d['battery_needed'])}**" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
                 d['from_battery'] = f"🔋" if d['from_battery'] else "⚡"
-                d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else f"{emoji_parse({'solar': True})}"
+                d['from_battery_solar'] = f"🔋" if d['from_battery_solar'] else f""
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
