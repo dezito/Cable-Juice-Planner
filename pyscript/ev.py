@@ -2742,6 +2742,17 @@ def drive_efficiency_save_car_stats(bootup=False):
         
     def set_last_battery_level():
         set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
+        
+        attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
+        for item in attr_list:
+            state.delete(f"sensor.{__name__}_drive_efficiency_last_battery_level.{item}")
+                
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_cost", BATTERY_LEVEL_EXPENSES['battery_level_expenses_cost'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_kwh", BATTERY_LEVEL_EXPENSES['battery_level_expenses_kwh'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_percentage'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_solar_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_solar_percentage'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_unit", BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'])
+        
     
     if bootup:
         if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ENTITY_UNAVAILABLE_STATES:
@@ -2847,9 +2858,32 @@ def drive_efficiency(state=None):
             KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
             save_km_kwh_efficiency()
             
+            cost_str = ""
+            cost = 0.0
+            
+            attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
+            if "battery_level_expenses_unit" in attr_list:
+                
+                if attr_list and attr_list['battery_level_expenses_unit'] is not None:
+                    unit = attr_list['battery_level_expenses_unit']
+                    cost = round(unit * usedkWh, 2)
+                    cost_str = f"Pris: {cost:.2f}kr\n"
+            
+            wh_km = round(1000 / distancePerkWh, 2)
+            
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
-                wh_km = round(1000 / distancePerkWh, 2)
-                my_notify(message = f"Kilometer: {round(kilometers, 1)}km\nBrugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)\n\nKørsel effektivitet: {round(efficiency, 1)}%\n{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)", title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                my_notify(message = f"""
+                        Kilometer: {round(kilometers, 1)}km
+                        Brugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)
+                        {cost_str}
+                        Kørsel effektivitet: {round(efficiency, 1)}%
+                        {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
+                        """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_distance", f"{round(kilometers, 1)}km")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_cost", f"{round(cost, 2)}kr")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_efficiency", f"{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)")
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
