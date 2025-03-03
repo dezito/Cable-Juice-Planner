@@ -2679,7 +2679,7 @@ def set_state_km_kwh_efficiency():
             km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} km/kWh - {wh_km_mean:.2f} Wh/km")
-
+        
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
         for item in existing_attributes:
             if "dato" in item:
