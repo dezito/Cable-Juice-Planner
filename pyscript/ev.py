@@ -2377,7 +2377,6 @@ def distance_per_percentage():
         try:
             if KM_KWH_EFFICIENCY_DB == {}:
                 raise Exception("No data yet")
-            _LOGGER.info(get_list_values(KM_KWH_EFFICIENCY_DB))
             ema = round(calculate_ema(list(reversed(get_list_values(KM_KWH_EFFICIENCY_DB)))),2)
             #ema = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
             if ema == 0.0:
