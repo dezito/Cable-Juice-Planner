@@ -113,12 +113,12 @@ LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
 ENTITY_UNAVAILABLE_STATES = ("unavailable", "unknown")
-CHARGER_READY_STATUS = ("on", "connected", "ready_to_charge", "awaiting_authorization", "awaiting_start")
-CHARGER_NOT_READY_STATUS = ("off", "disconnected")
+CHARGER_READY_STATUS = ("on", "connect", "connected", "ready", "ready_to_charge", "awaiting_authorization", "awaiting_start")
+CHARGER_NOT_READY_STATUS = ("off", "disconnect", "disconnected")
 CHARGER_COMPLETED_STATUS = ("completed", "finished")
 CHARGER_CHARGING_STATUS = ("charging")
-EV_PLUGGED_STATES = ("on", "open", "plugged", "connected", "plugged_waiting_for_charge", "manual")
-EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnected")
+EV_PLUGGED_STATES = ("on", "open", "plugged", "connect", "connected", "plugged_waiting_for_charge", "manual")
+EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected")
 
 
 
@@ -136,6 +136,7 @@ CHARGING_HISTORY_ENDING_BYTE_SIZE = None
 CHARGING_HISTORY_DB = {}
 OVERVIEW_HISTORY = {}
 
+BATTERY_LEVEL_EXPENSES = {}
 CHARGING_PLAN = {}
 CHARGE_HOURS = {}
 
@@ -1199,6 +1200,7 @@ def get_debug_info_sections():
                 "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
             },
             "details": {
+                "BATTERY_LEVEL_EXPENSES": BATTERY_LEVEL_EXPENSES,
                 "CHARGING_PLAN": CHARGING_PLAN,
                 "CHARGE_HOURS": CHARGE_HOURS,
                 "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
@@ -2740,6 +2742,17 @@ def drive_efficiency_save_car_stats(bootup=False):
         
     def set_last_battery_level():
         set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
+        
+        attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
+        for item in attr_list:
+            state.delete(f"sensor.{__name__}_drive_efficiency_last_battery_level.{item}")
+                
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_cost", BATTERY_LEVEL_EXPENSES['battery_level_expenses_cost'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_kwh", BATTERY_LEVEL_EXPENSES['battery_level_expenses_kwh'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_percentage'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_solar_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_solar_percentage'])
+        set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_unit", BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'])
+        
     
     if bootup:
         if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ENTITY_UNAVAILABLE_STATES:
@@ -2758,13 +2771,20 @@ def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
     
+    state = str(state).lower()
+    
+    heating_states = ("preheat", "preheat_cancel")
+    states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
+    
+    if state not in states:
+        _LOGGER.warning(f"Ignoring state not in {states}: {state}")
+        return
+    
     if not DRIVE_EFFICIENCY_DB:
         load_drive_efficiency()
     if not KM_KWH_EFFICIENCY_DB:
         load_km_kwh_efficiency()
-
-    state = str(state).lower()
-    
+        
     try:
         if state == "preheat":
             drive_efficiency_save_car_stats()
@@ -2838,9 +2858,32 @@ def drive_efficiency(state=None):
             KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
             save_km_kwh_efficiency()
             
+            cost_str = ""
+            cost = 0.0
+            
+            attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
+            if "battery_level_expenses_unit" in attr_list:
+                
+                if attr_list and attr_list['battery_level_expenses_unit'] is not None:
+                    unit = attr_list['battery_level_expenses_unit']
+                    cost = round(unit * usedkWh, 2)
+                    cost_str = f"Pris: {cost:.2f}kr\n"
+            
+            wh_km = round(1000 / distancePerkWh, 2)
+            
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
-                wh_km = round(1000 / distancePerkWh, 2)
-                my_notify(message = f"Kilometer: {round(kilometers, 1)}km\nBrugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)\n\nKørsel effektivitet: {round(efficiency, 1)}%\n{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)", title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                my_notify(message = f"""
+                        Kilometer: {round(kilometers, 1)}km
+                        Brugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)
+                        {cost_str}
+                        Kørsel effektivitet: {round(efficiency, 1)}%
+                        {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
+                        """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+            
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_distance", f"{round(kilometers, 1)}km")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_cost", f"{round(cost, 2)}kr")
+            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_efficiency", f"{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)")
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
@@ -3617,11 +3660,172 @@ def _charging_history(charging_data = None, charging_type = ""):
 def stop_current_charging_session():
     charging_history(None, "")
 
+def reset_current_battery_level_expenses():
+    global BATTERY_LEVEL_EXPENSES
+    
+    BATTERY_LEVEL_EXPENSES = {
+        "battery_level_expenses_kwh": 0.0,
+        "battery_level_expenses_percentage": 0.0,
+        "battery_level_expenses_solar_percentage": 0.0,
+        "battery_level_expenses_cost": 0.0,
+        "battery_level_expenses_unit": None,
+    }
+
+def current_battery_level_expenses():
+    global BATTERY_LEVEL_EXPENSES
+    
+    current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
+    
+    try:
+        if CHARGING_HISTORY_DB:
+            for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
+                if round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"]) < round(current_battery_level):
+                    if (
+                        "cost" not in CHARGING_HISTORY_DB[key] or
+                        "kWh" not in CHARGING_HISTORY_DB[key] or
+                        "kWh_solar" not in CHARGING_HISTORY_DB[key] or
+                        "percentage" not in CHARGING_HISTORY_DB[key]
+                    ):
+                        continue
+                    
+                    cost = CHARGING_HISTORY_DB[key]["cost"]
+                    kwh = CHARGING_HISTORY_DB[key]["kWh"]
+                    percentage = CHARGING_HISTORY_DB[key]["percentage"]
+                    solar_percentage = kwh_to_percentage(CHARGING_HISTORY_DB[key]["kWh_solar"], include_charging_loss=True)
+                    
+                    new_battery_level = percentage + BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"]
+                    if new_battery_level > current_battery_level and percentage > 0.0:
+                        diff = (percentage - (new_battery_level - current_battery_level)) / percentage
+                        cost = cost * diff
+                        kwh = kwh * diff
+                        percentage = percentage * diff
+                        solar_percentage = solar_percentage * diff
+                    BATTERY_LEVEL_EXPENSES[key] = {
+                        "cost": cost,
+                        "kWh": kwh,
+                        "percentage": percentage,
+                        "solar_percentage": solar_percentage,
+                        "unit": cost / kwh if kwh > 0.0 else 0.0
+                        
+                    }
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] += kwh
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] += percentage
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] += solar_percentage
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] += cost
+                else:
+                    break
+    
+            if BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] > 0.0:
+                BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] / BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"]
+
+    except Exception as e:
+        _LOGGER.warning(f"Error in battery level cost calculation: {e}")
+
+    return BATTERY_LEVEL_EXPENSES
+
+def get_hour_prices():
+    _LOGGER = globals()['_LOGGER'].getChild("get_hour_prices")
+    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
+    
+    USING_OFFLINE_PRICES = False
+    
+    now = getTime()
+    current_hour = reset_time_to_hour(now)
+    
+    hour_prices = {}
+    price_adder_day_between_divider = 30
+    try:
+        all_prices_loaded = True
+        
+        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
+            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
+            
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
+            hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+        else:
+            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+            
+            if "raw_today" in power_prices_attr:
+                for raw in power_prices_attr['raw_today']:
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
+                        hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                    else:
+                        all_prices_loaded = False
+                        
+            if "forecast" in power_prices_attr:
+                for raw in power_prices_attr['forecast']:
+                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
+                        hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
+                    else:
+                        all_prices_loaded = False
+
+            if "tomorrow_valid" in power_prices_attr:
+                if power_prices_attr['tomorrow_valid']:
+                    if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) < 23: #Summer and winter time compensation
+                        _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
+                    else:
+                        for raw in power_prices_attr['raw_tomorrow']:
+                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
+                                hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                            else:
+                                all_prices_loaded = False
+            
+            if "raw_today" not in power_prices_attr:
+                raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            elif len(power_prices_attr['raw_today']) < 23: #Summer and winter time compensation
+                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_today len({len(power_prices_attr['raw_today'])})")
+
+            if "forecast" not in power_prices_attr:
+                raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
+                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, forecast len({len(power_prices_attr['forecast'])})")
+
+            if not all_prices_loaded:
+                raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            else:
+                LAST_SUCCESSFUL_GRID_PRICES = {
+                    "last_update": getTime(),
+                    "prices": hour_prices
+                }
+    except Exception as e:
+        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
+            hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+            _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
+        else:
+            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
+
+            USING_OFFLINE_PRICES = True
+            missing_hours = {}
+            try:
+                if "history" not in KWH_AVG_PRICES_DB:
+                    raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
+                
+                for h in range(24):
+                    for d in range(7):
+                        if d not in KWH_AVG_PRICES_DB['history'][h]:
+                            raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
+
+                        price = average(KWH_AVG_PRICES_DB['history'][h][d])
+                        timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
+                        timestamp = timestamp.replace(tzinfo=None)
+                        if timestamp not in hour_prices:
+                            missing_hours[timestamp] = price
+                            hour_prices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
+                if missing_hours:
+                    _LOGGER.info(f"Using following offline prices: {missing_hours}")
+            except Exception as e:
+                error_message = f"Cant get offline prices: {e}"
+                _LOGGER.error(error_message)
+                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
+                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
+                raise Exception(f"Offline prices error: {e}")
+    
+    return hour_prices
+
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES, CHARGING_PLAN, CHARGE_HOURS
-    
-    USING_OFFLINE_PRICES = False
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
         _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
@@ -3644,103 +3848,11 @@ def cheap_grid_charge_hours():
         "workday_in_week": False
     }
     
-    current_battery_level_expenses = {
-        "battery_level_expenses_kwh": 0.0,
-        "battery_level_expenses_percentage": 0.0,
-        "battery_level_expenses_solar_percentage": 0.0,
-        "battery_level_expenses_cost": 0.0
-    }
+    reset_current_battery_level_expenses()
     
-    hourPrices = {}
-    price_adder_day_between_divider = 30
-    try:
-        all_prices_loaded = True
-        
-        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
-            
-        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
-            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
-        else:
-            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
-            
-            if "raw_today" in power_prices_attr:
-                for raw in power_prices_attr['raw_today']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
-                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                    else:
-                        all_prices_loaded = False
-                        
-            if "forecast" in power_prices_attr:
-                for raw in power_prices_attr['forecast']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
-                        hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
-                    else:
-                        all_prices_loaded = False
+    hour_prices = get_hour_prices()
 
-            if "tomorrow_valid" in power_prices_attr:
-                if power_prices_attr['tomorrow_valid']:
-                    if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) < 23: #Summer and winter time compensation
-                        _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
-                    else:
-                        for raw in power_prices_attr['raw_tomorrow']:
-                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
-                                hourPrices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                            else:
-                                all_prices_loaded = False
-            
-            if "raw_today" not in power_prices_attr:
-                raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-            elif len(power_prices_attr['raw_today']) < 23: #Summer and winter time compensation
-                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_today len({len(power_prices_attr['raw_today'])})")
-
-            if "forecast" not in power_prices_attr:
-                raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-            elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
-                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, forecast len({len(power_prices_attr['forecast'])})")
-
-            if not all_prices_loaded:
-                raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-            else:
-                LAST_SUCCESSFUL_GRID_PRICES = {
-                    "last_update": getTime(),
-                    "prices": hourPrices
-                }
-    except Exception as e:
-        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
-            hourPrices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
-            _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
-        else:
-            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
-            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
-
-            USING_OFFLINE_PRICES = True
-            missing_hours = {}
-            try:
-                if "history" not in KWH_AVG_PRICES_DB:
-                    raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
-                
-                for h in range(24):
-                    for d in range(7):
-                        if d not in KWH_AVG_PRICES_DB['history'][h]:
-                            raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
-
-                        price = average(KWH_AVG_PRICES_DB['history'][h][d])
-                        timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
-                        timestamp = timestamp.replace(tzinfo=None)
-                        if timestamp not in hourPrices:
-                            missing_hours[timestamp] = price
-                            hourPrices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
-                if missing_hours:
-                    _LOGGER.info(f"Using following offline prices: {missing_hours}")
-            except Exception as e:
-                error_message = f"Cant get offline prices: {e}"
-                _LOGGER.error(error_message)
-                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
-                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
-                raise Exception(f"Offline prices error: {e}")
-    
-    sorted_by_cheapest_price = sorted(hourPrices.items(), key=lambda kv: (kv[1], kv[0]))
+    sorted_by_cheapest_price = sorted(hour_prices.items(), key=lambda kv: (kv[1], kv[0]))
     
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
@@ -3838,7 +3950,7 @@ def cheap_grid_charge_hours():
         ultra_cheap_price = False
         
         try:
-            lowest_values = sorted(hourPrices.values())[:CONFIG['database']['kwh_avg_prices_db_data_to_save']]
+            lowest_values = sorted(hour_prices.values())[:CONFIG['database']['kwh_avg_prices_db_data_to_save']]
             average_price = round(average(lowest_values), 3)
             if round(price, 3) <= average_price:
                 very_cheap_price = True
@@ -3856,9 +3968,10 @@ def cheap_grid_charge_hours():
     
     def future_charging(totalCost, totalkWh):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
+        global BATTERY_LEVEL_EXPENSES
+        
         nonlocal trip_date_time
         nonlocal trip_target_level
-        nonlocal current_battery_level_expenses
         
         def what_battery_level(what_day, hour, price, day):
             battery_level_id = "battery_level_at_midnight"
@@ -3866,7 +3979,7 @@ def cheap_grid_charge_hours():
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
             
             if what_day < 0:
-                _LOGGER.warning(f"Error in hourPrices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
+                _LOGGER.warning(f"Error in hour_prices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
                 return return_fail_list
             
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
@@ -4143,29 +4256,29 @@ def cheap_grid_charge_hours():
                             battery_level_expenses_solar_kwh_loop = 0.0
                             reference_battery_level = get_min_daily_battery_level() if event_type == "workday" else get_min_trip_battery_level()
                             
-                            for key in sorted([k for k in current_battery_level_expenses.copy().keys() if type(k) is datetime.datetime]):
+                            for key in sorted([k for k in BATTERY_LEVEL_EXPENSES.copy().keys() if type(k) is datetime.datetime]):
                                 remove_key = False
                                 if ignored_reference_battery_level < reference_battery_level:
-                                    ignored_reference_battery_level += current_battery_level_expenses[key]["percentage"]
+                                    ignored_reference_battery_level += BATTERY_LEVEL_EXPENSES[key]["percentage"]
                                     
                                     if ignored_reference_battery_level > reference_battery_level:
                                         diff = ignored_reference_battery_level - reference_battery_level
                                         
-                                        amount = diff / current_battery_level_expenses[key]["percentage"] if current_battery_level_expenses[key]["percentage"] > 0.0 else 0.0
-                                        current_battery_level_expenses[key]["percentage"] *= amount
-                                        current_battery_level_expenses[key]["solar_percentage"] *= amount
+                                        amount = diff / BATTERY_LEVEL_EXPENSES[key]["percentage"] if BATTERY_LEVEL_EXPENSES[key]["percentage"] > 0.0 else 0.0
+                                        BATTERY_LEVEL_EXPENSES[key]["percentage"] *= amount
+                                        BATTERY_LEVEL_EXPENSES[key]["solar_percentage"] *= amount
                                         
-                                    current_battery_level_expenses["battery_level_expenses_percentage"] -= current_battery_level_expenses[key]["percentage"]
+                                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] -= BATTERY_LEVEL_EXPENSES[key]["percentage"]
                                     remove_key = True
                                 
-                                if ignored_reference_battery_level >= reference_battery_level and grid_battery_level_needed > 0.0 and current_battery_level_expenses["battery_level_expenses_percentage"] > 0.0:
-                                    battery_level_expenses_grid_amount = min(grid_battery_level_needed, current_battery_level_expenses[key]["percentage"])
+                                if ignored_reference_battery_level >= reference_battery_level and grid_battery_level_needed > 0.0 and BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] > 0.0:
+                                    battery_level_expenses_grid_amount = min(grid_battery_level_needed, BATTERY_LEVEL_EXPENSES[key]["percentage"])
                                     grid_battery_level_needed -= battery_level_expenses_grid_amount
-                                    current_battery_level_expenses["battery_level_expenses_percentage"] -= battery_level_expenses_grid_amount
+                                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] -= battery_level_expenses_grid_amount
                                     
                                     battery_level_expenses_grid_percentage_loop = battery_level_expenses_grid_amount
                                     battery_level_expenses_grid_kwh_loop = percentage_to_kwh(battery_level_expenses_grid_percentage_loop, include_charging_loss=True)
-                                    battery_level_expenses_grid_cost_loop = current_battery_level_expenses[key]["unit"] * battery_level_expenses_grid_kwh_loop
+                                    battery_level_expenses_grid_cost_loop = BATTERY_LEVEL_EXPENSES[key]["unit"] * battery_level_expenses_grid_kwh_loop
                                     
                                     kwh_needed += battery_level_expenses_grid_kwh_loop
                                     cost += battery_level_expenses_grid_cost_loop
@@ -4173,9 +4286,9 @@ def cheap_grid_charge_hours():
                                     if round(battery_level_expenses_grid_percentage_loop, 1) > 0.0:
                                         from_battery = True
                                     
-                                    if current_battery_level_expenses["battery_level_expenses_solar_percentage"] > 0.0:
-                                        battery_level_expenses_solar_amount = min(battery_level_expenses_grid_percentage_loop, current_battery_level_expenses[key]["solar_percentage"])
-                                        current_battery_level_expenses["battery_level_expenses_solar_percentage"] -= battery_level_expenses_solar_amount
+                                    if BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] > 0.0:
+                                        battery_level_expenses_solar_amount = min(battery_level_expenses_grid_percentage_loop, BATTERY_LEVEL_EXPENSES[key]["solar_percentage"])
+                                        BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] -= battery_level_expenses_solar_amount
                                         
                                         battery_level_expenses_solar_percentage_loop += min(battery_level_expenses_solar_amount, grid_battery_level_needed)
                                         battery_level_expenses_solar_kwh_loop += percentage_to_kwh(battery_level_expenses_solar_amount, include_charging_loss=True)
@@ -4186,7 +4299,7 @@ def cheap_grid_charge_hours():
                                     remove_key = True
                                 
                                 if remove_key:
-                                    del current_battery_level_expenses[key]
+                                    del BATTERY_LEVEL_EXPENSES[key]
                             
                             if kwh_needed > percentage_to_kwh(battery_level_needed, include_charging_loss=True):
                                 cost_unit = cost / kwh_needed
@@ -4636,9 +4749,9 @@ def cheap_grid_charge_hours():
                     
                     try:
                         hour_in_chargeHours, kwhAvailable = kwh_available_in_hour(charging_hour)
-                        very_cheap_price, ultra_cheap_price = cheap_price_check(hourPrices[charging_hour])
+                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[charging_hour])
                         
-                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, charging_hour, hourPrices[charging_hour], very_cheap_price, ultra_cheap_price, kwhAvailable, max_recommended_battery_level, trip_target_level, ['trip'])
+                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, charging_hour, hour_prices[charging_hour], very_cheap_price, ultra_cheap_price, kwhAvailable, max_recommended_battery_level, trip_target_level, ['trip'])
                         charging_plan[day]['trip_kwh_needed'] += percentage_to_kwh(battery_level_added, include_charging_loss=False)
                         charging_plan[day]["trip_total_cost"] += chargeHours[charging_hour]["Cost"]
                         
@@ -4696,57 +4809,6 @@ def cheap_grid_charge_hours():
                 warning_message += f"- **{warning}**\n"
         my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_charging_plan_warnings")
     
-    current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
-    
-    try:
-        if CHARGING_HISTORY_DB:
-            for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
-                if round(current_battery_level_expenses["battery_level_expenses_percentage"]) < round(current_battery_level):
-                    if (
-                        "cost" not in CHARGING_HISTORY_DB[key] or
-                        "kWh" not in CHARGING_HISTORY_DB[key] or
-                        "kWh_solar" not in CHARGING_HISTORY_DB[key] or
-                        "percentage" not in CHARGING_HISTORY_DB[key]
-                    ):
-                        continue
-                    
-                    cost = CHARGING_HISTORY_DB[key]["cost"]
-                    kwh = CHARGING_HISTORY_DB[key]["kWh"]
-                    percentage = CHARGING_HISTORY_DB[key]["percentage"]
-                    solar_percentage = kwh_to_percentage(CHARGING_HISTORY_DB[key]["kWh_solar"], include_charging_loss=True)
-                    
-                    new_battery_level = percentage + current_battery_level_expenses["battery_level_expenses_percentage"]
-                    if new_battery_level > current_battery_level and percentage > 0.0:
-                        diff = (percentage - (new_battery_level - current_battery_level)) / percentage
-                        cost = cost * diff
-                        kwh = kwh * diff
-                        percentage = percentage * diff
-                        solar_percentage = solar_percentage * diff
-                    current_battery_level_expenses[key] = {
-                        "cost": cost,
-                        "kWh": kwh,
-                        "percentage": percentage,
-                        "solar_percentage": solar_percentage,
-                        "unit": cost / kwh if kwh > 0.0 else 0.0
-                        
-                    }
-                    current_battery_level_expenses["battery_level_expenses_kwh"] += kwh
-                    current_battery_level_expenses["battery_level_expenses_percentage"] += percentage
-                    current_battery_level_expenses["battery_level_expenses_solar_percentage"] += solar_percentage
-                    current_battery_level_expenses["battery_level_expenses_cost"] += cost
-                else:
-                    break
-    except Exception as e:
-        _LOGGER.warning(f"Error in battery level cost calculation: {e}")
-    
-    battery_level_expenses_unit = None
-    if current_battery_level_expenses["battery_level_expenses_kwh"] > 0.0:
-        battery_level_expenses_unit = current_battery_level_expenses["battery_level_expenses_cost"] / current_battery_level_expenses["battery_level_expenses_kwh"]
-    
-    battery_level_expenses_report = current_battery_level_expenses["battery_level_expenses_cost"]
-    battery_level_expenses_kwh_report = current_battery_level_expenses["battery_level_expenses_kwh"]
-    battery_level_expenses_solar_percentage_report = current_battery_level_expenses["battery_level_expenses_solar_percentage"]
-    
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     chargeHours['total_cost'] = totalCost
     chargeHours['total_kwh'] = totalkWh
@@ -4758,7 +4820,7 @@ def cheap_grid_charge_hours():
     
     current_day = now.date()
     
-    for timestamp, price in sorted(hourPrices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
+    for timestamp, price in sorted(hour_prices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
         if timestamp.date() == current_day:
             if countExpensive < 4:
                 expensiveList.append(timestamp)
@@ -4865,14 +4927,18 @@ def cheap_grid_charge_hours():
     overview = []
     
     try:
-        battery_level_expenses_unit_report = battery_level_expenses_unit if battery_level_expenses_unit is not None else 0.0
+        current_battery_level_expenses()
+        battery_level_expenses_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"]
+        battery_level_expenses_kwh_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"]
+        battery_level_expenses_solar_percentage_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"]
+        battery_level_expenses_unit_report = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] if BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None else 0.0
         
         if battery_level_expenses_kwh_report > 0.0:
             overview.append("## Batteri niveau udgifter ##")
             overview.append("<center>\n")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
-            overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(current_battery_level, 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
+            overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
             
             if battery_level_expenses_solar_percentage_report > 0.0:
                 overview.append(f"| **☀️ Solcelle andel** | **{round(battery_level_expenses_solar_percentage_report,0):.0f}% {round(percentage_to_kwh(battery_level_expenses_solar_percentage_report), 1)} kWh** |")
@@ -7135,11 +7201,6 @@ if INITIALIZATION_COMPLETE:
             preheat_ev()
         
         def ev_power_connected_trigger(value):
-            states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))
-            if str(value).lower() not in states:
-                _LOGGER.warning(f"Ignoring state not in {states}: {value}")
-                return
-            
             drive_efficiency(str(value))
             notify_battery_under_daily_battery_level()
         
