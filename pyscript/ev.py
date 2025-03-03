@@ -113,12 +113,12 @@ LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
 ENTITY_UNAVAILABLE_STATES = ("unavailable", "unknown")
-CHARGER_READY_STATUS = ("on", "connected", "ready_to_charge", "awaiting_authorization", "awaiting_start")
-CHARGER_NOT_READY_STATUS = ("off", "disconnected")
+CHARGER_READY_STATUS = ("on", "connect", "connected", "ready", "ready_to_charge", "awaiting_authorization", "awaiting_start")
+CHARGER_NOT_READY_STATUS = ("off", "disconnect", "disconnected")
 CHARGER_COMPLETED_STATUS = ("completed", "finished")
 CHARGER_CHARGING_STATUS = ("charging")
-EV_PLUGGED_STATES = ("on", "open", "plugged", "connected", "plugged_waiting_for_charge", "manual")
-EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnected")
+EV_PLUGGED_STATES = ("on", "open", "plugged", "connect", "connected", "plugged_waiting_for_charge", "manual")
+EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected")
 
 
 
