@@ -78,6 +78,9 @@ Der understøttes nuværende/fremtidig (prognose) solcelle overproduktion og pow
   - [Huawei Solar](https://github.com/wlcrs/huawei_solar)
   - [Kostal](https://www.home-assistant.io/integrations/kostal_plenticore/)
 
+- **Solcelle produktion prognose**
+  - [Solcast PV Forecast](https://github.com/BJReplay/ha-solcast-solar)
+
 ### Todo
 1. [Zaptec EV charger](https://github.com/custom-components/zaptec) (Mangler test personer)
 2. Ladetab kalkulering ved 1 fase & 3 faser ved min & max amps
@@ -151,6 +154,7 @@ curl -s https://raw.githubusercontent.com/dezito/Cable-Juice-Planner/master/scri
 - **ev_drive_efficiency_db.yaml** *(Kørselseffiktivitet procent database)*
 - **ev_km_kwh_efficiency_db.yaml** *(Km/Kwh database)*
 - **ev_kwh_avg_prices_db.yaml** *(Offline strøm priser database)*
+- **ev_power_values_db.yaml** *(Husforbrug prognose udregning, ved brug af solar.entity_ids.forecast_entity_id i konfigurationen)*
 - **ev_solar_production_available_db.yaml** *(Solcelle over produktion database)*
 - **ev_error_log** *(Ved kritisk fejl gemmes vigtig data, der kan sendes til mig)*
 - **packages/ev.yaml** *(Alle entitetterne)*

@@ -105,6 +105,7 @@ ask_and_delete_databases() {
     "$REPO_DIR/ev_error_log.yaml"
     "$REPO_DIR/ev_km_kwh_efficiency_db.yaml"
     "$REPO_DIR/ev_kwh_avg_prices_db.yaml"
+    "$REPO_DIR/ev_power_values_db.yaml"
     "$REPO_DIR/ev_solar_production_available_db.yaml"
   )
   

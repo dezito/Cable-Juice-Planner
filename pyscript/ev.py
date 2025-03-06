@@ -125,6 +125,9 @@ EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected
 
 
 CONFIG = {}
+POWER_VALUES_DB = {}
+POWER_VALUES_DB_VERSION = 1.0
+
 SOLAR_PRODUCTION_AVAILABLE_DB = {}
 SOLAR_PRODUCTION_AVAILABLE_DB_VERSION = 2.0
 
@@ -363,6 +366,7 @@ DEFAULT_CONFIG = {
     },
     "cron_interval": 5,
     "database": {
+        "power_values_db_data_to_save": 15,
         "solar_available_db_data_to_save": 10,
         "kwh_avg_prices_db_data_to_save": 15,
         "drive_efficiency_db_data_to_save": 15,
@@ -431,7 +435,8 @@ DEFAULT_CONFIG = {
     },
     "solar": {
         "entity_ids": {
-            "production_entity_id": ""
+            "production_entity_id": "",
+            "forecast_entity_id": ""
         },
         "solarpower_use_before_minutes": 60,
         "max_to_current_hour": True,
@@ -493,6 +498,7 @@ COMMENT_DB_YAML = {
     "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
+    "forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
     "production_entity_id": "Solar power production Watt",
     "solarpower_use_before_minutes": "Minutes back you can use solar overproduction available (Solar charging can exceed available power to use all excess energy)",
     "max_to_current_hour": "Must use solar overproduction available in current hour (Solar charging can exceed available power to use all excess energy)",
@@ -505,6 +511,7 @@ COMMENT_DB_YAML = {
     "hourly_service_entity_id": "**Required if using solar** hourly forecast entity_id",
     "daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
     "outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
+    "power_values_db_data_to_save": "Days back to save power values",
     "solar_available_db_data_to_save": "Amount to save, per cloud coverage density",
     "kwh_avg_prices_db_data_to_save": "Amount to save",
     "drive_efficiency_db_data_to_save": "Amount to save",
@@ -2678,7 +2685,7 @@ def set_state_km_kwh_efficiency():
             km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} km/kWh - {wh_km_mean:.2f} Wh/km")
-        
+
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
         for item in existing_attributes:
             if "dato" in item:
@@ -5101,7 +5108,7 @@ def cheap_grid_charge_hours():
             overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
             
             work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
-            overview.append(f"##### 📎Afgangsplan inkludere {work_overview_solar_text}batteri niveau udgifter #####")
+            overview.append(f"##### 📎Afgangsplan inkludere estimeret udgifter fra nettet, {work_overview_solar_text}batteri niveau #####")
         
         overview_alternative = []
         total_kwh_charge_hours_alternative = []
@@ -5715,6 +5722,76 @@ def transform_database(database, step_size=20):
                 new_database[hour][upper_group].extend(sorted_entries[split_index:])
 
     return new_database
+
+def load_power_values_db():
+    _LOGGER = globals()['_LOGGER'].getChild("load_power_values_db")
+    global POWER_VALUES_DB
+    
+    if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
+    
+    version = 1.0
+    
+    try:
+        database = load_yaml(f"{__name__}_power_values_db")
+        if "version" in database:
+            version = float(database["version"])
+            del database["version"]
+            
+        POWER_VALUES_DB = database.copy()
+        
+        if not POWER_VALUES_DB:
+            create_yaml(f"{__name__}_power_values_db", db=POWER_VALUES_DB)
+    except Exception as e:
+        error_message = f"Cant load {__name__}_power_values_db: {e}"
+        _LOGGER.error(error_message)
+        save_error_to_file(error_message, caller_function_name = "load_power_values_db()")
+        my_persistent_notification(f"Failed to load {__name__}_power_values_db", f"{TITLE} error", persistent_notification_id=f"{__name__}load_power_values_db")
+    
+    if POWER_VALUES_DB == {} or not POWER_VALUES_DB:
+        POWER_VALUES_DB = {}
+
+    for h in range(24):
+        if h not in POWER_VALUES_DB:
+            POWER_VALUES_DB[h] = {}
+            
+    save_power_values_db()
+    
+def save_power_values_db():
+    _LOGGER = globals()['_LOGGER'].getChild("save_solar_available_db")
+    global POWER_VALUES_DB
+    
+    if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
+    
+    if len(POWER_VALUES_DB) > 0:
+        db_to_file = POWER_VALUES_DB.copy()
+        db_to_file["version"] = POWER_VALUES_DB_VERSION
+        save_changes(f"{__name__}_power_values_db", db_to_file)
+
+def power_values_to_db(data):
+    _LOGGER = globals()['_LOGGER'].getChild("power_values_to_db")
+    global POWER_VALUES_DB
+    
+    if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
+    
+    if not inverter_available(f"power_values_to_db({data})"):
+        return
+    
+    if len(POWER_VALUES_DB) == 0:
+        load_power_values_db()
+        
+    hour = getHour()
+    
+    for key, value in data.items():
+        if key not in POWER_VALUES_DB[hour]:
+            POWER_VALUES_DB[hour][key] = []
+            
+        POWER_VALUES_DB[hour][key].insert(0, [getTime(), value])
+        _LOGGER.debug(f"inserting {value} POWER_VALUES_DB[{hour}] = {POWER_VALUES_DB[hour]}")
+        
+        POWER_VALUES_DB[hour][key] = POWER_VALUES_DB[hour][key][:CONFIG['database']['power_values_db_data_to_save']]
+        _LOGGER.debug(f"removing values over {CONFIG['database']['power_values_db_data_to_save']} POWER_VALUES_DB[{hour}] = {POWER_VALUES_DB[hour][key]}")
+    
+    save_power_values_db()
     
 def load_solar_available_db():
     _LOGGER = globals()['_LOGGER'].getChild("load_solar_available_db")
@@ -5806,6 +5883,57 @@ def solar_available_append_to_db(power):
     _LOGGER.debug(f"removing values over {CONFIG['database']['solar_available_db_data_to_save']} SOLAR_PRODUCTION_AVAILABLE_DB[{hour}][{cloudiness_score}] = {SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score]}")
     
     save_solar_available_db()
+    
+def get_solar_forecast():
+    _LOGGER = globals()['_LOGGER'].getChild("get_solar_forecast")
+    global POWER_VALUES_DB, LAST_SUCCESSFUL_GRID_PRICES
+    
+    if "forecast_entity_id" in CONFIG['solar']['entity_ids'] and not CONFIG['solar']['entity_ids']['forecast_entity_id']:
+        return {}
+    
+    forecast = {}
+    
+    hour_prices = LAST_SUCCESSFUL_GRID_PRICES['prices'] if "prices" in LAST_SUCCESSFUL_GRID_PRICES else get_hour_prices()
+                        
+    energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
+    energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
+    solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
+    
+    integration = get_integration(CONFIG['solar']['entity_ids']['forecast_entity_id'])
+    
+    if integration == "solcast_solar":
+        endings = ["today", "tomorrow", "day_3", "day_4", "day_5", "day_6", "day_7"]
+        base_entity_id = "_".join(CONFIG['solar']['entity_ids']['forecast_entity_id'].split("_")[:-1])
+        
+        try:
+            for ending in endings:
+                entity_id = f"{base_entity_id}_{ending}"
+                attr = get_attr(entity_id, error_state={})
+                for site in attr:
+                    site_attr = get_attr(entity_id, "detailedHourly", error_state={})
+                    for data in site_attr:
+                        date = data['period_start'].replace(tzinfo=None)
+                        watt = round(data['pv_estimate'], 0)
+                                                
+                        power_consumption_without_all_exclusion = average(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0])))
+                        available = max(watt - power_consumption_without_all_exclusion, 0.0)
+                        
+                        day_of_week = getDayOfWeek(date)
+                        tariff_dict = get_tariffs(date.hour, day_of_week)
+                        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
+                        systemtarif = tariff_dict["systemtarif"]
+                        tariff_sum = tariff_dict["tariff_sum"]
+                        
+                        price = hour_prices[date]
+                        raw_price = price - tariff_sum
+                        
+                        sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
+                        sell_price = raw_price - sell_tariffs
+                        
+                        forecast[date] = (available, sell_price)
+        except Exception as e:
+            _LOGGER.error(f"Error: {e}")
+    return forecast
 
 def solar_available_prediction(start_trip = None, end_trip=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_available_prediction")
@@ -5874,6 +6002,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
     
 
     forecast_dict = get_forecast_dict()
+    solar_forecast_from_integration = get_solar_forecast()
     
     trip_last_charging = None
     if start_trip:
@@ -5887,6 +6016,10 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         output_sell[date] = 0.0
         
         dayName = getDayOfWeekText(getTimePlusDays(day))
+        total_database = []
+        total_database_sell = []
+        total_forecast = []
+        total_forecast_sell = []
         total = []
         total_sell = []
         
@@ -5914,10 +6047,6 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             if from_hour <= to_hour:
                 for hour in range(from_hour, to_hour + 1):
                     loop_datetime = date.replace(hour = hour)
-                    forecast = get_forecast(forecast_dict, loop_datetime)
-                    
-                    if forecast is None or loop_datetime is None:
-                        continue
                     
                     if work_last_charging and in_between(loop_datetime, work_last_charging, end_work):
                         continue
@@ -5928,14 +6057,31 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     if hour in expensive_hours and using_grid_price:
                         continue
                     
-                    cloudiness = forecast_score(forecast)
+                    forecast = get_forecast(forecast_dict, loop_datetime)
+                    cloudiness = forecast_score(forecast) if forecast is not None else None
 
+                    loop_power = []
+                    loop_sell = []
+                    
                     if cloudiness is not None:
                         power_cost = get_power(cloudiness, loop_datetime)
-                        total.append(power_cost[0])
-                        total_sell.append(power_cost[1])
-
-                        
+                        loop_power.append(power_cost[0])
+                        loop_sell.append(power_cost[1])
+                        total_database.append(power_cost[0])
+                        total_database_sell.append(power_cost[1])
+                    
+                    if loop_datetime in solar_forecast_from_integration:
+                        loop_power.append(solar_forecast_from_integration[loop_datetime][0])
+                        loop_sell.append(solar_forecast_from_integration[loop_datetime][1])
+                        total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
+                        total_forecast_sell.append(solar_forecast_from_integration[loop_datetime][1])
+                    
+                    if loop_power:
+                        total.append(average(loop_power))
+                        total_sell.append(average(loop_sell))
+            _LOGGER.warning(f"DEBUG {date}: {sum(total_database)}kWh total_database:{total_database} total_database_sell:{total_database_sell}")
+            _LOGGER.warning(f"DEBUG {date}: {sum(total_forecast)}kWh total_forecast:{total_forecast} total_forecast_sell:{total_forecast_sell}")
+            _LOGGER.warning(f"DEBUG {date}: {sum(total)}kWh total:{total} total_sell:{total_sell}")
             total = sum(total)
             total_sell = average(total_sell)
             
@@ -7042,6 +7188,7 @@ if INITIALIZATION_COMPLETE:
             set_charging_rule(f"📟Indlæser databaserne")
             log_lines.append(f"📟Indlæser databaserne")
             
+            load_power_values_db()
             load_solar_available_db()
             load_kwh_prices()
             load_drive_efficiency()
@@ -7233,6 +7380,7 @@ if INITIALIZATION_COMPLETE:
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
         solar_available_append_to_db(solar_production_available(period = 60, withoutEV = True))
+        power_values_to_db(power_values(period = 60))
         stop_current_charging_session()
         kwh_charged_by_solar()
         solar_charged_percentage()
