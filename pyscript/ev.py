@@ -5101,7 +5101,7 @@ def cheap_grid_charge_hours():
             overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
             
             work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
-            overview.append(f"##### 📎Afgangsplan inkludere {work_overview_solar_text}batteri niveau udgifter #####")
+            overview.append(f"##### 📎Afgangsplan inkludere estimeret udgifter fra nettet, {work_overview_solar_text}batteri niveau #####")
         
         overview_alternative = []
         total_kwh_charge_hours_alternative = []
