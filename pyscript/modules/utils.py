@@ -52,7 +52,47 @@ def average(data):
     except Exception as e:
         _LOGGER.error(f"data is not a list: {data} {e}")
         return 0.0
-    
+
+def calculate_ema(data, span=5):
+    """
+    Calculates the Exponential Moving Average (EMA) of a list of numbers.
+    """
+    ema_values = []
+    alpha = 2 / (span + 1)
+    ema = data[0]
+    for value in data:
+        ema = (value * alpha) + (ema * (1 - alpha))
+        ema_values.append(ema)
+    return ema_values[-1]
+
+def calculate_trend(data):
+    """
+    Calculates the trend of a list of numbers.
+    """
+    x = list(range(len(data)))
+    n = len(x)
+
+    sum_x = 0
+    sum_y = 0
+    sum_x_squared = 0
+    sum_xy = 0
+
+    for i in x:
+        sum_x += i
+        sum_x_squared += i ** 2
+
+    for i, j in zip(x, data):
+        sum_y += j
+        sum_xy += i * j
+
+    denominator = (n * sum_x_squared - sum_x ** 2)
+    if denominator == 0:
+        return data[-1]
+
+    slope = (n * sum_xy - sum_x * sum_y) / denominator
+    intercept = (sum_y - slope * sum_x) / n
+
+    return intercept + slope * len(data)
 
 def get_specific_values(values, positive_only = False, negative_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")

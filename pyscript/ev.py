@@ -61,6 +61,8 @@ from utils import (
     in_between,
     round_up,
     average,
+    calculate_ema,
+    calculate_trend,
     get_specific_values,
     get_closest_key,
     get_dict_value_with_path,
@@ -2362,8 +2364,8 @@ def km_kwh_to_km_percentage(kwh):
 def km_percentage_to_km_kwh(percentage):
     return kwh_to_percentage(percentage, include_charging_loss=False)
     
-def avg_distance_per_percentage():
-    _LOGGER = globals()['_LOGGER'].getChild("avg_distance_per_percentage")
+def distance_per_percentage():
+    _LOGGER = globals()['_LOGGER'].getChild("distance_per_percentage")
     output = 3.0
     
     if not is_ev_configured():
@@ -2375,21 +2377,21 @@ def avg_distance_per_percentage():
         try:
             if KM_KWH_EFFICIENCY_DB == {}:
                 raise Exception("No data yet")
-            
-            mean = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
-            if mean == 0.0:
-                raise Exception(f"mean is invalid: {mean}")
-            output = km_kwh_to_km_percentage(mean)
-            _LOGGER.debug(f"mean_km/kwh:{mean} km_kwh_to_km_percentage({mean})={output}")
+            ema = round(calculate_ema(list(reversed(get_list_values(KM_KWH_EFFICIENCY_DB)))),2)
+            #ema = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
+            if ema == 0.0:
+                raise Exception(f"ema is invalid: {ema}")
+            output = km_kwh_to_km_percentage(ema)
+            _LOGGER.debug(f"ema_km/kwh:{ema} km_kwh_to_km_percentage({ema})={output}")
         except Exception as e:
             _LOGGER.warning(f"Using default value 3.0: {e}")
     return output
 
 def calc_distance_to_battery_level(distance):
-    return distance / avg_distance_per_percentage()
+    return distance / distance_per_percentage()
 
 def calc_battery_level_to_distance(battery_level):
-    return battery_level * avg_distance_per_percentage()
+    return battery_level * distance_per_percentage()
 
 def ev_power_connected():
     if not is_ev_configured():
@@ -2549,7 +2551,7 @@ def battery_range():
     distance = 0.0
     
     if not is_ev_configured():
-        distance = avg_distance_per_percentage() * battery_level()
+        distance = distance_per_percentage() * battery_level()
     else:
         try:
             if not is_entity_available(CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id']):
@@ -2610,6 +2612,7 @@ def set_state_drive_efficiency():
             return
         
         set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
+        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(list(reversed(drive_efficiency)))))
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
@@ -2668,10 +2671,14 @@ def set_state_km_kwh_efficiency():
         set_state(f"sensor.{__name__}_km_per_kwh", round(value, 2))
 
         if km_kwh_efficiency:
+            km_kwh_ema = round(float(calculate_ema(list(reversed(km_kwh_efficiency)))), 2)
+            wh_km_ema = round(1000 / km_kwh_ema, 2)
+            set_attr(f"sensor.{__name__}_km_per_kwh.ema", f"{km_kwh_ema:.2f} km/kWh - {wh_km_ema:.2f} Wh/km")
+            
             km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} km/kWh - {wh_km_mean:.2f} Wh/km")
-
+        
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
         for item in existing_attributes:
             if "dato" in item:
@@ -2800,7 +2807,7 @@ def drive_efficiency(state=None):
             PREHEATING = False
         elif state in EV_PLUGGED_STATES:
             if not is_ev_configured():
-                distancePerkWh = km_percentage_to_km_kwh(avg_distance_per_percentage())
+                distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
             else:
                 if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"):
@@ -7055,7 +7062,7 @@ if INITIALIZATION_COMPLETE:
             log_lines.append(f"")
             log_lines.append(f"🚗 Batteri rækkevidde: {battery_range():.2f} km")
             log_lines.append(f"🚗 Batteri niveau: {battery_level():.0f}%")
-            distance_per_percent = avg_distance_per_percentage()
+            distance_per_percent = distance_per_percentage()
             log_lines.append(f"🚗 km/%: {distance_per_percent:.2f} km")
             log_lines.append(f"🚗 HA estimeret rækkevidde: {(battery_level() * distance_per_percent):.2f} km")
             
