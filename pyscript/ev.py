@@ -7180,6 +7180,13 @@ if INITIALIZATION_COMPLETE:
         try:
             log_lines.append(welcome())
             log_lines.append(f"📟{BASENAME} started")
+            log_lines.append(f"")
+            log_lines.append(f"**Konfiguration:**")
+            log_lines.append(f"📟Lader konfiguret: {'Ja' if is_ev_configured() else 'Nej'}")
+            log_lines.append(f"📟Elbil konfiguret: {'Ja' if is_ev_configured() else 'Nej'}")
+            log_lines.append(f"📟Solcelle konfiguret: {'Ja' if is_solar_configured() else 'Nej'}")
+            log_lines.append(f"📟Powerwall konfiguret: {'Ja' if is_powerwall_configured() else 'Nej'}")
+            log_lines.append(f"")
             set_charging_rule(f"📟Sætter entities op")
             log_lines.append(f"📟Sætter entities op")
             set_entity_friendlynames()
