@@ -122,8 +122,6 @@ CHARGER_CHARGING_STATUS = ("charging")
 EV_PLUGGED_STATES = ("on", "open", "plugged", "connect", "connected", "plugged_waiting_for_charge", "manual")
 EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected")
 
-
-
 CONFIG = {}
 POWER_VALUES_DB = {}
 POWER_VALUES_DB_VERSION = 1.0
