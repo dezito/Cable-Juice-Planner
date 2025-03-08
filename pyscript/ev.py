@@ -5911,10 +5911,11 @@ def get_solar_forecast():
                     site_attr = get_attr(entity_id, "detailedHourly", error_state={})
                     for data in site_attr:
                         date = data['period_start'].replace(tzinfo=None)
-                        watt = round(data['pv_estimate'], 0)
+                        watt = round(data['pv_estimate'] * 1000.0, 0)
                                                 
                         power_consumption_without_all_exclusion = average(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0])))
                         available = max(watt - power_consumption_without_all_exclusion, 0.0)
+                        available_kwh = round(available / 1000.0, 0)
                         
                         day_of_week = getDayOfWeek(date)
                         tariff_dict = get_tariffs(date.hour, day_of_week)
@@ -5928,7 +5929,7 @@ def get_solar_forecast():
                         sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
                         sell_price = raw_price - sell_tariffs
                         
-                        forecast[date] = (available, sell_price)
+                        forecast[date] = (available_kwh, sell_price)
         except Exception as e:
             _LOGGER.error(f"Error: {e}")
     return forecast
@@ -6062,15 +6063,17 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     loop_sell = []
                     
                     if cloudiness is not None:
+                        power_factor = 0.5 if loop_datetime in solar_forecast_from_integration else 1.0
                         power_cost = get_power(cloudiness, loop_datetime)
-                        loop_power.append(power_cost[0])
-                        loop_sell.append(power_cost[1])
+                        loop_power.append(power_cost[0] * power_factor)
+                        loop_sell.append(power_cost[1] * power_factor)
                         total_database.append(power_cost[0])
                         total_database_sell.append(power_cost[1])
                     
                     if loop_datetime in solar_forecast_from_integration:
-                        loop_power.append(solar_forecast_from_integration[loop_datetime][0])
-                        loop_sell.append(solar_forecast_from_integration[loop_datetime][1])
+                        power_factor = 1.5 if cloudiness is not None else 1.0
+                        loop_power.append(solar_forecast_from_integration[loop_datetime][0] * power_factor)
+                        loop_sell.append(solar_forecast_from_integration[loop_datetime][1] * power_factor)
                         total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
                         total_forecast_sell.append(solar_forecast_from_integration[loop_datetime][1])
                     
