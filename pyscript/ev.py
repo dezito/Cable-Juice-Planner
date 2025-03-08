@@ -7243,17 +7243,25 @@ if INITIALIZATION_COMPLETE:
             check_master_updates()
         append_overview_output(f"📟{BASENAME} started")
    
-    #Fill up and days to charge only 1 allowed
-    '''@state_trigger(f"input_boolean.{__name__}_fill_up")
+    @time_trigger("startup")
+    @state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
     def charging_rule(trigger_type=None, var_name=None, value=None, old_value=None):
-        if value == "on":
-            if var_name == f"input_boolean.{__name__}_fill_up":
-                if workplan_charging_enabled():
-                    set_state(f"input_boolean.{__name__}_workplan_charging", "off")
-            elif var_name == f"input_boolean.{__name__}_workplan_charging":
-                if fill_up_charging_enabled():
-                    set_state(f"input_boolean.{__name__}_fill_up", "off")'''
+        _LOGGER = globals()['_LOGGER'].getChild("charging_rule")
+        if trigger_type == "startup":
+            if fill_up_charging_enabled() and workplan_charging_enabled():
+                set_state(f"input_boolean.{__name__}_fill_up", "off")
+                my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
+        else:
+            if value == "on":
+                if var_name == f"input_boolean.{__name__}_fill_up":
+                    if workplan_charging_enabled():
+                        set_state(f"input_boolean.{__name__}_workplan_charging", "off")
+                        my_persistent_notification(f"❗Deaktivere Arbejdsplan opladning\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
+                elif var_name == f"input_boolean.{__name__}_workplan_charging":
+                    if fill_up_charging_enabled():
+                        set_state(f"input_boolean.{__name__}_fill_up", "off")
+                        my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
                 
     @time_trigger(f"cron(0/{CONFIG['cron_interval']} * * * *)")
     @state_trigger(f"input_button.{__name__}_enforce_planning")
