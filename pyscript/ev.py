@@ -5096,7 +5096,7 @@ def cheap_grid_charge_hours():
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh | {d['from_battery_solar']}{d['solar']} | {d['cost']} |")
         else:
-            overview.append(f"**Ingen kommende arbejdsdag**")
+            overview.append(f"**Ingen kommende afgang planlagt**")
         
         work_overview_total_kwh_sum = sum(work_overview_total_kwh)
         work_overview_total_cost_sum = sum(work_overview_total_cost)
