@@ -302,7 +302,7 @@ CHARGING_TYPES = {
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
     },
-    "grid_charging": {
+    "battery_stored": {
         "priority": 12,
         "emoji": "🔋",
         "description": "Forbrug fra batteri"
