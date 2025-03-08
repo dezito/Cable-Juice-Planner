@@ -6080,9 +6080,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     if loop_power:
                         total.append(average(loop_power))
                         total_sell.append(average(loop_sell))
-            _LOGGER.warning(f"DEBUG {date}: {sum(total_database)}kWh total_database:{total_database} total_database_sell:{total_database_sell}")
-            _LOGGER.warning(f"DEBUG {date}: {sum(total_forecast)}kWh total_forecast:{total_forecast} total_forecast_sell:{total_forecast_sell}")
-            _LOGGER.warning(f"DEBUG {date}: {sum(total)}kWh total:{total} total_sell:{total_sell}")
+            
             total = sum(total)
             total_sell = average(total_sell)
             
