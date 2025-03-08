@@ -277,7 +277,7 @@ CHARGING_TYPES = {
     },
     "fill_up": {
         "priority": 8,
-        "emoji": "💴",
+        "emoji": "📈",
         "description": "1., 4. & 7. dag opfyldning"
     },
     "under_min_avg_price": {
