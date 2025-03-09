@@ -5954,6 +5954,10 @@ def get_solar_forecast():
                     site_attr = get_attr(entity_id, "detailedHourly", error_state={})
                     for data in site_attr:
                         date = data['period_start'].replace(tzinfo=None)
+                        
+                        if date not in hour_prices:
+                            continue
+                        
                         watt = round(data['pv_estimate'] * 1000.0, 0)
                                                 
                         power_consumption_without_all_exclusion = average(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0])))
