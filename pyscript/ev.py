@@ -3401,17 +3401,32 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
             for month in total['km']:
-                if month != "total" and total['km'][month] == 0.0:
+                if month == "total":
+                    continue
+                
+                estimated_km = 0.0
+                if total['km'][month] == 0.0:
                     estimated_km, estimated_values_used = calculate_estimated_km(
                         total['kwh'].get(month, 0.0), efficiency_factors, month.month
                     )
-                    total['km'][month] = f"~{estimated_km}"
+                    total['km'][month] = estimated_km
                     total['km']["total"] += estimated_km
-                elif month != "total" and month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
+                elif month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
                     kwh = sum([ value['kWh'] for key, value in CHARGING_HISTORY_DB.items() if getMonthFirstDay(key) == month and "odometer" not in value])
                     estimated_km, estimated_values_used = calculate_estimated_km(kwh, efficiency_factors, month.month)
-                    total['km'][month] = f"~{round(estimated_km + total['km'][month], 1)}"
+                    total['km'][month] = total['km'][month] + estimated_km
                     total['km']["total"] += estimated_km
+                
+                km_kwh = 0.0
+                wh_km = 0.0
+                
+                if total['km'][month] > 0.0 and total['kwh'][month] > 0.0:
+                    km_kwh = round(total['km'][month] / total['kwh'][month], 2)
+                    wh_km = round(1000 / km_kwh, 2)
+                    
+                efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
+                total['km'][month] = [f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
+                
             
         if total['kwh']["total"] > 0.0:
             solar_string = ""
@@ -3425,9 +3440,10 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
             solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
             km_header = "Km" if total['km']["total"] > 0.0 else ""
+            km_kwh_header = "Km/kWh" if total['km']["total"] > 0.0 else ""
             history.extend([
-                f"| Måned | {km_header} | kWh | {solar_header} | Pris | Kr/kWh |",
-                "|:---:|:---:|:---:|:---:|---:|:---:|"
+                f"| Måned | {km_header} | {km_kwh_header} | kWh | {solar_header} | Pris | Kr/kWh |",
+                "|:---:|:---:|:---:|:---:|:---:|---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
@@ -3443,17 +3459,25 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 
-                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month] if total['km'][month] else ''} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
+                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month][0] if total['km'][month] else ''} | {total['km'][month][1] if total['km'][month] else ''} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
             
             total_solar = ""
             if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
                 total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
                 total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
                 
+            km_kwh = 0.0
+            wh_km = 0.0
+            
+            if total['km']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                km_kwh = round(total['km']['total'] / total['kwh']['total'], 2)
+                wh_km = round(1000 / km_kwh, 2)
+            efficiency_label = f"**{km_kwh:.1f}<br>({wh_km:.1f})**" if km_kwh > 0.0 else ""
+            
             total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             
-            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
+            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
