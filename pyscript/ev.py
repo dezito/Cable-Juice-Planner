@@ -4435,7 +4435,7 @@ def cheap_grid_charge_hours():
                                 
                                 battery_level_expenses_grid_percentage_loop = battery_level_expenses_grid_amount
                                 battery_level_expenses_grid_kwh_loop = percentage_to_kwh(battery_level_expenses_grid_percentage_loop, include_charging_loss=True)
-                                battery_level_expenses_grid_cost_loop = BATTERY_LEVEL_EXPENSES[key]["unit"] * battery_level_expenses_grid_kwh_loop
+                                battery_level_expenses_grid_cost_loop = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] * battery_level_expenses_grid_kwh_loop
                                 
                                 kwh_needed += battery_level_expenses_grid_kwh_loop
                                 cost += battery_level_expenses_grid_cost_loop
