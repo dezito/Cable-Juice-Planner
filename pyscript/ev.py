@@ -4415,7 +4415,6 @@ def cheap_grid_charge_hours():
                         reference_battery_level = get_min_daily_battery_level() if event_type in ("workday", "offday") else get_min_trip_battery_level()
                         
                         for key in sorted([k for k in BATTERY_LEVEL_EXPENSES.copy().keys() if type(k) is datetime.datetime]):
-                            remove_key = False
                             
                             if ignored_reference_battery_level < reference_battery_level:
                                 ignored_reference_battery_level += BATTERY_LEVEL_EXPENSES[key]["percentage"]
@@ -4428,7 +4427,6 @@ def cheap_grid_charge_hours():
                                     BATTERY_LEVEL_EXPENSES[key]["solar_percentage"] *= amount
                                     
                                 BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] -= BATTERY_LEVEL_EXPENSES[key]["percentage"]
-                                remove_key = True
                                 
                             if ignored_reference_battery_level >= reference_battery_level and grid_battery_level_needed > 0.0 and BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] > 0.0:
                                 battery_level_expenses_grid_amount = min(grid_battery_level_needed, BATTERY_LEVEL_EXPENSES[key]["percentage"])
@@ -4454,11 +4452,6 @@ def cheap_grid_charge_hours():
                                     
                                     if round(battery_level_expenses_solar_percentage_loop, 1) > 0.0:
                                         from_battery_solar = True
-                                    
-                                remove_key = True
-                            
-                            if remove_key:
-                                del BATTERY_LEVEL_EXPENSES[key]
                         
                         if kwh_needed > percentage_to_kwh(battery_level_needed, include_charging_loss=True):
                             cost_unit = cost / kwh_needed
