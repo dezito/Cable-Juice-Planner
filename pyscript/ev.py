@@ -2745,6 +2745,17 @@ def set_estimated_range():
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_estimated_range"
         )
+        
+def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost, efficiency, distance_per_kWh, wh_km):
+    sensor_list = ["_drive_efficiency", "_km_per_kwh", "_estimated_range"]
+    for sensor in sensor_list:
+        try:
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_distance", f"{round(kilometers, 1)}km")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(used_battery,1)}%)")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_cost", f"{round(cost, 2)}kr")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_efficiency", f"{round(efficiency, 1)}% {round(distance_per_kWh, 2)} km/kWh ({wh_km} Wh/km)")
+        except Exception as e:
+            _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e}")
 
 def drive_efficiency_save_car_stats(bootup=False):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
@@ -2891,11 +2902,8 @@ def drive_efficiency(state=None):
                         Kørsel effektivitet: {round(efficiency, 1)}%
                         {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
                         """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-            
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_distance", f"{round(kilometers, 1)}km")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_cost", f"{round(cost, 2)}kr")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_efficiency", f"{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)")
+                
+            set_last_drive_efficiency_attributes(kilometers, usedkWh, usedBattery, cost, efficiency, distancePerkWh, wh_km)
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
@@ -3401,17 +3409,32 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
             for month in total['km']:
-                if month != "total" and total['km'][month] == 0.0:
+                if month == "total":
+                    continue
+                
+                estimated_km = 0.0
+                if total['km'][month] == 0.0:
                     estimated_km, estimated_values_used = calculate_estimated_km(
                         total['kwh'].get(month, 0.0), efficiency_factors, month.month
                     )
-                    total['km'][month] = f"~{estimated_km}"
+                    total['km'][month] = estimated_km
                     total['km']["total"] += estimated_km
-                elif month != "total" and month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
+                elif month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
                     kwh = sum([ value['kWh'] for key, value in CHARGING_HISTORY_DB.items() if getMonthFirstDay(key) == month and "odometer" not in value])
                     estimated_km, estimated_values_used = calculate_estimated_km(kwh, efficiency_factors, month.month)
-                    total['km'][month] = f"~{round(estimated_km + total['km'][month], 1)}"
+                    total['km'][month] = total['km'][month] + estimated_km
                     total['km']["total"] += estimated_km
+                
+                km_kwh = 0.0
+                wh_km = 0.0
+                
+                if total['km'][month] > 0.0 and total['kwh'][month] > 0.0:
+                    km_kwh = round(total['km'][month] / total['kwh'][month], 2)
+                    wh_km = round(1000 / km_kwh, 2)
+                    
+                efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
+                total['km'][month] = [f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
+                
             
         if total['kwh']["total"] > 0.0:
             solar_string = ""
@@ -3425,9 +3448,10 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
             solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
             km_header = "Km" if total['km']["total"] > 0.0 else ""
+            km_kwh_header = "Km/kWh" if total['km']["total"] > 0.0 else ""
             history.extend([
-                f"| Måned | {km_header} | kWh | {solar_header} | Pris | Kr/kWh |",
-                "|:---:|:---:|:---:|:---:|---:|:---:|"
+                f"| Måned | {km_header} | {km_kwh_header} | kWh | {solar_header} | Pris | Kr/kWh |",
+                "|:---:|:---:|:---:|:---:|:---:|---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
@@ -3443,17 +3467,25 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 
-                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month] if total['km'][month] else ''} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
+                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month][0] if total['km'][month] else ''} | {total['km'][month][1] if total['km'][month] else ''} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_price:.2f} |")
             
             total_solar = ""
             if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
                 total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
                 total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
                 
+            km_kwh = 0.0
+            wh_km = 0.0
+            
+            if total['km']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                km_kwh = round(total['km']['total'] / total['kwh']['total'], 2)
+                wh_km = round(1000 / km_kwh, 2)
+            efficiency_label = f"**{km_kwh:.1f}<br>({wh_km:.1f})**" if km_kwh > 0.0 else ""
+            
             total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             
-            history.append(f"| **Ialt** | {total_km} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
+            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_price:.2f}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
@@ -4225,8 +4257,9 @@ def cheap_grid_charge_hours():
                     while_count += 1
                 
             if solar_charging_enabled():
-                unused_solar_kwh[getTimePlusDays(day).date()] = charging_plan[day]['solar_kwh_prediction']
-                unused_solar_cost[getTimePlusDays(day).date()] = charging_plan[day]['solar_cost_prediction']
+                if day > 0:
+                    unused_solar_kwh[getTimePlusDays(day).date()] = charging_plan[day_before]['solar_kwh_prediction']
+                    unused_solar_cost[getTimePlusDays(day).date()] = charging_plan[day_before]['solar_cost_prediction']
             
             try:
                 days_need_between_recommended_full_charge = int(float(get_state(f"input_number.{__name__}_full_charge_recommended", error_state=0)))
@@ -4333,8 +4366,6 @@ def cheap_grid_charge_hours():
                 if sum(unused_solar_kwh.values()) > 0.0:
                     total_solar_kwh = sum(unused_solar_kwh.values())
                     total_solar_price = sum(unused_solar_cost.values())
-                    unused_solar_kwh.clear()
-                    unused_solar_cost.clear()
                     
                     if total_solar_kwh > 0.0:
                         solar_unit = total_solar_price / total_solar_kwh
@@ -4344,10 +4375,10 @@ def cheap_grid_charge_hours():
                 temp_events = []
                 for event_type in ('workday', 'trip', 'offday'):
                     
-                    from_battery = False
-                    from_battery_solar = False
+                    from_battery = 0.0
+                    from_battery_solar = 0.0
                     if charging_plan[day][event_type]:
-                        if event_type in ('workday', 'trip'):
+                        if event_type in ('workday', 'trip') and charging_plan[day][event_type]:
                             goto_key = 'trip_goto' if event_type == 'trip' else 'work_goto'
                             event_time_start = charging_plan[day][goto_key]
                             event_time_end = charging_plan[day]['trip_homecoming'] if event_type == 'trip' else charging_plan[day]['work_homecoming']
@@ -4357,7 +4388,7 @@ def cheap_grid_charge_hours():
                             battery_level_needed = charging_plan[day][battery_level_needed_key] if battery_level_needed_key =="work_battery_level_needed" else charging_plan[day][battery_level_needed_key] + charging_plan[day]["trip_battery_level_above_max"]
                             kwh_needed = charging_plan[day]['trip_kwh_needed' if event_type == 'trip' else 'work_kwh_needed']
                             cost = charging_plan[day]["trip_total_cost" if event_type == "trip" else "work_total_cost"]
-                        elif event_type == 'offday':
+                        elif event_type == 'offday' and charging_plan[day][event_type]:
                             event_time_start = charging_plan[day]['start_of_day']
                             event_time_end = charging_plan[day]['end_of_day']
                             
@@ -4367,6 +4398,9 @@ def cheap_grid_charge_hours():
                             cost = charging_plan[day]["offday_total_cost"]
                         else:
                             continue
+                        
+                        unused_solar_kwh.clear()
+                        unused_solar_cost.clear()
                         
                         if solar_percentage > battery_level_needed:
                             diff = solar_percentage - battery_level_needed
@@ -4391,7 +4425,6 @@ def cheap_grid_charge_hours():
                         reference_battery_level = get_min_daily_battery_level() if event_type in ("workday", "offday") else get_min_trip_battery_level()
                         
                         for key in sorted([k for k in BATTERY_LEVEL_EXPENSES.copy().keys() if type(k) is datetime.datetime]):
-                            remove_key = False
                             
                             if ignored_reference_battery_level < reference_battery_level:
                                 ignored_reference_battery_level += BATTERY_LEVEL_EXPENSES[key]["percentage"]
@@ -4404,7 +4437,6 @@ def cheap_grid_charge_hours():
                                     BATTERY_LEVEL_EXPENSES[key]["solar_percentage"] *= amount
                                     
                                 BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] -= BATTERY_LEVEL_EXPENSES[key]["percentage"]
-                                remove_key = True
                                 
                             if ignored_reference_battery_level >= reference_battery_level and grid_battery_level_needed > 0.0 and BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] > 0.0:
                                 battery_level_expenses_grid_amount = min(grid_battery_level_needed, BATTERY_LEVEL_EXPENSES[key]["percentage"])
@@ -4413,13 +4445,13 @@ def cheap_grid_charge_hours():
                                 
                                 battery_level_expenses_grid_percentage_loop = battery_level_expenses_grid_amount
                                 battery_level_expenses_grid_kwh_loop = percentage_to_kwh(battery_level_expenses_grid_percentage_loop, include_charging_loss=True)
-                                battery_level_expenses_grid_cost_loop = BATTERY_LEVEL_EXPENSES[key]["unit"] * battery_level_expenses_grid_kwh_loop
+                                battery_level_expenses_grid_cost_loop = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] * battery_level_expenses_grid_kwh_loop
                                 
                                 kwh_needed += battery_level_expenses_grid_kwh_loop
                                 cost += battery_level_expenses_grid_cost_loop
                                 
-                                if round(battery_level_expenses_grid_percentage_loop, 1) > 0.0:
-                                    from_battery = True
+                                if round(battery_level_expenses_grid_kwh_loop, 1) > 0.0:
+                                    from_battery += battery_level_expenses_grid_kwh_loop
                                 
                                 if BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] > 0.0:
                                     battery_level_expenses_solar_amount = min(battery_level_expenses_grid_percentage_loop, BATTERY_LEVEL_EXPENSES[key]["solar_percentage"])
@@ -4428,18 +4460,15 @@ def cheap_grid_charge_hours():
                                     battery_level_expenses_solar_percentage_loop += min(battery_level_expenses_solar_amount, grid_battery_level_needed)
                                     battery_level_expenses_solar_kwh_loop += percentage_to_kwh(battery_level_expenses_solar_amount, include_charging_loss=True)
                                     
-                                    if round(battery_level_expenses_solar_percentage_loop, 1) > 0.0:
-                                        from_battery_solar = True
-                                    
-                                remove_key = True
-                            
-                            if remove_key:
-                                del BATTERY_LEVEL_EXPENSES[key]
+                                    if round(battery_level_expenses_solar_kwh_loop, 1) > 0.0:
+                                        from_battery_solar = battery_level_expenses_solar_kwh_loop
                         
                         if kwh_needed > percentage_to_kwh(battery_level_needed, include_charging_loss=True):
                             cost_unit = cost / kwh_needed
                             kwh_needed = percentage_to_kwh(battery_level_needed, include_charging_loss=True)
                             cost = kwh_needed * cost_unit
+                        
+                        from_grid = max(kwh_needed - solar_kwh - from_battery - from_battery_solar, 0.0)
                         
                         solar_percentage_label = solar_percentage + battery_level_expenses_solar_percentage_loop
                         solar_kwh_label = solar_kwh + battery_level_expenses_solar_kwh_loop
@@ -4472,11 +4501,13 @@ def cheap_grid_charge_hours():
                                         "goto": f"*{date_to_string(date = getTime(), format = "%H:%M")}*",
                                         "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                         "solar": "",
+                                        "solar_kwh": 0.0,
                                         "battery_needed": diff,
                                         "kwh_needed": percentage_to_kwh(diff, include_charging_loss=True),
                                         "cost": (diff / battery_level_needed_adjusted) * cost,
-                                        "from_battery": False,
-                                        "from_battery_solar": False
+                                        "from_grid": percentage_to_kwh(diff, include_charging_loss=True),
+                                        "from_battery": 0.0,
+                                        "from_battery_solar": 0.0
                                     }
                                 })
                                 kwh_needed -= percentage_to_kwh(diff, include_charging_loss=True)
@@ -4491,9 +4522,11 @@ def cheap_grid_charge_hours():
                                 "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
                                 "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
                                 "solar": solar_label,
+                                "solar_kwh": solar_kwh_label,
                                 "battery_needed": battery_level_needed,
                                 "kwh_needed": percentage_to_kwh(battery_level_needed, include_charging_loss=True),
                                 "cost": cost,
+                                "from_grid": from_grid,
                                 "from_battery": from_battery,
                                 "from_battery_solar": from_battery_solar
                             }
@@ -4539,11 +4572,11 @@ def cheap_grid_charge_hours():
                             used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
                     
                     kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
-                    kwh_solar_alternative = min(charging_plan[day]['solar_kwh_prediction'], kwh_needed_today_alternative)
+                    kwh_solar_alternative = min(charging_plan[day_before]['solar_kwh_prediction'], kwh_needed_today_alternative) if day > 0 else 0.0
                     kwh_needed_today_alternative -= kwh_solar_alternative
                     
                     if kwh_solar_alternative > 0.0:
-                        solar_price = charging_plan[day]['solar_cost_prediction'] / charging_plan[day]['solar_kwh_prediction']
+                        solar_price = charging_plan[day_before]['solar_cost_prediction'] / charging_plan[day_before]['solar_kwh_prediction']
                         
                         location = sun.get_astral_location(hass)
                         sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
@@ -5130,14 +5163,18 @@ def cheap_grid_charge_hours():
                 d['date'] = f"**{d['date']}**" if d['date'] else ""
                 d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
                 d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
-                d['solar'] = f"{emoji_parse({'solar': True})}{d['solar']}" if d['solar'] and is_solar_configured() else ""
                 d['battery_needed'] = f"{int(d['battery_needed'])}" if d['battery_needed'] else ""
                 d['kwh_needed'] = f"**{round(d['kwh_needed'], 1)}**" if d['kwh_needed'] else ""
                 d['cost'] = f"**{d['cost']:.2f}**" if d['cost'] else ""
-                d['from_battery'] = emoji_parse({'battery_stored': True}) if d['from_battery'] else emoji_parse({'grid_charging': True})
-                d['from_battery_solar'] = emoji_parse({'battery_stored': True}) if d['from_battery_solar'] else ""
+                d['from_grid'] = emoji_parse({'grid_charging': True}) if d['from_grid'] > 0.0 else ""
+                d['from_battery'] = emoji_parse({'battery_stored': True}) if d['from_battery'] > 0.0 else ""
+                d['from_battery_solar'] = emoji_parse({'battery_stored': True}) if d['from_battery_solar'] > 0.0 else ""
+                d['solar'] = f"{emoji_parse({'solar': True})}{d['solar']}" if d['solar_kwh'] > 0.0 and is_solar_configured() else ""
                 
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | **{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh** | **{d['from_battery_solar']}{d['solar']}** | {d['cost']} |")
+                need_label = f"**{d['from_grid']}{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh**" if d['battery_needed'] or d['kwh_needed'] else ""
+                solar_label = f"**{d['from_battery_solar']}{d['solar']}**" if d['solar'] and is_solar_configured() else ""
+                
+                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
         else:
             overview.append(f"**Ingen kommende afgang planlagt**")
         
