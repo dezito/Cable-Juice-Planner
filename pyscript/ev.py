@@ -3547,7 +3547,7 @@ def charging_power_to_emulated_battery_level():
     added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss=True))
 
     current_battery_level = battery_level()
-    completed_battery_level = get_completed_battery_level() - 1.0
+    completed_battery_level = get_completed_battery_level()
     new_battery_level = min(round(current_battery_level + added_percentage, 0), completed_battery_level)
 
     _LOGGER.info(f"Adding {added_percentage}% to virtual battery level: {current_battery_level}% → {new_battery_level}%")
