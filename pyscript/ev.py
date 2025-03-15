@@ -2745,6 +2745,17 @@ def set_estimated_range():
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_estimated_range"
         )
+        
+def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost, efficiency, distance_per_kWh, wh_km):
+    sensor_list = ["_drive_efficiency", "_km_per_kwh", "_estimated_range"]
+    for sensor in sensor_list:
+        try:
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_distance", f"{round(kilometers, 1)}km")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(used_battery,1)}%)")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_cost", f"{round(cost, 2)}kr")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_efficiency", f"{round(efficiency, 1)}% {round(distance_per_kWh, 2)} km/kWh ({wh_km} Wh/km)")
+        except Exception as e:
+            _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e}")
 
 def drive_efficiency_save_car_stats(bootup=False):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
@@ -2891,11 +2902,8 @@ def drive_efficiency(state=None):
                         Kørsel effektivitet: {round(efficiency, 1)}%
                         {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
                         """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-            
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_distance", f"{round(kilometers, 1)}km")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_cost", f"{round(cost, 2)}kr")
-            set_attr(f"sensor.{__name__}_drive_efficiency.last_drive_efficiency", f"{round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)")
+                
+            set_last_drive_efficiency_attributes(kilometers, usedkWh, usedBattery, cost, efficiency, distancePerkWh, wh_km)
     except Exception as e:
         _LOGGER.error(f"Error in drive_efficiency: {e}")
         my_persistent_notification(
