@@ -7558,6 +7558,7 @@ if INITIALIZATION_COMPLETE:
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
                         my_notify(message = f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab kalkuleret", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                        my_persistent_notification(f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab kalkuleret", persistent_notification_id=f"{__name__}_charging_loss_calculated")
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
@@ -7567,6 +7568,7 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
             my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_persistent_notification(f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_charging_loss_error")
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
