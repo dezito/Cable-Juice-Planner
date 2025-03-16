@@ -310,7 +310,7 @@ CHARGING_TYPES = {
     "charging_loss": {
         "priority": 95,
         "emoji": "🤖",
-        "description": "Kalkulering af ladetab"
+        "description": "Beregning af ladetab"
     },
     "sunrise": {
         "priority": 96,
@@ -622,7 +622,7 @@ DEFAULT_ENTITIES = {
           "icon": "mdi:heat-wave"
       },
       f"{__name__}_calculate_charging_loss":{
-          "name":"Kalkulere ladetab",
+          "name":"Beregn ladetab",
           "icon": "mdi:power-plug-battery"
       }
    },
@@ -6765,7 +6765,7 @@ def charge_if_needed():
                 completed_battery_level = get_max_recommended_charge_limit_battery_level()
                 charging_limit = get_max_recommended_charge_limit_battery_level()
                 
-            set_charging_rule(f"{emoji_parse({'charging_loss': True})}Klakulere ladetab {completed_battery_level}%")
+            set_charging_rule(f"{emoji_parse({'charging_loss': True})}Beregner ladetab, lader til {completed_battery_level}%")
             amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
             
             battery = round(completed_battery_level - battery_level(), 1)
@@ -7521,7 +7521,7 @@ if INITIALIZATION_COMPLETE:
         if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
-                my_notify(message = f"Entities ikke tilgængelig, stopper ladetab kalkulering", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_loss_not_available")
+                my_notify(message = f"Entities ikke tilgængelig, stopper ladetab beregningen", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_loss_not_available")
                 set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
             return
         
@@ -7571,8 +7571,8 @@ if INITIALIZATION_COMPLETE:
                         save_changes(f"{__name__}_config", CONFIG)
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
-                        my_notify(message = f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab kalkuleret", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-                        my_persistent_notification(f"Ladetab er kalkuleret til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab kalkuleret", persistent_notification_id=f"{__name__}_charging_loss_calculated")
+                        my_notify(message = f"Ladetab er beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                        my_persistent_notification(f"Ladetab er beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_charging_loss_calculated")
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
@@ -7581,8 +7581,8 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
-            my_notify(message = f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
-            my_persistent_notification(f"Fejlede i kalkulation af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_charging_loss_error")
+            my_notify(message = f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_persistent_notification(f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_charging_loss_error")
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
