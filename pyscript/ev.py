@@ -310,7 +310,7 @@ CHARGING_TYPES = {
     "charging_loss": {
         "priority": 95,
         "emoji": "🤖",
-        "description": "Beregning af ladetab"
+        "description": "Ladetab beregning"
     },
     "sunrise": {
         "priority": 96,
@@ -7571,8 +7571,8 @@ if INITIALIZATION_COMPLETE:
                         save_changes(f"{__name__}_config", CONFIG)
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
-                        my_notify(message = f"Ladetab er beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-                        my_persistent_notification(f"Ladetab er beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_charging_loss_calculated")
+                        my_notify(message = f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                        my_persistent_notification(f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_charging_loss_calculated")
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
