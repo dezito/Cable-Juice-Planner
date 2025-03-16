@@ -13,7 +13,7 @@ cards:
         cards:
           - type: markdown
             content: >
-              ## 📎 Kalkulering af ladetab ##
+              ## 📎 Ladetab beregning ##
 
 
               For at opnå det bedste resultat anbefales det at lade bilen op fra
@@ -33,8 +33,8 @@ cards:
                  - Sæt den ønskede ladeprocent i bilen og Home Assistant.
                  - "**{{ states.input_number.ev_max_recommended_charge_limit_battery_level.name }}"** er sat til {{ states.input_number.ev_max_recommended_charge_limit_battery_level.state }}% (Minimum 90%).
 
-              3. **Aktiver "Kalkulere ladetab"**: Start processen for
-              kalkulering af ladetab. Lad bilen selv indikere, når den er fuldt
+              3. **Aktiver "Ladetab beregning"**: Start processen for
+              ladetab beregningen. Lad bilen selv indikere, når den er fuldt
               opladet.
 
               4. **Gem resultatet**: Når opladningen er fuldført, gemmes
