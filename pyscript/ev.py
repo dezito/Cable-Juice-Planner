@@ -332,13 +332,18 @@ CHARGING_TYPES = {
         "emoji": "🏠",
         "description": "Hjemkomst"
     },
-    "charging_problem": {
+    "battery_usage": {
         "priority": 100,
+        "emoji": "📉",
+        "description": "Afgang & hjemkomst batteri niveau"
+    },
+    "charging_problem": {
+        "priority": 999,
         "emoji": "❗",
         "description": "Ladning problemer"
     },
     "charging_error": {
-        "priority": 101,
+        "priority": 1000,
         "emoji": "❌",
         "description": "Ladning fejlede helt"
     }
@@ -5154,9 +5159,18 @@ def cheap_grid_charge_hours():
             overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
             
-            for d in work_overview.values():
+            for k, d in work_overview.items():
                 work_overview_total_kwh.append(d['kwh_needed'])
                 work_overview_total_cost.append(d['cost'])
+                _LOGGER.info(f"k: {k} d: {d}")
+                
+                battery_usage = ""
+                
+                if k % 1 == 0:
+                    battery_level_before_work_sum = int(round(sum(charging_plan[int(k)]['battery_level_before_work']),0))
+                    battery_level_after_work_sum = int(round(battery_level_before_work_sum - d['battery_needed'],0))
+                    battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_work_sum}-{battery_level_after_work_sum}%"
+                    
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
                 d['day'] = f"**{d['day']}**" if d['day'] else ""
@@ -5171,7 +5185,7 @@ def cheap_grid_charge_hours():
                 d['from_battery_solar'] = emoji_parse({'battery_stored': True}) if d['from_battery_solar'] > 0.0 else ""
                 d['solar'] = f"{emoji_parse({'solar': True})}{d['solar']}" if d['solar_kwh'] > 0.0 and is_solar_configured() else ""
                 
-                need_label = f"**{d['from_grid']}{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh**" if d['battery_needed'] or d['kwh_needed'] else ""
+                need_label = f"**{d['from_grid']}{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh{battery_usage}**" if d['battery_needed'] or d['kwh_needed'] else ""
                 solar_label = f"**{d['from_battery_solar']}{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 
                 overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
