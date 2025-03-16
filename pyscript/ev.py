@@ -7518,7 +7518,7 @@ if INITIALIZATION_COMPLETE:
         
         global CONFIG, CHARGING_LOSS_CAR_BEGIN_KWH, CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL, CHARGING_LOSS_CHARGER_BEGIN_KWH, CHARGING_LOSS_CHARGING_COMPLETED
 
-        if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']) or not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
+        if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
                 my_notify(message = f"Entities ikke tilgængelig, stopper ladetab kalkulering", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_loss_not_available")
@@ -7528,7 +7528,7 @@ if INITIALIZATION_COMPLETE:
         try:
             battery_size = CONFIG['ev_car']['battery_size']
             charger_current_kwh = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None))
-            completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() else get_completed_battery_level()
+            completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'] else get_completed_battery_level()
             completed_battery_size = battery_size * (completed_battery_level / 100.0)
             
             if var_name == f"input_boolean.{__name__}_calculate_charging_loss":
