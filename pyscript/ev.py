@@ -7562,7 +7562,7 @@ if INITIALIZATION_COMPLETE:
             elif var_name == f"{CONFIG['charger']['entity_ids']['kwh_meter_entity_id']}":
                     if CHARGING_LOSS_CHARGING_COMPLETED:
                         added_kwh = charger_current_kwh - CHARGING_LOSS_CHARGER_BEGIN_KWH
-                        charging_loss = round((completed_battery_size - CHARGING_LOSS_CAR_BEGIN_KWH) / added_kwh - 1, 4)
+                        charging_loss = round(((completed_battery_size - CHARGING_LOSS_CAR_BEGIN_KWH) / added_kwh) - 1, 4)
                         
                         if charging_loss >= 0.0:
                             raise Exception(f"Charging loss was not negative {charging_loss * 100.0}%, set charging limit in car and let charging complete")
