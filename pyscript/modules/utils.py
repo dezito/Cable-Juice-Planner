@@ -46,7 +46,7 @@ def average(data):
     _LOGGER = globals()['_LOGGER'].getChild("average")
     if not isinstance(data, list):
         data = [data]
-        
+    
     try:
         return 0.0 if len(data) == 0 else sum(data) / len(data)
     except Exception as e:
@@ -57,6 +57,11 @@ def calculate_ema(data, span=5):
     """
     Calculates the Exponential Moving Average (EMA) of a list of numbers.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("calculate_ema")
+    
+    if not data:
+        return 0.0
+    
     ema_values = []
     alpha = 2 / (span + 1)
     ema = data[0]
@@ -69,6 +74,7 @@ def calculate_trend(data):
     """
     Calculates the trend of a list of numbers.
     """
+    _LOGGER = globals()['_LOGGER'].getChild("calculate_trend")
     x = list(range(len(data)))
     n = len(x)
 
