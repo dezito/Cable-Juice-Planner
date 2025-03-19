@@ -81,7 +81,6 @@ TITLE = f"Cable Juice Planner ({__name__}.py)"
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-
 INITIALIZATION_COMPLETE = False
 TESTING = False
 PREHEATING = False
