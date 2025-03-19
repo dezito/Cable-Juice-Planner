@@ -6091,23 +6091,23 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         day_of_week = getDayOfWeek(date)
         
         try:
-            power_list = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
+            power_list = list(reversed(get_list_values(get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
             power_one_down_list = []
             power_one_up_list = []
             if type(power_list) == list:
-                if len(power_list) <= 6 or average(get_list_values(power_list)) <= 1000.0:
+                if len(power_list) <= 6 or average(power_list) <= 1000.0:
                     if cloudiness >= 20:
-                        power_one_down_list = get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
+                        power_one_down_list = list(reversed(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
                     if cloudiness <= 80:
-                        power_one_up_list = get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])
+                        power_one_up_list = list(reversed(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+                           
+                _LOGGER.debug(f"DEBUG {hour} cloudiness:{cloudiness}% power_list: average({average(power_list)})/ema({calculate_ema(power_list)})={power_list}\npower_one_down: average({average(power_one_down_list)})/ema({calculate_ema(power_one_down_list)})={power_one_down_list}\npower_one_up: average({average(power_one_up_list)})/ema({calculate_ema(power_one_up_list)})={power_one_up_list}")
                 
-                power = list(filter(lambda value: value <= MAX_WATT_CHARGING, get_list_values(power_list)))
-                power_one_down = list(filter(lambda value: value <= MAX_WATT_CHARGING, get_list_values(power_one_down_list)))
-                power_one_up = list(filter(lambda value: value <= MAX_WATT_CHARGING, get_list_values(power_one_up_list)))
+                power_list = [calculate_ema(power_list)] if power_list else []
+                power_one_down_list = [calculate_ema(power_one_down_list)] if power_one_down_list else []
+                power_one_up_list = [calculate_ema(power_one_up_list)] if power_one_up_list else []
                 
-                _LOGGER.debug(f"{hour} {cloudiness} {power}={average(power)} {power_one_down}={average(power_one_down)} {power_one_up}={average(power_one_up)} ")
-                
-                avg_power = max(average(power + power + power + power_one_down + power_one_up), 0.0)
+                avg_power = max(average(power_list + power_list + power_list + power_one_down_list + power_one_up_list), 0.0)
                 avg_kwh = avg_power / 1000
                 
                 avg_sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
