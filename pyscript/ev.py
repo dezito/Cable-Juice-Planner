@@ -3262,14 +3262,14 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                         details = True
                         history_loop_append([
                             "<details>",
-                            "<summary><b>Se mere historik 1</b></summary>\n"
+                            "<summary><b>Se mere historik</b></summary>\n"
                         ])
                         add_header = True
                     elif current_history_bytes_size < max_history_bytes_size - 1 and current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
                         history_loop_append([
                             "\n",
                             "<details>",
-                            "<summary><b>Se mere historik 2</b></summary>\n"
+                            "<summary><b>Se mere historik</b></summary>\n"
                         ])
                         sub_details_count += 1
                         add_header = True
