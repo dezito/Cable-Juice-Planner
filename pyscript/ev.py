@@ -421,6 +421,8 @@ DEFAULT_CONFIG = {
             "powerwall_battery_level_entity_id": "",
             "ignore_consumption_from_entity_ids": []
         },
+        "power_consumption_entity_id_include_powerwall_discharging": False,
+        "invert_powerwall_watt_flow_entity_id": False
     },
     "notification": {
         "update_available": True,
@@ -496,6 +498,8 @@ COMMENT_DB_YAML = {
     "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
     "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
     "powerwall_watt_flow_entity_id": "Powerwall watt flow (Entity setup plus value for discharging, negative for charging)",
+    "invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
+    "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
     "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
     "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
@@ -5559,7 +5563,11 @@ def charge_from_powerwall(from_time_stamp, to_time_stamp):
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+            
+            if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
+                powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
+            else:
+                powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
@@ -5573,7 +5581,11 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
+            
+            if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
+                powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+            else:
+                powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
@@ -5591,6 +5603,9 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     powerwall_discharging_consumption = discharge_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
+    
+    if CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
+        power_consumption -= powerwall_discharging_consumption
     
     total_power_consumption = power_consumption + powerwall_discharging_consumption
     power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
