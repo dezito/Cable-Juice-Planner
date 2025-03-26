@@ -104,6 +104,8 @@ def get_specific_values(values, positive_only = False, negative_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")
     if not positive_only and not negative:
         raise ValueError("At least one of positive_only or negative_only must be True")
+    elif positive_only and negative_only:
+        raise ValueError("Only one of positive_only or negative_only can be True")
     
     return_list = []
     for value in values:
