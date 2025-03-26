@@ -3233,6 +3233,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         header = "| Tid |  | % | kWh | Pris |"
         align = "|:---:|:---|:---:|:---:|:---:|"
+        add_header = False
         
         def history_loop_append(d):
             nonlocal history, current_history_bytes_size
@@ -3250,26 +3251,25 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
         for i, (when, data) in enumerate(sorted_db):
             if skip_counter == 0:
-                if current_history_counter == length and not details:
-                    details = True
-                    history_loop_append([
-                        "<details>",
-                        "<summary><b>Se mere historik</b></summary>\n",
-                        header,
-                        align
-                    ])
-                elif current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
-                    history_loop_append([
-                        "\n",
-                        "<details>",
-                        "<summary><b>Se mere historik</b></summary>\n",
-                        header,
-                        align
-                    ])
-                    sub_details_count += 1
-                elif not history_to_big_anounced and current_history_bytes_size >= max_history_bytes_size:
-                    history_to_big_anounced = True
-                    history_loop_append("##### Home Assistant tillader ikke at vise mere historik")
+                if not history_to_big_anounced:
+                    if current_history_bytes_size >= max_history_bytes_size:
+                        history_to_big_anounced = True
+                        history_loop_append("##### Home Assistant tillader ikke at vise mere historik")
+                    elif current_history_counter == length and not details:
+                        details = True
+                        history_loop_append([
+                            "<details>",
+                            "<summary><b>Se mere historik 1</b></summary>\n"
+                        ])
+                        add_header = True
+                    elif current_history_bytes_size < max_history_bytes_size - 1 and current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
+                        history_loop_append([
+                            "\n",
+                            "<details>",
+                            "<summary><b>Se mere historik 2</b></summary>\n"
+                        ])
+                        sub_details_count += 1
+                        add_header = True
                 
                 started = when
                 charging_session = data["charging_session"] if "charging_session" in data else None
@@ -3361,6 +3361,14 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     combined_db[started]["charging_session"] = charging_session
                 
                 if current_history_bytes_size < max_history_bytes_size: #current_history_counter <= max_history_length and current_history_bytes_size <= max_history_bytes_size
+                    if add_header:
+                        add_header = False
+                        
+                        history_loop_append([
+                            header,
+                            align
+                        ])
+                    
                     ended_hour = int(ended.split(":")[0]) if ended != ">" and len(ended) > 0 else getHour()
                     if getHour(started) != ended_hour:
                         from_to = "»"
