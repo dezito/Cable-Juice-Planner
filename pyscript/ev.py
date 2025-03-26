@@ -5584,9 +5584,9 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     
-    total_power_consumption = power_consumption + powerwall_charging_consumption
+    total_power_consumption = power_consumption + powerwall_discharging_consumption
     power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
-    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_discharging_consumption, 2)
+    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_charging_consumption, 2)
     power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
     
     return {
@@ -5635,23 +5635,26 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
     power_consumption_without_ignored_powerwall = values['power_consumption_without_ignored_powerwall']
     power_consumption_without_all_exclusion = values['power_consumption_without_all_exclusion']
 
+    powerwall_battery_level = 100.0
+    ev_charge_after_powerwall_battery_level = 0.0
+    
+    if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
+        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
+        
     if withoutEV:
         solar_production_available = round(solar_production - power_consumption_without_all_exclusion, 2)
     else:
-        solar_production_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
+        solar_production_available = round(solar_production - total_power_consumption, 2)
+        if powerwall_battery_level > ev_charge_after_powerwall_battery_level:
+            solar_production_available = round(solar_production_available + powerwall_charging_consumption, 2)
+            
     solar_production_available = max(solar_production_available, 0.0)
-
-    powerwall_battery_level = 100.0
-    ev_charge_after_powerwall_battery_level = 0.0
     
     if powerwall_charging_consumption > 0.0:
         POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
     else:
         POWERWALL_CHARGING_TEXT = ""
-    
-    if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         
     '''if timeTo is not None:
         txt = "without" if withoutEV else "with"
