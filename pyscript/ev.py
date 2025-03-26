@@ -5602,7 +5602,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
 
-def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=None):
+def solar_production_available(period=None, without_all_exclusion=False, timeFrom=0, timeTo=None):
     _LOGGER = globals()['_LOGGER'].getChild("solar_production_available")
     global POWERWALL_CHARGING_TEXT
     
@@ -5642,7 +5642,7 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
         ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         
-    if withoutEV:
+    if without_all_exclusion:
         solar_production_available = round(solar_production - power_consumption_without_all_exclusion, 2)
     else:
         solar_production_available = round(solar_production - total_power_consumption, 2)
@@ -5657,12 +5657,12 @@ def solar_production_available(period=None, withoutEV=False, timeFrom=0, timeTo=
         POWERWALL_CHARGING_TEXT = ""
         
     '''if timeTo is not None:
-        txt = "without" if withoutEV else "with"
+        txt = "without" if without_all_exclusion else "with"
         _LOGGER.info(f"sum period:{timeFrom}-{timeTo} {txt} EV, solar_production_available:{solar_production_available}")
     else:
-        _LOGGER.info(f"period:{period}, withoutEV:{withoutEV}, solar_production_available:{solar_production_available}")'''
+        _LOGGER.info(f"period:{period}, without_all_exclusion:{without_all_exclusion}, solar_production_available:{solar_production_available}")'''
 
-    if withoutEV:
+    if without_all_exclusion:
         set_state(f"sensor.{__name__}_solar_over_production_current_hour", solar_production_available)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
@@ -5695,14 +5695,14 @@ def max_solar_watts_available_remaining_hour():
     
     returnDict = {
         "predictedSolarPower": {
-            "watt": max(solar_production_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval']), withoutEV = True), 0.0)
+            "watt": max(solar_production_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval']), without_all_exclusion = True), 0.0)
         }
     }
     
     if time_to >= CONFIG['cron_interval']:
         returnDict['total'] = {
             "period": f"0-{time_to}",
-            "watt": max(solar_production_available(timeFrom = 0, timeTo = time_to, withoutEV = False), 0.0)
+            "watt": max(solar_production_available(timeFrom = 0, timeTo = time_to, without_all_exclusion = False), 0.0)
         }
     else:
         returnDict['total'] = {
