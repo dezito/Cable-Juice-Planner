@@ -1567,7 +1567,31 @@ def is_entity_available(entity):
                 _LOGGER.warning(f"Reloading {integration} integration")
                 my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
                 reload_entity_integration(entity)
+
+def get_all_unavailable_entities():
+    _LOGGER = globals()['_LOGGER'].getChild("get_all_unavailable_entities")
+    
+    entities = []
+    for value in CONFIG.values():
+        if not isinstance(value, dict) or "entity_ids" not in value:
+            continue
         
+        entity_ids = []
+        
+        for entity in value["entity_ids"].values():
+            if isinstance(entity, list):
+                entity_ids.extend(entity)
+            else:
+                entity_ids.append(entity)
+                
+        for entity in entity_ids:
+            if not is_entity_configured(entity):
+                continue
+            
+            if not is_entity_available(entity):
+                entities.append(entity)
+    return entities
+
 def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
     global COMMENT_DB_YAML
@@ -5541,7 +5565,7 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     try:
         if is_powerwall_configured():
             powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=[0.0])
-            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = False)), 0))
+            powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
         
@@ -6735,8 +6759,20 @@ def charging_without_rule():
         if CHARGING_NO_RULE_COUNT > 2:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
+                
             set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
             _LOGGER.warning("Charging without rule")
+            
+            if CHARGING_NO_RULE_COUNT == 3:
+                unavailable_entities_str = ""
+                unavailable_entities = get_all_unavailable_entities()
+                if unavailable_entities:
+                    unavailable_entities_str = "\n\nFølgende enheder er ikke tilgængelige:"
+                
+                for entity in unavailable_entities:
+                    unavailable_entities_str += f"\n- {entity}"
+                my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{unavailable_entities_str}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
+            
             stop_charging()
             return True
         CHARGING_NO_RULE_COUNT += 1
