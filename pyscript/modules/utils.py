@@ -102,9 +102,9 @@ def calculate_trend(data):
 
 def get_specific_values(values, positive_only = False, negative_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")
-    if not positive_only and not negative:
+    if positive_only is False and negative_only is False:
         raise ValueError("At least one of positive_only or negative_only must be True")
-    elif positive_only and negative_only:
+    elif positive_only is True and negative_only is True:
         raise ValueError("Only one of positive_only or negative_only can be True")
     
     return_list = []
