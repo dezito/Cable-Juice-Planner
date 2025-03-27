@@ -2753,8 +2753,8 @@ def set_estimated_range():
             _LOGGER.warning("KM_KWH_EFFICIENCY_DB is empty or contains no valid float values.")
             return
 
-        avg_efficiency = float(average(efficiency_values))
-        range_per_percentage = km_kwh_to_km_percentage(avg_efficiency)
+        ema_efficiency = float(calculate_ema(list(reversed(efficiency_values))))
+        range_per_percentage = km_kwh_to_km_percentage(ema_efficiency)
 
         if range_per_percentage <= 0:
             _LOGGER.warning("Calculated range_per_percentage is not valid (<= 0). Skipping update.")
