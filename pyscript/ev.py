@@ -2077,6 +2077,13 @@ def get_entity_daily_distance(day_text = None, date = None):
             if distance == 0.0 or workday == "off":
                 distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
 
+        if is_ev_configured():
+            estimated_range_attr = get_attr(f"sensor.{__name__}_estimated_range")
+            if "total" in estimated_range_attr and float(estimated_range_attr["total"]) > 0.0:
+                estimated_range_per_percent = float(estimated_range_attr["total"]) / 100
+                daily_available_battery_level = get_max_recommended_charge_limit_battery_level() - get_min_daily_battery_level()
+                daily_available_range = daily_available_battery_level * estimated_range_per_percent
+                distance = min(daily_available_range, distance)
         return distance
     except Exception as e:
         _LOGGER.warning(f"Cant get daily distance, using config data {CONFIG['ev_car']['typical_daily_distance_non_working_day']}: {e}")
