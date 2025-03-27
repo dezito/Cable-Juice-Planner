@@ -2753,8 +2753,8 @@ def set_estimated_range():
             _LOGGER.warning("KM_KWH_EFFICIENCY_DB is empty or contains no valid float values.")
             return
 
-        avg_efficiency = float(average(efficiency_values))
-        range_per_percentage = km_kwh_to_km_percentage(avg_efficiency)
+        ema_efficiency = float(calculate_ema(list(reversed(efficiency_values))))
+        range_per_percentage = km_kwh_to_km_percentage(ema_efficiency)
 
         if range_per_percentage <= 0:
             _LOGGER.warning("Calculated range_per_percentage is not valid (<= 0). Skipping update.")
@@ -3999,7 +3999,7 @@ def cheap_grid_charge_hours():
                         max_battery_level
                         )
         if max_battery_level > max_recommended_battery_level:
-            kwh_allowed = percentage_to_kwh(max_recommended_battery_level - max_battery_level, include_charging_loss = False)
+            kwh_allowed = percentage_to_kwh(max_recommended_battery_level - max_battery_level, include_charging_loss = True)
             return kwh_allowed
         return percentage_to_kwh(battery_level_to_added, include_charging_loss = False)
 
@@ -4025,7 +4025,7 @@ def cheap_grid_charge_hours():
             kwh = kwh - chargeHours[hour]['kWh']
             
         if check_max_charging_plan and check_max_charging_plan['day'] is not None:
-            kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = False))
+            kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
             kwh = kwh_allowed
             
         if kwh > 0.5:
