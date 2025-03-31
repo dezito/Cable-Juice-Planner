@@ -7579,7 +7579,7 @@ if INITIALIZATION_COMPLETE:
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
         elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
-            if not is_ev_configured():
+            if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
