@@ -449,7 +449,8 @@ DEFAULT_CONFIG = {
         "charging_single_phase_max_amp": 16.0,
         "charging_three_phase_min_amp": 5.0,
         "production_price": -1.00,
-        "ev_charge_after_powerwall_battery_level": 0.0
+        "ev_charge_after_powerwall_battery_level": 0.0,
+        "powerwall_charging_power_limit": 5000.0
     },
     "testing_mode": False
 }
@@ -502,6 +503,7 @@ COMMENT_DB_YAML = {
     "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
     "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
     "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
+    "powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
     "forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
