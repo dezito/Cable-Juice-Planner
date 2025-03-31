@@ -6794,7 +6794,7 @@ def is_charging():
 def charging_without_rule():
     _LOGGER = globals()['_LOGGER'].getChild("charging_without_rule")
     global CHARGING_NO_RULE_COUNT
-    if getMinute() < 5: return False
+    if getMinute() < 5 or TESTING: return False
     
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
     
