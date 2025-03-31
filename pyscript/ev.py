@@ -2017,6 +2017,14 @@ def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
     return emoji_sorting(" ".join(emojis))
 
+def join_unique_emojis(str1: str, str2: str) -> str:
+    if str1 and str2:
+        emojis1 = set(str1.split())
+        emojis2 = set(str2.split())
+        unique_emojis = emojis1.union(emojis2)
+        return ' '.join(unique_emojis)
+    return str1 or str2
+
 def emoji_text_format(text, group_size=3):
     words = text.split()
     
@@ -3115,7 +3123,6 @@ def charging_history_recalc_price():
                             _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
                             start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
                             
-                            join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                             emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
                             
                             remove_keys.append(start)
@@ -3135,7 +3142,6 @@ def charging_history_recalc_price():
                 cost = added_kwh * price
                 
                 if added_kwh_by_solar > 0.0 or emoji_parse({'solar': True}) in emoji:
-                    join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                     emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
                 else:
                     return False
@@ -3319,7 +3325,6 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             next_when, next_data = sorted_db[x]
                             if daysBetween(when, now) > 7:
                                 if daysBetween(when, next_when) == 0:
-                                    join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                                     emoji = join_unique_emojis(emoji, next_data['emoji'])
                                 else:
                                     break
@@ -5146,7 +5151,6 @@ def cheap_grid_charge_hours():
         merged_intervals = []
         has_combined = False
         current_interval = None
-        join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split()))) if str1 and str2 else str1 or str2
         
         for timestamp, value in sorted_charge_hours:
             if current_interval is None:
