@@ -3831,6 +3831,8 @@ def get_hour_prices():
     _LOGGER = globals()['_LOGGER'].getChild("get_hour_prices")
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
     
+    LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
+    
     USING_OFFLINE_PRICES = False
     
     now = getTime()
@@ -3909,14 +3911,23 @@ def get_hour_prices():
                         if d not in KWH_AVG_PRICES_DB['history'][h]:
                             raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
 
-                        price = average(KWH_AVG_PRICES_DB['history'][h][d])
                         timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
                         timestamp = timestamp.replace(tzinfo=None)
-                        if timestamp not in hour_prices:
-                            missing_hours[timestamp] = price
-                            hour_prices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
+                        
+                        if timestamp in hour_prices:
+                            continue
+                        
+                        avg_price = average(KWH_AVG_PRICES_DB['history'][h][d])
+                        price = round(avg_price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
+                        
+                        missing_hours[timestamp] = avg_price
+                        hour_prices[timestamp] = avg_price
+                        
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
+                    
+                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours.copy()
+                    
             except Exception as e:
                 error_message = f"Cant get offline prices: {e}"
                 _LOGGER.error(error_message)
@@ -3924,7 +3935,7 @@ def get_hour_prices():
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
             
-            missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in missing_hours.items()]
+            missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
             my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
     
     return hour_prices
@@ -5148,7 +5159,7 @@ def cheap_grid_charge_hours():
         def planning_basis_markdown():
             nonlocal overview
             
-            if LAST_SUCCESSFUL_GRID_PRICES:
+            if "last_update" in LAST_SUCCESSFUL_GRID_PRICES:
                 overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
                 overview.extend(get_hours_plan())
                 overview.append("</details>\n")
@@ -5229,7 +5240,14 @@ def cheap_grid_charge_hours():
                 planning_basis_markdown()
             
             if USING_OFFLINE_PRICES:
-                overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
+                overview.append(f"\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
+                overview.append("\n| Tidspunkt | &nbsp;&nbsp; | Pris |")
+                overview.append("|:---:|:---:|:---:|")
+                
+                missing_hours_list = [f"| ***{timestamp.strftime('%d/%m %H:%M')}*** |  | {price:.2f}kr |" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
+                overview.append("\n".join(missing_hours_list))
+                
+                overview.append("</details>\n\n")
             
             if work_overview:
                 overview.append("***")
