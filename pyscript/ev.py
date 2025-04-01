@@ -3483,7 +3483,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 
                 if total['km'][month] > 0.0 and total['kwh'][month] > 0.0:
                     km_kwh = round(total['km'][month] / total['kwh'][month], 2)
-                    wh_km = round(1000 / km_kwh, 2)
+                    wh_km = round(1000 / km_kwh, 2) if km_kwh > 0.0 else 0.0
                     
                 efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
                 total['km'][month] = [f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
@@ -3550,12 +3550,12 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
             datetime_keys = [key for key in total['charging_kwh_day'].keys() if isinstance(key, datetime.datetime)]
             for month in sorted(datetime_keys):
-                procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1)
-                procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1)
+                procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
+                procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
                 
                 history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
-            procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1)
-            procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1)
+            procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
+            procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
             history.append(f"| **Ialt** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
             history.append("\n</details>\n")
             
