@@ -3662,12 +3662,12 @@ def _charging_history(charging_data = None, charging_type = ""):
             _LOGGER.warning(f"ended:{ended} added_percentage:{added_percentage} added_kwh:{added_kwh} cost:{cost} price:{price} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
             CHARGING_HISTORY_DB[start]["ended"] = ended
             
-            if CHARGING_HISTORY_DB[start]["emoji"] == emoji_parse({'solar': True}):
+            if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "solar":
                 if CHARGING_HISTORY_DB[start]["kWh_solar"] > 0.0:
-                    if (CHARGING_HISTORY_DB[start]["kWh"] / CHARGING_HISTORY_DB[start]["kWh_solar"]) < 0.5:
+                    solar_ratio = CHARGING_HISTORY_DB[start]["kWh_solar"] / CHARGING_HISTORY_DB[start]["kWh"]
+                    
+                    if solar_ratio < 0.5:
                         CHARGING_HISTORY_DB[start]["emoji"] = join_unique_emojis(CHARGING_HISTORY_DB[start]["emoji"], emoji_parse({'grid_charging': True}))
-                else:
-                    CHARGING_HISTORY_DB[start]["emoji"] = join_unique_emojis(CHARGING_HISTORY_DB[start]["emoji"], emoji_parse({'grid_charging': True}))
         return [added_kwh, start]
     #timestamp: 31/03 14:00 charging_data: {'Price': 2.13, 'ChargingAmps': 16.0, 'Cost': 9.59, 'kWh': 4.5, 'battery_level': 6.0, 'trip': True, 'ChargeLevel': 50.0} emoji: 🌍
     update_entity = False
