@@ -3897,7 +3897,6 @@ def get_hour_prices():
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
-            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
 
             USING_OFFLINE_PRICES = True
             missing_hours = {}
@@ -3924,6 +3923,9 @@ def get_hour_prices():
                 save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
+            
+            missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in missing_hours.items()]
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
     
     return hour_prices
 
