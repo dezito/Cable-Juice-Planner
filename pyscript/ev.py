@@ -6156,7 +6156,7 @@ def get_solar_forecast():
                         
                         watt = round(data['pv_estimate'] * 1000.0, 0)
                                                 
-                        power_consumption_without_all_exclusion = average(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0])))
+                        power_consumption_without_all_exclusion = calculate_ema(reverse_list(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0]))))
                         available = max(watt - power_consumption_without_all_exclusion, 0.0)
                         available_kwh = round(available / 1000.0, 0)
                         
@@ -6191,7 +6191,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             power_one_down_list = []
             power_one_up_list = []
             if type(power_list) == list:
-                if len(power_list) <= 6 or average(power_list) <= 1000.0:
+                if len(power_list) <= 6 or calculate_ema(power_list) <= 1000.0:
                     if cloudiness >= 20:
                         power_one_down_list = reverse_list(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                     if cloudiness <= 80:
