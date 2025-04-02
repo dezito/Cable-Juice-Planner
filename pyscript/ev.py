@@ -63,6 +63,7 @@ from utils import (
     average,
     calculate_ema,
     calculate_trend,
+    reverse_list,
     get_specific_values,
     get_closest_key,
     get_dict_value_with_path,
@@ -2430,7 +2431,7 @@ def distance_per_percentage():
         try:
             if KM_KWH_EFFICIENCY_DB == {}:
                 raise Exception("No data yet")
-            ema = round(calculate_ema(list(reversed(get_list_values(KM_KWH_EFFICIENCY_DB)))),2)
+            ema = round(calculate_ema(reverse_list(get_list_values(KM_KWH_EFFICIENCY_DB))),2)
             #ema = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
             if ema == 0.0:
                 raise Exception(f"ema is invalid: {ema}")
@@ -2665,7 +2666,7 @@ def set_state_drive_efficiency():
             return
         
         set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
-        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(list(reversed(drive_efficiency)))))
+        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency))))
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
@@ -2724,7 +2725,7 @@ def set_state_km_kwh_efficiency():
         set_state(f"sensor.{__name__}_km_per_kwh", round(value, 2))
 
         if km_kwh_efficiency:
-            km_kwh_ema = round(float(calculate_ema(list(reversed(km_kwh_efficiency)))), 2)
+            km_kwh_ema = round(float(calculate_ema(reverse_list(km_kwh_efficiency))), 2)
             wh_km_ema = round(1000 / km_kwh_ema, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.ema", f"{km_kwh_ema:.2f} km/kWh - {wh_km_ema:.2f} Wh/km")
             
@@ -2770,7 +2771,7 @@ def set_estimated_range():
             _LOGGER.warning("KM_KWH_EFFICIENCY_DB is empty or contains no valid float values.")
             return
 
-        ema_efficiency = float(calculate_ema(list(reversed(efficiency_values))))
+        ema_efficiency = float(calculate_ema(reverse_list(efficiency_values)))
         range_per_percentage = km_kwh_to_km_percentage(ema_efficiency)
 
         if range_per_percentage <= 0:
@@ -6186,15 +6187,15 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         day_of_week = getDayOfWeek(date)
         
         try:
-            power_list = list(reversed(get_list_values(get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+            power_list = reverse_list(get_list_values(get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
             power_one_down_list = []
             power_one_up_list = []
             if type(power_list) == list:
                 if len(power_list) <= 6 or average(power_list) <= 1000.0:
                     if cloudiness >= 20:
-                        power_one_down_list = list(reversed(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+                        power_one_down_list = reverse_list(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                     if cloudiness <= 80:
-                        power_one_up_list = list(reversed(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+                        power_one_up_list = reverse_list(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                            
                 _LOGGER.debug(f"DEBUG {hour} cloudiness:{cloudiness}% power_list: average({average(power_list)})/ema({calculate_ema(power_list)})={power_list}\npower_one_down: average({average(power_one_down_list)})/ema({calculate_ema(power_one_down_list)})={power_one_down_list}\npower_one_up: average({average(power_one_up_list)})/ema({calculate_ema(power_one_up_list)})={power_one_up_list}")
                 
@@ -6306,6 +6307,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     
                     if cloudiness is not None:
                         power_factor = 0.5 if loop_datetime in solar_forecast_from_integration else 1.0
+                        power_factor = 1.0
                         power_cost = get_power(cloudiness, loop_datetime)
                         loop_power.append(power_cost[0] * power_factor)
                         loop_sell.append(power_cost[1] * power_factor)
