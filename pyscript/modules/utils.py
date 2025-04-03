@@ -100,6 +100,19 @@ def calculate_trend(data):
 
     return intercept + slope * len(data)
 
+def reverse_list(lst):
+    """
+    Reverses a list in place and returns the reversed list.
+
+    Parameters:
+    - lst (list): The list to reverse.
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("reverse_list")
+    if not isinstance(lst, list):
+        raise ValueError(f"Expected a list, got {type(lst)}")
+    
+    return lst[::-1]
+
 def get_specific_values(values, positive_only = False, negative_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")
     if positive_only is False and negative_only is False:

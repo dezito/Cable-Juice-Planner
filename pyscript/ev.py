@@ -63,6 +63,7 @@ from utils import (
     average,
     calculate_ema,
     calculate_trend,
+    reverse_list,
     get_specific_values,
     get_closest_key,
     get_dict_value_with_path,
@@ -449,7 +450,8 @@ DEFAULT_CONFIG = {
         "charging_single_phase_max_amp": 16.0,
         "charging_three_phase_min_amp": 5.0,
         "production_price": -1.00,
-        "ev_charge_after_powerwall_battery_level": 0.0
+        "ev_charge_after_powerwall_battery_level": 0.0,
+        "powerwall_charging_power_limit": 5000.0
     },
     "testing_mode": False
 }
@@ -502,6 +504,7 @@ COMMENT_DB_YAML = {
     "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
     "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
     "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
+    "powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
     "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "notify_list": "List of users to send notifications",
     "forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
@@ -2017,6 +2020,14 @@ def emoji_parse(data):
     emojis = [CHARGING_TYPES[key]['emoji'] for key in data if data[key] is True and key in CHARGING_TYPES]
     return emoji_sorting(" ".join(emojis))
 
+def join_unique_emojis(str1: str, str2: str) -> str:
+    if str1 and str2:
+        emojis1 = set(str1.split())
+        emojis2 = set(str2.split())
+        unique_emojis = emojis1.union(emojis2)
+        return ' '.join(unique_emojis)
+    return str1 or str2
+
 def emoji_text_format(text, group_size=3):
     words = text.split()
     
@@ -2420,7 +2431,7 @@ def distance_per_percentage():
         try:
             if KM_KWH_EFFICIENCY_DB == {}:
                 raise Exception("No data yet")
-            ema = round(calculate_ema(list(reversed(get_list_values(KM_KWH_EFFICIENCY_DB)))),2)
+            ema = round(calculate_ema(reverse_list(get_list_values(KM_KWH_EFFICIENCY_DB))),2)
             #ema = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
             if ema == 0.0:
                 raise Exception(f"ema is invalid: {ema}")
@@ -2655,7 +2666,7 @@ def set_state_drive_efficiency():
             return
         
         set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
-        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(list(reversed(drive_efficiency)))))
+        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency))))
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
@@ -2714,7 +2725,7 @@ def set_state_km_kwh_efficiency():
         set_state(f"sensor.{__name__}_km_per_kwh", round(value, 2))
 
         if km_kwh_efficiency:
-            km_kwh_ema = round(float(calculate_ema(list(reversed(km_kwh_efficiency)))), 2)
+            km_kwh_ema = round(float(calculate_ema(reverse_list(km_kwh_efficiency))), 2)
             wh_km_ema = round(1000 / km_kwh_ema, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.ema", f"{km_kwh_ema:.2f} km/kWh - {wh_km_ema:.2f} Wh/km")
             
@@ -2760,7 +2771,7 @@ def set_estimated_range():
             _LOGGER.warning("KM_KWH_EFFICIENCY_DB is empty or contains no valid float values.")
             return
 
-        ema_efficiency = float(calculate_ema(list(reversed(efficiency_values))))
+        ema_efficiency = float(calculate_ema(reverse_list(efficiency_values)))
         range_per_percentage = km_kwh_to_km_percentage(ema_efficiency)
 
         if range_per_percentage <= 0:
@@ -3115,7 +3126,6 @@ def charging_history_recalc_price():
                             _LOGGER.info(f"Found another charging session in current hour {start}: {CHARGING_HISTORY_DB[start]}")
                             start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
                             
-                            join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                             emoji = join_unique_emojis(emoji, CHARGING_HISTORY_DB[sorted_keys[i]]["emoji"])
                             
                             remove_keys.append(start)
@@ -3135,7 +3145,6 @@ def charging_history_recalc_price():
                 cost = added_kwh * price
                 
                 if added_kwh_by_solar > 0.0 or emoji_parse({'solar': True}) in emoji:
-                    join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                     emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
                 else:
                     return False
@@ -3319,7 +3328,6 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             next_when, next_data = sorted_db[x]
                             if daysBetween(when, now) > 7:
                                 if daysBetween(when, next_when) == 0:
-                                    join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split())))
                                     emoji = join_unique_emojis(emoji, next_data['emoji'])
                                 else:
                                     break
@@ -3476,7 +3484,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 
                 if total['km'][month] > 0.0 and total['kwh'][month] > 0.0:
                     km_kwh = round(total['km'][month] / total['kwh'][month], 2)
-                    wh_km = round(1000 / km_kwh, 2)
+                    wh_km = round(1000 / km_kwh, 2) if km_kwh > 0.0 else 0.0
                     
                 efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
                 total['km'][month] = [f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
@@ -3543,12 +3551,12 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
             datetime_keys = [key for key in total['charging_kwh_day'].keys() if isinstance(key, datetime.datetime)]
             for month in sorted(datetime_keys):
-                procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1)
-                procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1)
+                procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
+                procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
                 
                 history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
-            procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1)
-            procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1)
+            procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
+            procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
             history.append(f"| **Ialt** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
             history.append("\n</details>\n")
             
@@ -3654,6 +3662,13 @@ def _charging_history(charging_data = None, charging_type = ""):
             ended = f"{getTime().strftime('%H:%M')}"
             _LOGGER.warning(f"ended:{ended} added_percentage:{added_percentage} added_kwh:{added_kwh} cost:{cost} price:{price} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
             CHARGING_HISTORY_DB[start]["ended"] = ended
+            
+            if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "solar":
+                if CHARGING_HISTORY_DB[start]["kWh_solar"] > 0.0:
+                    solar_ratio = CHARGING_HISTORY_DB[start]["kWh_solar"] / CHARGING_HISTORY_DB[start]["kWh"]
+                    
+                    if solar_ratio < 0.5:
+                        CHARGING_HISTORY_DB[start]["emoji"] = join_unique_emojis(CHARGING_HISTORY_DB[start]["emoji"], emoji_parse({'grid_charging': True}))
         return [added_kwh, start]
     #timestamp: 31/03 14:00 charging_data: {'Price': 2.13, 'ChargingAmps': 16.0, 'Cost': 9.59, 'kWh': 4.5, 'battery_level': 6.0, 'trip': True, 'ChargeLevel': 50.0} emoji: 🌍
     update_entity = False
@@ -3817,6 +3832,8 @@ def get_hour_prices():
     _LOGGER = globals()['_LOGGER'].getChild("get_hour_prices")
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
     
+    LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
+    
     USING_OFFLINE_PRICES = False
     
     now = getTime()
@@ -3883,7 +3900,6 @@ def get_hour_prices():
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e}")
-            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
 
             USING_OFFLINE_PRICES = True
             missing_hours = {}
@@ -3896,20 +3912,32 @@ def get_hour_prices():
                         if d not in KWH_AVG_PRICES_DB['history'][h]:
                             raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
 
-                        price = average(KWH_AVG_PRICES_DB['history'][h][d])
                         timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
                         timestamp = timestamp.replace(tzinfo=None)
-                        if timestamp not in hour_prices:
-                            missing_hours[timestamp] = price
-                            hour_prices[timestamp] = round(price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
+                        
+                        if timestamp in hour_prices:
+                            continue
+                        
+                        avg_price = average(KWH_AVG_PRICES_DB['history'][h][d])
+                        price = round(avg_price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
+                        
+                        missing_hours[timestamp] = avg_price
+                        hour_prices[timestamp] = avg_price
+                        
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
+                    
+                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours.copy()
+                    
             except Exception as e:
                 error_message = f"Cant get offline prices: {e}"
                 _LOGGER.error(error_message)
                 save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
+            
+            missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
     
     return hour_prices
 
@@ -4033,7 +4061,7 @@ def cheap_grid_charge_hours():
             
         if check_max_charging_plan and check_max_charging_plan['day'] is not None:
             kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
-            kwh = kwh - kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
+            kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
             
         if kwh > 0.5:
             if hour not in chargeHours:
@@ -5132,7 +5160,7 @@ def cheap_grid_charge_hours():
         def planning_basis_markdown():
             nonlocal overview
             
-            if LAST_SUCCESSFUL_GRID_PRICES:
+            if "last_update" in LAST_SUCCESSFUL_GRID_PRICES:
                 overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
                 overview.extend(get_hours_plan())
                 overview.append("</details>\n")
@@ -5146,7 +5174,6 @@ def cheap_grid_charge_hours():
         merged_intervals = []
         has_combined = False
         current_interval = None
-        join_unique_emojis = lambda str1, str2: ' '.join(set(str1.split()).union(set(str2.split()))) if str1 and str2 else str1 or str2
         
         for timestamp, value in sorted_charge_hours:
             if current_interval is None:
@@ -5214,7 +5241,14 @@ def cheap_grid_charge_hours():
                 planning_basis_markdown()
             
             if USING_OFFLINE_PRICES:
-                overview.append(f"\n**Bruger offline priser til nogle timepriser!!!**")
+                overview.append(f"\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
+                overview.append("\n| Tidspunkt | &nbsp;&nbsp; | Pris |")
+                overview.append("|:---:|:---:|:---:|")
+                
+                missing_hours_list = [f"| ***{timestamp.strftime('%d/%m %H:%M')}*** |  | {price:.2f}kr |" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
+                overview.append("\n".join(missing_hours_list))
+                
+                overview.append("</details>\n\n")
             
             if work_overview:
                 overview.append("***")
@@ -5609,11 +5643,15 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     powerwall_discharging_consumption = discharge_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
-    
+            
     if CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
         power_consumption -= powerwall_discharging_consumption
     
     total_power_consumption = power_consumption + powerwall_discharging_consumption
+    
+    if total_power_consumption - powerwall_charging_consumption < 0.0:
+        total_power_consumption += powerwall_charging_consumption
+        
     power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
     power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_charging_consumption, 2)
     power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
@@ -5666,22 +5704,24 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
 
     powerwall_battery_level = 100.0
     ev_charge_after_powerwall_battery_level = 0.0
-    
-    if CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         
     if without_all_exclusion:
         solar_production_available = round(solar_production - power_consumption_without_all_exclusion, 2)
     else:
-        solar_production_available = round(solar_production - total_power_consumption, 2)
+        solar_production_available = round(solar_production - power_consumption_without_ignored, 2)
+        
+    if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
+        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         if powerwall_battery_level > ev_charge_after_powerwall_battery_level:
-            solar_production_available = round(solar_production_available + powerwall_charging_consumption, 2)
+            solar_production_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
+        else:
+            solar_production_available = max(solar_production_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
             
     solar_production_available = max(solar_production_available, 0.0)
     
     if powerwall_charging_consumption > 0.0:
-        POWERWALL_CHARGING_TEXT = f"Powerwall charging: {int(powerwall_charging_consumption)}W"
+        POWERWALL_CHARGING_TEXT = f"Powerwall charging: x̄{int(powerwall_charging_consumption)}W"
     else:
         POWERWALL_CHARGING_TEXT = ""
         
@@ -6116,7 +6156,7 @@ def get_solar_forecast():
                         
                         watt = round(data['pv_estimate'] * 1000.0, 0)
                                                 
-                        power_consumption_without_all_exclusion = average(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0])))
+                        power_consumption_without_all_exclusion = calculate_ema(reverse_list(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0]))))
                         available = max(watt - power_consumption_without_all_exclusion, 0.0)
                         available_kwh = round(available / 1000.0, 0)
                         
@@ -6147,15 +6187,15 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         day_of_week = getDayOfWeek(date)
         
         try:
-            power_list = list(reversed(get_list_values(get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+            power_list = reverse_list(get_list_values(get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
             power_one_down_list = []
             power_one_up_list = []
             if type(power_list) == list:
-                if len(power_list) <= 6 or average(power_list) <= 1000.0:
+                if len(power_list) <= 6 or calculate_ema(power_list) <= 1000.0:
                     if cloudiness >= 20:
-                        power_one_down_list = list(reversed(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+                        power_one_down_list = reverse_list(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                     if cloudiness <= 80:
-                        power_one_up_list = list(reversed(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour]))))
+                        power_one_up_list = reverse_list(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                            
                 _LOGGER.debug(f"DEBUG {hour} cloudiness:{cloudiness}% power_list: average({average(power_list)})/ema({calculate_ema(power_list)})={power_list}\npower_one_down: average({average(power_one_down_list)})/ema({calculate_ema(power_one_down_list)})={power_one_down_list}\npower_one_up: average({average(power_one_up_list)})/ema({calculate_ema(power_one_up_list)})={power_one_up_list}")
                 
@@ -6267,6 +6307,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     
                     if cloudiness is not None:
                         power_factor = 0.5 if loop_datetime in solar_forecast_from_integration else 1.0
+                        power_factor = 1.0
                         power_cost = get_power(cloudiness, loop_datetime)
                         loop_power.append(power_cost[0] * power_factor)
                         loop_sell.append(power_cost[1] * power_factor)
@@ -6775,7 +6816,7 @@ def is_charging():
 def charging_without_rule():
     _LOGGER = globals()['_LOGGER'].getChild("charging_without_rule")
     global CHARGING_NO_RULE_COUNT
-    if getMinute() < 5: return False
+    if getMinute() < 5 or TESTING: return False
     
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
     
@@ -7560,7 +7601,7 @@ if INITIALIZATION_COMPLETE:
             set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
             set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
         elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
-            if not is_ev_configured():
+            if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
