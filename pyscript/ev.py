@@ -4061,7 +4061,7 @@ def cheap_grid_charge_hours():
             
         if check_max_charging_plan and check_max_charging_plan['day'] is not None:
             kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
-            kwh = kwh - kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
+            kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
             
         if kwh > 0.5:
             if hour not in chargeHours:
