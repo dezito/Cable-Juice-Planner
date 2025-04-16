@@ -167,7 +167,7 @@ def get_closest_key(input_value, collection, return_key=False):
             closest_key = find_closest(keys, input_value)
             return closest_key if return_key else collection[closest_key]
 
-        elif isinstance(collection, (list, range)):
+        elif isinstance(collection, (list, range, tuple)):
             return find_closest(collection, input_value)
 
         else:
