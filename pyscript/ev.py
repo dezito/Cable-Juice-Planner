@@ -499,7 +499,7 @@ COMMENT_DB_YAML = {
     "charging_max_amp": "**Required** Maximum amps for the ev",
     "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
     "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
-    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Entity setup plus value for discharging, negative for charging)",
+    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Tip: Disable powerwall discharging when ev charging) (Entity setup plus value for discharging, negative for charging)",
     "invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
     "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
     "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
@@ -5784,7 +5784,11 @@ def max_solar_watts_available_remaining_hour():
     predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
     multiple = 1.0
-    if CONFIG['solar']['max_to_current_hour']:
+    if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
+        if powerwall_battery_level < CONFIG['solar']['ev_charge_after_powerwall_battery_level']:
+            multiple = 0.0
+    elif CONFIG['solar']['max_to_current_hour']:
         multiple = 1 + round((getMinute() / 60), 2)
     elif CONFIG['solar']['solarpower_use_before_minutes'] > 0 and CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
         multiple = 1 + round(CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'], 2)
