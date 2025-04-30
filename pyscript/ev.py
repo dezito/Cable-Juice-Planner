@@ -2677,8 +2677,8 @@ def set_state_drive_efficiency():
                 set_attr(f"sensor.{__name__}_drive_efficiency.dato_{item[0]}", round(item[1], 2))
             except:
                 set_attr(f"sensor.{__name__}_drive_efficiency.dato_{i}", round(item, 2))
-    except:
-        pass
+    except Exception as e:
+        _LOGGER.error(f"Cant set drive efficiency: {e}")
 
 def load_km_kwh_efficiency():
     _LOGGER = globals()['_LOGGER'].getChild("load_km_kwh_efficiency")
