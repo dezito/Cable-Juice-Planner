@@ -1902,7 +1902,7 @@ def init():
                 }
 
             DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
-                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key
+                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key or "drive_efficiency_last_battery_level" in key
             }
                     
             if f"{__name__}_km_per_kwh" in DEFAULT_ENTITIES['sensor'][0]['sensors']:
@@ -2796,6 +2796,8 @@ def set_estimated_range():
         )
         
 def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost, efficiency, distance_per_kWh, wh_km):
+    if not is_ev_configured(): return
+    
     sensor_list = ["_drive_efficiency", "_km_per_kwh", "_estimated_range"]
     for sensor in sensor_list:
         try:
@@ -2851,11 +2853,6 @@ def drive_efficiency(state=None):
     if state not in states:
         _LOGGER.warning(f"Ignoring state not in {states}: {state}")
         return
-    
-    if not DRIVE_EFFICIENCY_DB:
-        load_drive_efficiency()
-    if not KM_KWH_EFFICIENCY_DB:
-        load_km_kwh_efficiency()
         
     try:
         if state == "preheat":
@@ -2874,7 +2871,23 @@ def drive_efficiency(state=None):
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
+                kilometers = 0.0
+                
+                last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+                
+                usedBattery = last_battery_level - battery_level()
+                usedkWh = percentage_to_kwh(usedBattery)
+                
+                if usedkWh == 0.0 or usedBattery == 0.0:
+                    _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
+                    return
+                
             else:
+                if not DRIVE_EFFICIENCY_DB:
+                    load_drive_efficiency()
+                if not KM_KWH_EFFICIENCY_DB:
+                    load_km_kwh_efficiency()
+                    
                 if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"):
                     raise Exception(f"sensor.{__name__}_drive_efficiency_last_odometer is not available, ignoring drive")
                 if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
@@ -2922,13 +2935,13 @@ def drive_efficiency(state=None):
                     )
                     return
 
-            DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
-            DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
-            save_drive_efficiency()
+                DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
+                DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
+                save_drive_efficiency()
 
-            KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
-            KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
-            save_km_kwh_efficiency()
+                KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
+                KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
+                save_km_kwh_efficiency()
             
             cost_str = ""
             cost = 0.0
@@ -7595,6 +7608,9 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
+        global CURRENT_CHARGING_SESSION
+        
+        _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
         if old_value in CHARGER_NOT_READY_STATUS:
             notify_set_battery_level()
             wake_up_ev()
@@ -7610,18 +7626,26 @@ if INITIALIZATION_COMPLETE:
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
-    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
-        @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
-        def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
-            wake_up_ev()
-            
     if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
         def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
             if value == "home":
                 charge_if_needed()
+    
+    def power_connected_trigger(value):
+        if is_ev_configured() or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
+            drive_efficiency(str(value))
+        notify_battery_under_daily_battery_level()
+        
+    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
+        @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
+        def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
+            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
+            wake_up_ev()
+            
+            if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                power_connected_trigger(value)
             
     if is_ev_configured():
         @time_trigger(f"cron(0/5 * * * *)")
@@ -7629,27 +7653,29 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
             preheat_ev()
         
-        def ev_power_connected_trigger(value):
-            drive_efficiency(str(value))
-            notify_battery_under_daily_battery_level()
-        
         if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
                 def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
-                    ev_power_connected_trigger(value)
+                    power_connected_trigger(value)
             else:
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
                 def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
-                    ev_power_connected_trigger(value)
+                    power_connected_trigger(value)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("emulated_battery_level_changed")
-            if float(old_value) == 0.0 and float(value) < get_min_daily_battery_level():
-                notify_battery_under_daily_battery_level()
+            try:
+                old_value = float(old_value)
+                value = float(value)
+            except:
+                return
+            
+            if old_value == 0.0 and value > 0.0:
+                drive_efficiency("on")
                 
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
