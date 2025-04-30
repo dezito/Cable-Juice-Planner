@@ -436,7 +436,6 @@ DEFAULT_CONFIG = {
             "power_prices_entity_id": ""
         },
         "refund": 0.0
-        
     },
     "solar": {
         "entity_ids": {
@@ -4241,8 +4240,6 @@ def cheap_grid_charge_hours():
         for day in fill_up_days.keys():
             fill_up_days[day] = kwh_needed_to_fill_up_share
         
-        work_overview_low_battery_charging_added = False
-        
         ignored_reference_battery_level = 0.0
         
         current_battery_level_expenses()
@@ -4612,36 +4609,6 @@ def cheap_grid_charge_hours():
                         
                         solar_kwh = 0.0
                         solar_percentage = 0.0
-
-                        if not work_overview_low_battery_charging_added:
-                            reference_battery_level = get_min_daily_battery_level() if event_type == "workday" else get_min_trip_battery_level()
-                            diff = battery_level() - reference_battery_level
-                            if diff < 0.0:
-                                work_overview_low_battery_charging_added = True
-                                diff = abs(diff)
-                                battery_level_needed_adjusted = battery_level_needed + diff
-                                
-                                temp_events.append({
-                                    "time": getTime(),
-                                    "data": {
-                                        "emoji": emoji_parse({'low_battery': True}),
-                                        "day": f"*{getDayOfWeekText(getTime(), translate=True).capitalize()}*",
-                                        "date": f"*{date_to_string(date = getTime(), format = "%d/%m")}*",
-                                        "goto": f"*{date_to_string(date = getTime(), format = "%H:%M")}*",
-                                        "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
-                                        "solar": "",
-                                        "solar_kwh": 0.0,
-                                        "battery_needed": diff,
-                                        "kwh_needed": percentage_to_kwh(diff, include_charging_loss=True),
-                                        "cost": (diff / battery_level_needed_adjusted) * cost,
-                                        "from_grid": percentage_to_kwh(diff, include_charging_loss=True),
-                                        "from_battery": 0.0,
-                                        "from_battery_solar": 0.0,
-                                        "event_type": event_type
-                                    }
-                                })
-                                kwh_needed -= percentage_to_kwh(diff, include_charging_loss=True)
-                                cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                         
                         temp_events.append({
                             "time": event_time_start,
@@ -4672,7 +4639,7 @@ def cheap_grid_charge_hours():
                     if current_event_date == next_event_date:
                         temp_events[index + 1]["data"]["solar"] = ""
                         break
-                        
+                
                 for index, event in enumerate(temp_events):
                     work_overview_key = float(day) + (index / 10.0)
                     work_overview[work_overview_key] = event["data"]
