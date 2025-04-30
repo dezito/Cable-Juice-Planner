@@ -1552,7 +1552,7 @@ def is_entity_available(entity):
     integration = get_integration(entity)
     
     try:
-        entity_state = get_state(entity, error_state="unknown")
+        entity_state = str(get_state(entity, try_history=True, error_state="unknown"))
         if entity_state in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Entity state is {entity_state}")
         
