@@ -5261,7 +5261,6 @@ def cheap_grid_charge_hours():
             for k, d in work_overview.items():
                 work_overview_total_kwh.append(d['kwh_needed'])
                 work_overview_total_cost.append(d['cost'])
-                _LOGGER.info(f"k: {k} d: {d}")
                 
                 battery_usage = ""
                 
