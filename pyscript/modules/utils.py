@@ -134,31 +134,47 @@ def get_specific_values(values, positive_only = False, negative_only = False):
         
     return [0.0] if return_list == [] else return_list
 
-def get_closest_key(input_value, dictionary, return_key=False):
+def get_closest_key(input_value, collection, return_key=False):
     """
-    Finds the key in a dictionary closest to a given input value and returns the associated value.
+    Finds the closest key (in dict) or value (in list) to a given input_value.
 
     Parameters:
-    - input_value (int): The value to find the closest key for.
-    - dictionary (dict): The dictionary to search.
+    - input_value (float): The value to match.
+    - collection (dict or list): The data to search.
+    - return_key (bool): For dicts – return key instead of value.
+
+    Returns:
+    - Closest value (from list) or value/key (from dict).
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_closest_key")
+    
+    def find_closest(items, input_value):
+        closest = items[0]
+        closest_diff = abs(float(closest) - input_value)
+
+        for item in items:
+            diff = abs(float(item) - input_value)
+            if diff < closest_diff:
+                closest = item
+                closest_diff = diff
+        return closest
+
     try:
         input_value = float(input_value)
-        closest_key = list(dictionary.keys())[0]
-        closest_diff = abs(float(closest_key) - input_value)
 
-        for key in dictionary.keys():
-            diff = abs(float(key) - input_value)
-            if diff < closest_diff:
-                closest_key = key
-                closest_diff = diff
-        
-        if return_key:
-            return closest_key
-        return dictionary[closest_key]
+        if isinstance(collection, dict):
+            keys = list(collection.keys())
+            closest_key = find_closest(keys, input_value)
+            return closest_key if return_key else collection[closest_key]
+
+        elif isinstance(collection, (list, range, tuple)):
+            return find_closest(collection, input_value)
+
+        else:
+            raise TypeError("Collection must be a dict or list")
+
     except Exception as e:
-        _LOGGER.error(f"Cant get key {input_value} in {dictionary} {e}")
+        _LOGGER.error(f"Can't find closest match for {input_value} in {collection} – {e}")
         return []
 
 def keys_exists(element, *keys):

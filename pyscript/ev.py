@@ -436,7 +436,6 @@ DEFAULT_CONFIG = {
             "power_prices_entity_id": ""
         },
         "refund": 0.0
-        
     },
     "solar": {
         "entity_ids": {
@@ -499,7 +498,7 @@ COMMENT_DB_YAML = {
     "charging_max_amp": "**Required** Maximum amps for the ev",
     "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
     "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
-    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Entity setup plus value for discharging, negative for charging)",
+    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Tip: Disable powerwall discharging when ev charging) (Entity setup plus value for discharging, negative for charging)",
     "invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
     "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
     "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
@@ -1552,7 +1551,7 @@ def is_entity_available(entity):
     integration = get_integration(entity)
     
     try:
-        entity_state = get_state(entity, error_state="unknown")
+        entity_state = str(get_state(entity, try_history=True, error_state="unknown"))
         if entity_state in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Entity state is {entity_state}")
         
@@ -1902,7 +1901,7 @@ def init():
                 }
 
             DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
-                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key
+                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key or "drive_efficiency_last_battery_level" in key
             }
                     
             if f"{__name__}_km_per_kwh" in DEFAULT_ENTITIES['sensor'][0]['sensors']:
@@ -2678,8 +2677,8 @@ def set_state_drive_efficiency():
                 set_attr(f"sensor.{__name__}_drive_efficiency.dato_{item[0]}", round(item[1], 2))
             except:
                 set_attr(f"sensor.{__name__}_drive_efficiency.dato_{i}", round(item, 2))
-    except:
-        pass
+    except Exception as e:
+        _LOGGER.error(f"Cant set drive efficiency: {e}")
 
 def load_km_kwh_efficiency():
     _LOGGER = globals()['_LOGGER'].getChild("load_km_kwh_efficiency")
@@ -2796,6 +2795,8 @@ def set_estimated_range():
         )
         
 def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost, efficiency, distance_per_kWh, wh_km):
+    if not is_ev_configured(): return
+    
     sensor_list = ["_drive_efficiency", "_km_per_kwh", "_estimated_range"]
     for sensor in sensor_list:
         try:
@@ -2851,11 +2852,6 @@ def drive_efficiency(state=None):
     if state not in states:
         _LOGGER.warning(f"Ignoring state not in {states}: {state}")
         return
-    
-    if not DRIVE_EFFICIENCY_DB:
-        load_drive_efficiency()
-    if not KM_KWH_EFFICIENCY_DB:
-        load_km_kwh_efficiency()
         
     try:
         if state == "preheat":
@@ -2874,7 +2870,23 @@ def drive_efficiency(state=None):
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
+                kilometers = 0.0
+                
+                last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+                
+                usedBattery = last_battery_level - battery_level()
+                usedkWh = percentage_to_kwh(usedBattery)
+                
+                if usedkWh == 0.0 or usedBattery == 0.0:
+                    _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
+                    return
+                
             else:
+                if not DRIVE_EFFICIENCY_DB:
+                    load_drive_efficiency()
+                if not KM_KWH_EFFICIENCY_DB:
+                    load_km_kwh_efficiency()
+                    
                 if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_odometer"):
                     raise Exception(f"sensor.{__name__}_drive_efficiency_last_odometer is not available, ignoring drive")
                 if not is_entity_available(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
@@ -2922,13 +2934,13 @@ def drive_efficiency(state=None):
                     )
                     return
 
-            DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
-            DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
-            save_drive_efficiency()
+                DRIVE_EFFICIENCY_DB.insert(0, [getTime(), efficiency])
+                DRIVE_EFFICIENCY_DB = DRIVE_EFFICIENCY_DB[:CONFIG['database']['drive_efficiency_db_data_to_save']]
+                save_drive_efficiency()
 
-            KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
-            KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
-            save_km_kwh_efficiency()
+                KM_KWH_EFFICIENCY_DB.insert(0, [getTime(), distancePerkWh])
+                KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
+                save_km_kwh_efficiency()
             
             cost_str = ""
             cost = 0.0
@@ -4228,8 +4240,6 @@ def cheap_grid_charge_hours():
         for day in fill_up_days.keys():
             fill_up_days[day] = kwh_needed_to_fill_up_share
         
-        work_overview_low_battery_charging_added = False
-        
         ignored_reference_battery_level = 0.0
         
         current_battery_level_expenses()
@@ -4599,36 +4609,6 @@ def cheap_grid_charge_hours():
                         
                         solar_kwh = 0.0
                         solar_percentage = 0.0
-
-                        if not work_overview_low_battery_charging_added:
-                            reference_battery_level = get_min_daily_battery_level() if event_type == "workday" else get_min_trip_battery_level()
-                            diff = battery_level() - reference_battery_level
-                            if diff < 0.0:
-                                work_overview_low_battery_charging_added = True
-                                diff = abs(diff)
-                                battery_level_needed_adjusted = battery_level_needed + diff
-                                
-                                temp_events.append({
-                                    "time": getTime(),
-                                    "data": {
-                                        "emoji": emoji_parse({'low_battery': True}),
-                                        "day": f"*{getDayOfWeekText(getTime(), translate=True).capitalize()}*",
-                                        "date": f"*{date_to_string(date = getTime(), format = "%d/%m")}*",
-                                        "goto": f"*{date_to_string(date = getTime(), format = "%H:%M")}*",
-                                        "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
-                                        "solar": "",
-                                        "solar_kwh": 0.0,
-                                        "battery_needed": diff,
-                                        "kwh_needed": percentage_to_kwh(diff, include_charging_loss=True),
-                                        "cost": (diff / battery_level_needed_adjusted) * cost,
-                                        "from_grid": percentage_to_kwh(diff, include_charging_loss=True),
-                                        "from_battery": 0.0,
-                                        "from_battery_solar": 0.0,
-                                        "event_type": event_type
-                                    }
-                                })
-                                kwh_needed -= percentage_to_kwh(diff, include_charging_loss=True)
-                                cost = (battery_level_needed / battery_level_needed_adjusted) * cost
                         
                         temp_events.append({
                             "time": event_time_start,
@@ -4659,7 +4639,7 @@ def cheap_grid_charge_hours():
                     if current_event_date == next_event_date:
                         temp_events[index + 1]["data"]["solar"] = ""
                         break
-                        
+                
                 for index, event in enumerate(temp_events):
                     work_overview_key = float(day) + (index / 10.0)
                     work_overview[work_overview_key] = event["data"]
@@ -5281,7 +5261,6 @@ def cheap_grid_charge_hours():
             for k, d in work_overview.items():
                 work_overview_total_kwh.append(d['kwh_needed'])
                 work_overview_total_cost.append(d['cost'])
-                _LOGGER.info(f"k: {k} d: {d}")
                 
                 battery_usage = ""
                 
@@ -5706,19 +5685,19 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
     ev_charge_after_powerwall_battery_level = 0.0
         
     if without_all_exclusion:
-        solar_production_available = round(solar_production - power_consumption_without_all_exclusion, 2)
+        solar_watts_available = round(solar_production - power_consumption_without_all_exclusion, 2)
     else:
-        solar_production_available = round(solar_production - power_consumption_without_ignored, 2)
+        solar_watts_available = round(solar_production - power_consumption_without_ignored, 2)
         
     if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
         powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
         ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
         if powerwall_battery_level > ev_charge_after_powerwall_battery_level:
-            solar_production_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
+            solar_watts_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
         else:
-            solar_production_available = max(solar_production_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
+            solar_watts_available = max(solar_watts_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
             
-    solar_production_available = max(solar_production_available, 0.0)
+    solar_watts_available = max(solar_watts_available, 0.0)
     
     if powerwall_charging_consumption > 0.0:
         POWERWALL_CHARGING_TEXT = f"Powerwall charging: x̄{int(powerwall_charging_consumption)}W"
@@ -5727,12 +5706,12 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         
     '''if timeTo is not None:
         txt = "without" if without_all_exclusion else "with"
-        _LOGGER.info(f"sum period:{timeFrom}-{timeTo} {txt} EV, solar_production_available:{solar_production_available}")
+        _LOGGER.info(f"sum period:{timeFrom}-{timeTo} {txt} EV, solar_watts_available:{solar_watts_available}")
     else:
-        _LOGGER.info(f"period:{period}, without_all_exclusion:{without_all_exclusion}, solar_production_available:{solar_production_available}")'''
+        _LOGGER.info(f"period:{period}, without_all_exclusion:{without_all_exclusion}, solar_watts_available:{solar_watts_available}")'''
 
     if without_all_exclusion:
-        set_state(f"sensor.{__name__}_solar_over_production_current_hour", solar_production_available)
+        set_state(f"sensor.{__name__}_solar_over_production_current_hour", solar_watts_available)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
@@ -5743,13 +5722,17 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_powerwall", power_consumption_without_ignored_powerwall)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_production_available)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_watts_available)
         
         if is_powerwall_configured():
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_power_consumption", total_power_consumption)
+            _LOGGER.info(f"TEMP DEBUG: period:{period} timeFrom:{timeFrom} timeTo:{timeTo}")
+            _LOGGER.info(f"TEMP DEBUG: solar_watts_available:{solar_watts_available}W ignored_consumption:{ignored_consumption}W powerwall_charging_consumption:{powerwall_charging_consumption}W powerwall_discharging_consumption:{powerwall_discharging_consumption}W")
+            _LOGGER.info(f"TEMP DEBUG: ev_used_consumption:{ev_used_consumption}W solar_production:{solar_production}W power_consumption_without_ignored:{power_consumption_without_ignored}W power_consumption_without_ignored_powerwall:{power_consumption_without_ignored_powerwall}W power_consumption_without_all_exclusion:{power_consumption_without_all_exclusion}W")
+            _LOGGER.info(f"TEMP DEBUG: values:{values}")
 
-    return solar_production_available
+    return solar_watts_available
 
 def max_solar_watts_available_remaining_hour():
     _LOGGER = globals()['_LOGGER'].getChild("max_solar_watts_available_remaining_hour")
@@ -5790,6 +5773,11 @@ def max_solar_watts_available_remaining_hour():
         multiple = 1 + round(CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'], 2)
     else:
         multiple = 0.0
+        
+    if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
+        if powerwall_battery_level < CONFIG['solar']['ev_charge_after_powerwall_battery_level']:
+            multiple = 0.0
         
     extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
     
@@ -6816,9 +6804,10 @@ def is_charging():
 def charging_without_rule():
     _LOGGER = globals()['_LOGGER'].getChild("charging_without_rule")
     global CHARGING_NO_RULE_COUNT
-    if getMinute() < 5 or TESTING: return False
     
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
+    
+    if getMinute() < minutes or TESTING: return False
     
     now = getTime()
     past = now - datetime.timedelta(minutes=minutes)
@@ -6829,14 +6818,14 @@ def charging_without_rule():
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
     if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
-        if CHARGING_NO_RULE_COUNT > 2:
+        if CHARGING_NO_RULE_COUNT > 4:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
                 
             set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
             _LOGGER.warning("Charging without rule")
             
-            if CHARGING_NO_RULE_COUNT == 3:
+            if CHARGING_NO_RULE_COUNT == 5:
                 unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
                 if unavailable_entities:
@@ -7590,6 +7579,9 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
+        global CURRENT_CHARGING_SESSION
+        
+        _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
         if old_value in CHARGER_NOT_READY_STATUS:
             notify_set_battery_level()
             wake_up_ev()
@@ -7605,18 +7597,26 @@ if INITIALIZATION_COMPLETE:
                 stop_current_charging_session()
                 set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
          
-    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
-        @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
-        def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
-            wake_up_ev()
-            
     if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
         def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
             if value == "home":
                 charge_if_needed()
+    
+    def power_connected_trigger(value):
+        if is_ev_configured() or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
+            drive_efficiency(str(value))
+        notify_battery_under_daily_battery_level()
+        
+    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
+        @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
+        def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
+            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
+            wake_up_ev()
+            
+            if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                power_connected_trigger(value)
             
     if is_ev_configured():
         @time_trigger(f"cron(0/5 * * * *)")
@@ -7624,27 +7624,29 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
             preheat_ev()
         
-        def ev_power_connected_trigger(value):
-            drive_efficiency(str(value))
-            notify_battery_under_daily_battery_level()
-        
         if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
                 def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
-                    ev_power_connected_trigger(value)
+                    power_connected_trigger(value)
             else:
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
                 def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
-                    ev_power_connected_trigger(value)
+                    power_connected_trigger(value)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("emulated_battery_level_changed")
-            if float(old_value) == 0.0 and float(value) < get_min_daily_battery_level():
-                notify_battery_under_daily_battery_level()
+            try:
+                old_value = float(old_value)
+                value = float(value)
+            except:
+                return
+            
+            if old_value == 0.0 and value > 0.0:
+                drive_efficiency("on")
                 
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
