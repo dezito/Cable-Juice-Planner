@@ -6834,9 +6834,10 @@ def is_charging():
 def charging_without_rule():
     _LOGGER = globals()['_LOGGER'].getChild("charging_without_rule")
     global CHARGING_NO_RULE_COUNT
-    if getMinute() < 5 or TESTING: return False
     
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
+    
+    if getMinute() < minutes or TESTING: return False
     
     now = getTime()
     past = now - datetime.timedelta(minutes=minutes)
@@ -6847,14 +6848,14 @@ def charging_without_rule():
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
     if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
-        if CHARGING_NO_RULE_COUNT > 2:
+        if CHARGING_NO_RULE_COUNT > 4:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
                 
             set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
             _LOGGER.warning("Charging without rule")
             
-            if CHARGING_NO_RULE_COUNT == 3:
+            if CHARGING_NO_RULE_COUNT == 5:
                 unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
                 if unavailable_entities:
