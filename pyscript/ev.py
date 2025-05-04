@@ -5623,10 +5623,10 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
             
-    if CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
-        power_consumption -= powerwall_discharging_consumption
+    if not CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
+        power_consumption += powerwall_discharging_consumption
     
-    total_power_consumption = power_consumption + powerwall_discharging_consumption
+    total_power_consumption = power_consumption
     
     if total_power_consumption - powerwall_charging_consumption < 0.0:
         total_power_consumption += powerwall_charging_consumption
@@ -5691,10 +5691,8 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         
     if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
         powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 99.0)
-        if powerwall_battery_level > ev_charge_after_powerwall_battery_level:
-            solar_watts_available = round(solar_production - power_consumption_without_ignored_powerwall, 2)
-        else:
+        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
+        if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
             solar_watts_available = max(solar_watts_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
             
     solar_watts_available = max(solar_watts_available, 0.0)
@@ -5727,10 +5725,6 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         if is_powerwall_configured():
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_power_consumption", total_power_consumption)
-            _LOGGER.info(f"TEMP DEBUG: period:{period} timeFrom:{timeFrom} timeTo:{timeTo}")
-            _LOGGER.info(f"TEMP DEBUG: solar_watts_available:{solar_watts_available}W ignored_consumption:{ignored_consumption}W powerwall_charging_consumption:{powerwall_charging_consumption}W powerwall_discharging_consumption:{powerwall_discharging_consumption}W")
-            _LOGGER.info(f"TEMP DEBUG: ev_used_consumption:{ev_used_consumption}W solar_production:{solar_production}W power_consumption_without_ignored:{power_consumption_without_ignored}W power_consumption_without_ignored_powerwall:{power_consumption_without_ignored_powerwall}W power_consumption_without_all_exclusion:{power_consumption_without_all_exclusion}W")
-            _LOGGER.info(f"TEMP DEBUG: values:{values}")
 
     return solar_watts_available
 
@@ -5743,11 +5737,22 @@ def max_solar_watts_available_remaining_hour():
             "watt": 0.0
         }
     
-    time_to = getMinute() if CONFIG['solar']['max_to_current_hour'] else CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
+    time_to = getMinute()
+    
+    if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
+        time_to = CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
+        
+        if CONFIG['solar']['solarpower_use_before_minutes'] <= 60:
+            def map_minute(minute: int, usage_period: int) -> int:
+                if usage_period <= 0:
+                    return 0
+                return minute % usage_period
+            
+            time_to = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
     
     returnDict = {
         "predictedSolarPower": {
-            "watt": max(solar_production_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval']), without_all_exclusion = True), 0.0)
+            "watt": max(solar_production_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion = True), 0.0)
         }
     }
     
@@ -5767,19 +5772,20 @@ def max_solar_watts_available_remaining_hour():
     predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
     
     multiple = 1.0
+    
     if CONFIG['solar']['max_to_current_hour']:
         multiple = 1 + round((getMinute() / 60), 2)
-    elif CONFIG['solar']['solarpower_use_before_minutes'] > 0 and CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
-        multiple = 1 + round(CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'], 2)
+    elif CONFIG['solar']['solarpower_use_before_minutes'] > 0:
+        period_calculations = CONFIG['solar']['solarpower_use_before_minutes'] / CONFIG['cron_interval']
+        multiply_factor = 1.0 if period_calculations > 4.0 else 0.5
+        
+        #multiple = 1 + round(time_to / CONFIG['solar']['solarpower_use_before_minutes'], 2) #Linear weighting
+        multiple = round(1 + max(1.0 - 4.0 * ((time_to - (float(CONFIG['cron_interval'])/2.0))/float(CONFIG['cron_interval']))**2.0, 0.0), 2) #Parabolic weighting
+        multiple *= multiply_factor
     else:
         multiple = 0.0
         
-    if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-        if powerwall_battery_level < CONFIG['solar']['ev_charge_after_powerwall_battery_level']:
-            multiple = 0.0
-        
-    extra_watt = max(((returnDict['total']['watt'] + allowed_above_under_solar_available) * multiple), 0.0)
+    extra_watt = max((returnDict['total']['watt'] * multiple), 0.0)
     
     returnDict['output'] = {
         "period": f"predictedSolarPower:{predictedSolarPower} + {allowed_above_under_solar_available} + {returnDict['total']['period']}:{returnDict['total']['watt']} multiple:{multiple} extra_watt:{extra_watt} (min 0.0)",
