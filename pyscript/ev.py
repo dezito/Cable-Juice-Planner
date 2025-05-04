@@ -5727,10 +5727,6 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         if is_powerwall_configured():
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_power_consumption", total_power_consumption)
-            _LOGGER.info(f"TEMP DEBUG: period:{period} timeFrom:{timeFrom} timeTo:{timeTo}")
-            _LOGGER.info(f"TEMP DEBUG: solar_watts_available:{solar_watts_available}W ignored_consumption:{ignored_consumption}W powerwall_charging_consumption:{powerwall_charging_consumption}W powerwall_discharging_consumption:{powerwall_discharging_consumption}W")
-            _LOGGER.info(f"TEMP DEBUG: ev_used_consumption:{ev_used_consumption}W solar_production:{solar_production}W power_consumption_without_ignored:{power_consumption_without_ignored}W power_consumption_without_ignored_powerwall:{power_consumption_without_ignored_powerwall}W power_consumption_without_all_exclusion:{power_consumption_without_all_exclusion}W")
-            _LOGGER.info(f"TEMP DEBUG: values:{values}")
 
     return solar_watts_available
 
