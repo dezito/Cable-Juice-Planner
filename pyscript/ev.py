@@ -5623,10 +5623,10 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
             
-    if CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
-        power_consumption -= powerwall_discharging_consumption
+    if not CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
+        power_consumption += powerwall_discharging_consumption
     
-    total_power_consumption = power_consumption + powerwall_discharging_consumption
+    total_power_consumption = power_consumption
     
     if total_power_consumption - powerwall_charging_consumption < 0.0:
         total_power_consumption += powerwall_charging_consumption
