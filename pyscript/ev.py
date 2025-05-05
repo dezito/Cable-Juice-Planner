@@ -474,7 +474,7 @@ COMMENT_DB_YAML = {
     "charge_switch_entity_id": "Start/stop charging on EV",
     "charging_limit_entity_id": "Setting charging battery limit on EV",
     "charging_amps_entity_id": "Setting charging amps on EV",
-    "location_entity_id": "**Required**",
+    "location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
     "last_update_entity_id": "Used to determine sending wake up call",
     "battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
     "min_daily_battery_level": "**Required** Also editable via WebGUI",
@@ -1526,8 +1526,7 @@ def is_ev_configured():
     if EV_CONFIGURED is None:
         if (CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and
             CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id']):
             EV_CONFIGURED = True
         else:
             EV_CONFIGURED = False
@@ -5632,8 +5631,8 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         total_power_consumption += powerwall_charging_consumption
         
     power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
-    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_charging_consumption, 2)
-    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
+    power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
+    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     
     return {
         "power_consumption": power_consumption,
@@ -5644,7 +5643,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         "solar_production": solar_production,
         "total_power_consumption": total_power_consumption,
         "power_consumption_without_ignored": power_consumption_without_ignored,
-        "power_consumption_without_ignored_powerwall": power_consumption_without_ignored_powerwall,
+        "power_consumption_without_ignored_ev": power_consumption_without_ignored_ev,
         "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
 
@@ -5678,7 +5677,7 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
     
     total_power_consumption = values['total_power_consumption']
     power_consumption_without_ignored = values['power_consumption_without_ignored']
-    power_consumption_without_ignored_powerwall = values['power_consumption_without_ignored_powerwall']
+    power_consumption_without_ignored_ev = values['power_consumption_without_ignored_ev']
     power_consumption_without_all_exclusion = values['power_consumption_without_all_exclusion']
 
     powerwall_battery_level = 100.0
@@ -5718,7 +5717,7 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_powerwall", power_consumption_without_ignored_powerwall)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_watts_available)
         
@@ -5887,6 +5886,13 @@ def get_forecast(forecast_dict = None, date = None):
 def forecast_score(data):
     _LOGGER = globals()['_LOGGER'].getChild("forecast_score")
     try:
+        if "cloud_coverage" not in data or "uv_index" not in data or "temperature" not in data:
+            if "condition" in data and "datetime" in data:
+                _LOGGER.debug(f"{data['datetime']}: Missing cloud_coverage, uv_index or temperature in data, using condition: {data['condition']} = {WEATHER_CONDITION_DICT[data['condition']]}")
+                return WEATHER_CONDITION_DICT[data["condition"]]
+            
+            raise Exception("Missing required keys in data")
+            
         normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
         
         uv_index = data["uv_index"]
@@ -5915,7 +5921,7 @@ def forecast_score(data):
             normalized_temperature * temperature_weight
         ) * 100)
     except Exception as e:
-        _LOGGER.error(f"Cant calculate forecast score, using 50.0: {e}")
+        _LOGGER.error(f"Cant calculate forecast score, using 50.0: {e}\n{data}")
         score = 50.0
 
     return score
@@ -6094,6 +6100,7 @@ def solar_available_append_to_db(power):
     forecast_dict = get_forecast_dict()
     forecast = get_forecast(forecast_dict)
     cloudiness = forecast_score(forecast)
+    
     
     if cloudiness is not None:
         cloudiness_score = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
@@ -6553,7 +6560,18 @@ def ready_to_charge():
         return True
     else:
         if is_ev_configured():
-            currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+            if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+            else:
+                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, try_history=True, error_state="connected")
+            
+                if currentLocation in ENTITY_UNAVAILABLE_STATES or currentLocation in CHARGER_NOT_READY_STATUS:
+                    currentLocation = "away"
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to away")
+                else:
+                    currentLocation = "home"
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")
+
             
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
