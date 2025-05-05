@@ -474,7 +474,7 @@ COMMENT_DB_YAML = {
     "charge_switch_entity_id": "Start/stop charging on EV",
     "charging_limit_entity_id": "Setting charging battery limit on EV",
     "charging_amps_entity_id": "Setting charging amps on EV",
-    "location_entity_id": "**Required**",
+    "location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
     "last_update_entity_id": "Used to determine sending wake up call",
     "battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
     "min_daily_battery_level": "**Required** Also editable via WebGUI",
@@ -1526,8 +1526,7 @@ def is_ev_configured():
     if EV_CONFIGURED is None:
         if (CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and
             CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id']):
             EV_CONFIGURED = True
         else:
             EV_CONFIGURED = False
@@ -6553,7 +6552,18 @@ def ready_to_charge():
         return True
     else:
         if is_ev_configured():
-            currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+            if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+            else:
+                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, try_history=True, error_state="connected")
+            
+                if currentLocation in ENTITY_UNAVAILABLE_STATES or currentLocation in CHARGER_NOT_READY_STATUS:
+                    currentLocation = "away"
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to away")
+                else:
+                    currentLocation = "home"
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")
+
             
             charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
