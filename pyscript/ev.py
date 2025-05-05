@@ -5631,8 +5631,8 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         total_power_consumption += powerwall_charging_consumption
         
     power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
-    power_consumption_without_ignored_powerwall = round(power_consumption_without_ignored - powerwall_charging_consumption, 2)
-    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_powerwall - ev_used_consumption, 2), 0.0)
+    power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
+    power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     
     return {
         "power_consumption": power_consumption,
@@ -5643,7 +5643,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         "solar_production": solar_production,
         "total_power_consumption": total_power_consumption,
         "power_consumption_without_ignored": power_consumption_without_ignored,
-        "power_consumption_without_ignored_powerwall": power_consumption_without_ignored_powerwall,
+        "power_consumption_without_ignored_ev": power_consumption_without_ignored_ev,
         "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
 
@@ -5677,7 +5677,7 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
     
     total_power_consumption = values['total_power_consumption']
     power_consumption_without_ignored = values['power_consumption_without_ignored']
-    power_consumption_without_ignored_powerwall = values['power_consumption_without_ignored_powerwall']
+    power_consumption_without_ignored_ev = values['power_consumption_without_ignored_ev']
     power_consumption_without_all_exclusion = values['power_consumption_without_all_exclusion']
 
     powerwall_battery_level = 100.0
@@ -5717,7 +5717,7 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_powerwall", power_consumption_without_ignored_powerwall)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_watts_available)
         
