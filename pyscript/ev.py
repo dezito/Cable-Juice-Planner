@@ -5886,6 +5886,13 @@ def get_forecast(forecast_dict = None, date = None):
 def forecast_score(data):
     _LOGGER = globals()['_LOGGER'].getChild("forecast_score")
     try:
+        if "cloud_coverage" not in data or "uv_index" not in data or "temperature" not in data:
+            if "condition" in data and "datetime" in data:
+                _LOGGER.debug(f"{data['datetime']}: Missing cloud_coverage, uv_index or temperature in data, using condition: {data['condition']} = {WEATHER_CONDITION_DICT[data['condition']]}")
+                return WEATHER_CONDITION_DICT[data["condition"]]
+            
+            raise Exception("Missing required keys in data")
+            
         normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
         
         uv_index = data["uv_index"]
@@ -5914,7 +5921,7 @@ def forecast_score(data):
             normalized_temperature * temperature_weight
         ) * 100)
     except Exception as e:
-        _LOGGER.error(f"Cant calculate forecast score, using 50.0: {e}")
+        _LOGGER.error(f"Cant calculate forecast score, using 50.0: {e}\n{data}")
         score = 50.0
 
     return score
@@ -6093,6 +6100,7 @@ def solar_available_append_to_db(power):
     forecast_dict = get_forecast_dict()
     forecast = get_forecast(forecast_dict)
     cloudiness = forecast_score(forecast)
+    
     
     if cloudiness is not None:
         cloudiness_score = get_closest_key(cloudiness, SOLAR_PRODUCTION_AVAILABLE_DB[hour], return_key=True)
