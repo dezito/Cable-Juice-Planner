@@ -6885,20 +6885,16 @@ def charge_if_needed():
         solar_available = max_solar_watts_available_remaining_hour()
         solar_period = solar_available['period']
         solar_watt = solar_available['watt']
-        solar_amps = calc_charging_amps(solar_watt)[:-1]
+        solar_amps = calc_charging_amps(solar_watt)[:-1] # Remove last element (watt)
         
         currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
         current_price = get_current_hour_price()
         
         charging_limit = min(range_to_battery_level(), get_max_recommended_charge_limit_battery_level())
         amps = [3.0, 0.0]
-        
-        if currentHour in CHARGE_HOURS:
-            if solar_amps[1] > 0.0:
-                CHARGE_HOURS[currentHour]['solar'] = True
                 
-            if trip_planned:
-                solar_amps[1] = 0.0
+            '''if trip_planned:
+                solar_amps[1] = 0.0'''
             
         _LOGGER.info(f"Solar Production Available Remaining Hour: {solar_available}")
         
@@ -6909,7 +6905,7 @@ def charge_if_needed():
             
             if is_solar_configured():
                 solar_using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
-        
+            
             if currentHour in CHARGE_HOURS:
                 if "half_min_avg_price" in CHARGE_HOURS[currentHour]:
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
