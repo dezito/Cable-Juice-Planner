@@ -6893,8 +6893,8 @@ def charge_if_needed():
         charging_limit = min(range_to_battery_level(), get_max_recommended_charge_limit_battery_level())
         amps = [3.0, 0.0]
                 
-            '''if trip_planned:
-                solar_amps[1] = 0.0'''
+        '''if trip_planned:
+            solar_amps[1] = 0.0'''
             
         _LOGGER.info(f"Solar Production Available Remaining Hour: {solar_available}")
         
