@@ -5573,6 +5573,30 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
         _LOGGER.warning(f"Cant get ignore values from {from_time_stamp} to {to_time_stamp}: {e}")
     return round(total, 2)
 
+def powerwall_max_charging_power(period=60):
+    _LOGGER = globals()['_LOGGER'].getChild("powerwall_max_charging_power")
+    
+    to_time_stamp = getTime()
+    from_time_stamp = to_time_stamp - datetime.timedelta(minutes=period)
+            
+    powerwall_max_charging_power = CONFIG['solar']['powerwall_charging_power_limit']
+
+    try:
+        if is_powerwall_configured():
+            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=None)
+            
+            if powerwall_values is None or len(powerwall_values) == 0:
+                raise Exception(f"No powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']} found from {from_time_stamp} to {to_time_stamp}")
+            
+            if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
+                powerwall_max_charging_power = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
+            else:
+                powerwall_max_charging_power = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e}")
+        
+    return powerwall_max_charging_power
+
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
     
@@ -5693,7 +5717,8 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
             powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
             ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
             if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
-                solar_watts_available = max(solar_watts_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
+                powerwall_charging_power = powerwall_max_charging_power(period=period)
+                solar_watts_available = max(solar_watts_available - powerwall_charging_power, 0.0)
             
     solar_watts_available = max(solar_watts_available, 0.0)
     
@@ -6925,6 +6950,7 @@ def charge_if_needed():
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 solar_amps[1] = 0.0
                 
+        
         if is_calculating_charging_loss():
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) else get_completed_battery_level()
             _LOGGER.info(f"Calculating charging loss {completed_battery_level}%")
