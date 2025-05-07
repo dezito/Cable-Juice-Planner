@@ -5589,9 +5589,9 @@ def powerwall_max_charging_power(period=60):
                 raise Exception(f"No powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']} found from {from_time_stamp} to {to_time_stamp}")
             
             if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
-                powerwall_max_charging_power = max(abs(get_specific_values(powerwall_values, positive_only = True)))
+                powerwall_max_charging_power = abs(max(get_specific_values(powerwall_values, positive_only = True)))
             else:
-                powerwall_max_charging_power = max(abs(get_specific_values(powerwall_values, negative_only = True)))
+                powerwall_max_charging_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e}")
         
