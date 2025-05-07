@@ -5688,11 +5688,12 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
     else:
         solar_watts_available = round(solar_production - power_consumption_without_ignored, 2)
         
-    if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-        powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-        ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
-        if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
-            solar_watts_available = max(solar_watts_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
+    if not manual_charging_solar_enabled():
+        if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
+            powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
+            ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
+            if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
+                solar_watts_available = max(solar_watts_available - CONFIG['solar']['powerwall_charging_power_limit'], 0.0)
             
     solar_watts_available = max(solar_watts_available, 0.0)
     
