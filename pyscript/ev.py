@@ -2580,6 +2580,42 @@ def ev_send_command(entity_id, command, force = False): #TODO Add start/stop ser
         set_state(entity_id, command)
     else:
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
+        
+def peak_battery_level_after_last_plug():
+    _LOGGER = globals()['_LOGGER'].getChild("peak_battery_level_after_last_plug")
+    
+    max_battery_level = 0.0
+    
+    try:
+        if not is_charger_configured():
+            return 0.0
+        
+        to_time_stamp = getTime() - datetime.timedelta(minutes=1)
+        from_time_stamp = to_time_stamp - datetime.timedelta(days=7)
+        
+        status_dict = get_values(CONFIG['charger']['entity_ids']['status_entity_id'], from_time_stamp, to_time_stamp, include_timestamps=True, error_state={})
+        
+        found_disconnected = False
+        last_connected = None
+        for ts in sorted(status_dict.keys(), reverse=True):
+            value = status_dict[ts]
+            if value in CHARGER_NOT_READY_STATUS:
+                found_disconnected = True
+                break
+            elif value in CHARGER_READY_STATUS:
+                last_connected = ts
+        
+        if last_connected is None:
+            return 0.0
+        
+        ev_entity_id = CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id'] if is_ev_configured() else f"input_number.{__name__}_battery_level"
+        from_time_stamp = last_connected
+        
+        max_battery_level = max(get_values(ev_entity_id, from_time_stamp, to_time_stamp, error_state=[]), default=0.0)
+    except Exception as e:
+        _LOGGER.error(f"peak_battery_level_after_last_plug(): {e}")
+        
+    return max_battery_level
 
 def battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("battery_level")
@@ -2813,7 +2849,8 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
         
     def set_last_battery_level():
-        set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", battery_level())
+        peak_battery_level = max(battery_level(), peak_battery_level_after_last_plug())
+        set_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", peak_battery_level)
         
         attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
         for item in attr_list:
