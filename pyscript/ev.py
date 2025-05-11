@@ -5748,6 +5748,11 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
         solar_watts_available = round(solar_production - power_consumption_without_all_exclusion, 2)
     else:
         solar_watts_available = round(solar_production - power_consumption_without_ignored, 2)
+    
+    if powerwall_charging_consumption > 0.0:
+        POWERWALL_CHARGING_TEXT = f"Powerwall charging: x̄{int(powerwall_charging_consumption)}W"
+    else:
+        POWERWALL_CHARGING_TEXT = ""
         
     if not manual_charging_solar_enabled():
         if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
@@ -5755,14 +5760,13 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
             ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
             if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
                 powerwall_charging_power = powerwall_max_charging_power(period=period)
+                
+                if powerwall_charging_power == 0.0 and solar_watts_available > 0.0:
+                    POWERWALL_CHARGING_TEXT = f"Powerwall not charging, even when battery level is {powerwall_battery_level}%"
+                    
                 solar_watts_available = max(solar_watts_available - powerwall_charging_power, 0.0)
             
     solar_watts_available = max(solar_watts_available, 0.0)
-    
-    if powerwall_charging_consumption > 0.0:
-        POWERWALL_CHARGING_TEXT = f"Powerwall charging: x̄{int(powerwall_charging_consumption)}W"
-    else:
-        POWERWALL_CHARGING_TEXT = ""
         
     '''if timeTo is not None:
         txt = "without" if without_all_exclusion else "with"
