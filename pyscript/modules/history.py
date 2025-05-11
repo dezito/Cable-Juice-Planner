@@ -24,26 +24,30 @@ def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
             numeric_data.append((timestamp, float_value))
         except ValueError:
             non_numeric_data[timestamp] = value  # Behold de ikke-konvertible værdier
-    
-    # Hvis der er ingen numeriske data, returnér kun de ikke-numeriske data
-    if not numeric_data:
-        return non_numeric_data
-    
-    # Adskil timestamps og værdier efter filtrering
-    existing_timestamps, existing_values = zip(*numeric_data)
-    
-    # Lav en liste med lige fordelte timestamps mellem from_time og to_time
-    timestamps = np.linspace(from_time, to_time, num_points)
-    
-    # Interpoler værdierne ved de ønskede timestamps
-    interpolated_values = np.interp(timestamps, existing_timestamps, existing_values)
-    
-    # Kombiner de nye timestamps med de interpolerede værdier som en dictionary
-    interpolated_dict = {timestamp: value for timestamp, value in zip(timestamps, interpolated_values)}
-    
-    # Tilføj de ikke-numeriske data til den interpolerede dictionary
-    interpolated_dict.update(non_numeric_data)
-    
+
+    interpolated_dict = {}
+
+    if numeric_data:
+        # Adskil timestamps og værdier efter filtrering
+        existing_timestamps, existing_values = zip(*numeric_data)
+        
+        # Lav en liste med lige fordelte timestamps mellem from_time og to_time
+        float_timestamps = np.linspace(from_time, to_time, num_points)
+        
+        # Interpoler værdierne ved de ønskede timestamps
+        interpolated_values = np.interp(float_timestamps, existing_timestamps, existing_values)
+        
+        # Konverter float timestamps til datetime og lav dictionary
+        for ts, val in zip(float_timestamps, interpolated_values):
+            dt = datetime.datetime.fromtimestamp(ts)
+            interpolated_dict[dt] = val
+
+    # Tilføj ikke-numeriske data (og konverter timestamps hvis nødvendigt)
+    for ts, val in non_numeric_data.items():
+        if isinstance(ts, (int, float)):
+            ts = datetime.datetime.fromtimestamp(ts)
+        interpolated_dict[ts] = val
+
     return interpolated_dict
 
 def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime, end_time: datetime):
@@ -51,10 +55,10 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
     start_time = dt_util.as_utc(start_time)
     end_time = dt_util.as_utc(end_time)
     
-    state_values = []
+    state_dict = {}
     
     if entity_id is None or entity_id == "" or entity_id not in state.names(domain=entity_id.split(".")[0]):
-        return state_values
+        return state_dict
     
     hist_data = hass_history.get_significant_states(
         hass = hass,
@@ -91,15 +95,13 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
         
         start_timestamp = datetime.datetime.timestamp(start_time)
         end_timestamp = datetime.datetime.timestamp(end_time)
-        interpolated_data = interpolate_sensor_data(entity_state_dict, start_timestamp, end_timestamp, 100)
-        
-        state_values = list(interpolated_data.values())
+        state_dict = interpolate_sensor_data(entity_state_dict, start_timestamp, end_timestamp, 100)
     else:
         _LOGGER.debug(f"No data found for entity_id: {entity_id}")
             
-    return state_values
+    return state_dict
 
-def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_to=None, error_state=None):
+def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_to=None, include_timestamps=False, error_state=None):
     """
     Fetches historical state values for a specified entity within a given datetime range
     from the Home Assistant API.
@@ -121,10 +123,10 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     
     history_data = fetch_history_data(hass, entity_id, from_time, to_time)
     
-    states = []
+    states = {}
 
-    if len(history_data) > 0:
-        for value in history_data:
+    if isinstance(history_data, dict):
+        for ts, value in history_data.items():
             try:
                 if value not in ["unknown", "unavailable"]:
                     if float_type is True:
@@ -133,13 +135,17 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
                         except:
                             continue
                     value = value if convert_to is None else power_convert(value, entity_id, convert_to = convert_to)
-                    states.append(value)
+                    
+                    states[ts] = value
             except:
                 pass
 
     # Calculate the average value of the entity
     if states:
-        return states
+        if include_timestamps:
+            return states
+
+        return states.values()
         
     return error_state
 
