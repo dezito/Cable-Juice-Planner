@@ -6220,34 +6220,33 @@ def get_solar_forecast():
         try:
             for ending in endings:
                 entity_id = f"{base_entity_id}_{ending}"
-                attr = get_attr(entity_id, error_state={})
-                for site in attr:
-                    site_attr = get_attr(entity_id, "detailedHourly", error_state={})
-                    for data in site_attr:
-                        date = data['period_start'].replace(tzinfo=None)
-                        
-                        if date not in hour_prices:
-                            continue
-                        
-                        watt = round(data['pv_estimate'] * 1000.0, 0)
-                                                
-                        power_consumption_without_all_exclusion = calculate_ema(reverse_list(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0]))))
-                        available = max(watt - power_consumption_without_all_exclusion, 0.0)
-                        available_kwh = round(available / 1000.0, 0)
-                        
-                        day_of_week = getDayOfWeek(date)
-                        tariff_dict = get_tariffs(date.hour, day_of_week)
-                        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
-                        systemtarif = tariff_dict["systemtarif"]
-                        tariff_sum = tariff_dict["tariff_sum"]
-                        
-                        price = hour_prices[date]
-                        raw_price = price - tariff_sum
-                        
-                        sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-                        sell_price = raw_price - sell_tariffs
-                        
-                        forecast[date] = (available_kwh, sell_price)
+                site_attr = get_attr(entity_id, "detailedHourly", error_state={})
+                
+                for data in site_attr:
+                    date = data['period_start'].replace(tzinfo=None)
+                    
+                    if date not in hour_prices:
+                        continue
+                    
+                    watt = round(data['pv_estimate'] * 1000.0, 0)
+                                            
+                    power_consumption_without_all_exclusion = calculate_ema(reverse_list(get_list_values(POWER_VALUES_DB[date.hour].get("power_consumption_without_all_exclusion", [0.0]))))
+                    available = max(watt - power_consumption_without_all_exclusion, 0.0)
+                    available_kwh = round(available / 1000.0, 3)
+                    
+                    day_of_week = getDayOfWeek(date)
+                    tariff_dict = get_tariffs(date.hour, day_of_week)
+                    transmissions_nettarif = tariff_dict["transmissions_nettarif"]
+                    systemtarif = tariff_dict["systemtarif"]
+                    tariff_sum = tariff_dict["tariff_sum"]
+                    
+                    price = hour_prices[date]
+                    raw_price = price - tariff_sum
+                    
+                    sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
+                    sell_price = raw_price - sell_tariffs
+                    
+                    forecast[date] = (available_kwh, sell_price)
         except Exception as e:
             _LOGGER.error(f"Error: {e}")
     return forecast
