@@ -3535,7 +3535,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     wh_km = round(1000 / km_kwh, 2) if km_kwh > 0.0 else 0.0
                     
                 efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
-                total['km'][month] = [total['km'][month], f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
+                total['km'][month] = [total['km'][month], f"{'~' if estimated_km > 0.0 else ''}{int(round(total['km'][month], 0))}", efficiency_label]
         else:
             for month in total['km']:
                 if month == "total":
@@ -3553,15 +3553,16 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             history.append("<details>")
             history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
             
-            solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
+            solar_header = f"<br>({emoji_parse({'solar': True})})" if solar_in_months else ""
             km_header = "Km" if total['km']["total"] > 0.0 else ""
             km_kwh_header = "Km/kWh<br>(Wh/km)" if total['km']["total"] > 0.0 else ""
             history.extend([
-                f"| Måned | {km_header} | {km_kwh_header} | kWh | {solar_header} | Pris | Kr/kWh<br>(Kr/Km) |",
-                "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+                f"| Måned | {km_header} | {km_kwh_header} | kWh{solar_header} | Pris | Kr/kWh<br>(Kr/Km) |",
+                "|:---:|:---:|:---:|:---:|:---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
+            i = 0
             for month in sorted(datetime_keys):
                 solar_kwh = ""
                 solar_percentage = ""
@@ -3569,13 +3570,17 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 if total['solar_kwh'][month] > 0.0 and total['kwh'][month] > 0.0:
                     total_solar_percentage = round(total['solar_kwh'][month] / total['kwh'][month] * 100.0, 1)
                     
-                    solar_kwh = round(total['solar_kwh'][month], 1)
-                    solar_percentage = f" ({round(total_solar_percentage, 1)}%)"
+                    solar_kwh = f"<br>({round(total['solar_kwh'][month], 1)})"
+                    solar_percentage = f"<br>({round(total_solar_percentage, 1)}%)"
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 unit_string = f"{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
                 
-                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month][1]} | {total['km'][month][2]} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_string} |")
+                background_color_start = "<font color=grey>" if i % 2 == 0 else ""
+                background_color_end = "</font>" if i % 2 == 0 else ""
+                
+                history.append(f"| {background_color_start}{month.strftime('%B')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{solar_kwh}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{background_color_end} | {background_color_start}{unit_string}{background_color_end} |")
+                i += 1
             
             total_solar = ""
             if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
