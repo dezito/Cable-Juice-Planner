@@ -6352,7 +6352,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             for hour in CHARGE_HOURS['expensive_hours']:
                 expensive_hours.append(hour.hour)
             
-        from_hour = sunrise if day > 0 else max(sunrise, getHour())
+        current_hour = getHour()
+        from_hour = sunrise if day > 0 else max(sunrise, current_hour)
         to_hour = sunset
         
         work_last_charging = None
@@ -6384,9 +6385,11 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     loop_power = []
                     loop_sell = []
                     
+                    current_hour_factor = 1.0 if from_hour != current_hour else abs((getMinute() / 60.0) - 1)
+                    
                     if cloudiness is not None:
                         power_factor = 0.5 if loop_datetime in solar_forecast_from_integration else 1.0
-                        power_factor = 1.0
+                        power_factor *= current_hour_factor
                         power_cost = get_power(cloudiness, loop_datetime)
                         loop_power.append(power_cost[0] * power_factor)
                         loop_sell.append(power_cost[1] * power_factor)
@@ -6395,6 +6398,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     
                     if loop_datetime in solar_forecast_from_integration:
                         power_factor = 1.5 if cloudiness is not None else 1.0
+                        power_factor *= current_hour_factor
                         loop_power.append(solar_forecast_from_integration[loop_datetime][0] * power_factor)
                         loop_sell.append(solar_forecast_from_integration[loop_datetime][1] * power_factor)
                         total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
