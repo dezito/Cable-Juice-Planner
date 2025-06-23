@@ -1,4 +1,4 @@
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 import aiofiles
 import asyncio
 import json
@@ -60,6 +60,27 @@ async def file_exists(filename=None):
     except Exception as error:
         _LOGGER.error(f"Error checking if {filename} exists: {error}")
         return False
+    
+async def get_file_modification_time(filename=None):
+    """
+    Gets the last modification time of a file asynchronously.
+
+    Parameters:
+    - filename (str): The path to the file.
+
+    Returns:
+    - float: The last modification time as a timestamp, or None if an error occurs.
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("get_file_modification_time")
+    filename = _add_config_folder_path(filename)
+    
+    if file_exists(filename):
+        try:
+            mod_time = os.path.getmtime(filename)
+            return mod_time
+        except Exception as error:
+            _LOGGER.error(f"Error getting modification time for {filename}: {error}")
+            return None
 
 async def load_json(filename=None):
     """
