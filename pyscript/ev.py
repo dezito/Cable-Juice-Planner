@@ -5525,8 +5525,11 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         _LOGGER.info(f"TESTING not setting chargers charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
         return
     
-    integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
     try:
+        integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
+            
+        if not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
+            raise Exception(f"Ev charger integration ({integration}) unavailable: {CONFIG['charger']['entity_ids']['status_entity_id']}")
         
         if integration == "easee":
             charger_id = get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id", error_state=None)
@@ -5580,19 +5583,22 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             _LOGGER.error(error_message)
             save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
             my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
-    finally:
-        try:
-            if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
-                max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
-                current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
-                if current_amps == 0.0:
-                    _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
-                    ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
-        except Exception as e:
-            error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
-            _LOGGER.warning(error_message)
-            save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
-            my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
+    
+    try:
+        if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
+            if not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
+                raise Exception(f"Ev charging amps entity unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
+            
+            max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
+            current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
+            if current_amps == 0.0:
+                _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
+                ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
+    except Exception as e:
+        error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
+        _LOGGER.warning(error_message)
+        save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
             
             
     if successful:
