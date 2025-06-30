@@ -3585,7 +3585,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             total_solar = ""
             if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
                 total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
-                total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
+                total_solar = f"<br>**({round(total['solar_kwh']['total'], 1)})**<br>**({round(total_solar_percentage, 1)}%)**"
                 
             km_kwh = 0.0
             wh_km = 0.0
@@ -3595,11 +3595,11 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 wh_km = round(1000 / km_kwh, 2)
             efficiency_label = f"**{km_kwh:.1f}<br>({wh_km:.1f})**" if km_kwh > 0.0 else ""
             
-            total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
+            total_km = f"**{round(total['km']['total'],1)}**" if total['km']['total'] > 0.0 else ""
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
-            unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']["total"],2):.2f})" if total['km']["total"] > 0.0 else f"{unit_price:.2f}"
+            unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']["total"],2):.2f})" if total['km']['total'] > 0.0 else f"{unit_price:.2f}"
             
-            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_string}** |")
+            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']["total"],1)}**{total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_string}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
