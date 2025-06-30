@@ -16,6 +16,7 @@ except:
 from filesystem import (
     get_config_folder,
     file_exists,
+    get_file_modification_time,
     create_yaml,
     load_yaml,
     save_yaml)
@@ -123,6 +124,8 @@ EV_PLUGGED_STATES = ("on", "open", "plugged", "connect", "connected", "plugged_w
 EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected")
 
 CONFIG = {}
+CONFIG_LAST_MODIFIED = None
+
 POWER_VALUES_DB = {}
 POWER_VALUES_DB_VERSION = 1.0
 
@@ -1204,6 +1207,7 @@ def get_debug_info_sections():
                 "SOLAR_CONFIGURED": SOLAR_CONFIGURED,
                 "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
                 "EV_CONFIGURED": EV_CONFIGURED,
+                "CONFIG_LAST_MODIFIED": CONFIG_LAST_MODIFIED,
             },
             "details": {"CONFIG": CONFIG},
         },
@@ -1780,7 +1784,7 @@ def restart_script():
 
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
-    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
+    global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
@@ -1885,7 +1889,8 @@ def init():
     _LOGGER.info(welcome())
     try:
         CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
-        
+        CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
+
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
         
         set_charging_rule(f"📟Indlæser konfigurationen")
