@@ -2156,7 +2156,7 @@ def get_completed_battery_level():
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
-        raise Exception("Not emulated ev")
+        return 100.0
     except Exception as e:
         _LOGGER.warning(f"Using default charge completed battery level 100.0: {e}")
         return 100.0
