@@ -2230,6 +2230,35 @@ def get_ultra_cheap_grid_charging_max_battery_level():
         _LOGGER.warning(f"Cant get ultra cheap grid charging max battery level, using config data {CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']}: {e}")
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
+def get_powerwall_discharge_above_needed():
+    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_discharge_above_needed")
+    try:
+        state = get_state(f"input_boolean.{__name__}_powerwall_discharge_above_needed", float_type=False, error_state="off")
+        return True if state == "on" else False
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall discharge above needed state from input_boolean.{__name__}_powerwall_discharge_above_needed entity: {e}")
+
+def get_powerwall_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_battery_level")
+    try:
+        return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True))
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e}")
+        return 100.0
+get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True, error_state=100.0)
+
+def get_ev_charge_after_powerwall_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_ev_charge_after_powerwall_battery_level")
+    try:
+        return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True))
+    except Exception as e:
+        try:
+            _LOGGER.warning(f"Cant get ev charge after powerwall battery level, using config data {CONFIG['solar']['ev_charge_after_powerwall_battery_level']}: {e}")
+            return float(CONFIG['solar']['ev_charge_after_powerwall_battery_level'])
+        except Exception as e:
+            _LOGGER.error(f"Failed to get ev charge after powerwall battery level from config: {e}")
+            return 100.0
+
 def get_completed_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("get_completed_battery_level")
     try:
