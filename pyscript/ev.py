@@ -6934,15 +6934,20 @@ def charging_without_rule():
     power = get_state(entity_id, float_type=True, error_state=0.0)
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
+    trigger_count = 3
+    
     if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
-        if CHARGING_NO_RULE_COUNT > 4:
+        if CHARGING_NO_RULE_COUNT > 0:
+            stop_charging()
+        
+        if CHARGING_NO_RULE_COUNT > trigger_count:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
                 
-            set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
-            _LOGGER.warning("Charging without rule")
+            set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund {int(power_avg)}W")
+            _LOGGER.warning(f"Charging without rule for {entity_id} power: {power}W, power_avg: {power_avg}W {CHARGING_NO_RULE_COUNT} times")
             
-            if CHARGING_NO_RULE_COUNT == 5:
+            if CHARGING_NO_RULE_COUNT == trigger_count + 1:
                 unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
                 if unavailable_entities:
@@ -6952,8 +6957,14 @@ def charging_without_rule():
                     unavailable_entities_str += f"\n- {entity}"
                 my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{unavailable_entities_str}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
             
-            stop_charging()
+            integration = get_integration(entity_id)
+            
+            if integration:
+                my_persistent_notification(message = f"⛔Entity \"{entity_id}\" lader uden grund\nGenstarter {integration.capitalize()}", title = f"{TITLE} Elbilen lader uden grund", persistent_notification_id = f"{__name__}_charging_without_rule_{entity_id}")
+                reload_entity_integration(entity_id)
+            
             return True
+
         CHARGING_NO_RULE_COUNT += 1
     else:
         CHARGING_NO_RULE_COUNT = 0
