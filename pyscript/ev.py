@@ -649,8 +649,13 @@ DEFAULT_ENTITIES = {
       },
       f"{__name__}_calculate_charging_loss":{
           "name":"Beregn ladetab",
+          "icon": "mdi:battery-sync"
+      },
+      f"{__name__}_powerwall_discharge_above_needed":{
+          "name":"Powerwall afladning over behov til elbil",
           "icon": "mdi:power-plug-battery"
-      }
+      },
+      
    },
    "input_number":{
       f"{__name__}_co2_emitted":{
