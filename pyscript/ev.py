@@ -1961,6 +1961,16 @@ def init():
                     key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "solar" not in key
                 }
         
+        if not is_powerwall_configured() and not CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']:
+            keys_to_remove = [
+                f"{__name__}_powerwall_discharge_above_needed",
+                f"{__name__}_ev_charge_after_powerwall_battery_level"
+            ]
+
+            for key in keys_to_remove:
+                DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
+                DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+        
         handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
