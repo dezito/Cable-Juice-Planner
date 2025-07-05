@@ -435,6 +435,7 @@ DEFAULT_CONFIG = {
             "powerwall_battery_level_entity_id": "",
             "ignore_consumption_from_entity_ids": []
         },
+        "power_consumption_entity_id_include_powerwall_charging": False,
         "power_consumption_entity_id_include_powerwall_discharging": False,
         "invert_powerwall_watt_flow_entity_id": False
     },
@@ -463,7 +464,10 @@ DEFAULT_CONFIG = {
         "charging_three_phase_min_amp": 5.0,
         "production_price": -1.00,
         "ev_charge_after_powerwall_battery_level": 0.0,
-        "powerwall_charging_power_limit": 5000.0
+        "powerwall_battery_size": 10.0,
+        "inverter_discharging_power_limit": 5000.0,
+        "powerwall_charging_power_limit": 5000.0,
+        "powerwall_discharging_power": 5000.0,
     },
     "testing_mode": False
 }
