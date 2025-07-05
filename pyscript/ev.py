@@ -2086,8 +2086,43 @@ def emoji_text_format(text, group_size=3):
     return '<br>'.join(grouped_text)
 
 def set_default_entity_states():
+    _LOGGER = globals()['_LOGGER'].getChild("set_default_entity_states")
     set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
     set_attr(f"sensor.{__name__}_overview.overview", "<center>\n\n**Ingen oversigt endnu**\n\n</center>")
+    
+    entity_dict = {
+        f"input_number.{__name__}_typical_daily_distance": CONFIG['ev_car']['typical_daily_distance_non_working_day'],
+        f"input_number.{__name__}_workday_distance_needed_monday": CONFIG['ev_car']['workday_distance_needed_monday'],
+        f"input_number.{__name__}_workday_distance_needed_tuesday": CONFIG['ev_car']['workday_distance_needed_tuesday'],
+        f"input_number.{__name__}_workday_distance_needed_wednesday": CONFIG['ev_car']['workday_distance_needed_wednesday'],
+        f"input_number.{__name__}_workday_distance_needed_thursday": CONFIG['ev_car']['workday_distance_needed_thursday'],
+        f"input_number.{__name__}_workday_distance_needed_friday": CONFIG['ev_car']['workday_distance_needed_friday'],
+        f"input_number.{__name__}_workday_distance_needed_saturday": CONFIG['ev_car']['workday_distance_needed_saturday'],
+        f"input_number.{__name__}_workday_distance_needed_sunday": CONFIG['ev_car']['workday_distance_needed_sunday'],
+        f"input_number.{__name__}_min_daily_battery_level": CONFIG['ev_car']['min_daily_battery_level'],
+        f"input_number.{__name__}_min_trip_battery_level": CONFIG['ev_car']['min_trip_battery_level'],
+        f"input_number.{__name__}_min_charge_limit_battery_level": CONFIG['ev_car']['min_charge_limit_battery_level'],
+        f"input_number.{__name__}_max_recommended_charge_limit_battery_level": CONFIG['ev_car']['max_recommended_charge_limit_battery_level'],
+        f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'],
+        f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'],
+        f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": CONFIG['solar']['ev_charge_after_powerwall_battery_level'],
+        f"input_number.{__name__}_solar_sell_fixed_price": CONFIG['solar']['production_price']
+    }
+    
+    for entity_id, value in entity_dict.items():
+        try:
+            if not is_entity_configured(entity_id):
+                continue
+            
+            if not is_entity_available(entity_id):
+                raise Exception(f"Entity {entity_id} not available cant set state")
+
+            if str(get_state(entity_id, float_type=False, error_state=None)) != str(value):
+                _LOGGER.info(f"Setting {entity_id} to {value}")
+
+            set_state(entity_id, value)
+        except Exception as e:
+            _LOGGER.error(f"Error setting {entity_id} to {value}: {e}")
 
 def weather_values():
     output = []
