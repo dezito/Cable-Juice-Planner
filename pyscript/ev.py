@@ -305,6 +305,16 @@ CHARGING_TYPES = {
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
     },
+    "powerwall": {
+        "priority": 11.1,
+        "emoji": "🛢️",
+        "description": "Ladning fra Powerwall"
+    },
+    "powerwall_avg_symbol": {
+        "priority": 11.2,
+        "emoji": "x̄",
+        "description": "Gennemsnitlig ladning af Powerwall"
+    },
     "battery_stored": {
         "priority": 12,
         "emoji": "🔋",
