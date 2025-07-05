@@ -1699,6 +1699,7 @@ def create_integration_dict():
     _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
 
 def reload_entity_integration(entity_id):
+    _LOGGER = globals()['_LOGGER'].getChild("reload_entity_integration")
     global ENTITY_INTEGRATION_DICT
     
     integration = get_integration(entity_id)
@@ -1708,6 +1709,8 @@ def reload_entity_integration(entity_id):
     
     if integration not in ENTITY_INTEGRATION_DICT["last_reload"] or minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
+        
+        _LOGGER.warning(f"Reloading integration {integration} for entity {entity_id}")
         reload_integration(entity_id)
         
 def reset_counter_entity_integration():
