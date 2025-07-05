@@ -7972,33 +7972,36 @@ if INITIALIZATION_COMPLETE:
         stop_current_charging_session()
         reset_counter_entity_integration()
         
-        try:
-            CONFIG = load_yaml(f"{__name__}_config")
-            CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
-            CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
-            CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
-            CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance("wednesday")
-            CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance("thursday")
-            CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance("friday")
-            CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance("saturday")
-            CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance("sunday")
-                             
-            CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
-            CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
-            CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
-            CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
-            CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
-            CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
+        if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
+            try:
+                CONFIG = load_yaml(f"{__name__}_config")
+                CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
+                CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
+                CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
+                CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance("wednesday")
+                CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance("thursday")
+                CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance("friday")
+                CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance("saturday")
+                CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance("sunday")
+                                
+                CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
+                CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
+                CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
+                CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
+                CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
+                CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
+                CONFIG['solar']['ev_charge_after_powerwall_battery_level'] = get_ev_charge_after_powerwall_battery_level()
+                
+                if is_solar_configured():
+                    CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+                
+                save_changes(f"{__name__}_config", CONFIG)
+            except Exception as e:
+                _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
+                my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
+        else:
+            _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
             
-            if is_solar_configured():
-                CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
-            
-            save_changes(f"{__name__}_config", CONFIG)
-        except Exception as e:
-            _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
-            
-
 @state_trigger(f"input_button.{__name__}_restart_script")
 def restart(trigger_type=None, var_name=None, value=None, old_value=None):
     _LOGGER = globals()['_LOGGER'].getChild("restart")
