@@ -867,7 +867,15 @@ DEFAULT_ENTITIES = {
           "step": 1,
           "unit_of_measurement": "dag(e)",
           "icon": "mdi:battery-heart"
-      }
+      },
+      f"{__name__}_ev_charge_after_powerwall_battery_level":{
+          "name":"Oplad elbil efter Powerwall minimum batteriniveau",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit_of_measurement": "%",
+          "icon": "mdi:percent-outline"
+      },
    },
    "input_datetime":{
       f"{__name__}_workday_departure_monday":{
