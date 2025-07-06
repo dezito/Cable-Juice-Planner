@@ -7,11 +7,25 @@ YELLOW="\e[33m"
 BLUE="\e[34m"
 RED="\e[31m"
 
-# Determine REPO_DIR based on the existence of /config
+# Forsøg først at bruge den normale sti
 if [ -d "/config" ]; then
   REPO_DIR="/config"
 else
-  REPO_DIR="/mnt/data/supervisor/homeassistant"
+  echo "🔍 Søger efter Home Assistant-mappe..."
+  # Find alle forekomster af .HA_VERSION under /mnt
+  while IFS= read -r HA_FILE; do
+    DIR_PATH=$(dirname "$HA_FILE")
+    if [ -f "$DIR_PATH/configuration.yaml" ]; then
+      REPO_DIR="$DIR_PATH"
+      break
+    fi
+  done < <(find /mnt -type f -name ".HA_VERSION" 2>/dev/null)
+
+  # Hvis intet blev fundet
+  if [ -z "$REPO_DIR" ]; then
+    echo "Kunne ikke finde en Home Assistant-mappe med både .HA_VERSION og configuration.yaml."
+    exit 1
+  fi
 fi
 
 # Function to prompt for yes/no or y/n
