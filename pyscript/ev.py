@@ -1523,50 +1523,75 @@ def save_error_to_file(error_message, caller_function_name = None):
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     
-def is_charger_configured():
+def is_charger_configured(cfg = None):
+    _LOGGER = globals()['_LOGGER'].getChild("is_charger_configured")
     global CHARGER_CONFIGURED
     
+    def check_criteria(cfg):
+        if (cfg['charger']['entity_ids']['kwh_meter_entity_id'] and
+            cfg['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and
+            cfg['charger']['entity_ids']['power_consumtion_entity_id'] and
+            cfg['charger']['entity_ids']['status_entity_id']):
+            return True
+        return False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if CHARGER_CONFIGURED is None:
-        if (CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and
-            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and
-            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and
-            CONFIG['charger']['entity_ids']['status_entity_id']):
-            CHARGER_CONFIGURED = True
-        else:
-            CHARGER_CONFIGURED = False
+        CHARGER_CONFIGURED = check_criteria(CONFIG)
+        _LOGGER.info(f"Charger entity is {'' if CHARGER_CONFIGURED else 'not '}configured")
             
     return CHARGER_CONFIGURED
 
-def is_solar_configured():
+def is_solar_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_solar_configured")
     global SOLAR_CONFIGURED
     
+    def check_criteria(cfg):
+        return True if cfg['solar']['entity_ids']['production_entity_id'] else False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if SOLAR_CONFIGURED is None:
-        SOLAR_CONFIGURED = True if CONFIG['solar']['entity_ids']['production_entity_id'] else False
+        SOLAR_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Solar entity is {'' if SOLAR_CONFIGURED else 'not '}configured")
     
     return SOLAR_CONFIGURED
         
-def is_powerwall_configured():
+def is_powerwall_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_configured")
     global POWERWALL_CONFIGURED
     
+    def check_criteria(cfg):
+        return True if cfg['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if POWERWALL_CONFIGURED is None:
-        POWERWALL_CONFIGURED = True if CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
+        POWERWALL_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Powerwall entity is {'' if POWERWALL_CONFIGURED else 'not '}configured")
     
     return POWERWALL_CONFIGURED
 
-def is_ev_configured():
+def is_ev_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
     global EV_CONFIGURED
+    
+    def check_criteria(cfg):
+        if (cfg['ev_car']['entity_ids']['odometer_entity_id'] and
+            cfg['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
+            cfg['ev_car']['entity_ids']['usable_battery_level_entity_id']):
+            return True
+        return False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if EV_CONFIGURED is None:
-        if (CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id']):
-            EV_CONFIGURED = True
-        else:
-            EV_CONFIGURED = False
+        EV_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Ev entities is {'' if EV_CONFIGURED else 'not '}configured")
     
     return EV_CONFIGURED
