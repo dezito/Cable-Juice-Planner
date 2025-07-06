@@ -1913,6 +1913,72 @@ def restart_script():
     if service.has_service("pyscript", "reload"):
         service.call("pyscript", "reload", blocking=True, global_ctx=f"file.{__name__}")
 
+def notify_critical_change(cfg = {}, filename = None):
+    _LOGGER = globals()['_LOGGER'].getChild("notify_critical_change")
+    
+    def check_nested_keys_exist(cfg, dotted_keys):
+        missing_keys = []
+        for dotted_key in dotted_keys:
+            keys = dotted_key.split(".")
+            current = cfg
+            for key in keys:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    missing_keys.append(dotted_key)
+                    break
+        return missing_keys
+    
+    def keys_description(keys):
+        description = []
+        
+        for key in keys:
+            description.append(f"**{key}**\n{COMMENT_DB_YAML.get(key, '')}\n\n")
+        return description
+    
+    if filename == f"{__name__}_config.yaml":
+        powerwall_update_new_keys = [
+            "home.power_consumption_entity_id_include_powerwall_charging",
+            "solar.powerwall_battery_size",
+            "solar.inverter_discharging_power_limit",
+            "solar.powerwall_discharging_power",
+        ]
+        powerwall_update_missing_keys = check_nested_keys_exist(cfg, powerwall_update_new_keys)
+        
+        if is_powerwall_configured(cfg) and powerwall_update_missing_keys:
+            _LOGGER.warning(f"Powerwall configuration update required: {powerwall_update_missing_keys}")
+                
+            my_persistent_notification(
+                message = f"## Vigtigt\n\n"
+                        f"Der er sket en kritisk ændring i konfigurationen, som kræver opdatering af din {__name__}_config.yaml fil.\n\n"
+                        f"### Nye konfigurations nøgler:\n - {'- '.join(keys_description(powerwall_update_missing_keys))}\n\n"
+                        f"**Handling:**\n"
+                        f"Opdater venligst din konfiguration i {__name__}_config.yaml filen.\n",
+                title = f"{TITLE} Kritisk ændring i konfiguration",
+                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_update_required"
+            )
+            
+    if filename == f"packages/{__name__}.yaml":
+        powerwall_update_new_entities = [
+            f"input_boolean.{__name__}_powerwall_discharge_above_needed",
+            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level",
+        ]
+        powerwall_update_missing_entities = check_nested_keys_exist(cfg, powerwall_update_new_entities)
+        
+        if is_powerwall_configured(CONFIG) and powerwall_update_missing_entities:
+            _LOGGER.warning(f"Powerwall entities update required: {powerwall_update_missing_entities}")
+            
+            my_persistent_notification(
+                message = f"## Vigtigt\n\n"
+                        f"Nye entiteter er blevet tilføjet\n"
+                        f"Læs mere om dem i entitiens beskrivelse.\n\n"
+                        f"### Nye entiteter:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
+                        f"**Handling:**\n"
+                        f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
+                title = f"{TITLE} Kritisk ændring i entiteter",
+                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_entities_update_required"
+            )
+
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
     global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
@@ -1937,8 +2003,10 @@ def init():
         if not content:
             raise Exception(f"Failed to load {file_path}")
 
+        notify_critical_change(cfg = content, filename = file_path)
+
         updated, content = update_dict_with_new_keys(content, default_content)
-        if updated:
+        if updated or file_path == f"{__name__}_config.yaml":
             '''if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True'''
             save_yaml(file_path, content, comment_db)
