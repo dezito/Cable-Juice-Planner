@@ -16,6 +16,7 @@ except:
 from filesystem import (
     get_config_folder,
     file_exists,
+    get_file_modification_time,
     create_yaml,
     load_yaml,
     save_yaml)
@@ -123,6 +124,8 @@ EV_PLUGGED_STATES = ("on", "open", "plugged", "connect", "connected", "plugged_w
 EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected")
 
 CONFIG = {}
+CONFIG_LAST_MODIFIED = None
+
 POWER_VALUES_DB = {}
 POWER_VALUES_DB_VERSION = 1.0
 
@@ -302,6 +305,16 @@ CHARGING_TYPES = {
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
     },
+    "powerwall": {
+        "priority": 11.1,
+        "emoji": "🛢️",
+        "description": "Ladning fra Powerwall"
+    },
+    "powerwall_avg_symbol": {
+        "priority": 11.2,
+        "emoji": "x̄",
+        "description": "Gennemsnitlig ladning af Powerwall"
+    },
     "battery_stored": {
         "priority": 12,
         "emoji": "🔋",
@@ -422,6 +435,7 @@ DEFAULT_CONFIG = {
             "powerwall_battery_level_entity_id": "",
             "ignore_consumption_from_entity_ids": []
         },
+        "power_consumption_entity_id_include_powerwall_charging": False,
         "power_consumption_entity_id_include_powerwall_discharging": False,
         "invert_powerwall_watt_flow_entity_id": False
     },
@@ -450,7 +464,10 @@ DEFAULT_CONFIG = {
         "charging_three_phase_min_amp": 5.0,
         "production_price": -1.00,
         "ev_charge_after_powerwall_battery_level": 0.0,
-        "powerwall_charging_power_limit": 5000.0
+        "powerwall_battery_size": 10.0,
+        "inverter_discharging_power_limit": 5000.0,
+        "powerwall_charging_power_limit": 5000.0,
+        "powerwall_discharging_power": 5000.0,
     },
     "testing_mode": False
 }
@@ -461,564 +478,653 @@ CONFIG_KEYS_RENAMING = {# Old path: New path (seperated by ".")
 }
 
 COMMENT_DB_YAML = {
-    "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
     "first_run": "**Required** After editing the file set this to false",
     "cron_interval": "**Required** Interval between state check and function runs",
-    "wake_up_entity_id": "Force wake up (Leave blank if using Hyundai-Kia-Connect, using wake up serive instead)",
-    "climate_entity_id": "Used to preheat ev",
-    "odometer_entity_id": "**Required**",
-    "estimated_battery_range_entity_id": "**Required** Must precise battery range",
-    "usable_battery_level_entity_id": "**Required** Must precise battery level",
-    "charge_port_door_entity_id": f"Used to determine if ev charge port is open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "charge_cable_entity_id": f"Used to determine if ev is connected to charger (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "charge_switch_entity_id": "Start/stop charging on EV",
-    "charging_limit_entity_id": "Setting charging battery limit on EV",
-    "charging_amps_entity_id": "Setting charging amps on EV",
-    "location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
-    "last_update_entity_id": "Used to determine sending wake up call",
-    "battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
-    "min_daily_battery_level": "**Required** Also editable via WebGUI",
-    "min_trip_battery_level": "**Required** Also editable via WebGUI",
-    "min_charge_limit_battery_level": "**Required** Also editable via WebGUI",
-    "max_recommended_charge_limit_battery_level": "**Required** Also editable via WebGUI",
-    "very_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
-    "ultra_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
-    "typical_daily_distance_non_working_day": "**Required** Also editable via WebGUI",
-    "status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
-    "power_consumtion_entity_id": "**Required** Charging power in Watt",
-    "kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
-    "lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
-    "enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
-    "dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
-    "co2_entity_id": "Energi Data Service CO2 entity_id",
-    "cable_connected_entity_id": f"If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
-    "start_stop_charging_entity_id": "If using other integration than Easee to start stop charging, like Monta",
-    "power_voltage": "**Required** Grid power voltage",
-    "charging_phases": "**Required** Phases available for the ev",
-    "charging_max_amp": "**Required** Maximum amps for the ev",
-    "charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
-    "power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
-    "powerwall_watt_flow_entity_id": "Powerwall watt flow (Tip: Disable powerwall discharging when ev charging) (Entity setup plus value for discharging, negative for charging)",
-    "invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
-    "power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity), not grid power consumption",
-    "powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar. Set ev_charge_after_powerwall_battery_level to 0.0 to disable",
-    "ev_charge_after_powerwall_battery_level": "Solar charge ev after powerwall battery level (max value 99.0). Requires powerwall_battery_level_entity_id",
-    "powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
-    "ignore_consumption_from_entity_ids": "List of power sensors to ignore",
+    "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
+    "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
+    "charger.entity_ids.power_consumtion_entity_id": "**Required** Charging power in Watt",
+    "charger.entity_ids.kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
+    "charger.entity_ids.lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
+    "charger.entity_ids.enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
+    "charger.entity_ids.dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
+    "charger.entity_ids.co2_entity_id": "Energi Data Service CO2 entity_id",
+    "charger.entity_ids.cable_connected_entity_id": f"If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
+    "charger.entity_ids.start_stop_charging_entity_id": "If using other integration than Easee to start stop charging, like Monta",
+    "charger.power_voltage": "**Required** Grid power voltage",
+    "charger.charging_phases": "**Required** Phases available for the ev",
+    "charger.charging_max_amp": "**Required** Maximum amps for the ev",
+    "charger.charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
+    "database.power_values_db_data_to_save": "Days back to save power values",
+    "database.solar_available_db_data_to_save": "Amount to save, per cloud coverage density",
+    "database.kwh_avg_prices_db_data_to_save": "Amount to save",
+    "database.drive_efficiency_db_data_to_save": "Amount to save",
+    "database.km_kwh_efficiency_db_data_to_save": "Amount to save",
+    "database.charging_history_db_data_to_save": "Save X month back",
+    "ev_car": "EV car configuration",
+    "ev_car.entity_ids": "Entity IDs used by the EV car",
+    "ev_car.entity_ids.wake_up_entity_id": "Force wake up (Leave blank if using Hyundai-Kia-Connect, using wake up serive instead)",
+    "ev_car.entity_ids.climate_entity_id": "Used to preheat ev",
+    "ev_car.entity_ids.odometer_entity_id": "**Required**",
+    "ev_car.entity_ids.estimated_battery_range_entity_id": "**Required** Must precise battery range",
+    "ev_car.entity_ids.usable_battery_level_entity_id": "**Required** Must precise battery level",
+    "ev_car.entity_ids.charge_port_door_entity_id": f"Used to determine if ev charge port is open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
+    "ev_car.entity_ids.charge_cable_entity_id": f"Used to determine if ev is connected to charger (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
+    "ev_car.entity_ids.charge_switch_entity_id": "Start/stop charging on EV",
+    "ev_car.entity_ids.charging_limit_entity_id": "Setting charging battery limit on EV",
+    "ev_car.entity_ids.charging_amps_entity_id": "Setting charging amps on EV",
+    "ev_car.entity_ids.location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
+    "ev_car.entity_ids.last_update_entity_id": "Used to determine sending wake up call",
+    "ev_car.battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
+    "ev_car.min_daily_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.min_trip_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.min_charge_limit_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.max_recommended_charge_limit_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.very_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.ultra_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
+    "ev_car.typical_daily_distance_non_working_day": "**Required** Also editable via WebGUI",
+    "forecast.entity_ids.hourly_service_entity_id": "**Required if using solar** hourly forecast entity_id",
+    "forecast.entity_ids.daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
+    "forecast.entity_ids.outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
+    "home.entity_ids.power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
+    "home.entity_ids.powerwall_watt_flow_entity_id": "Powerwall watt flow (Tip: Disable powerwall discharging when ev charging) (Entity setup plus value for discharging, negative for charging)",
+    "home.entity_ids.powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar with ev_charge_after_powerwall_battery_level",
+    "home.entity_ids.ignore_consumption_from_entity_ids": "List of power sensors to ignore",
+    "home.power_consumption_entity_id_include_powerwall_charging": "Home power consumption include powerwall charging (Watt entity)",
+    "home.power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity)",
+    "home.invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
+    "notification.efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
+    "notification.update_available": "Notification of new version available at midnight and on script start",
+    "notification.preheating": "Notification of preheating start/stop",
     "notify_list": "List of users to send notifications",
-    "forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
-    "production_entity_id": "Solar power production Watt",
-    "solarpower_use_before_minutes": "Minutes back you can use solar overproduction available (Solar charging can exceed available power to use all excess energy)",
-    "max_to_current_hour": "Must use solar overproduction available in current hour (Solar charging can exceed available power to use all excess energy)",
-    "allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
-    "charging_single_phase_min_amp": "Minimum allowed amps the car can charge, to disable single phase charging set to 0",
-    "charging_single_phase_max_amp": "Maximum allowed amps the car can charge, to disable single phase charging set to 0",
-    "charging_three_phase_min_amp": "Minimum allowed amps the car can charge, uses charger.charging_phases config for max",
-    "production_price": "Set to -1.0 if using raw hour sell price, also editable via WebGUI",
-    "power_prices_entity_id": "**Required** Energi Data Service price entity_id",
-    "hourly_service_entity_id": "**Required if using solar** hourly forecast entity_id",
-    "daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
-    "outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
-    "power_values_db_data_to_save": "Days back to save power values",
-    "solar_available_db_data_to_save": "Amount to save, per cloud coverage density",
-    "kwh_avg_prices_db_data_to_save": "Amount to save",
-    "drive_efficiency_db_data_to_save": "Amount to save",
-    "km_kwh_efficiency_db_data_to_save": "Amount to save",
-    "charging_history_db_data_to_save": "Save X month back",
-    "refund": "Refund amount given by the state/country/nation/energy-provider",
-    "efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
-    "update_available": "Notification of new version available at midnight and on script start",
-    "preheating": "Notification of preheating start/stop",
+    "prices.entity_ids.power_prices_entity_id": "**Required** Energi Data Service price entity_id",
+    "prices.refund": "Refund amount given by the state/country/nation/energy-provider",
+    "solar.entity_ids.production_entity_id": "Solar power production Watt",
+    "solar.entity_ids.forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
+    "solar.solarpower_use_before_minutes": "Minutes back you can use solar overproduction available (Solar charging can exceed available power to use all excess energy)",
+    "solar.max_to_current_hour": "Must use solar overproduction available in current hour (Solar charging can exceed available power to use all excess energy)",
+    "solar.allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
+    "solar.charging_single_phase_min_amp": "Minimum allowed amps the car can charge, to disable single phase charging set to 0",
+    "solar.charging_single_phase_max_amp": "Maximum allowed amps the car can charge, to disable single phase charging set to 0",
+    "solar.charging_three_phase_min_amp": "Minimum allowed amps the car can charge, uses charger.charging_phases config for max",
+    "solar.production_price": "Set to -1.0 if using raw hour sell price, also editable via WebGUI",
+    "solar.ev_charge_after_powerwall_battery_level": f"Solar charge ev after powerwall battery level, editable via input_number.{__name__}_ev_charge_after_powerwall_battery_level entity also. Set to 0.0 to disable. **Requires** powerwall_battery_level_entity_id",
+    "solar.powerwall_battery_size": "Powerwall battery size (kWh)",
+    "solar.inverter_discharging_power_limit": "Inverter discharging power limit (Watt)",
+    "solar.powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
+    "solar.powerwall_discharging_power": f"Powerwall discharging power (Watt), used to charge ev from powerwall, when powerwall battery level is above ev_charge_after_powerwall_battery_level and input_boolean.{__name__}_powerwall_discharge_above_needed is on",
 }
 
 DEFAULT_ENTITIES = {
-   "input_button":{
-       f"{__name__}_trip_reset":{
-           "name":"Nulstil tur ladning",
-           "icon":"mdi:restore"
-      },
-      f"{__name__}_enforce_planning":{
-          "name":"Gennemtving planlægning",
-          "icon":"mdi:calendar-refresh"
-      },
-      f"{__name__}_restart_script":{
-          "name":"Genstart scriptet",
-          "icon":"mdi:restart"
-      }
-   },
-   "input_boolean":{
-      f"{__name__}_debug_log":{
-          "name":f"{__name__}.py debug log",
-          "icon":"mdi:math-log"
-      },
-      f"{__name__}_forced_charging_daily_battery_level":{
-          "name":"Tvangsladning under daglig batteri niveau",
-          "icon":"mdi:battery-charging-low"
-      },
-      f"{__name__}_allow_manual_charging_now":{
-          "name":"Tillad manuel ladning nu"
-      },
-      f"{__name__}_allow_manual_charging_solar":{
-          "name":"Tillad manuel ladning kun på sol"
-      },
-      f"{__name__}_solar_charging":{
-          "name":"Solcelleoverskud til opladning",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_fill_up":{
-          "name":"Optimal ugeopladning (uden Arbejdsplan)",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_workplan_charging":{
-          "name":"Arbejdsplan opladning",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_trip_preheat":{
-          "name":"Tur ladning forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_workday_monday":{
-          "name":"Mandag arbejdsdag"
-      },
-      f"{__name__}_workday_tuesday":{
-          "name":"Tirsdag arbejdsdag"
-      },
-      f"{__name__}_workday_wednesday":{
-          "name":"Onsdag arbejdsdag"
-      },
-      f"{__name__}_workday_thursday":{
-          "name":"Torsdag arbejdsdag"
-      },
-      f"{__name__}_workday_friday":{
-          "name":"Fredag arbejdsdag"
-      },
-      f"{__name__}_workday_saturday":{
-          "name":"Lørdag arbejdsdag"
-      },
-      f"{__name__}_workday_sunday":{
-          "name":"Søndag arbejdsdag"
-      },
-      f"{__name__}_preheat_monday":{
-          "name":"Mandag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_tuesday":{
-          "name":"Tirsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_wednesday":{
-          "name":"Onsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_thursday":{
-          "name":"Torsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_friday":{
-          "name":"Fredag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_saturday":{
-          "name":"Lørdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_sunday":{
-          "name":"Søndag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_calculate_charging_loss":{
-          "name":"Beregn ladetab",
-          "icon": "mdi:power-plug-battery"
-      }
-   },
-   "input_number":{
-      f"{__name__}_co2_emitted":{
-          "name":"CO₂ udledt",
-          "min":0,
-          "max":999999,
-          "step":0.001,
-          "icon":"mdi:molecule-co2",
-          "unit_of_measurement":"kg",
-          "mode": "box"
-      },
-      f"{__name__}_kwh_charged_by_solar":{
-          "name":"kWh ladet af solcellerne",
-          "min":0,
-          "max":999999,
-          "step":0.01,
-          "icon":"mdi:white-balance-sunny",
-          "unit_of_measurement":"kWh",
-          "mode": "box"
-      },
-      f"{__name__}_solar_sell_fixed_price":{
-          "name":"Solcelle fast salgspris",
-          "min":-1,
-          "max":2,
-          "step":0.01,
-          "icon":"mdi:cash-multiple",
-          "unit_of_measurement":"kr/kWh"
-      },
-      f"{__name__}_preheat_minutes_before":{
-          "name":"Forvarm bilen X min før",
-          "min":0,
-          "max":60,
-          "step":5,
-          "unit_of_measurement":"min"
-      },
-      f"{__name__}_typical_daily_distance":{
-          "name":"Typisk daglig afstand (Fridag)",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_monday":{
-          "name":"Mandagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_tuesday":{
-          "name":"Tirsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_wednesday":{
-          "name":"Onsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_thursday":{
-          "name":"Torsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_friday":{
-          "name":"Fredagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_saturday":{
-          "name":"Lørdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_sunday":{
-          "name":"Søndagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_min_daily_battery_level":{
-          "name":"Daglig hjemkomst batteri niveau",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_min_trip_battery_level":{
-          "name":"Tur hjemkomst batteri niveau",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_min_charge_limit_battery_level":{
-          "name":"Elbilens minimum ladingsprocent",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_max_recommended_charge_limit_battery_level":{
-          "name":"Elbilens maks anbefalet ladingsprocent",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_very_cheap_grid_charging_max_battery_level":{
-          "name":"Ladingsprocent ved billig strøm",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:sale"
-      },
-      f"{__name__}_ultra_cheap_grid_charging_max_battery_level":{
-          "name":"Ladingsprocent ved meget billig strøm",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:sale-outline"
-      },
-      f"{__name__}_battery_level":{
-          "name": "Virtuel elbil batteri niveau",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit_of_measurement": "%",
-          "icon": "mdi:battery-high",
-          "mode": "box"
-      },
-      f"{__name__}_completed_battery_level":{
-          "name": "Elbil lading færdig batteri niveau",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit_of_measurement": "%",
-          "icon": "mdi:battery-high",
-          "mode": "box"
-      },
-      f"{__name__}_estimated_total_range":{
-          "name": "Virtuel elbil max rækkevidde",
-          "min": 0,
-          "max": 1000,
-          "step": 1,
-          "unit_of_measurement": "km",
-          "icon": "mdi:map-marker-distance",
-          "mode": "box"
-      },
-      f"{__name__}_trip_charge_procent":{
-          "name": "Tur ladning til",
-          "min": 0,
-          "max": 100,
-          "step": 5,
-          "unit_of_measurement": "%",
-          "icon": "mdi:percent-outline"
-      },
-      f"{__name__}_trip_range_needed":{
-          "name": "Tur km forbrug",
-          "min": 0,
-          "max": 1000,
-          "step": 5,
-          "unit_of_measurement": "km",
-          "icon": "mdi:map-marker-distance"
-      },
-      f"{__name__}_full_charge_recommended":{
-          "name":"Anbefalet fuld ladning hver",
-          "min": 0,
-          "max": 60,
-          "step": 1,
-          "unit_of_measurement": "dag(e)",
-          "icon": "mdi:battery-heart"
-      }
-   },
-   "input_datetime":{
-      f"{__name__}_workday_departure_monday":{
-          "name":"Mandag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_tuesday":{
-          "name":"Tirsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_wednesday":{
-          "name":"Onsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_thursday":{
-          "name":"Torsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_friday":{
-          "name":"Fredag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_saturday":{
-          "name":"Lørdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_sunday":{
-          "name":"Søndag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_homecoming_monday":{
-          "name":"Mandag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_tuesday":{
-          "name":"Tirsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_wednesday":{
-          "name":"Onsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_thursday":{
-          "name":"Torsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_friday":{
-          "name":"Fredag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_saturday":{
-          "name":"Lørdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_sunday":{
-          "name":"Søndag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_trip_date_time":{
-          "name":"Elbil Tur afgang",
-          "has_date":True,
-          "has_time":True
-      },
-      f"{__name__}_trip_homecoming_date_time":{
-          "name":"Elbil Tur hjemkomst",
-          "has_date":True,
-          "has_time":True
-      },
-      f"{__name__}_last_full_charge":{
-          "name":"Sidste fulde opladning",
-          "has_date":True,
-          "has_time":True
-      },
-   },
-   "sensor":[
-      {
-          "platform":"template",
-          "sensors":{
+    "homeassistant": {
+        "customize": {
+            f"input_button.{__name__}_trip_reset": {"description": "Nulstil tur ladning"},
+            f"input_button.{__name__}_enforce_planning": {"description": "Udregn planlægning igen"},
+            f"input_button.{__name__}_restart_script": {"description": "Genstart scriptet"},
+            f"input_boolean.{__name__}_debug_log": {"description": f"{__name__}.py debug log"},
+            f"input_boolean.{__name__}_forced_charging_daily_battery_level": {"description": "Tvangsladning til under daglig batteri niveau"},
+            f"input_boolean.{__name__}_allow_manual_charging_now": {"description": "Tillad manuel ladning nu"},
+            f"input_boolean.{__name__}_allow_manual_charging_solar": {"description": "Tillad manuel ladning kun på sol"},
+            f"input_boolean.{__name__}_solar_charging": {"description": "Aktiveres ved solcelleoverproduktion. Oplader med overskudsenergi tilpasset husets forbrug. Planlægger optimal opladning ud fra estimeret ugentlig overproduktion."},
+            f"input_boolean.{__name__}_fill_up": {"description": "Kan aktiveres ved ferie og ignorerer arbejdsplan. Fordeler opladning over ugen baseret på behov. Planlægger efter laveste priser og maks. anbefalet batteriniveau."},
+            f"input_boolean.{__name__}_workplan_charging": {"description": "Aktiveres ved arbejde indenfor en uge. Planlægger daglig opladning baseret på arbejdsdage, afgangstid og afstand. Oplader økonomisk og sikrer tilstrækkeligt niveau ved hjemkomst."},
+            f"input_boolean.{__name__}_trip_preheat": {"description": "Aktiveres ved tur ladning. Forvarmer bilen før afgang, hvis forvarmning er nødvendig."},
+            f"input_boolean.{__name__}_workday_monday": {"description": "Sætter om mandag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_tuesday": {"description": "Sætter om tirsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_wednesday": {"description": "Sætter om onsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_thursday": {"description": "Sætter om torsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_friday": {"description": "Sætter om fredag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_saturday": {"description": "Sætter om lørdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_sunday": {"description": "Sætter om søndag er arbejdsdag"},
+            f"input_boolean.{__name__}_preheat_monday": {"description": "Forvarm bilen om mandagen"},
+            f"input_boolean.{__name__}_preheat_tuesday": {"description": "Forvarm bilen om tirsdagen"},
+            f"input_boolean.{__name__}_preheat_wednesday": {"description": "Forvarm bilen om onsdagen"},
+            f"input_boolean.{__name__}_preheat_thursday": {"description": "Forvarm bilen om torsdagen"},
+            f"input_boolean.{__name__}_preheat_friday": {"description": "Forvarm bilen om fredagen"},
+            f"input_boolean.{__name__}_preheat_saturday": {"description": "Forvarm bilen om lørdagen"},
+            f"input_boolean.{__name__}_preheat_sunday": {"description": "Forvarm bilen om søndagen"},
+            f"input_boolean.{__name__}_calculate_charging_loss": {"description": "For præcis ladetabsberegning: Aflad bilen, indstil ønsket maks. ladegrænse, og aktiver beregning. Resultat gemmes automatisk, og notifikation sendes ved fuld opladning."},
+            f"input_boolean.{__name__}_powerwall_discharge_above_needed": {"description": f"Aflader Powerwall over det nødvendige niveau for at oplade elbilen, når den er tilsluttet. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
+            f"input_number.{__name__}_co2_emitted": {"description": "CO₂ udledt i kg, baseret på Energi Data Service CO₂ faktor"},
+            f"input_number.{__name__}_kwh_charged_by_solar": {"description": "kWh opladet af solcellerne"},
+            f"input_number.{__name__}_solar_sell_fixed_price": {"description": "Fast salgspris for solceller, bruges til at beregne solcelleoverskud, sæt til -1.0 for at bruge timepris"},
+            f"input_number.{__name__}_preheat_minutes_before": {"description": "Forvarm bilen X minutter før afgang, hvis forvarmning er aktiveret"},
+            f"input_number.{__name__}_typical_daily_distance": {"description": f"Typisk daglig afstand i km, bruges til at planlægge opladning. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_workday_distance_needed_monday": {"description": "Afstand i km, der skal oplades for mandag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_tuesday": {"description": "Afstand i km, der skal oplades for tirsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_wednesday": {"description": "Afstand i km, der skal oplades for onsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_thursday": {"description": "Afstand i km, der skal oplades for torsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_friday": {"description": "Afstand i km, der skal oplades for fredag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_saturday": {"description": "Afstand i km, der skal oplades for lørdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_sunday": {"description": "Afstand i km, der skal oplades for søndag arbejdsdag"},
+            f"input_number.{__name__}_min_daily_battery_level": {"description": "Minimum daglig batteriniveau i procent, ved hjemkomst"},
+            f"input_number.{__name__}_min_trip_battery_level": {"description": "Minimum tur batteriniveau i procent, ved hjemkomst"},
+            f"input_number.{__name__}_min_charge_limit_battery_level": {"description": "Minimum batteriniveau i procent, bilen kan sættes til i opladningstilstand"},
+            f"input_number.{__name__}_max_recommended_charge_limit_battery_level": {"description": "Maks. anbefalet batteriniveau i procent, bilen lades til dagligt"},
+            f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": {"description": f"Ved meget billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": {"description": f"Ved ekstremt billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_battery_level": {"description": "Ved ingen bilintegration, bruges denne til at sætte batteriniveauet i procent"},
+            f"input_number.{__name__}_completed_battery_level": {"description": f"Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau bilen viser, når den melder opladning færdig. input_number.{__name__}_battery_level opdateres automatisk til dette."},
+            f"input_number.{__name__}_estimated_total_range": {"description": "Ved ingen bilintegration, bruges denne til at sætte det estimerede totale rækkevidde i km"},
+            f"input_number.{__name__}_trip_charge_procent": {"description": f"Bruges ved turladning til at angive ønsket batteriniveau ved afgang, bilen lades til denne værdi + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
+            f"input_number.{__name__}_trip_range_needed": {"description": f"Bruges ved turladning til at angive det ønskede rækkevidde i km, der skal oplades til ved afgang, km omregnes automatisk til batteriniveau og bilen lades til dette niveau + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
+            f"input_number.{__name__}_full_charge_recommended": {"description": "Anbefalet fuld opladning minimum hver X dage, for at undgå batteri skader. Bilen lades til 100%. Sæt til 0 for at deaktivere."},
+            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": {"description": f"Oplader elbilen fra Powerwall, når Powerwall batteriniveau er over dette niveau i procent. Sæt til 0.0 for at deaktivere. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
+            f"input_datetime.{__name__}_workday_departure_monday": {"description": "Afgangstidspunkt for mandag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_tuesday": {"description": "Afgangstidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_wednesday": {"description": "Afgangstidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_thursday": {"description": "Afgangstidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_friday": {"description": "Afgangstidspunkt for fredag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_saturday": {"description": "Afgangstidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_sunday": {"description": "Afgangstidspunkt for søndag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_homecoming_monday": {"description": "Hjemkomsttidspunkt for mandag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_tuesday": {"description": "Hjemkomsttidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_wednesday": {"description": "Hjemkomsttidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_thursday": {"description": "Hjemkomsttidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_friday": {"description": "Hjemkomsttidspunkt for fredag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_saturday": {"description": "Hjemkomsttidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_sunday": {"description": "Hjemkomsttidspunkt for søndag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_trip_date_time": {"description": "Dato og tidspunkt for tur afgang, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_trip_homecoming_date_time": {"description": "Dato og tidspunkt for tur hjemkomst, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_last_full_charge": {"description": "Dato og tidspunkt for sidste fuld opladning"},
+        },
+    },
+    "input_button":{
+        f"{__name__}_trip_reset":{
+            "name":"Nulstil tur ladning",
+            "icon":"mdi:restore"
+        },
+        f"{__name__}_enforce_planning":{
+            "name":"Gennemtving planlægning",
+            "icon":"mdi:calendar-refresh"
+        },
+        f"{__name__}_restart_script":{
+            "name":"Genstart scriptet",
+            "icon":"mdi:restart"
+        }
+    },
+    "input_boolean":{
+        f"{__name__}_debug_log":{
+            "name":f"{__name__}.py debug log",
+            "icon":"mdi:math-log"
+        },
+        f"{__name__}_forced_charging_daily_battery_level":{
+            "name":"Tvangsladning under daglig batteri niveau",
+            "icon":"mdi:battery-charging-low"
+        },
+        f"{__name__}_allow_manual_charging_now":{
+            "name":"Tillad manuel ladning nu"
+        },
+        f"{__name__}_allow_manual_charging_solar":{
+            "name":"Tillad manuel ladning kun på sol"
+        },
+        f"{__name__}_solar_charging":{
+            "name":"Solcelleoverskud til opladning",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_fill_up":{
+            "name":"Optimal ugeopladning (uden Arbejdsplan)",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_workplan_charging":{
+            "name":"Arbejdsplan opladning",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_trip_preheat":{
+            "name":"Tur ladning forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_workday_monday":{
+            "name":"Mandag arbejdsdag"
+        },
+        f"{__name__}_workday_tuesday":{
+            "name":"Tirsdag arbejdsdag"
+        },
+        f"{__name__}_workday_wednesday":{
+            "name":"Onsdag arbejdsdag"
+        },
+        f"{__name__}_workday_thursday":{
+            "name":"Torsdag arbejdsdag"
+        },
+        f"{__name__}_workday_friday":{
+            "name":"Fredag arbejdsdag"
+        },
+        f"{__name__}_workday_saturday":{
+            "name":"Lørdag arbejdsdag"
+        },
+        f"{__name__}_workday_sunday":{
+            "name":"Søndag arbejdsdag"
+        },
+        f"{__name__}_preheat_monday":{
+            "name":"Mandag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_tuesday":{
+            "name":"Tirsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_wednesday":{
+            "name":"Onsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_thursday":{
+            "name":"Torsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_friday":{
+            "name":"Fredag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_saturday":{
+            "name":"Lørdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_sunday":{
+            "name":"Søndag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_calculate_charging_loss":{
+            "name":"Beregn ladetab",
+            "icon": "mdi:battery-sync"
+        },
+        f"{__name__}_powerwall_discharge_above_needed":{
+            "name":"Powerwall afladning over behov til elbil",
+            "icon": "mdi:power-plug-battery"
+        },
+    },
+    "input_number":{
+        f"{__name__}_co2_emitted":{
+            "name":"CO₂ udledt",
+            "min":0,
+            "max":999999,
+            "step":0.001,
+            "icon":"mdi:molecule-co2",
+            "unit_of_measurement":"kg",
+            "mode": "box"
+        },
+        f"{__name__}_kwh_charged_by_solar":{
+            "name":"kWh ladet af solcellerne",
+            "min":0,
+            "max":999999,
+            "step":0.01,
+            "icon":"mdi:white-balance-sunny",
+            "unit_of_measurement":"kWh",
+            "mode": "box"
+        },
+        f"{__name__}_solar_sell_fixed_price":{
+            "name":"Solcelle fast salgspris",
+            "min":-1,
+            "max":2,
+            "step":0.01,
+            "icon":"mdi:cash-multiple",
+            "unit_of_measurement":"kr/kWh"
+        },
+        f"{__name__}_preheat_minutes_before":{
+            "name":"Forvarm bilen X min før",
+            "min":0,
+            "max":60,
+            "step":5,
+            "unit_of_measurement":"min"
+        },
+        f"{__name__}_typical_daily_distance":{
+            "name":"Typisk daglig afstand (Fridag)",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_monday":{
+            "name":"Mandagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_tuesday":{
+            "name":"Tirsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_wednesday":{
+            "name":"Onsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_thursday":{
+            "name":"Torsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_friday":{
+            "name":"Fredagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_saturday":{
+            "name":"Lørdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_sunday":{
+            "name":"Søndagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_min_daily_battery_level":{
+            "name":"Daglig hjemkomst batteri niveau",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_min_trip_battery_level":{
+            "name":"Tur hjemkomst batteri niveau",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_min_charge_limit_battery_level":{
+            "name":"Elbilens minimum ladingsprocent",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_max_recommended_charge_limit_battery_level":{
+            "name":"Elbilens maks anbefalet ladingsprocent",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_very_cheap_grid_charging_max_battery_level":{
+            "name":"Ladingsprocent ved billig strøm",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:sale"
+        },
+        f"{__name__}_ultra_cheap_grid_charging_max_battery_level":{
+            "name":"Ladingsprocent ved meget billig strøm",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:sale-outline"
+        },
+        f"{__name__}_battery_level":{
+            "name": "Virtuel elbil batteri niveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:battery-high",
+            "mode": "box"
+        },
+        f"{__name__}_completed_battery_level":{
+            "name": "Elbil lading færdig batteri niveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:battery-high",
+            "mode": "box"
+        },
+        f"{__name__}_estimated_total_range":{
+            "name": "Virtuel elbil max rækkevidde",
+            "min": 0,
+            "max": 1000,
+            "step": 1,
+            "unit_of_measurement": "km",
+            "icon": "mdi:map-marker-distance",
+            "mode": "box"
+        },
+        f"{__name__}_trip_charge_procent":{
+            "name": "Tur ladning til",
+            "min": 0,
+            "max": 100,
+            "step": 5,
+            "unit_of_measurement": "%",
+            "icon": "mdi:percent-outline"
+        },
+        f"{__name__}_trip_range_needed":{
+            "name": "Tur km forbrug",
+            "min": 0,
+            "max": 1000,
+            "step": 5,
+            "unit_of_measurement": "km",
+            "icon": "mdi:map-marker-distance"
+        },
+        f"{__name__}_full_charge_recommended":{
+            "name":"Anbefalet fuld ladning hver",
+            "min": 0,
+            "max": 60,
+            "step": 1,
+            "unit_of_measurement": "dag(e)",
+            "icon": "mdi:battery-heart"
+        },
+        f"{__name__}_ev_charge_after_powerwall_battery_level":{
+            "name":"Oplad elbil efter Powerwall minimum batteriniveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:percent-outline"
+        },
+    },
+    "input_datetime":{
+        f"{__name__}_workday_departure_monday":{
+            "name":"Mandag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_tuesday":{
+            "name":"Tirsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_wednesday":{
+            "name":"Onsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_thursday":{
+            "name":"Torsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_friday":{
+            "name":"Fredag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_saturday":{
+            "name":"Lørdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_sunday":{
+            "name":"Søndag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_homecoming_monday":{
+            "name":"Mandag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_tuesday":{
+            "name":"Tirsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_wednesday":{
+            "name":"Onsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_thursday":{
+            "name":"Torsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_friday":{
+            "name":"Fredag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_saturday":{
+            "name":"Lørdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_sunday":{
+            "name":"Søndag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_trip_date_time":{
+            "name":"Elbil Tur afgang",
+            "has_date":True,
+            "has_time":True
+        },
+        f"{__name__}_trip_homecoming_date_time":{
+            "name":"Elbil Tur hjemkomst",
+            "has_date":True,
+            "has_time":True
+        },
+        f"{__name__}_last_full_charge":{
+            "name":"Sidste fulde opladning",
+            "has_date":True,
+            "has_time":True
+        },
+    },
+    "sensor":[{
+        "platform":"template",
+        "sensors":{
             f"{__name__}_solar_over_production_current_hour":{
-               "friendly_name":"Solcelle produktion tilrådighed i nuværende time",
-               "unit_of_measurement":"W",
-               "value_template":"unavailable"
+                "friendly_name":"Solcelle produktion tilrådighed i nuværende time",
+                "unit_of_measurement":"W",
+                "value_template":"unavailable"
             },
             f"{__name__}_solar_charged_percentage":{
-               "friendly_name":"Solcelle ladning",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Solcelle ladning",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency":{
-               "friendly_name":"Kørsel effektivitet",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Kørsel effektivitet",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_km_per_kwh":{
-               "friendly_name":"km/kWh",
-               "unit_of_measurement":"km/kWh",
-               "value_template":"unavailable",
-               "icon_template":"mdi:map-marker-distance"
+                "friendly_name":"km/kWh",
+                "unit_of_measurement":"km/kWh",
+                "value_template":"unavailable",
+                "icon_template":"mdi:map-marker-distance"
             },
             f"{__name__}_estimated_range":{
-               "friendly_name":"Estimerede rækkevidde",
-               "unit_of_measurement":"km",
-               "value_template":"unavailable",
-               "icon_template":"mdi:map-marker-path"
+                "friendly_name":"Estimerede rækkevidde",
+                "unit_of_measurement":"km",
+                "value_template":"unavailable",
+                "icon_template":"mdi:map-marker-path"
             },
             f"{__name__}_drive_efficiency_last_battery_level":{
-               "friendly_name":"Batteriniveau ved sidste ladning",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Batteriniveau ved sidste ladning",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency_last_odometer":{
-               "friendly_name":"Kilometerstand ved sidste ladning",
-               "unit_of_measurement":"km",
-               "value_template":"unavailable"
+                "friendly_name":"Kilometerstand ved sidste ladning",
+                "unit_of_measurement":"km",
+                "value_template":"unavailable"
             },
             f"{__name__}_charge_very_cheap_battery_level":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"%"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"%"
             },
             f"{__name__}_charge_ultra_cheap_battery_level":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"%"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"%"
             },
             f"{__name__}_kwh_cost_price":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"kr/kWh"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"kr/kWh"
             },
             f"{__name__}_current_charging_rule":{
-               "friendly_name":"Nuværende lade regel",
-               "value_template":""
+                "friendly_name":"Nuværende lade regel",
+                "value_template":""
             },
             f"{__name__}_emoji_description":{
-               "friendly_name":"Emoji forklaring",
-               "value_template":"",
+                "friendly_name":"Emoji forklaring",
+                "value_template":"",
             },
             f"{__name__}_overview":{
-               "friendly_name":"Oversigt",
-               "value_template":""
+                "friendly_name":"Oversigt",
+                "value_template":""
             },
             f"{__name__}_charging_history":{
-               "friendly_name":"Lade historik",
-               "value_template":""
+                "friendly_name":"Lade historik",
+                "value_template":""
             }
-         }
-      }
-   ]
+        }
+    }]
 }
 
 ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
@@ -1204,6 +1310,7 @@ def get_debug_info_sections():
                 "SOLAR_CONFIGURED": SOLAR_CONFIGURED,
                 "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
                 "EV_CONFIGURED": EV_CONFIGURED,
+                "CONFIG_LAST_MODIFIED": CONFIG_LAST_MODIFIED,
             },
             "details": {"CONFIG": CONFIG},
         },
@@ -1486,50 +1593,75 @@ def save_error_to_file(error_message, caller_function_name = None):
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     
-def is_charger_configured():
+def is_charger_configured(cfg = None):
+    _LOGGER = globals()['_LOGGER'].getChild("is_charger_configured")
     global CHARGER_CONFIGURED
     
+    def check_criteria(cfg):
+        if (cfg['charger']['entity_ids']['kwh_meter_entity_id'] and
+            cfg['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and
+            cfg['charger']['entity_ids']['power_consumtion_entity_id'] and
+            cfg['charger']['entity_ids']['status_entity_id']):
+            return True
+        return False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if CHARGER_CONFIGURED is None:
-        if (CONFIG['charger']['entity_ids']['kwh_meter_entity_id'] and
-            CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'] and
-            CONFIG['charger']['entity_ids']['power_consumtion_entity_id'] and
-            CONFIG['charger']['entity_ids']['status_entity_id']):
-            CHARGER_CONFIGURED = True
-        else:
-            CHARGER_CONFIGURED = False
+        CHARGER_CONFIGURED = check_criteria(CONFIG)
+        _LOGGER.info(f"Charger entity is {'' if CHARGER_CONFIGURED else 'not '}configured")
             
     return CHARGER_CONFIGURED
 
-def is_solar_configured():
+def is_solar_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_solar_configured")
     global SOLAR_CONFIGURED
     
+    def check_criteria(cfg):
+        return True if cfg['solar']['entity_ids']['production_entity_id'] else False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if SOLAR_CONFIGURED is None:
-        SOLAR_CONFIGURED = True if CONFIG['solar']['entity_ids']['production_entity_id'] else False
+        SOLAR_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Solar entity is {'' if SOLAR_CONFIGURED else 'not '}configured")
     
     return SOLAR_CONFIGURED
         
-def is_powerwall_configured():
+def is_powerwall_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_configured")
     global POWERWALL_CONFIGURED
     
+    def check_criteria(cfg):
+        return True if cfg['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if POWERWALL_CONFIGURED is None:
-        POWERWALL_CONFIGURED = True if CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'] else False
+        POWERWALL_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Powerwall entity is {'' if POWERWALL_CONFIGURED else 'not '}configured")
     
     return POWERWALL_CONFIGURED
 
-def is_ev_configured():
+def is_ev_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
     global EV_CONFIGURED
+    
+    def check_criteria(cfg):
+        if (cfg['ev_car']['entity_ids']['odometer_entity_id'] and
+            cfg['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
+            cfg['ev_car']['entity_ids']['usable_battery_level_entity_id']):
+            return True
+        return False
+    
+    if cfg is not None:
+        return check_criteria(cfg)
+    
     if EV_CONFIGURED is None:
-        if (CONFIG['ev_car']['entity_ids']['odometer_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['estimated_battery_range_entity_id'] and
-            CONFIG['ev_car']['entity_ids']['usable_battery_level_entity_id']):
-            EV_CONFIGURED = True
-        else:
-            EV_CONFIGURED = False
+        EV_CONFIGURED = check_criteria(CONFIG)
         _LOGGER.info(f"Ev entities is {'' if EV_CONFIGURED else 'not '}configured")
     
     return EV_CONFIGURED
@@ -1664,6 +1796,7 @@ def create_integration_dict():
     _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
 
 def reload_entity_integration(entity_id):
+    _LOGGER = globals()['_LOGGER'].getChild("reload_entity_integration")
     global ENTITY_INTEGRATION_DICT
     
     integration = get_integration(entity_id)
@@ -1673,6 +1806,8 @@ def reload_entity_integration(entity_id):
     
     if integration not in ENTITY_INTEGRATION_DICT["last_reload"] or minutesBetween(ENTITY_INTEGRATION_DICT["last_reload"][integration], getTime()) > 30:
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
+        
+        _LOGGER.warning(f"Reloading integration {integration} for entity {entity_id}")
         reload_integration(entity_id)
         
 def reset_counter_entity_integration():
@@ -1778,9 +1913,75 @@ def restart_script():
     if service.has_service("pyscript", "reload"):
         service.call("pyscript", "reload", blocking=True, global_ctx=f"file.{__name__}")
 
+def notify_critical_change(cfg = {}, filename = None):
+    _LOGGER = globals()['_LOGGER'].getChild("notify_critical_change")
+    
+    def check_nested_keys_exist(cfg, dotted_keys):
+        missing_keys = []
+        for dotted_key in dotted_keys:
+            keys = dotted_key.split(".")
+            current = cfg
+            for key in keys:
+                if isinstance(current, dict) and key in current:
+                    current = current[key]
+                else:
+                    missing_keys.append(dotted_key)
+                    break
+        return missing_keys
+    
+    def keys_description(keys):
+        description = []
+        
+        for key in keys:
+            description.append(f"**{key}**\n{COMMENT_DB_YAML.get(key, '')}\n\n")
+        return description
+    
+    if filename == f"{__name__}_config.yaml":
+        powerwall_update_new_keys = [
+            "home.power_consumption_entity_id_include_powerwall_charging",
+            "solar.powerwall_battery_size",
+            "solar.inverter_discharging_power_limit",
+            "solar.powerwall_discharging_power",
+        ]
+        powerwall_update_missing_keys = check_nested_keys_exist(cfg, powerwall_update_new_keys)
+        
+        if is_powerwall_configured(cfg) and powerwall_update_missing_keys:
+            _LOGGER.warning(f"Powerwall configuration update required: {powerwall_update_missing_keys}")
+                
+            my_persistent_notification(
+                message = f"## Vigtigt\n\n"
+                        f"Der er sket en kritisk ændring i konfigurationen, som kræver opdatering af din {__name__}_config.yaml fil.\n\n"
+                        f"### Nye konfigurations nøgler:\n - {'- '.join(keys_description(powerwall_update_missing_keys))}\n\n"
+                        f"**Handling:**\n"
+                        f"Opdater venligst din konfiguration i {__name__}_config.yaml filen.\n",
+                title = f"{TITLE} Kritisk ændring i konfiguration",
+                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_update_required"
+            )
+            
+    if filename == f"packages/{__name__}.yaml":
+        powerwall_update_new_entities = [
+            f"input_boolean.{__name__}_powerwall_discharge_above_needed",
+            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level",
+        ]
+        powerwall_update_missing_entities = check_nested_keys_exist(cfg, powerwall_update_new_entities)
+        
+        if is_powerwall_configured(CONFIG) and powerwall_update_missing_entities:
+            _LOGGER.warning(f"Powerwall entities update required: {powerwall_update_missing_entities}")
+            
+            my_persistent_notification(
+                message = f"## Vigtigt\n\n"
+                        f"Nye entiteter er blevet tilføjet\n"
+                        f"Læs mere om dem i entitiens beskrivelse.\n\n"
+                        f"### Nye entiteter:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
+                        f"**Handling:**\n"
+                        f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
+                title = f"{TITLE} Kritisk ændring i entiteter",
+                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_entities_update_required"
+            )
+
 def init():
     _LOGGER = globals()['_LOGGER'].getChild("init")
-    global CONFIG, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
+    global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
@@ -1802,8 +2003,10 @@ def init():
         if not content:
             raise Exception(f"Failed to load {file_path}")
 
+        notify_critical_change(cfg = content, filename = file_path)
+
         updated, content = update_dict_with_new_keys(content, default_content)
-        if updated:
+        if updated or file_path == f"{__name__}_config.yaml":
             '''if "first_run" in content and "config.yaml" in file_path:
                 content['first_run'] = True'''
             save_yaml(file_path, content, comment_db)
@@ -1885,7 +2088,8 @@ def init():
     _LOGGER.info(welcome())
     try:
         CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
-        
+        CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
+
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
         
         set_charging_rule(f"📟Indlæser konfigurationen")
@@ -1922,6 +2126,16 @@ def init():
                     key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "solar" not in key
                 }
         
+        if not is_powerwall_configured() and not CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']:
+            keys_to_remove = [
+                f"{__name__}_powerwall_discharge_above_needed",
+                f"{__name__}_ev_charge_after_powerwall_battery_level"
+            ]
+
+            for key in keys_to_remove:
+                DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
+                DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+        
         handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
@@ -1945,30 +2159,58 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
 
-def get_all_entities():
+def get_all_entities(persistent_notification_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_all_entities")
     global DEFAULT_ENTITIES
     entities = []
-    yaml_card = ["type: grid", "cards:"]
+    yaml_card = ["type: vertical-stack\n", "cards:\n"]
     
     for domain_name, sub_dict in DEFAULT_ENTITIES.items():
+        if "homeassistant" in domain_name:
+            continue
+        
         if domain_name == "sensor":
-            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:")
+            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:\n")
             for sensor_dict in sub_dict:
                 for entity_name in sensor_dict["sensors"].keys():
-                    yaml_card.append(f"    - {domain_name}.{entity_name}")
+                    yaml_card.append(f"    - {domain_name}.{entity_name}\n")
                     entities.append(f"{domain_name}.{entity_name}")
         else:
-            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:")
+            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:\n")
             for entity_name in sub_dict.keys():
-                yaml_card.append(f"    - {domain_name}.{entity_name}")
+                yaml_card.append(f"    - {domain_name}.{entity_name}\n")
                 entities.append(f"{domain_name}.{entity_name}")
     
-    _LOGGER.info(f"Entities:\n{"\n".join(yaml_card)}")
+    yaml_card.append("  - type: markdown\n    content: >-\n")
+    for entity in entities:
+        description = DEFAULT_ENTITIES.get("homeassistant", {}).get('customize', {}).get(entity, {}).get('description', '')
+        description = f"<br>{description}<br><br>" if description else ""
+        yaml_card.append(f"      - <b>`{entity}`</b>{description}\n")
+        
+    notify_message = [f"## Alle entities:\n\n"]
+    for entity in entities:
+        description = DEFAULT_ENTITIES.get("homeassistant", {}).get('customize', {}).get(entity, {}).get('description', '')
+        description = f"\n{description}\n" if description else ""
+        notify_message.append(f"- <b>`{entity}`</b>{description}\n")
+        
+    my_persistent_notification(
+        message = "\n".join(notify_message),
+        title = f"{TITLE} Alle entities",
+        persistent_notification_id = f"{__name__}_get_all_entities_notification"
+    )
+        
+    if persistent_notification_only:
+        return
+    
+    _LOGGER.info(f"Entities:\n{"".join(yaml_card)}")
     
     return entities
 
-#get_all_entities()
+@service(f"pyscript.{__name__}_all_entities")
+def service_all_entities(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("service_all_entities")
+    
+    get_all_entities(persistent_notification_only=True)
 
 set_charging_rule(f"📟Starter scriptet op")
 init()
@@ -2037,8 +2279,43 @@ def emoji_text_format(text, group_size=3):
     return '<br>'.join(grouped_text)
 
 def set_default_entity_states():
+    _LOGGER = globals()['_LOGGER'].getChild("set_default_entity_states")
     set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
     set_attr(f"sensor.{__name__}_overview.overview", "<center>\n\n**Ingen oversigt endnu**\n\n</center>")
+    
+    entity_dict = {
+        f"input_number.{__name__}_typical_daily_distance": CONFIG['ev_car']['typical_daily_distance_non_working_day'],
+        f"input_number.{__name__}_workday_distance_needed_monday": CONFIG['ev_car']['workday_distance_needed_monday'],
+        f"input_number.{__name__}_workday_distance_needed_tuesday": CONFIG['ev_car']['workday_distance_needed_tuesday'],
+        f"input_number.{__name__}_workday_distance_needed_wednesday": CONFIG['ev_car']['workday_distance_needed_wednesday'],
+        f"input_number.{__name__}_workday_distance_needed_thursday": CONFIG['ev_car']['workday_distance_needed_thursday'],
+        f"input_number.{__name__}_workday_distance_needed_friday": CONFIG['ev_car']['workday_distance_needed_friday'],
+        f"input_number.{__name__}_workday_distance_needed_saturday": CONFIG['ev_car']['workday_distance_needed_saturday'],
+        f"input_number.{__name__}_workday_distance_needed_sunday": CONFIG['ev_car']['workday_distance_needed_sunday'],
+        f"input_number.{__name__}_min_daily_battery_level": CONFIG['ev_car']['min_daily_battery_level'],
+        f"input_number.{__name__}_min_trip_battery_level": CONFIG['ev_car']['min_trip_battery_level'],
+        f"input_number.{__name__}_min_charge_limit_battery_level": CONFIG['ev_car']['min_charge_limit_battery_level'],
+        f"input_number.{__name__}_max_recommended_charge_limit_battery_level": CONFIG['ev_car']['max_recommended_charge_limit_battery_level'],
+        f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'],
+        f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'],
+        f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": CONFIG['solar']['ev_charge_after_powerwall_battery_level'],
+        f"input_number.{__name__}_solar_sell_fixed_price": CONFIG['solar']['production_price']
+    }
+    
+    for entity_id, value in entity_dict.items():
+        try:
+            if not is_entity_configured(entity_id):
+                continue
+            
+            if not is_entity_available(entity_id):
+                raise Exception(f"Entity {entity_id} not available cant set state")
+
+            if str(get_state(entity_id, float_type=False, error_state=None)) != str(value):
+                _LOGGER.info(f"Setting {entity_id} to {value}")
+
+            set_state(entity_id, value)
+        except Exception as e:
+            _LOGGER.error(f"Error setting {entity_id} to {value}: {e}")
 
 def weather_values():
     output = []
@@ -2146,12 +2423,41 @@ def get_ultra_cheap_grid_charging_max_battery_level():
         _LOGGER.warning(f"Cant get ultra cheap grid charging max battery level, using config data {CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']}: {e}")
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
+def get_powerwall_discharge_above_needed():
+    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_discharge_above_needed")
+    try:
+        state = get_state(f"input_boolean.{__name__}_powerwall_discharge_above_needed", float_type=False, error_state="off")
+        return True if state == "on" else False
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall discharge above needed state from input_boolean.{__name__}_powerwall_discharge_above_needed entity: {e}")
+
+def get_powerwall_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_battery_level")
+    try:
+        return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True))
+    except Exception as e:
+        _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e}")
+        return 100.0
+get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True, error_state=100.0)
+
+def get_ev_charge_after_powerwall_battery_level():
+    _LOGGER = globals()['_LOGGER'].getChild("get_ev_charge_after_powerwall_battery_level")
+    try:
+        return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True))
+    except Exception as e:
+        try:
+            _LOGGER.warning(f"Cant get ev charge after powerwall battery level, using config data {CONFIG['solar']['ev_charge_after_powerwall_battery_level']}: {e}")
+            return float(CONFIG['solar']['ev_charge_after_powerwall_battery_level'])
+        except Exception as e:
+            _LOGGER.error(f"Failed to get ev charge after powerwall battery level from config: {e}")
+            return 100.0
+
 def get_completed_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("get_completed_battery_level")
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
-        raise Exception("Not emulated ev")
+        return 100.0
     except Exception as e:
         _LOGGER.warning(f"Using default charge completed battery level 100.0: {e}")
         return 100.0
@@ -2397,6 +2703,73 @@ def get_current_hour_price():
         _LOGGER.warning(f"Cant get current hour price, using default 0.0: {e}")
         return 0.0
     
+def get_powerwall_kwh_price(kwh = None):
+    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_kwh_price")
+    
+    global POWER_VALUES_DB, KWH_AVG_PRICES_DB
+    
+    def is_valid(data: dict, keys: list) -> bool:
+        for key in keys:
+            if key not in data or not isinstance(data[key], list) or len(data[key]) == 0:
+                return False
+        return True
+    
+    if kwh is None:
+        kwh = CONFIG['solar']['powerwall_battery_size']
+    
+    if kwh <= 0.0:
+        return get_solar_sell_price()
+
+    def get_data_timestamp(data, timestamp):
+        for item in data:
+            if reset_time_to_hour(item[0]) == timestamp:
+                return item[1]
+        return 0.0
+
+    timestamp = getTime()
+    
+    powerwall_kwh = []
+    powerwall_total_cost = []
+    kwh_price_list = []
+    
+    try:
+        for i in range(CONFIG['database']['power_values_db_data_to_save']):
+            for hour in range(1, 24):
+                loop_timestamp = reset_time_to_hour(timestamp) - datetime.timedelta(hours=hour)
+                
+                data = POWER_VALUES_DB.setdefault(loop_timestamp.hour, {})
+                
+                if not is_valid(data, ["power_consumption_without_all_exclusion", "powerwall_charging_consumption", "powerwall_discharging_consumption", "solar_production"]):
+                    continue
+                
+                power_consumption_without_all_exclusion_data = data["power_consumption_without_all_exclusion"]
+                powerwall_charging_consumption_data = data["powerwall_charging_consumption"]
+                solar_production_data = data["solar_production"]
+                
+                power_consumption_without_all_exclusion = get_data_timestamp(power_consumption_without_all_exclusion_data, loop_timestamp) / 1000.0
+                powerwall_charging_consumption = get_data_timestamp(powerwall_charging_consumption_data, loop_timestamp) / 1000.0
+                solar_production = get_data_timestamp(solar_production_data, loop_timestamp) / 1000.0
+                
+                if None in (power_consumption_without_all_exclusion,
+                            powerwall_charging_consumption,
+                            solar_production):
+                    continue
+                
+                solar_available_production = max(solar_production - power_consumption_without_all_exclusion, 0.0)
+                if powerwall_charging_consumption > 0.0  and sum(powerwall_kwh) < kwh:
+                    kwh_price = KWH_AVG_PRICES_DB['history_sell'][hour][getDayOfWeek(loop_timestamp)][i] if solar_available_production > 0 else KWH_AVG_PRICES_DB['history'][hour][getDayOfWeek(loop_timestamp)][i]
+                    kwh_price_list.append(kwh_price)
+                    powerwall_kwh.append(powerwall_charging_consumption)
+                    powerwall_total_cost.append(powerwall_charging_consumption * kwh_price)
+    except Exception as e:
+        _LOGGER.error(f"Error getting powerwall kWh price: {e}")
+        return get_solar_sell_price()
+    
+    powerwall_kwh = sum(powerwall_kwh) if len(powerwall_kwh) > 0 else 0.0
+    powerwall_total_cost = sum(powerwall_total_cost) if len(powerwall_total_cost) > 0 else 0.0
+    
+    return powerwall_total_cost / powerwall_kwh if powerwall_kwh > 0.0 else 0.0
+
 def kwh_to_percentage(kwh, include_charging_loss=False):
     effective_kwh = kwh
     if include_charging_loss:
@@ -3076,6 +3449,25 @@ def load_charging_history():
     _LOGGER = globals()['_LOGGER'].getChild("load_charging_history")
     global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
     
+    def rename_key_recursive(data, old_key, new_key):
+        renamed = False
+
+        if isinstance(data, dict):
+            if old_key in data:
+                data[new_key] = data.pop(old_key)
+                renamed = True
+            for k, v in data.items():
+                nested, changed = rename_key_recursive(v, old_key, new_key)
+                data[k] = nested
+                renamed = renamed or changed
+
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                data[i], changed = rename_key_recursive(item, old_key, new_key)
+                renamed = renamed or changed
+
+        return data, renamed
+    
     try:
         create_yaml(f"{__name__}_charging_history_db", db=CHARGING_HISTORY_DB)
         CHARGING_HISTORY_DB = load_yaml(f"{__name__}_charging_history_db")
@@ -3089,6 +3481,12 @@ def load_charging_history():
         CHARGING_HISTORY_DB = {}
         save_charging_history()
     
+    CHARGING_HISTORY_DB, renamed_kWh_solar = rename_key_recursive(CHARGING_HISTORY_DB, "kWh_solar", "kWh_from_local_energy")
+    
+    if renamed_kWh_solar:
+        _LOGGER.info(f"Renamed key 'kWh_solar' to 'kWh_from_local_energy' in {__name__}_charging_history_db.yaml")
+        save_charging_history()
+
     if CHARGING_HISTORY_DB:
         last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
         if hoursBetween(getTime(), last_item[0]) == 0 and getHour(getTime()) == getHour(last_item[0]):
@@ -3187,7 +3585,7 @@ def charging_history_recalc_price():
                 
                 end_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
                 added_kwh = end_charger_meter - start_charger_meter
-                added_kwh_by_solar = calc_solar_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
+                added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
                 added_percentage = kwh_to_percentage(added_kwh, include_charging_loss = True)
                 price = calc_kwh_price(getMinute(), solar_period_current_hour = True)
                 cost = added_kwh * price
@@ -3198,7 +3596,9 @@ def charging_history_recalc_price():
                     return False
 
                 CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-                CHARGING_HISTORY_DB[start]["kWh_solar"] = round(added_kwh_by_solar, 3)
+                CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+                CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
+                CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
                 CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
                 CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
                 CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
@@ -3344,7 +3744,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 emoji = data['emoji']
                 percentage = data['percentage']
                 kWh = data["kWh"]
-                kWh_solar = data["kWh_solar"] if "kWh_solar" in data else 0.0
+                kWh_from_local_energy = data.get("kWh_from_local_energy", 0.0)
+                solar_kwh_of_local_energy = data.get("solar_kwh_of_local_energy", 0.0)
+                powerwall_kwh_of_local_energy = data.get("powerwall_kwh_of_local_energy", 0.0)
                 cost = data['cost']
                 unit = data['unit']
                 start_charger_meter = None
@@ -3388,7 +3790,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             started = next_when
                             percentage += next_data['percentage']
                             kWh += next_data["kWh"]
-                            kWh_solar += next_data["kWh_solar"] if "kWh_solar" in data else 0.0
+                            kWh_from_local_energy += next_data.get("kWh_from_local_energy", 0.0)
+                            solar_kwh_of_local_energy += next_data.get("solar_kwh_of_local_energy", 0.0)
+                            powerwall_kwh_of_local_energy += next_data.get("powerwall_kwh_of_local_energy", 0.0)
                             cost += next_data['cost']
                             if kWh > 0.0:
                                 unit = cost / kWh
@@ -3411,7 +3815,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     "emoji": emoji,
                     "ended": ended,
                     "kWh": round(kWh, 3),
-                    "kWh_solar": round(kWh_solar, 3),
+                    "kWh_from_local_energy": round(kWh_from_local_energy, 3),
+                    "solar_kwh_of_local_energy": round(solar_kwh_of_local_energy, 3),
+                    "powerwall_kwh_of_local_energy": round(powerwall_kwh_of_local_energy, 3),
                     "percentage": round(percentage, 1),
                     "unit": round(unit, 3)
                 }
@@ -3478,9 +3884,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total['charging_kwh_night'][month] += data["kWh"]
                 total['charging_kwh_night']["total"] += data["kWh"]
             
-            if "kWh_solar" in data and data['kWh_solar'] > 0.0:
-                total['solar_kwh'][month] += data['kWh_solar']
-                total['solar_kwh']["total"] += data['kWh_solar']
+            if "kWh_from_local_energy" in data and data['kWh_from_local_energy'] > 0.0:
+                total['solar_kwh'][month] += data['kWh_from_local_energy']
+                total['solar_kwh']["total"] += data['kWh_from_local_energy']
                 solar_in_months = True
 
             total['cost']["total"] += data['cost']
@@ -3505,7 +3911,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             else:
                 total['km'][month] = round(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=total['odometer'][month]) - total['odometer'][month], 1)
                 
-            total['km']["total"] += total['km'][month]
+            total['km']['total'] += total['km'][month]
         
         estimated_values_used = False
         
@@ -3520,12 +3926,12 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                         total['kwh'].get(month, 0.0), efficiency_factors, month.month
                     )
                     total['km'][month] = estimated_km
-                    total['km']["total"] += estimated_km
+                    total['km']['total'] += estimated_km
                 elif month == getMonthFirstDay(total["odometer_first_charge_datetime"]):
                     kwh = sum([ value['kWh'] for key, value in CHARGING_HISTORY_DB.items() if getMonthFirstDay(key) == month and "odometer" not in value])
                     estimated_km, estimated_values_used = calculate_estimated_km(kwh, efficiency_factors, month.month)
                     total['km'][month] = total['km'][month] + estimated_km
-                    total['km']["total"] += estimated_km
+                    total['km']['total'] += estimated_km
                 
                 km_kwh = 0.0
                 wh_km = 0.0
@@ -3535,7 +3941,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     wh_km = round(1000 / km_kwh, 2) if km_kwh > 0.0 else 0.0
                     
                 efficiency_label = f"{km_kwh:.1f}<br>({wh_km:.1f})" if km_kwh > 0.0 else ""
-                total['km'][month] = [total['km'][month], f"{'~' if estimated_km > 0.0 else ''}{round(total['km'][month], 1)}", efficiency_label]
+                total['km'][month] = [total['km'][month], f"{'~' if estimated_km > 0.0 else ''}{int(round(total['km'][month], 0))}", efficiency_label]
         else:
             for month in total['km']:
                 if month == "total":
@@ -3553,15 +3959,16 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             history.append("<details>")
             history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
             
-            solar_header = f"{emoji_parse({'solar': True})}kWh" if solar_in_months else ""
-            km_header = "Km" if total['km']["total"] > 0.0 else ""
-            km_kwh_header = "Km/kWh<br>(Wh/km)" if total['km']["total"] > 0.0 else ""
+            solar_header = f"<br>({emoji_parse({'solar': True})})" if solar_in_months else ""
+            km_header = "Km" if total['km']['total'] > 0.0 else ""
+            km_kwh_header = "Km/kWh<br>(Wh/km)" if total['km']['total'] > 0.0 else ""
             history.extend([
-                f"| Måned | {km_header} | {km_kwh_header} | kWh | {solar_header} | Pris | Kr/kWh<br>(Kr/Km) |",
-                "|:---:|:---:|:---:|:---:|:---:|:---:|:---:|"
+                f"| Måned | {km_header} | {km_kwh_header} | kWh{solar_header} | Pris | Kr/kWh<br>(Kr/Km) |",
+                "|:---:|:---:|:---:|:---:|:---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
+            i = 0
             for month in sorted(datetime_keys):
                 solar_kwh = ""
                 solar_percentage = ""
@@ -3569,18 +3976,22 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 if total['solar_kwh'][month] > 0.0 and total['kwh'][month] > 0.0:
                     total_solar_percentage = round(total['solar_kwh'][month] / total['kwh'][month] * 100.0, 1)
                     
-                    solar_kwh = round(total['solar_kwh'][month], 1)
-                    solar_percentage = f" ({round(total_solar_percentage, 1)}%)"
+                    solar_kwh = f"<br>({round(total['solar_kwh'][month], 1)})"
+                    solar_percentage = f"<br>({round(total_solar_percentage, 1)}%)"
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 unit_string = f"{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
                 
-                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {total['km'][month][1]} | {total['km'][month][2]} | {round(total['kwh'][month],1)} | {solar_kwh}{solar_percentage} | {round(total['cost'][month],2):.2f} | {unit_string} |")
+                background_color_start = "<font color=grey>" if i % 2 == 0 else ""
+                background_color_end = "</font>" if i % 2 == 0 else ""
+                
+                history.append(f"| {background_color_start}{month.strftime('%B')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{solar_kwh}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{background_color_end} | {background_color_start}{unit_string}{background_color_end} |")
+                i += 1
             
             total_solar = ""
             if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
                 total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
-                total_solar = f"**{round(total['solar_kwh']['total'], 1)} ({round(total_solar_percentage, 1)}%)**"
+                total_solar = f"<br>**({round(total['solar_kwh']['total'], 1)})**<br>**({round(total_solar_percentage, 1)}%)**"
                 
             km_kwh = 0.0
             wh_km = 0.0
@@ -3590,11 +4001,11 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 wh_km = round(1000 / km_kwh, 2)
             efficiency_label = f"**{km_kwh:.1f}<br>({wh_km:.1f})**" if km_kwh > 0.0 else ""
             
-            total_km = f"**{round(total['km']['total'],1)}**" if total['km']["total"] > 0.0 else ""
+            total_km = f"**{round(total['km']['total'],1)}**" if total['km']['total'] > 0.0 else ""
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
-            unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']["total"],2):.2f})" if total['km']["total"] > 0.0 else f"{unit_price:.2f}"
+            unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']['total'],2):.2f})" if total['km']['total'] > 0.0 else f"{unit_price:.2f}"
             
-            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']["total"],1)}** | {total_solar} | **{round(total['cost']["total"],2):.2f}** | **{unit_string}** |")
+            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']['total'], 1)}**{total_solar} | **{round(total['cost']['total'], 2):.2f}** | **{unit_string}** |")
             
             if estimated_values_used:
                 history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
@@ -3699,14 +4110,16 @@ def _charging_history(charging_data = None, charging_type = ""):
         start = CURRENT_CHARGING_SESSION['start']
         charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
         added_kwh = round(charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
-        added_kwh_by_solar = calc_solar_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
+        added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
         added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True), 1)
         price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
         cost = round(added_kwh * price, 2)
         
         CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
         CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-        CHARGING_HISTORY_DB[start]["kWh_solar"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
+        CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
         CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
         CHARGING_HISTORY_DB[start]["start_charger_meter"] = CURRENT_CHARGING_SESSION['start_charger_meter']
@@ -3719,8 +4132,8 @@ def _charging_history(charging_data = None, charging_type = ""):
             CHARGING_HISTORY_DB[start]["ended"] = ended
             
             if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "solar":
-                if CHARGING_HISTORY_DB[start]["kWh_solar"] > 0.0:
-                    solar_ratio = CHARGING_HISTORY_DB[start]["kWh_solar"] / CHARGING_HISTORY_DB[start]["kWh"]
+                if CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] > 0.0:
+                    solar_ratio = CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] / CHARGING_HISTORY_DB[start]["kWh"]
                     
                     if solar_ratio < 0.5:
                         CHARGING_HISTORY_DB[start]["emoji"] = join_unique_emojis(CHARGING_HISTORY_DB[start]["emoji"], emoji_parse({'grid_charging': True}))
@@ -3843,7 +4256,7 @@ def current_battery_level_expenses():
                     if (
                         "cost" not in CHARGING_HISTORY_DB[key] or
                         "kWh" not in CHARGING_HISTORY_DB[key] or
-                        "kWh_solar" not in CHARGING_HISTORY_DB[key] or
+                        "kWh_from_local_energy" not in CHARGING_HISTORY_DB[key] or
                         "percentage" not in CHARGING_HISTORY_DB[key]
                     ):
                         continue
@@ -3851,7 +4264,7 @@ def current_battery_level_expenses():
                     cost = CHARGING_HISTORY_DB[key]["cost"]
                     kwh = CHARGING_HISTORY_DB[key]["kWh"]
                     percentage = CHARGING_HISTORY_DB[key]["percentage"]
-                    solar_percentage = kwh_to_percentage(CHARGING_HISTORY_DB[key]["kWh_solar"], include_charging_loss=True)
+                    solar_percentage = kwh_to_percentage(CHARGING_HISTORY_DB[key]["kWh_from_local_energy"], include_charging_loss=True)
                     
                     new_battery_level = percentage + BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"]
                     if new_battery_level > current_battery_level and percentage > 0.0:
@@ -3995,6 +4408,22 @@ def get_hour_prices():
             my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
     
     return hour_prices
+
+def get_expensive_hours(day=0):
+    countExpensive = 0
+    expensiveDict = {}
+    
+    day_timestamp = getTime().date() + datetime.timedelta(days=day)
+    
+    for timestamp, price in sorted(get_hour_prices().items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
+        if timestamp.date() == day_timestamp:
+            if countExpensive < 4:
+                expensiveDict[timestamp] = price
+            else:
+                break
+            countExpensive += 1
+    
+    return expensiveDict
 
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
@@ -5044,20 +5473,12 @@ def cheap_grid_charge_hours():
     chargeHours['total_kwh'] = totalkWh
     chargeHours['total_procent'] = round(kwh_to_percentage(totalkWh, include_charging_loss = True), 2)
     
-    countExpensive = 0
     expensiveList = []
     expensiveDict = {}
     
-    current_day = now.date()
-    
-    for timestamp, price in sorted(hour_prices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
-        if timestamp.date() == current_day:
-            if countExpensive < 4:
-                expensiveList.append(timestamp)
-                expensiveDict[str(timestamp)] = f"{price:.2f} kr"
-            else:
-                break
-            countExpensive += 1
+    for timestamp, price in get_expensive_hours().items():
+        expensiveList.append(timestamp)
+        expensiveDict[str(timestamp)] = f"{price:.2f} kr"
         
     set_attr(f"input_boolean.{__name__}_forced_charging_daily_battery_level.expensive_hours", dict(sorted(expensiveDict.items())))
     chargeHours['expensive_hours'] = expensiveList
@@ -5428,7 +5849,7 @@ def cheap_grid_charge_hours():
     
     return chargeHours
 
-def calc_charging_amps(power = 0.0, report = False):
+def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_charging_amps")
     power = float(power)
     power = power
@@ -5474,10 +5895,10 @@ def calc_charging_amps(power = 0.0, report = False):
             log_lines.append(f"Voltage above(+)/under(-) overproduction available: {CONFIG['solar']['allow_grid_charging_above_solar_available']}W")
             log_lines.append("Solar overproduction examples:")
             log_lines.append(f"1. overproduction 500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_1}W {get_closest_key(example_1, powerDict)}")
-            log_lines.append(f"2. overproduction 1500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_2}W {get_closest_key(example_2, powerDict)})")
-            log_lines.append(f"3. overproduction 3000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_3}W {get_closest_key(example_3, powerDict)})")
-            log_lines.append(f"4. overproduction 4000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_4}W {get_closest_key(example_4, powerDict)})")
-            log_lines.append(f"5. overproduction 5000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_5}W {get_closest_key(example_5, powerDict)})\n")
+            log_lines.append(f"2. overproduction 1500W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_2}W {get_closest_key(example_2, powerDict)}")
+            log_lines.append(f"3. overproduction 3000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_3}W {get_closest_key(example_3, powerDict)}")
+            log_lines.append(f"4. overproduction 4000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_4}W {get_closest_key(example_4, powerDict)}")
+            log_lines.append(f"5. overproduction 5000W + {CONFIG['solar']['allow_grid_charging_above_solar_available']}W={example_5}W {get_closest_key(example_5, powerDict)}\n")
             log_lines.append("Solar overproduction charging:")
             
             first = "<"
@@ -5487,7 +5908,7 @@ def calc_charging_amps(power = 0.0, report = False):
         else:
             log_lines.append(f"Max charging: {CONFIG['charger']['charging_max_amp']}A {CONFIG['charger']['charging_phases']} phase = {MAX_WATT_CHARGING}W")
         return "\n".join(log_lines)
-    output = get_closest_key(power, powerDict)
+    output = get_closest_key(power, powerDict, max_allowed=max_allowed)
     return [output['phase'], output['amp'], output['watt']]
 
 def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
@@ -5520,8 +5941,11 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         _LOGGER.info(f"TESTING not setting chargers charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
         return
     
-    integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
     try:
+        integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
+            
+        if not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
+            raise Exception(f"Ev charger integration ({integration}) unavailable: {CONFIG['charger']['entity_ids']['status_entity_id']}")
         
         if integration == "easee":
             charger_id = get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id", error_state=None)
@@ -5575,19 +5999,22 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             _LOGGER.error(error_message)
             save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
             my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
-    finally:
-        try:
-            if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
-                max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
-                current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
-                if current_amps == 0.0:
-                    _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
-                    ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
-        except Exception as e:
-            error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
-            _LOGGER.warning(error_message)
-            save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
-            my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
+    
+    try:
+        if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
+            if not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
+                raise Exception(f"Ev charging amps entity unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
+            
+            max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
+            current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
+            if current_amps == 0.0:
+                _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
+                ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
+    except Exception as e:
+        error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
+        _LOGGER.warning(error_message)
+        save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
             
             
     if successful:
@@ -5623,7 +6050,7 @@ def powerwall_max_charging_power(period=60):
     to_time_stamp = getTime()
     from_time_stamp = to_time_stamp - datetime.timedelta(minutes=period)
             
-    powerwall_max_charging_power = CONFIG['solar']['powerwall_charging_power_limit']
+    max_power = CONFIG['solar']['powerwall_charging_power_limit']
 
     try:
         if is_powerwall_configured():
@@ -5633,13 +6060,13 @@ def powerwall_max_charging_power(period=60):
                 raise Exception(f"No powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']} found from {from_time_stamp} to {to_time_stamp}")
             
             if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
-                powerwall_max_charging_power = abs(max(get_specific_values(powerwall_values, positive_only = True)))
+                max_power = abs(max(get_specific_values(powerwall_values, positive_only = True)))
             else:
-                powerwall_max_charging_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
+                max_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e}")
         
-    return powerwall_max_charging_power
+    return max_power
 
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
@@ -5689,16 +6116,14 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
     powerwall_discharging_consumption = discharge_from_powerwall(from_time_stamp, to_time_stamp)
     ev_used_consumption = abs(round(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
     solar_production = abs(round(float(get_average_value(CONFIG['solar']['entity_ids']['production_entity_id'], from_time_stamp, to_time_stamp, convert_to="W", error_state=0.0)), 2))
-            
+        
     if not CONFIG['home']['power_consumption_entity_id_include_powerwall_discharging']:
         power_consumption += powerwall_discharging_consumption
-    
-    total_power_consumption = power_consumption
-    
-    if total_power_consumption - powerwall_charging_consumption < 0.0:
-        total_power_consumption += powerwall_charging_consumption
+            
+    if CONFIG['home']['power_consumption_entity_id_include_powerwall_charging']:
+        power_consumption -= powerwall_charging_consumption
         
-    power_consumption_without_ignored = round(total_power_consumption - ignored_consumption, 2)
+    power_consumption_without_ignored = round(power_consumption - ignored_consumption, 2)
     power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
     power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     
@@ -5709,18 +6134,17 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         "powerwall_discharging_consumption": powerwall_discharging_consumption,
         "ev_used_consumption": ev_used_consumption,
         "solar_production": solar_production,
-        "total_power_consumption": total_power_consumption,
         "power_consumption_without_ignored": power_consumption_without_ignored,
         "power_consumption_without_ignored_ev": power_consumption_without_ignored_ev,
         "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
 
-def solar_production_available(period=None, without_all_exclusion=False, timeFrom=0, timeTo=None):
-    _LOGGER = globals()['_LOGGER'].getChild("solar_production_available")
+def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=False, without_all_exclusion=False, include_local_energy_distribution=False, update_entity=True):
+    _LOGGER = globals()["_LOGGER"].getChild("local_energy_available")
     global POWERWALL_CHARGING_TEXT
-    
+
     if not is_solar_configured(): return 0.0
-    
+
     now = getTime()
     if timeTo is not None:
         # Range mode
@@ -5730,79 +6154,95 @@ def solar_production_available(period=None, without_all_exclusion=False, timeFro
     else:
         # Single period mode
         if period is None:
-            period = CONFIG['solar']['solarpower_use_before_minutes']
-        period = max(period, CONFIG['cron_interval'])
+            period = CONFIG["solar"]["solarpower_use_before_minutes"]
+        period = max(period, CONFIG["cron_interval"])
         to_time_stamp = now
         from_time_stamp = now - datetime.timedelta(minutes=period)
 
     values = power_values(from_time_stamp = from_time_stamp, to_time_stamp = to_time_stamp)
-    power_consumption = values['power_consumption']
-    ignored_consumption = values['ignored_consumption']
-    powerwall_charging_consumption = values['powerwall_charging_consumption']
-    powerwall_discharging_consumption = values['powerwall_discharging_consumption']
-    ev_used_consumption = values['ev_used_consumption']
-    solar_production = values['solar_production']
-    
-    total_power_consumption = values['total_power_consumption']
-    power_consumption_without_ignored = values['power_consumption_without_ignored']
-    power_consumption_without_ignored_ev = values['power_consumption_without_ignored_ev']
-    power_consumption_without_all_exclusion = values['power_consumption_without_all_exclusion']
 
-    powerwall_battery_level = 100.0
-    ev_charge_after_powerwall_battery_level = 0.0
-        
-    if without_all_exclusion:
-        solar_watts_available = round(solar_production - power_consumption_without_all_exclusion, 2)
-    else:
-        solar_watts_available = round(solar_production - power_consumption_without_ignored, 2)
-    
-    if powerwall_charging_consumption > 0.0:
-        POWERWALL_CHARGING_TEXT = f"Powerwall charging: x̄{int(powerwall_charging_consumption)}W"
-    else:
-        POWERWALL_CHARGING_TEXT = ""
-        
-    if not manual_charging_solar_enabled():
-        if is_powerwall_configured() and CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'] and CONFIG['solar']['ev_charge_after_powerwall_battery_level'] > 0.0:
-            powerwall_battery_level = float(get_state(CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id'], error_state=100.0))
-            ev_charge_after_powerwall_battery_level = min(CONFIG['solar']['ev_charge_after_powerwall_battery_level'], 100.0) - 1
-            if powerwall_battery_level < ev_charge_after_powerwall_battery_level:
-                powerwall_charging_power = powerwall_max_charging_power(period=period)
-                
-                if powerwall_charging_power == 0.0 and solar_watts_available > 0.0:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall not charging, even when battery level is {powerwall_battery_level}%"
-                    
-                solar_watts_available = max(solar_watts_available - powerwall_charging_power, 0.0)
-            
-    solar_watts_available = max(solar_watts_available, 0.0)
-        
-    '''if timeTo is not None:
-        txt = "without" if without_all_exclusion else "with"
-        _LOGGER.info(f"sum period:{timeFrom}-{timeTo} {txt} EV, solar_watts_available:{solar_watts_available}")
-    else:
-        _LOGGER.info(f"period:{period}, without_all_exclusion:{without_all_exclusion}, solar_watts_available:{solar_watts_available}")'''
+    ignored_consumption = values["ignored_consumption"]
+    power_consumption = values["power_consumption"]
+    power_consumption_without_ignored = values["power_consumption_without_ignored"]
+    power_consumption_without_ignored_ev = values["power_consumption_without_ignored_ev"]
+    power_consumption_without_all_exclusion = values["power_consumption_without_all_exclusion"]
+    powerwall_charging_consumption = values["powerwall_charging_consumption"]
+    powerwall_discharging_consumption = values["powerwall_discharging_consumption"]
+    ev_used_consumption = values["ev_used_consumption"]
+    solar_production = values["solar_production"]
+    total_production = solar_production
 
     if without_all_exclusion:
-        set_state(f"sensor.{__name__}_solar_over_production_current_hour", solar_watts_available)
+        watts_from_local_energy = total_production - power_consumption_without_all_exclusion
+    else:
+        watts_from_local_energy = total_production - power_consumption_without_ignored
+        
+    watts_from_local_energy_solar_only = watts_from_local_energy
+
+    if is_powerwall_configured() and not solar_only:
+        discharge_above_needed = get_powerwall_discharge_above_needed()
+        powerwall_battery_level = get_powerwall_battery_level()
+        powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
+        powerwall_charging_power = powerwall_max_charging_power(period=period)
+        
+        if powerwall_battery_level <= powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > 0.0 and period != 59):
+            watts_from_local_energy -= powerwall_charging_power if powerwall_charging_power > 0.0 else CONFIG["solar"]["powerwall_charging_power_limit"]
+
+        total_production += powerwall_discharging_consumption
+        
+        if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
+            if powerwall_discharging_consumption < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
+                watts_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
+            else:
+                watts_from_local_energy += powerwall_discharging_consumption
+
+        if (powerwall_battery_level < powerwall_reserved_battery_level
+            and powerwall_charging_power == 0.0
+            and watts_from_local_energy > 0.0):
+            POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% not charging, even when battery level is <{powerwall_reserved_battery_level}%"
+        elif powerwall_charging_consumption > 0.0 and powerwall_discharging_consumption < 100.0:
+            POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
+        elif powerwall_discharging_consumption > 100.0 and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
+            POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_consumption)}W"
+        else:
+            POWERWALL_CHARGING_TEXT = ""
+
+    watts_from_local_energy = round(min(max(watts_from_local_energy, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
+    watts_from_local_energy_solar_only = round(min(max(watts_from_local_energy_solar_only, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
+
+    if update_entity:
+        set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_from_local_energy_solar_only)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
-        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production_available", solar_watts_available)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         
         if is_powerwall_configured():
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_charge_after_powerwall_battery_level", ev_charge_after_powerwall_battery_level)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_power_consumption", total_power_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_production", total_production)
+            
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_from_local_energy)
 
-    return solar_watts_available
 
-def max_solar_watts_available_remaining_hour():
-    _LOGGER = globals()['_LOGGER'].getChild("max_solar_watts_available_remaining_hour")
+    if include_local_energy_distribution:
+        solar_watts_of_local_energy = 0.0
+        powerwall_watts_of_local_energy = 0.0
+
+        if watts_from_local_energy > 0.0:
+            solar_watts_of_local_energy = (solar_production / total_production) * ev_used_consumption if solar_production > 0.0 and total_production > 0.0 else 0.0
+            powerwall_watts_of_local_energy = (powerwall_discharging_consumption / total_production) * ev_used_consumption if powerwall_discharging_consumption > 0.0 and total_production > 0.0 else 0.0
+
+        return watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
+
+    return watts_from_local_energy
+
+def max_local_energy_available_remaining_hour():
+    _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_hour")
     
     if not is_solar_configured():
         return {
@@ -5822,17 +6262,17 @@ def max_solar_watts_available_remaining_hour():
                 return minute % usage_period
             
             time_to = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
-    
+            
     returnDict = {
         "predictedSolarPower": {
-            "watt": max(solar_production_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion = True), 0.0)
+            "watt": max(local_energy_available(timeFrom = 0, timeTo = max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion = True), 0.0)
         }
     }
     
     if time_to >= CONFIG['cron_interval']:
         returnDict['total'] = {
             "period": f"0-{time_to}",
-            "watt": max(solar_production_available(timeFrom = 0, timeTo = time_to, without_all_exclusion = False), 0.0)
+            "watt": max(local_energy_available(timeFrom = 0, timeTo = time_to, without_all_exclusion = False, update_entity = False, solar_only = True), 0.0)
         }
     else:
         returnDict['total'] = {
@@ -5865,8 +6305,8 @@ def max_solar_watts_available_remaining_hour():
         "watt": predictedSolarPower + extra_watt
     }
         
-    _LOGGER.debug(f"max_solar_watts_available_remaining_hour returnDict:{returnDict}")
-    _LOGGER.debug(f"max_solar_watts_available_remaining_hour output:{returnDict['output']}")
+    _LOGGER.debug(f"max_local_energy_available_remaining_hour returnDict:{returnDict}")
+    _LOGGER.debug(f"max_local_energy_available_remaining_hour output:{returnDict['output']}")
 
     return returnDict['output']
 
@@ -6326,6 +6766,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         end_trip = reset_time_to_hour(end_trip)
         trip_last_charging = start_trip - datetime.timedelta(hours=stop_prediction_before)
         
+    using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
+    
     for day in range(days + 1):
         date = today + datetime.timedelta(days=day)
         output[date] = 0.0
@@ -6338,16 +6780,14 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         total_forecast_sell = []
         total = []
         total_sell = []
-        
-        using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
             
         expensive_hours = []
+        
+        for hour in get_expensive_hours(day=day).keys():
+            expensive_hours.append(hour.hour)
             
-        if "expensive_hours" in CHARGE_HOURS:
-            for hour in CHARGE_HOURS['expensive_hours']:
-                expensive_hours.append(hour.hour)
-            
-        from_hour = sunrise if day > 0 else max(sunrise, getHour())
+        current_hour = getHour()
+        from_hour = sunrise if day > 0 else max(sunrise, current_hour)
         to_hour = sunset
         
         work_last_charging = None
@@ -6379,9 +6819,11 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     loop_power = []
                     loop_sell = []
                     
+                    current_hour_factor = 1.0 if from_hour != current_hour else abs((getMinute() / 60.0) - 1)
+                    
                     if cloudiness is not None:
                         power_factor = 0.5 if loop_datetime in solar_forecast_from_integration else 1.0
-                        power_factor = 1.0
+                        power_factor *= current_hour_factor
                         power_cost = get_power(cloudiness, loop_datetime)
                         loop_power.append(power_cost[0] * power_factor)
                         loop_sell.append(power_cost[1] * power_factor)
@@ -6390,6 +6832,7 @@ def solar_available_prediction(start_trip = None, end_trip=None):
                     
                     if loop_datetime in solar_forecast_from_integration:
                         power_factor = 1.5 if cloudiness is not None else 1.0
+                        power_factor *= current_hour_factor
                         loop_power.append(solar_forecast_from_integration[loop_datetime][0] * power_factor)
                         loop_sell.append(solar_forecast_from_integration[loop_datetime][1] * power_factor)
                         total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
@@ -6401,6 +6844,15 @@ def solar_available_prediction(start_trip = None, end_trip=None):
             
             total = sum(total)
             total_sell = average(total_sell)
+            
+            if is_powerwall_configured():
+                powerwall_battery_level = get_powerwall_battery_level() if day == 0 else 0.0
+                powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
+                
+                powerwall_percentage_needed = max(powerwall_reserved_battery_level - powerwall_battery_level, 0.0)
+                powerwall_kwh_needed =  powerwall_percentage_needed * CONFIG['solar']['powerwall_battery_size'] / 100
+                
+                total = round(max(total - powerwall_kwh_needed, 0.0), 3)
             
             if day == 0:
                 output['today'] = total
@@ -6914,15 +7366,20 @@ def charging_without_rule():
     power = get_state(entity_id, float_type=True, error_state=0.0)
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
+    trigger_count = 3
+    
     if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
-        if CHARGING_NO_RULE_COUNT > 4:
+        if CHARGING_NO_RULE_COUNT > 0:
+            stop_charging()
+        
+        if CHARGING_NO_RULE_COUNT > trigger_count:
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
                 
-            set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund")
-            _LOGGER.warning("Charging without rule")
+            set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund {int(power_avg)}W")
+            _LOGGER.warning(f"Charging without rule for {entity_id} power: {power}W, power_avg: {power_avg}W {CHARGING_NO_RULE_COUNT} times")
             
-            if CHARGING_NO_RULE_COUNT == 5:
+            if CHARGING_NO_RULE_COUNT == trigger_count + 1:
                 unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
                 if unavailable_entities:
@@ -6932,8 +7389,14 @@ def charging_without_rule():
                     unavailable_entities_str += f"\n- {entity}"
                 my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{unavailable_entities_str}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
             
-            stop_charging()
+            integration = get_integration(entity_id)
+            
+            if integration:
+                my_persistent_notification(message = f"⛔Entity \"{entity_id}\" lader uden grund\nGenstarter {integration.capitalize()}", title = f"{TITLE} Elbilen lader uden grund", persistent_notification_id = f"{__name__}_charging_without_rule_{entity_id}")
+                reload_entity_integration(entity_id)
+            
             return True
+
         CHARGING_NO_RULE_COUNT += 1
     else:
         CHARGING_NO_RULE_COUNT = 0
@@ -6944,6 +7407,8 @@ def charge_if_needed():
     global CHARGE_HOURS
     
     try:
+        charging_rule = f"Lader ikke"
+        
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
         
@@ -6955,11 +7420,25 @@ def charge_if_needed():
                 trip_reset()
                 cheap_grid_charge_hours()
                 
-        solar_available = max_solar_watts_available_remaining_hour()
+        solar_available = max_local_energy_available_remaining_hour()
+        
         solar_period = solar_available['period']
         solar_watt = solar_available['watt']
-        solar_amps = calc_charging_amps(solar_watt)[:-1] # Remove last element (watt)
-        
+
+        powerwall_discharge_watt = 0.0
+        if is_powerwall_configured():
+            discharge_above_needed = get_powerwall_discharge_above_needed()
+            powerwall_battery_level = get_powerwall_battery_level()
+            powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
+            
+            powerwall_discharging_consumption = power_values(period=max(CONFIG["cron_interval"] * 2, 20))["powerwall_discharging_consumption"]
+            powerwall_discharge_watt = powerwall_discharging_consumption
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption <= 100.0:
+                powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption <= 100.0 else powerwall_discharging_consumption
+
+        inverter_watt = min(solar_watt, CONFIG["solar"]["inverter_discharging_power_limit"])
+        inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
+                        
         currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
         current_price = get_current_hour_price()
         
@@ -6967,11 +7446,11 @@ def charge_if_needed():
         amps = [3.0, 0.0]
                 
         '''if trip_planned:
-            solar_amps[1] = 0.0'''
+            inverter_amps[1] = 0.0'''
             
         _LOGGER.info(f"Solar Production Available Remaining Hour: {solar_available}")
         
-        if solar_amps[1] != 0.0:
+        if inverter_amps[1] != 0.0:
             alsoCheapPower = ""
             charging_limit = get_max_recommended_charge_limit_battery_level()
             solar_using_grid_price = False
@@ -6993,9 +7472,10 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[currentHour]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours']:
+            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and solar_watt > 0.0:
+                charging_rule = f"Ignorer solcelle overproduktion, fordi strømmen er dyr"
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
-                solar_amps[1] = 0.0
+                inverter_amps[1] = 0.0
                 
         
         if is_calculating_charging_loss():
@@ -7006,32 +7486,33 @@ def charge_if_needed():
                 completed_battery_level = get_max_recommended_charge_limit_battery_level()
                 charging_limit = get_max_recommended_charge_limit_battery_level()
                 
-            set_charging_rule(f"{emoji_parse({'charging_loss': True})}Beregner ladetab, lader til {completed_battery_level}%")
+            charging_rule = f"{emoji_parse({'charging_loss': True})}Beregner ladetab, lader til {completed_battery_level}%"
             amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
             
             battery = round(completed_battery_level - battery_level(), 1)
             kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
             cost = round(current_price * kwh, 2)
-            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': True if solar_watt > 0.0 else False}, "charging_loss")
+            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "charging_loss")
         elif manual_charging_enabled() or manual_charging_solar_enabled():
             charging_limit = get_max_recommended_charge_limit_battery_level()
             if not manual_charging_solar_enabled():
                 _LOGGER.info("Manual charging")
                 amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-                set_charging_rule(f"{emoji_parse({'manual': True})}Manuel ladning tilladt {int(amps[0])}x{int(amps[1])}A")
+                charging_rule = f"{emoji_parse({'manual': True})}Manuel ladning tilladt {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
             else:
                 _LOGGER.info(f"Manual charging solar only")
-                amps = solar_amps
-                solar_charging = f" {int(amps[0])}x{int(amps[1])}A" if solar_amps[1] != 0.0 else ""
-                set_charging_rule(f"{emoji_parse({'manual': True, "solar": True})}Manuel ladning tilladt, kun sol {solar_charging}")
+                amps = inverter_amps
+                solar_charging = f" {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W" if inverter_amps[1] != 0.0 else ""
+                charging_rule = f"{emoji_parse({'manual': True, "solar": True})}Manuel ladning tilladt, kun sol {solar_charging}"
                 
             if amps[1] > 0.0:
-                charging_history({'Price': get_solar_sell_price() if solar_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': True if solar_amps[1] != 0.0 else False}, "manual")
+                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': True if inverter_amps[1] != 0.0 else False}, "manual")
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
             if currentHour in CHARGE_HOURS:
                 CHARGE_HOURS[currentHour]['solar'] = True if solar_watt > 0.0 else False
+                CHARGE_HOURS[currentHour]['powerwall'] = True if powerwall_discharge_watt > 0.0 else False
                 charging_history(CHARGE_HOURS[currentHour], "planned")
                 
                 battery_level_plus_charge = battery_level() + CHARGE_HOURS[currentHour]['battery_level']
@@ -7043,36 +7524,41 @@ def charge_if_needed():
                 _LOGGER.error(f"range_to_battery_level():{range_to_battery_level()}")
                 _LOGGER.error(f"charging_limit:{charging_limit}")'''
                 emoji = emoji_parse(CHARGE_HOURS[currentHour])
-
-                set_charging_rule(f"Lader op til {emoji}")
+                charging_rule = f"Lader op til {emoji}"
                 _LOGGER.info(f"Charging because of {emoji} {CHARGE_HOURS[currentHour]['Price']}kr. {int(CONFIG['charger']['charging_phases'])}x{CHARGE_HOURS[currentHour]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
             elif get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level():
                 if currentHour in CHARGE_HOURS['expensive_hours']:
-                    set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm")
+                    charging_rule = f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm"
                     _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHARGE_HOURS['expensive_hours'], format = '%H:%M')}")
                 else:
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
                     cost = round(current_price * kwh, 2)
-                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': True if solar_watt > 0.0 else False}, "low_battery")
+                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "low_battery")
                     charging_limit = get_min_daily_battery_level()
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
-                    set_charging_rule(f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%")
+                    charging_rule = f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
-            elif solar_charging_enabled() and solar_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
+            elif solar_charging_enabled() and inverter_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
                 if currentHour in CHARGE_HOURS:
-                    CHARGE_HOURS[currentHour]['solar'] = True
+                    CHARGE_HOURS[currentHour]['solar'] = True if solar_watt > 0.0 else False
+                    CHARGE_HOURS[currentHour]['powerwall'] = True if powerwall_discharge_watt > 0.0 else False
                     charging_history(CHARGE_HOURS[currentHour], "planned")
                 else:
-                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': True}, "solar")
-                amps = solar_amps
-                set_charging_rule(f"{emoji_parse({'solar': True})}Solcelle lader {int(amps[0])}x{int(amps[1])}A")
-                _LOGGER.info(f"EV solar charging at max {amps}{alsoCheapPower}")
+                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "solar")
+                amps = inverter_amps
+                
+                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if solar_watt > 0.0 else ""
+                powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if powerwall_discharge_watt > 0.0 else ""
+                inverter_string = " &".join([solar_string, powerwall_string]) if solar_watt > 0.0 and powerwall_discharge_watt > 0.0 else solar_string or powerwall_string
+
+                charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+                
+                _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
                 _LOGGER.debug(f"solar_watt:{solar_watt} solar_period:{solar_period}")
             else:
                 if not charging_without_rule():
                     stop_current_charging_session()
-                    set_charging_rule(f"Lader ikke")
                     _LOGGER.info("No rules for charging")
         else:
             if not charging_without_rule():
@@ -7087,7 +7573,8 @@ def charge_if_needed():
             start_charging()
         else:
             stop_charging()
-            
+        
+        set_charging_rule(charging_rule)
         set_charger_charging_amps(*amps)
     except Exception as e:
         global ERROR_COUNT
@@ -7149,7 +7636,7 @@ def kwh_charged_by_solar():
     past = now - datetime.timedelta(minutes=60)
     
     ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
-    solar_watt = round(max(solar_production_available(period = 60, without_all_exclusion = True), 0.0), 3)
+    solar_watt = round(max(local_energy_available(period = 60, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0), 3)
     
     if not ev_watt:
         return
@@ -7206,7 +7693,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
     past = now - datetime.timedelta(minutes=minutes)
     
     ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))) / 1000.0, 3)
-    solar_kwh_available = round(max(solar_production_available(period = minutes, without_all_exclusion = True), 0.0) / 1000.0, 3)
+    solar_kwh_available = round(max(local_energy_available(period = minutes, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0) / 1000.0, 3)
        
     ev_solar_kwh = round(solar_kwh_available, 3)
     ev_grid_kwh =  round(max(ev_kwh - (solar_kwh_available), 0.0), 3)
@@ -7236,50 +7723,54 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     
     now = getTime()
     past = now - datetime.timedelta(minutes=minutes)
+
+    values = power_values(from_time_stamp = past, to_time_stamp = now)
+    ev_used_consumption = values['ev_used_consumption']
     
-    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
-    solar_watt_available = round(max(solar_production_available(period = minutes, without_all_exclusion = True), 0.0), 3)
+    watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
     
     min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
     
-    if (ev_watt == 0.0 and not in_between(getMinute(), 1, 58)) or ev_watt < min_watt:
+    if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
         _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
-        ev_watt = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
+        ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
     else:
-        solar_watt_available = round(min(solar_watt_available, ev_watt), 3)
+        watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
     
-    ev_solar_watt = round(solar_watt_available, 3)
-    ev_grid_watt =  round(max(ev_watt - solar_watt_available, 0.0), 3)
-    
-    solar_kwh_price = get_solar_sell_price(set_entity_attr=update_entities)
-    
-    ev_solar_share = 0.0
-    ev_solar_price_kwh = 0.0
-    try:
-        ev_solar_share = min(round(ev_solar_watt / ev_watt, 2), 100.0)
-        ev_solar_price_kwh = round(ev_solar_share * solar_kwh_price, 5)
-    except:
-        pass
-    _LOGGER.debug(f"ev_watt {ev_watt}")
-    _LOGGER.debug(f"solar_watt_available {solar_watt_available} minutes:{minutes}")
-    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.debug(f"ev_solar_price_kwh: ({ev_solar_watt}/{ev_watt}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_price_kwh}")
+    ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
     
     grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
-    
-    ev_grid_share = 0.0
-    ev_grid_price_kwh = 0.0
     try:
-        ev_grid_share = min(round(ev_grid_watt/ev_watt, 2), 100.0)
-        ev_grid_price_kwh = round(ev_grid_share * grid_kwh_price, 5)
+        ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
+        ev_grid_cost = round(ev_grid_share * grid_kwh_price, 5)
     except:
-        pass
+        ev_grid_share = 0.0
+        ev_grid_cost = 0.0
     _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.debug(f"ev_grid_price_kwh: ({ev_grid_watt}/{ev_watt}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_price_kwh}")
+    _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
     
-    ev_total_price_kwh = round(ev_solar_price_kwh + ev_grid_price_kwh, 3)
-    _LOGGER.debug(f"ev_total_price_kwh: round({ev_solar_price_kwh} + {ev_grid_price_kwh}, 3) = {ev_total_price_kwh}")
+    solar_kwh_price = get_solar_sell_price(set_entity_attr=update_entities)
+    try:
+        ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+        ev_solar_cost = round(ev_solar_share * solar_kwh_price, 5)
+    except:
+        ev_solar_share = 0.0
+        ev_solar_cost = 0.0
+    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+    _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
     
+    powerwall_kwh_price = get_powerwall_kwh_price()
+    try:
+        ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+        ev_powerwall_cost = round(ev_powerwall_share * powerwall_kwh_price, 5)
+    except:
+        ev_powerwall_share = 0.0
+        ev_powerwall_cost = 0.0
+    _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
+    _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
+
+    ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
+
     if update_entities:
         _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
         set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
@@ -7292,18 +7783,26 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
             set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
             set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
         else:
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_grid_ratio", "")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
             set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
             set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
+            
+            if is_powerwall_configured():
+                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
+
             set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
             set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
             set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
-            
+        
         set_charging_price(ev_total_price_kwh)
 
     return ev_total_price_kwh
 
-def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
+def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_solar_kwh")
     
     if not is_solar_configured(): return 0.0
@@ -7315,12 +7814,18 @@ def calc_solar_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False
         past = now - datetime.timedelta(minutes=minutes)
         
         ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="kW", error_state=0.0))), 3)
-        
-    solar_kwh_available = round(max(solar_production_available(period = minutes, without_all_exclusion = True), 0.0) / 1000, 3)
+    ev_watt = ev_kwh * 1000.0
+
+    watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
+    watts_from_local_energy = min(watts_from_local_energy, ev_watt) if ev_watt > 0.0 else watts_from_local_energy
     
+    solar_kwh_available = round(max(watts_from_local_energy, 0.0) / 1000, 3)
+    solar_kwh_of_local_energy = round(solar_watts_of_local_energy / 1000, 3)
+    powerwall_kwh_of_local_energy = round(powerwall_watts_of_local_energy / 1000, 3)
+
     _LOGGER.debug(f"minutes:{minutes} ev_kwh:{ev_kwh} solar_kwh_available:{solar_kwh_available} return:{round(min(solar_kwh_available, ev_kwh), 3)}")
     
-    return round(min(solar_kwh_available, ev_kwh), 3)
+    return round(min(solar_kwh_available, ev_kwh), 3), solar_kwh_of_local_energy, powerwall_kwh_of_local_energy
 
 def load_kwh_prices():
     _LOGGER = globals()['_LOGGER'].getChild("load_kwh_prices")
@@ -7745,7 +8250,7 @@ if INITIALIZATION_COMPLETE:
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
         _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
-        solar_available_append_to_db(solar_production_available(period = 60, without_all_exclusion = True))
+        solar_available_append_to_db(local_energy_available(period = 60, without_all_exclusion = True, solar_only = True))
         power_values_to_db(power_values(period = 60))
         stop_current_charging_session()
         kwh_charged_by_solar()
@@ -7862,33 +8367,36 @@ if INITIALIZATION_COMPLETE:
         stop_current_charging_session()
         reset_counter_entity_integration()
         
-        try:
-            CONFIG = load_yaml(f"{__name__}_config")
-            CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
-            CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
-            CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
-            CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance("wednesday")
-            CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance("thursday")
-            CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance("friday")
-            CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance("saturday")
-            CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance("sunday")
-                             
-            CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
-            CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
-            CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
-            CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
-            CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
-            CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
+        if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
+            try:
+                CONFIG = load_yaml(f"{__name__}_config")
+                CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
+                CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
+                CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
+                CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance("wednesday")
+                CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance("thursday")
+                CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance("friday")
+                CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance("saturday")
+                CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance("sunday")
+                                
+                CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
+                CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
+                CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
+                CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
+                CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
+                CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
+                CONFIG['solar']['ev_charge_after_powerwall_battery_level'] = get_ev_charge_after_powerwall_battery_level()
+                
+                if is_solar_configured():
+                    CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+                
+                save_changes(f"{__name__}_config", CONFIG)
+            except Exception as e:
+                _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
+                my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
+        else:
+            _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
             
-            if is_solar_configured():
-                CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
-            
-            save_changes(f"{__name__}_config", CONFIG)
-        except Exception as e:
-            _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
-            
-
 @state_trigger(f"input_button.{__name__}_restart_script")
 def restart(trigger_type=None, var_name=None, value=None, old_value=None):
     _LOGGER = globals()['_LOGGER'].getChild("restart")

@@ -12,7 +12,7 @@ cards:
     tap_action:
       action: none
     hold_action:
-      action: none
+      action: more-info
     double_tap_action:
       action: none
   - type: custom:mushroom-entity-card

@@ -29,7 +29,7 @@ cards:
             target:
               entity_id: sensor.energi_data_service
           hold_action:
-            action: none
+            action: more-info
           icon: mdi:reload
           name: Genstart Energi Data Service
           show_state: true

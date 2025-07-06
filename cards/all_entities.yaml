@@ -1,105 +1,196 @@
 #All entities for Cable-Juice-Planner that can created my the script
 
-type: grid
+type: vertical-stack
 cards:
   - type: entities
     title: 📦 Input_button
     state_color: true
     entities:
-    - input_button.ev_trip_reset
-    - input_button.ev_enforce_planning
-    - input_button.ev_restart_script
+      - input_button.ev_trip_reset
+      - input_button.ev_enforce_planning
+      - input_button.ev_restart_script
   - type: entities
     title: 📦 Input_boolean
     state_color: true
     entities:
-    - input_boolean.ev_debug_log
-    - input_boolean.ev_forced_charging_daily_battery_level
-    - input_boolean.ev_allow_manual_charging_now
-    - input_boolean.ev_allow_manual_charging_solar
-    - input_boolean.ev_solar_charging
-    - input_boolean.ev_fill_up
-    - input_boolean.ev_workplan_charging
-    - input_boolean.ev_trip_preheat
-    - input_boolean.ev_workday_monday
-    - input_boolean.ev_workday_tuesday
-    - input_boolean.ev_workday_wednesday
-    - input_boolean.ev_workday_thursday
-    - input_boolean.ev_workday_friday
-    - input_boolean.ev_workday_saturday
-    - input_boolean.ev_workday_sunday
-    - input_boolean.ev_preheat_monday
-    - input_boolean.ev_preheat_tuesday
-    - input_boolean.ev_preheat_wednesday
-    - input_boolean.ev_preheat_thursday
-    - input_boolean.ev_preheat_friday
-    - input_boolean.ev_preheat_saturday
-    - input_boolean.ev_preheat_sunday
-    - input_boolean.ev_calculate_charging_loss
+      - input_boolean.ev_debug_log
+      - input_boolean.ev_forced_charging_daily_battery_level
+      - input_boolean.ev_allow_manual_charging_now
+      - input_boolean.ev_allow_manual_charging_solar
+      - input_boolean.ev_solar_charging
+      - input_boolean.ev_fill_up
+      - input_boolean.ev_workplan_charging
+      - input_boolean.ev_trip_preheat
+      - input_boolean.ev_workday_monday
+      - input_boolean.ev_workday_tuesday
+      - input_boolean.ev_workday_wednesday
+      - input_boolean.ev_workday_thursday
+      - input_boolean.ev_workday_friday
+      - input_boolean.ev_workday_saturday
+      - input_boolean.ev_workday_sunday
+      - input_boolean.ev_preheat_monday
+      - input_boolean.ev_preheat_tuesday
+      - input_boolean.ev_preheat_wednesday
+      - input_boolean.ev_preheat_thursday
+      - input_boolean.ev_preheat_friday
+      - input_boolean.ev_preheat_saturday
+      - input_boolean.ev_preheat_sunday
+      - input_boolean.ev_calculate_charging_loss
+      - input_boolean.ev_powerwall_discharge_above_needed
   - type: entities
     title: 📦 Input_number
     state_color: true
     entities:
-    - input_number.ev_co2_emitted
-    - input_number.ev_kwh_charged_by_solar
-    - input_number.ev_solar_sell_fixed_price
-    - input_number.ev_preheat_minutes_before
-    - input_number.ev_typical_daily_distance
-    - input_number.ev_workday_distance_needed_monday
-    - input_number.ev_workday_distance_needed_tuesday
-    - input_number.ev_workday_distance_needed_wednesday
-    - input_number.ev_workday_distance_needed_thursday
-    - input_number.ev_workday_distance_needed_friday
-    - input_number.ev_workday_distance_needed_saturday
-    - input_number.ev_workday_distance_needed_sunday
-    - input_number.ev_min_daily_battery_level
-    - input_number.ev_min_trip_battery_level
-    - input_number.ev_min_charge_limit_battery_level
-    - input_number.ev_max_recommended_charge_limit_battery_level
-    - input_number.ev_very_cheap_grid_charging_max_battery_level
-    - input_number.ev_ultra_cheap_grid_charging_max_battery_level
-    - input_number.ev_battery_level
-    - input_number.ev_completed_battery_level
-    - input_number.ev_estimated_total_range
-    - input_number.ev_trip_charge_procent
-    - input_number.ev_trip_range_needed
-    - input_number.ev_full_charge_recommended
+      - input_number.ev_co2_emitted
+      - input_number.ev_kwh_charged_by_solar
+      - input_number.ev_solar_sell_fixed_price
+      - input_number.ev_preheat_minutes_before
+      - input_number.ev_typical_daily_distance
+      - input_number.ev_workday_distance_needed_monday
+      - input_number.ev_workday_distance_needed_tuesday
+      - input_number.ev_workday_distance_needed_wednesday
+      - input_number.ev_workday_distance_needed_thursday
+      - input_number.ev_workday_distance_needed_friday
+      - input_number.ev_workday_distance_needed_saturday
+      - input_number.ev_workday_distance_needed_sunday
+      - input_number.ev_min_daily_battery_level
+      - input_number.ev_min_trip_battery_level
+      - input_number.ev_min_charge_limit_battery_level
+      - input_number.ev_max_recommended_charge_limit_battery_level
+      - input_number.ev_very_cheap_grid_charging_max_battery_level
+      - input_number.ev_ultra_cheap_grid_charging_max_battery_level
+      - input_number.ev_battery_level
+      - input_number.ev_completed_battery_level
+      - input_number.ev_estimated_total_range
+      - input_number.ev_trip_charge_procent
+      - input_number.ev_trip_range_needed
+      - input_number.ev_full_charge_recommended
+      - input_number.ev_ev_charge_after_powerwall_battery_level
   - type: entities
     title: 📦 Input_datetime
     state_color: true
     entities:
-    - input_datetime.ev_workday_departure_monday
-    - input_datetime.ev_workday_departure_tuesday
-    - input_datetime.ev_workday_departure_wednesday
-    - input_datetime.ev_workday_departure_thursday
-    - input_datetime.ev_workday_departure_friday
-    - input_datetime.ev_workday_departure_saturday
-    - input_datetime.ev_workday_departure_sunday
-    - input_datetime.ev_workday_homecoming_monday
-    - input_datetime.ev_workday_homecoming_tuesday
-    - input_datetime.ev_workday_homecoming_wednesday
-    - input_datetime.ev_workday_homecoming_thursday
-    - input_datetime.ev_workday_homecoming_friday
-    - input_datetime.ev_workday_homecoming_saturday
-    - input_datetime.ev_workday_homecoming_sunday
-    - input_datetime.ev_trip_date_time
-    - input_datetime.ev_trip_homecoming_date_time
-    - input_datetime.ev_last_full_charge
+      - input_datetime.ev_workday_departure_monday
+      - input_datetime.ev_workday_departure_tuesday
+      - input_datetime.ev_workday_departure_wednesday
+      - input_datetime.ev_workday_departure_thursday
+      - input_datetime.ev_workday_departure_friday
+      - input_datetime.ev_workday_departure_saturday
+      - input_datetime.ev_workday_departure_sunday
+      - input_datetime.ev_workday_homecoming_monday
+      - input_datetime.ev_workday_homecoming_tuesday
+      - input_datetime.ev_workday_homecoming_wednesday
+      - input_datetime.ev_workday_homecoming_thursday
+      - input_datetime.ev_workday_homecoming_friday
+      - input_datetime.ev_workday_homecoming_saturday
+      - input_datetime.ev_workday_homecoming_sunday
+      - input_datetime.ev_trip_date_time
+      - input_datetime.ev_trip_homecoming_date_time
+      - input_datetime.ev_last_full_charge
   - type: entities
     title: 📊 Sensorer
     state_color: true
     entities:
-    - sensor.ev_solar_over_production_current_hour
-    - sensor.ev_solar_charged_percentage
-    - sensor.ev_drive_efficiency
-    - sensor.ev_km_per_kwh
-    - sensor.ev_estimated_range
-    - sensor.ev_drive_efficiency_last_battery_level
-    - sensor.ev_drive_efficiency_last_odometer
-    - sensor.ev_charge_very_cheap_battery_level
-    - sensor.ev_charge_ultra_cheap_battery_level
-    - sensor.ev_kwh_cost_price
-    - sensor.ev_current_charging_rule
-    - sensor.ev_emoji_description
-    - sensor.ev_overview
-    - sensor.ev_charging_history
+      - sensor.ev_solar_over_production_current_hour
+      - sensor.ev_solar_charged_percentage
+      - sensor.ev_drive_efficiency
+      - sensor.ev_km_per_kwh
+      - sensor.ev_estimated_range
+      - sensor.ev_drive_efficiency_last_battery_level
+      - sensor.ev_drive_efficiency_last_odometer
+      - sensor.ev_charge_very_cheap_battery_level
+      - sensor.ev_charge_ultra_cheap_battery_level
+      - sensor.ev_kwh_cost_price
+      - sensor.ev_current_charging_rule
+      - sensor.ev_emoji_description
+      - sensor.ev_overview
+      - sensor.ev_charging_history
+  - type: markdown
+    content: >-
+      - <b>`input_button.ev_trip_reset`</b><br>Nulstil tur ladning<br><br>
+      - <b>`input_button.ev_enforce_planning`</b><br>Udregn planlægning
+      igen<br><br>
+      - <b>`input_button.ev_restart_script`</b><br>Genstart scriptet<br><br>
+      - <b>`input_boolean.ev_debug_log`</b><br>ev.py debug log<br><br>
+      - <b>`input_boolean.ev_forced_charging_daily_battery_level`</b><br>Tvangsladning til under daglig batteri niveau<br><br>
+      - <b>`input_boolean.ev_allow_manual_charging_now`</b><br>Tillad manuel ladning nu<br><br>
+      - <b>`input_boolean.ev_allow_manual_charging_solar`</b><br>Tillad manuel ladning kun på sol<br><br>
+      - <b>`input_boolean.ev_solar_charging`</b><br>Aktiveres ved solcelleoverproduktion. Oplader med overskudsenergi tilpasset husets forbrug. Planlægger optimal opladning ud fra estimeret ugentlig overproduktion.<br><br>
+      - <b>`input_boolean.ev_fill_up`</b><br>Kan aktiveres ved ferie og ignorerer arbejdsplan. Fordeler opladning over ugen baseret på behov. Planlægger efter laveste priser og maks. anbefalet batteriniveau.<br><br>
+      - <b>`input_boolean.ev_workplan_charging`</b><br>Aktiveres ved arbejde indenfor en uge. Planlægger daglig opladning baseret på arbejdsdage, afgangstid og afstand. Oplader økonomisk og sikrer tilstrækkeligt niveau ved hjemkomst.<br><br>
+      - <b>`input_boolean.ev_trip_preheat`</b><br>Aktiveres ved tur ladning. Forvarmer bilen før afgang, hvis forvarmning er nødvendig.<br><br>
+      - <b>`input_boolean.ev_workday_monday`</b><br>Sætter om mandag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_tuesday`</b><br>Sætter om tirsdag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_wednesday`</b><br>Sætter om onsdag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_thursday`</b><br>Sætter om torsdag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_friday`</b><br>Sætter om fredag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_saturday`</b><br>Sætter om lørdag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_workday_sunday`</b><br>Sætter om søndag er arbejdsdag<br><br>
+      - <b>`input_boolean.ev_preheat_monday`</b><br>Forvarm bilen om mandagen<br><br>
+      - <b>`input_boolean.ev_preheat_tuesday`</b><br>Forvarm bilen om tirsdagen<br><br>
+      - <b>`input_boolean.ev_preheat_wednesday`</b><br>Forvarm bilen om onsdagen<br><br>
+      - <b>`input_boolean.ev_preheat_thursday`</b><br>Forvarm bilen om torsdagen<br><br>
+      - <b>`input_boolean.ev_preheat_friday`</b><br>Forvarm bilen om fredagen<br><br>
+      - <b>`input_boolean.ev_preheat_saturday`</b><br>Forvarm bilen om lørdagen<br><br>
+      - <b>`input_boolean.ev_preheat_sunday`</b><br>Forvarm bilen om søndagen<br><br>
+      - <b>`input_boolean.ev_calculate_charging_loss`</b><br>For præcis ladetabsberegning: Aflad bilen, indstil ønsket maks. ladegrænse, og aktiver beregning. Resultat gemmes automatisk, og notifikation sendes ved fuld opladning.<br><br>
+      - <b>`input_boolean.ev_powerwall_discharge_above_needed`</b><br>Aflader Powerwall over det nødvendige niveau for at oplade elbilen, når den er tilsluttet. Kræver aktivering af input_boolean.ev_solar_charging.<br><br>
+      - <b>`input_number.ev_co2_emitted`</b><br>CO₂ udledt i kg, baseret på Energi Data Service CO₂ faktor<br><br>
+      - <b>`input_number.ev_kwh_charged_by_solar`</b><br>kWh opladet af solcellerne<br><br>
+      - <b>`input_number.ev_solar_sell_fixed_price`</b><br>Fast salgspris for solceller, bruges til at beregne solcelleoverskud, sæt til -1.0 for at bruge timepris<br><br>
+      - <b>`input_number.ev_preheat_minutes_before`</b><br>Forvarm bilen X minutter før afgang, hvis forvarmning er aktiveret<br><br>
+      - <b>`input_number.ev_typical_daily_distance`</b><br>Typisk daglig afstand i km, bruges til at planlægge opladning. Kræver aktivering af input_boolean.ev_fill_up.<br><br>
+      - <b>`input_number.ev_workday_distance_needed_monday`</b><br>Afstand i km, der skal oplades for mandag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_tuesday`</b><br>Afstand i km, der skal oplades for tirsdag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_wednesday`</b><br>Afstand i km, der skal oplades for onsdag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_thursday`</b><br>Afstand i km, der skal oplades for torsdag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_friday`</b><br>Afstand i km, der skal oplades for fredag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_saturday`</b><br>Afstand i km, der skal oplades for lørdag arbejdsdag<br><br>
+      - <b>`input_number.ev_workday_distance_needed_sunday`</b><br>Afstand i km, der skal oplades for søndag arbejdsdag<br><br>
+      - <b>`input_number.ev_min_daily_battery_level`</b><br>Minimum daglig batteriniveau i procent, ved hjemkomst<br><br>
+      - <b>`input_number.ev_min_trip_battery_level`</b><br>Minimum tur batteriniveau i procent, ved hjemkomst<br><br>
+      - <b>`input_number.ev_min_charge_limit_battery_level`</b><br>Minimum batteriniveau i procent, bilen kan sættes til i opladningstilstand<br><br>
+      - <b>`input_number.ev_max_recommended_charge_limit_battery_level`</b><br>Maks. anbefalet batteriniveau i procent, bilen lades til dagligt<br><br>
+      - <b>`input_number.ev_very_cheap_grid_charging_max_battery_level`</b><br>Ved meget billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.ev_fill_up.<br><br>
+      - <b>`input_number.ev_ultra_cheap_grid_charging_max_battery_level`</b><br>Ved ekstremt billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.ev_fill_up.<br><br>
+      - <b>`input_number.ev_battery_level`</b><br>Ved ingen bilintegration, bruges denne til at sætte batteriniveauet i procent<br><br>
+      - <b>`input_number.ev_completed_battery_level`</b><br>Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau bilen viser, når den melder opladning færdig. input_number.ev_battery_level opdateres automatisk til dette.<br><br>
+      - <b>`input_number.ev_estimated_total_range`</b><br>Ved ingen bilintegration, bruges denne til at sætte det estimerede totale rækkevidde i km<br><br>
+      - <b>`input_number.ev_trip_charge_procent`</b><br>Bruges ved turladning til at angive ønsket batteriniveau ved afgang, bilen lades til denne værdi + input_number.ev_min_trip_battery_level (f.eks. 50% + 30% = 80%)<br><br>
+      - <b>`input_number.ev_trip_range_needed`</b><br>Bruges ved turladning til at angive det ønskede rækkevidde i km, der skal oplades til ved afgang, km omregnes automatisk til batteriniveau og bilen lades til dette niveau + input_number.ev_min_trip_battery_level (f.eks. 50% + 30% = 80%)<br><br>
+      - <b>`input_number.ev_full_charge_recommended`</b><br>Anbefalet fuld opladning minimum hver X dage, for at undgå batteri skader. Bilen lades til 100%. Sæt til 0 for at deaktivere.<br><br>
+      - <b>`input_number.ev_ev_charge_after_powerwall_battery_level`</b><br>Oplader elbilen fra Powerwall, når Powerwall batteriniveau er over dette niveau i procent. Sæt til 0.0 for at deaktivere. Kræver aktivering af input_boolean.ev_solar_charging.<br><br>
+      - <b>`input_datetime.ev_workday_departure_monday`</b><br>Afgangstidspunkt for mandag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_tuesday`</b><br>Afgangstidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_wednesday`</b><br>Afgangstidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_thursday`</b><br>Afgangstidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_friday`</b><br>Afgangstidspunkt for fredag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_saturday`</b><br>Afgangstidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_departure_sunday`</b><br>Afgangstidspunkt for søndag arbejdsdag, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_monday`</b><br>Hjemkomsttidspunkt for mandag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_tuesday`</b><br>Hjemkomsttidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_wednesday`</b><br>Hjemkomsttidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_thursday`</b><br>Hjemkomsttidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_friday`</b><br>Hjemkomsttidspunkt for fredag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_saturday`</b><br>Hjemkomsttidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_workday_homecoming_sunday`</b><br>Hjemkomsttidspunkt for søndag arbejdsdag, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_trip_date_time`</b><br>Dato og tidspunkt for tur afgang, bruges til at planlægge opladning og forvarmning<br><br>
+      - <b>`input_datetime.ev_trip_homecoming_date_time`</b><br>Dato og tidspunkt for tur hjemkomst, bruges til at planlægge opladning<br><br>
+      - <b>`input_datetime.ev_last_full_charge`</b><br>Dato og tidspunkt for sidste fuld opladning<br><br>
+      - <b>`sensor.ev_solar_over_production_current_hour`</b>
+      - <b>`sensor.ev_solar_charged_percentage`</b>
+      - <b>`sensor.ev_drive_efficiency`</b>
+      - <b>`sensor.ev_km_per_kwh`</b>
+      - <b>`sensor.ev_estimated_range`</b>
+      - <b>`sensor.ev_drive_efficiency_last_battery_level`</b>
+      - <b>`sensor.ev_drive_efficiency_last_odometer`</b>
+      - <b>`sensor.ev_charge_very_cheap_battery_level`</b>
+      - <b>`sensor.ev_charge_ultra_cheap_battery_level`</b>
+      - <b>`sensor.ev_kwh_cost_price`</b>
+      - <b>`sensor.ev_current_charging_rule`</b>
+      - <b>`sensor.ev_emoji_description`</b>
+      - <b>`sensor.ev_overview`</b>
+      - <b>`sensor.ev_charging_history`</b>
+grid_options:
+  columns: 48
+  rows: auto

@@ -1,10 +1,24 @@
 #!/bin/bash
 
-# Check if /config directory exists, if not, use /mnt/data/supervisor/homeassistant
+# Forsøg først at bruge den normale sti
 if [ -d "/config" ]; then
   REPO_DIR="/config"
 else
-  REPO_DIR="/mnt/data/supervisor/homeassistant"
+  echo "🔍 Søger efter Home Assistant-mappe..."
+  # Find alle forekomster af .HA_VERSION under /mnt
+  while IFS= read -r HA_FILE; do
+    DIR_PATH=$(dirname "$HA_FILE")
+    if [ -f "$DIR_PATH/configuration.yaml" ]; then
+      REPO_DIR="$DIR_PATH"
+      break
+    fi
+  done < <(find /mnt -type f -name ".HA_VERSION" 2>/dev/null)
+
+  # Hvis intet blev fundet
+  if [ -z "$REPO_DIR" ]; then
+    echo "Kunne ikke finde en Home Assistant-mappe med både .HA_VERSION og configuration.yaml."
+    exit 1
+  fi
 fi
 
 # Define the GitHub repository URL
