@@ -4307,6 +4307,22 @@ def get_hour_prices():
     
     return hour_prices
 
+def get_expensive_hours(day=0):
+    countExpensive = 0
+    expensiveDict = {}
+    
+    day_timestamp = getTime().date() + datetime.timedelta(days=day)
+    
+    for timestamp, price in sorted(get_hour_prices().items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
+        if timestamp.date() == day_timestamp:
+            if countExpensive < 4:
+                expensiveDict[timestamp] = price
+            else:
+                break
+            countExpensive += 1
+    
+    return expensiveDict
+
 def cheap_grid_charge_hours():
     _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES, CHARGING_PLAN, CHARGE_HOURS
@@ -5355,20 +5371,12 @@ def cheap_grid_charge_hours():
     chargeHours['total_kwh'] = totalkWh
     chargeHours['total_procent'] = round(kwh_to_percentage(totalkWh, include_charging_loss = True), 2)
     
-    countExpensive = 0
     expensiveList = []
     expensiveDict = {}
     
-    current_day = now.date()
-    
-    for timestamp, price in sorted(hour_prices.items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
-        if timestamp.date() == current_day:
-            if countExpensive < 4:
-                expensiveList.append(timestamp)
-                expensiveDict[str(timestamp)] = f"{price:.2f} kr"
-            else:
-                break
-            countExpensive += 1
+    for timestamp, price in get_expensive_hours().items():
+        expensiveList.append(timestamp)
+        expensiveDict[str(timestamp)] = f"{price:.2f} kr"
         
     set_attr(f"input_boolean.{__name__}_forced_charging_daily_battery_level.expensive_hours", dict(sorted(expensiveDict.items())))
     chargeHours['expensive_hours'] = expensiveList
@@ -6643,6 +6651,8 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         end_trip = reset_time_to_hour(end_trip)
         trip_last_charging = start_trip - datetime.timedelta(hours=stop_prediction_before)
         
+    using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
+    
     for day in range(days + 1):
         date = today + datetime.timedelta(days=day)
         output[date] = 0.0
@@ -6655,14 +6665,11 @@ def solar_available_prediction(start_trip = None, end_trip=None):
         total_forecast_sell = []
         total = []
         total_sell = []
-        
-        using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
             
         expensive_hours = []
-            
-        if "expensive_hours" in CHARGE_HOURS:
-            for hour in CHARGE_HOURS['expensive_hours']:
-                expensive_hours.append(hour.hour)
+        
+        for hour in get_expensive_hours(day=day).keys():
+            expensive_hours.append(hour.hour)
             
         current_hour = getHour()
         from_hour = sunrise if day > 0 else max(sunrise, current_hour)
