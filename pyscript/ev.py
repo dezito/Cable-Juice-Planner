@@ -555,506 +555,576 @@ COMMENT_DB_YAML = {
 }
 
 DEFAULT_ENTITIES = {
-   "input_button":{
-       f"{__name__}_trip_reset":{
-           "name":"Nulstil tur ladning",
-           "icon":"mdi:restore"
-      },
-      f"{__name__}_enforce_planning":{
-          "name":"Gennemtving planlægning",
-          "icon":"mdi:calendar-refresh"
-      },
-      f"{__name__}_restart_script":{
-          "name":"Genstart scriptet",
-          "icon":"mdi:restart"
-      }
-   },
-   "input_boolean":{
-      f"{__name__}_debug_log":{
-          "name":f"{__name__}.py debug log",
-          "icon":"mdi:math-log"
-      },
-      f"{__name__}_forced_charging_daily_battery_level":{
-          "name":"Tvangsladning under daglig batteri niveau",
-          "icon":"mdi:battery-charging-low"
-      },
-      f"{__name__}_allow_manual_charging_now":{
-          "name":"Tillad manuel ladning nu"
-      },
-      f"{__name__}_allow_manual_charging_solar":{
-          "name":"Tillad manuel ladning kun på sol"
-      },
-      f"{__name__}_solar_charging":{
-          "name":"Solcelleoverskud til opladning",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_fill_up":{
-          "name":"Optimal ugeopladning (uden Arbejdsplan)",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_workplan_charging":{
-          "name":"Arbejdsplan opladning",
-          "icon": "mdi:brain"
-      },
-      f"{__name__}_trip_preheat":{
-          "name":"Tur ladning forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_workday_monday":{
-          "name":"Mandag arbejdsdag"
-      },
-      f"{__name__}_workday_tuesday":{
-          "name":"Tirsdag arbejdsdag"
-      },
-      f"{__name__}_workday_wednesday":{
-          "name":"Onsdag arbejdsdag"
-      },
-      f"{__name__}_workday_thursday":{
-          "name":"Torsdag arbejdsdag"
-      },
-      f"{__name__}_workday_friday":{
-          "name":"Fredag arbejdsdag"
-      },
-      f"{__name__}_workday_saturday":{
-          "name":"Lørdag arbejdsdag"
-      },
-      f"{__name__}_workday_sunday":{
-          "name":"Søndag arbejdsdag"
-      },
-      f"{__name__}_preheat_monday":{
-          "name":"Mandag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_tuesday":{
-          "name":"Tirsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_wednesday":{
-          "name":"Onsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_thursday":{
-          "name":"Torsdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_friday":{
-          "name":"Fredag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_saturday":{
-          "name":"Lørdag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_preheat_sunday":{
-          "name":"Søndag forvarm bilen",
-          "icon": "mdi:heat-wave"
-      },
-      f"{__name__}_calculate_charging_loss":{
-          "name":"Beregn ladetab",
-          "icon": "mdi:battery-sync"
-      },
-      f"{__name__}_powerwall_discharge_above_needed":{
-          "name":"Powerwall afladning over behov til elbil",
-          "icon": "mdi:power-plug-battery"
-      },
-      
-   },
-   "input_number":{
-      f"{__name__}_co2_emitted":{
-          "name":"CO₂ udledt",
-          "min":0,
-          "max":999999,
-          "step":0.001,
-          "icon":"mdi:molecule-co2",
-          "unit_of_measurement":"kg",
-          "mode": "box"
-      },
-      f"{__name__}_kwh_charged_by_solar":{
-          "name":"kWh ladet af solcellerne",
-          "min":0,
-          "max":999999,
-          "step":0.01,
-          "icon":"mdi:white-balance-sunny",
-          "unit_of_measurement":"kWh",
-          "mode": "box"
-      },
-      f"{__name__}_solar_sell_fixed_price":{
-          "name":"Solcelle fast salgspris",
-          "min":-1,
-          "max":2,
-          "step":0.01,
-          "icon":"mdi:cash-multiple",
-          "unit_of_measurement":"kr/kWh"
-      },
-      f"{__name__}_preheat_minutes_before":{
-          "name":"Forvarm bilen X min før",
-          "min":0,
-          "max":60,
-          "step":5,
-          "unit_of_measurement":"min"
-      },
-      f"{__name__}_typical_daily_distance":{
-          "name":"Typisk daglig afstand (Fridag)",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_monday":{
-          "name":"Mandagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_tuesday":{
-          "name":"Tirsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_wednesday":{
-          "name":"Onsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_thursday":{
-          "name":"Torsdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_friday":{
-          "name":"Fredagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_saturday":{
-          "name":"Lørdagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_workday_distance_needed_sunday":{
-          "name":"Søndagsafstand i alt",
-          "min":0,
-          "max":500,
-          "step":5,
-          "mode":"box",
-          "icon":"mdi:transit-connection-variant",
-          "unit_of_measurement":"km"
-      },
-      f"{__name__}_min_daily_battery_level":{
-          "name":"Daglig hjemkomst batteri niveau",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_min_trip_battery_level":{
-          "name":"Tur hjemkomst batteri niveau",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_min_charge_limit_battery_level":{
-          "name":"Elbilens minimum ladingsprocent",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_max_recommended_charge_limit_battery_level":{
-          "name":"Elbilens maks anbefalet ladingsprocent",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:percent-outline"
-      },
-      f"{__name__}_very_cheap_grid_charging_max_battery_level":{
-          "name":"Ladingsprocent ved billig strøm",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:sale"
-      },
-      f"{__name__}_ultra_cheap_grid_charging_max_battery_level":{
-          "name":"Ladingsprocent ved meget billig strøm",
-          "min":10,
-          "max":100,
-          "step":5,
-          "mode":"box",
-          "unit_of_measurement":"%",
-          "icon":"mdi:sale-outline"
-      },
-      f"{__name__}_battery_level":{
-          "name": "Virtuel elbil batteri niveau",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit_of_measurement": "%",
-          "icon": "mdi:battery-high",
-          "mode": "box"
-      },
-      f"{__name__}_completed_battery_level":{
-          "name": "Elbil lading færdig batteri niveau",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit_of_measurement": "%",
-          "icon": "mdi:battery-high",
-          "mode": "box"
-      },
-      f"{__name__}_estimated_total_range":{
-          "name": "Virtuel elbil max rækkevidde",
-          "min": 0,
-          "max": 1000,
-          "step": 1,
-          "unit_of_measurement": "km",
-          "icon": "mdi:map-marker-distance",
-          "mode": "box"
-      },
-      f"{__name__}_trip_charge_procent":{
-          "name": "Tur ladning til",
-          "min": 0,
-          "max": 100,
-          "step": 5,
-          "unit_of_measurement": "%",
-          "icon": "mdi:percent-outline"
-      },
-      f"{__name__}_trip_range_needed":{
-          "name": "Tur km forbrug",
-          "min": 0,
-          "max": 1000,
-          "step": 5,
-          "unit_of_measurement": "km",
-          "icon": "mdi:map-marker-distance"
-      },
-      f"{__name__}_full_charge_recommended":{
-          "name":"Anbefalet fuld ladning hver",
-          "min": 0,
-          "max": 60,
-          "step": 1,
-          "unit_of_measurement": "dag(e)",
-          "icon": "mdi:battery-heart"
-      },
-      f"{__name__}_ev_charge_after_powerwall_battery_level":{
-          "name":"Oplad elbil efter Powerwall minimum batteriniveau",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit_of_measurement": "%",
-          "icon": "mdi:percent-outline"
-      },
-   },
-   "input_datetime":{
-      f"{__name__}_workday_departure_monday":{
-          "name":"Mandag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_tuesday":{
-          "name":"Tirsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_wednesday":{
-          "name":"Onsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_thursday":{
-          "name":"Torsdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_friday":{
-          "name":"Fredag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_saturday":{
-          "name":"Lørdag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_departure_sunday":{
-          "name":"Søndag afgang",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-start"
-      },
-      f"{__name__}_workday_homecoming_monday":{
-          "name":"Mandag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_tuesday":{
-          "name":"Tirsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_wednesday":{
-          "name":"Onsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_thursday":{
-          "name":"Torsdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_friday":{
-          "name":"Fredag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_saturday":{
-          "name":"Lørdag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_workday_homecoming_sunday":{
-          "name":"Søndag hjemkomst",
-          "has_date":False,
-          "has_time":True,
-          "icon": "mdi:clock-end"
-      },
-      f"{__name__}_trip_date_time":{
-          "name":"Elbil Tur afgang",
-          "has_date":True,
-          "has_time":True
-      },
-      f"{__name__}_trip_homecoming_date_time":{
-          "name":"Elbil Tur hjemkomst",
-          "has_date":True,
-          "has_time":True
-      },
-      f"{__name__}_last_full_charge":{
-          "name":"Sidste fulde opladning",
-          "has_date":True,
-          "has_time":True
-      },
-   },
-   "sensor":[
-      {
-          "platform":"template",
-          "sensors":{
+    "homeassistant": {
+        "customize": {
+            f"input_button.{__name__}_trip_reset": {"description": "Nulstil tur ladning"},
+            f"input_button.{__name__}_enforce_planning": {"description": "Udregn planlægning igen"},
+            f"input_button.{__name__}_restart_script": {"description": "Genstart scriptet"},
+            f"input_boolean.{__name__}_debug_log": {"description": f"{__name__}.py debug log"},
+            f"input_boolean.{__name__}_forced_charging_daily_battery_level": {"description": "Tvangsladning til under daglig batteri niveau"},
+            f"input_boolean.{__name__}_allow_manual_charging_now": {"description": "Tillad manuel ladning nu"},
+            f"input_boolean.{__name__}_allow_manual_charging_solar": {"description": "Tillad manuel ladning kun på sol"},
+            f"input_boolean.{__name__}_solar_charging": {"description": "Aktiveres ved solcelleoverproduktion. Oplader med overskudsenergi tilpasset husets forbrug. Planlægger optimal opladning ud fra estimeret ugentlig overproduktion."},
+            f"input_boolean.{__name__}_fill_up": {"description": "Kan aktiveres ved ferie og ignorerer arbejdsplan. Fordeler opladning over ugen baseret på behov. Planlægger efter laveste priser og maks. anbefalet batteriniveau."},
+            f"input_boolean.{__name__}_workplan_charging": {"description": "Aktiveres ved arbejde indenfor en uge. Planlægger daglig opladning baseret på arbejdsdage, afgangstid og afstand. Oplader økonomisk og sikrer tilstrækkeligt niveau ved hjemkomst."},
+            f"input_boolean.{__name__}_trip_preheat": {"description": "Aktiveres ved tur ladning. Forvarmer bilen før afgang, hvis forvarmning er nødvendig."},
+            f"input_boolean.{__name__}_workday_monday": {"description": "Sætter om mandag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_tuesday": {"description": "Sætter om tirsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_wednesday": {"description": "Sætter om onsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_thursday": {"description": "Sætter om torsdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_friday": {"description": "Sætter om fredag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_saturday": {"description": "Sætter om lørdag er arbejdsdag"},
+            f"input_boolean.{__name__}_workday_sunday": {"description": "Sætter om søndag er arbejdsdag"},
+            f"input_boolean.{__name__}_preheat_monday": {"description": "Forvarm bilen om mandagen"},
+            f"input_boolean.{__name__}_preheat_tuesday": {"description": "Forvarm bilen om tirsdagen"},
+            f"input_boolean.{__name__}_preheat_wednesday": {"description": "Forvarm bilen om onsdagen"},
+            f"input_boolean.{__name__}_preheat_thursday": {"description": "Forvarm bilen om torsdagen"},
+            f"input_boolean.{__name__}_preheat_friday": {"description": "Forvarm bilen om fredagen"},
+            f"input_boolean.{__name__}_preheat_saturday": {"description": "Forvarm bilen om lørdagen"},
+            f"input_boolean.{__name__}_preheat_sunday": {"description": "Forvarm bilen om søndagen"},
+            f"input_boolean.{__name__}_calculate_charging_loss": {"description": "For præcis ladetabsberegning: Aflad bilen, indstil ønsket maks. ladegrænse, og aktiver beregning. Resultat gemmes automatisk, og notifikation sendes ved fuld opladning."},
+            f"input_boolean.{__name__}_powerwall_discharge_above_needed": {"description": f"Aflader Powerwall over det nødvendige niveau for at oplade elbilen, når den er tilsluttet. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
+            f"input_number.{__name__}_co2_emitted": {"description": "CO₂ udledt i kg, baseret på Energi Data Service CO₂ faktor"},
+            f"input_number.{__name__}_kwh_charged_by_solar": {"description": "kWh opladet af solcellerne"},
+            f"input_number.{__name__}_solar_sell_fixed_price": {"description": "Fast salgspris for solceller, bruges til at beregne solcelleoverskud, sæt til -1.0 for at bruge timepris"},
+            f"input_number.{__name__}_preheat_minutes_before": {"description": "Forvarm bilen X minutter før afgang, hvis forvarmning er aktiveret"},
+            f"input_number.{__name__}_typical_daily_distance": {"description": f"Typisk daglig afstand i km, bruges til at planlægge opladning. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_workday_distance_needed_monday": {"description": "Afstand i km, der skal oplades for mandag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_tuesday": {"description": "Afstand i km, der skal oplades for tirsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_wednesday": {"description": "Afstand i km, der skal oplades for onsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_thursday": {"description": "Afstand i km, der skal oplades for torsdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_friday": {"description": "Afstand i km, der skal oplades for fredag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_saturday": {"description": "Afstand i km, der skal oplades for lørdag arbejdsdag"},
+            f"input_number.{__name__}_workday_distance_needed_sunday": {"description": "Afstand i km, der skal oplades for søndag arbejdsdag"},
+            f"input_number.{__name__}_min_daily_battery_level": {"description": "Minimum daglig batteriniveau i procent, ved hjemkomst"},
+            f"input_number.{__name__}_min_trip_battery_level": {"description": "Minimum tur batteriniveau i procent, ved hjemkomst"},
+            f"input_number.{__name__}_min_charge_limit_battery_level": {"description": "Minimum batteriniveau i procent, bilen kan sættes til i opladningstilstand"},
+            f"input_number.{__name__}_max_recommended_charge_limit_battery_level": {"description": "Maks. anbefalet batteriniveau i procent, bilen lades til dagligt"},
+            f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": {"description": f"Ved meget billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": {"description": f"Ved ekstremt billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
+            f"input_number.{__name__}_battery_level": {"description": "Ved ingen bilintegration, bruges denne til at sætte batteriniveauet i procent"},
+            f"input_number.{__name__}_completed_battery_level": {"description": f"Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau bilen viser, når den melder opladning færdig. input_number.{__name__}_battery_level opdateres automatisk til dette."},
+            f"input_number.{__name__}_estimated_total_range": {"description": "Ved ingen bilintegration, bruges denne til at sætte det estimerede totale rækkevidde i km"},
+            f"input_number.{__name__}_trip_charge_procent": {"description": f"Bruges ved turladning til at angive ønsket batteriniveau ved afgang, bilen lades til denne værdi + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
+            f"input_number.{__name__}_trip_range_needed": {"description": f"Bruges ved turladning til at angive det ønskede rækkevidde i km, der skal oplades til ved afgang, km omregnes automatisk til batteriniveau og bilen lades til dette niveau + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
+            f"input_number.{__name__}_full_charge_recommended": {"description": "Anbefalet fuld opladning minimum hver X dage, for at undgå batteri skader. Bilen lades til 100%. Sæt til 0 for at deaktivere."},
+            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": {"description": f"Oplader elbilen fra Powerwall, når Powerwall batteriniveau er over dette niveau i procent. Sæt til 0.0 for at deaktivere. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
+            f"input_datetime.{__name__}_workday_departure_monday": {"description": "Afgangstidspunkt for mandag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_tuesday": {"description": "Afgangstidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_wednesday": {"description": "Afgangstidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_thursday": {"description": "Afgangstidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_friday": {"description": "Afgangstidspunkt for fredag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_saturday": {"description": "Afgangstidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_departure_sunday": {"description": "Afgangstidspunkt for søndag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_workday_homecoming_monday": {"description": "Hjemkomsttidspunkt for mandag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_tuesday": {"description": "Hjemkomsttidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_wednesday": {"description": "Hjemkomsttidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_thursday": {"description": "Hjemkomsttidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_friday": {"description": "Hjemkomsttidspunkt for fredag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_saturday": {"description": "Hjemkomsttidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_workday_homecoming_sunday": {"description": "Hjemkomsttidspunkt for søndag arbejdsdag, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_trip_date_time": {"description": "Dato og tidspunkt for tur afgang, bruges til at planlægge opladning og forvarmning"},
+            f"input_datetime.{__name__}_trip_homecoming_date_time": {"description": "Dato og tidspunkt for tur hjemkomst, bruges til at planlægge opladning"},
+            f"input_datetime.{__name__}_last_full_charge": {"description": "Dato og tidspunkt for sidste fuld opladning"},
+        },
+    },
+    "input_button":{
+        f"{__name__}_trip_reset":{
+            "name":"Nulstil tur ladning",
+            "icon":"mdi:restore"
+        },
+        f"{__name__}_enforce_planning":{
+            "name":"Gennemtving planlægning",
+            "icon":"mdi:calendar-refresh"
+        },
+        f"{__name__}_restart_script":{
+            "name":"Genstart scriptet",
+            "icon":"mdi:restart"
+        }
+    },
+    "input_boolean":{
+        f"{__name__}_debug_log":{
+            "name":f"{__name__}.py debug log",
+            "icon":"mdi:math-log"
+        },
+        f"{__name__}_forced_charging_daily_battery_level":{
+            "name":"Tvangsladning under daglig batteri niveau",
+            "icon":"mdi:battery-charging-low"
+        },
+        f"{__name__}_allow_manual_charging_now":{
+            "name":"Tillad manuel ladning nu"
+        },
+        f"{__name__}_allow_manual_charging_solar":{
+            "name":"Tillad manuel ladning kun på sol"
+        },
+        f"{__name__}_solar_charging":{
+            "name":"Solcelleoverskud til opladning",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_fill_up":{
+            "name":"Optimal ugeopladning (uden Arbejdsplan)",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_workplan_charging":{
+            "name":"Arbejdsplan opladning",
+            "icon": "mdi:brain"
+        },
+        f"{__name__}_trip_preheat":{
+            "name":"Tur ladning forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_workday_monday":{
+            "name":"Mandag arbejdsdag"
+        },
+        f"{__name__}_workday_tuesday":{
+            "name":"Tirsdag arbejdsdag"
+        },
+        f"{__name__}_workday_wednesday":{
+            "name":"Onsdag arbejdsdag"
+        },
+        f"{__name__}_workday_thursday":{
+            "name":"Torsdag arbejdsdag"
+        },
+        f"{__name__}_workday_friday":{
+            "name":"Fredag arbejdsdag"
+        },
+        f"{__name__}_workday_saturday":{
+            "name":"Lørdag arbejdsdag"
+        },
+        f"{__name__}_workday_sunday":{
+            "name":"Søndag arbejdsdag"
+        },
+        f"{__name__}_preheat_monday":{
+            "name":"Mandag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_tuesday":{
+            "name":"Tirsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_wednesday":{
+            "name":"Onsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_thursday":{
+            "name":"Torsdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_friday":{
+            "name":"Fredag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_saturday":{
+            "name":"Lørdag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_preheat_sunday":{
+            "name":"Søndag forvarm bilen",
+            "icon": "mdi:heat-wave"
+        },
+        f"{__name__}_calculate_charging_loss":{
+            "name":"Beregn ladetab",
+            "icon": "mdi:battery-sync"
+        },
+        f"{__name__}_powerwall_discharge_above_needed":{
+            "name":"Powerwall afladning over behov til elbil",
+            "icon": "mdi:power-plug-battery"
+        },
+    },
+    "input_number":{
+        f"{__name__}_co2_emitted":{
+            "name":"CO₂ udledt",
+            "min":0,
+            "max":999999,
+            "step":0.001,
+            "icon":"mdi:molecule-co2",
+            "unit_of_measurement":"kg",
+            "mode": "box"
+        },
+        f"{__name__}_kwh_charged_by_solar":{
+            "name":"kWh ladet af solcellerne",
+            "min":0,
+            "max":999999,
+            "step":0.01,
+            "icon":"mdi:white-balance-sunny",
+            "unit_of_measurement":"kWh",
+            "mode": "box"
+        },
+        f"{__name__}_solar_sell_fixed_price":{
+            "name":"Solcelle fast salgspris",
+            "min":-1,
+            "max":2,
+            "step":0.01,
+            "icon":"mdi:cash-multiple",
+            "unit_of_measurement":"kr/kWh"
+        },
+        f"{__name__}_preheat_minutes_before":{
+            "name":"Forvarm bilen X min før",
+            "min":0,
+            "max":60,
+            "step":5,
+            "unit_of_measurement":"min"
+        },
+        f"{__name__}_typical_daily_distance":{
+            "name":"Typisk daglig afstand (Fridag)",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_monday":{
+            "name":"Mandagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_tuesday":{
+            "name":"Tirsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_wednesday":{
+            "name":"Onsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_thursday":{
+            "name":"Torsdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_friday":{
+            "name":"Fredagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_saturday":{
+            "name":"Lørdagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_workday_distance_needed_sunday":{
+            "name":"Søndagsafstand i alt",
+            "min":0,
+            "max":500,
+            "step":5,
+            "mode":"box",
+            "icon":"mdi:transit-connection-variant",
+            "unit_of_measurement":"km"
+        },
+        f"{__name__}_min_daily_battery_level":{
+            "name":"Daglig hjemkomst batteri niveau",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_min_trip_battery_level":{
+            "name":"Tur hjemkomst batteri niveau",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_min_charge_limit_battery_level":{
+            "name":"Elbilens minimum ladingsprocent",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_max_recommended_charge_limit_battery_level":{
+            "name":"Elbilens maks anbefalet ladingsprocent",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:percent-outline"
+        },
+        f"{__name__}_very_cheap_grid_charging_max_battery_level":{
+            "name":"Ladingsprocent ved billig strøm",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:sale"
+        },
+        f"{__name__}_ultra_cheap_grid_charging_max_battery_level":{
+            "name":"Ladingsprocent ved meget billig strøm",
+            "min":10,
+            "max":100,
+            "step":5,
+            "mode":"box",
+            "unit_of_measurement":"%",
+            "icon":"mdi:sale-outline"
+        },
+        f"{__name__}_battery_level":{
+            "name": "Virtuel elbil batteri niveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:battery-high",
+            "mode": "box"
+        },
+        f"{__name__}_completed_battery_level":{
+            "name": "Elbil lading færdig batteri niveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:battery-high",
+            "mode": "box"
+        },
+        f"{__name__}_estimated_total_range":{
+            "name": "Virtuel elbil max rækkevidde",
+            "min": 0,
+            "max": 1000,
+            "step": 1,
+            "unit_of_measurement": "km",
+            "icon": "mdi:map-marker-distance",
+            "mode": "box"
+        },
+        f"{__name__}_trip_charge_procent":{
+            "name": "Tur ladning til",
+            "min": 0,
+            "max": 100,
+            "step": 5,
+            "unit_of_measurement": "%",
+            "icon": "mdi:percent-outline"
+        },
+        f"{__name__}_trip_range_needed":{
+            "name": "Tur km forbrug",
+            "min": 0,
+            "max": 1000,
+            "step": 5,
+            "unit_of_measurement": "km",
+            "icon": "mdi:map-marker-distance"
+        },
+        f"{__name__}_full_charge_recommended":{
+            "name":"Anbefalet fuld ladning hver",
+            "min": 0,
+            "max": 60,
+            "step": 1,
+            "unit_of_measurement": "dag(e)",
+            "icon": "mdi:battery-heart"
+        },
+        f"{__name__}_ev_charge_after_powerwall_battery_level":{
+            "name":"Oplad elbil efter Powerwall minimum batteriniveau",
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "unit_of_measurement": "%",
+            "icon": "mdi:percent-outline"
+        },
+    },
+    "input_datetime":{
+        f"{__name__}_workday_departure_monday":{
+            "name":"Mandag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_tuesday":{
+            "name":"Tirsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_wednesday":{
+            "name":"Onsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_thursday":{
+            "name":"Torsdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_friday":{
+            "name":"Fredag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_saturday":{
+            "name":"Lørdag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_departure_sunday":{
+            "name":"Søndag afgang",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-start"
+        },
+        f"{__name__}_workday_homecoming_monday":{
+            "name":"Mandag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_tuesday":{
+            "name":"Tirsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_wednesday":{
+            "name":"Onsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_thursday":{
+            "name":"Torsdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_friday":{
+            "name":"Fredag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_saturday":{
+            "name":"Lørdag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_workday_homecoming_sunday":{
+            "name":"Søndag hjemkomst",
+            "has_date":False,
+            "has_time":True,
+            "icon": "mdi:clock-end"
+        },
+        f"{__name__}_trip_date_time":{
+            "name":"Elbil Tur afgang",
+            "has_date":True,
+            "has_time":True
+        },
+        f"{__name__}_trip_homecoming_date_time":{
+            "name":"Elbil Tur hjemkomst",
+            "has_date":True,
+            "has_time":True
+        },
+        f"{__name__}_last_full_charge":{
+            "name":"Sidste fulde opladning",
+            "has_date":True,
+            "has_time":True
+        },
+    },
+    "sensor":[{
+        "platform":"template",
+        "sensors":{
             f"{__name__}_solar_over_production_current_hour":{
-               "friendly_name":"Solcelle produktion tilrådighed i nuværende time",
-               "unit_of_measurement":"W",
-               "value_template":"unavailable"
+                "friendly_name":"Solcelle produktion tilrådighed i nuværende time",
+                "unit_of_measurement":"W",
+                "value_template":"unavailable"
             },
             f"{__name__}_solar_charged_percentage":{
-               "friendly_name":"Solcelle ladning",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Solcelle ladning",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency":{
-               "friendly_name":"Kørsel effektivitet",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Kørsel effektivitet",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_km_per_kwh":{
-               "friendly_name":"km/kWh",
-               "unit_of_measurement":"km/kWh",
-               "value_template":"unavailable",
-               "icon_template":"mdi:map-marker-distance"
+                "friendly_name":"km/kWh",
+                "unit_of_measurement":"km/kWh",
+                "value_template":"unavailable",
+                "icon_template":"mdi:map-marker-distance"
             },
             f"{__name__}_estimated_range":{
-               "friendly_name":"Estimerede rækkevidde",
-               "unit_of_measurement":"km",
-               "value_template":"unavailable",
-               "icon_template":"mdi:map-marker-path"
+                "friendly_name":"Estimerede rækkevidde",
+                "unit_of_measurement":"km",
+                "value_template":"unavailable",
+                "icon_template":"mdi:map-marker-path"
             },
             f"{__name__}_drive_efficiency_last_battery_level":{
-               "friendly_name":"Batteriniveau ved sidste ladning",
-               "unit_of_measurement":"%",
-               "value_template":"unavailable"
+                "friendly_name":"Batteriniveau ved sidste ladning",
+                "unit_of_measurement":"%",
+                "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency_last_odometer":{
-               "friendly_name":"Kilometerstand ved sidste ladning",
-               "unit_of_measurement":"km",
-               "value_template":"unavailable"
+                "friendly_name":"Kilometerstand ved sidste ladning",
+                "unit_of_measurement":"km",
+                "value_template":"unavailable"
             },
             f"{__name__}_charge_very_cheap_battery_level":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"%"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"%"
             },
             f"{__name__}_charge_ultra_cheap_battery_level":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"%"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"%"
             },
             f"{__name__}_kwh_cost_price":{
-               "friendly_name":"",
-               "value_template":"unavailable",
-               "unit_of_measurement":"kr/kWh"
+                "friendly_name":"",
+                "value_template":"unavailable",
+                "unit_of_measurement":"kr/kWh"
             },
             f"{__name__}_current_charging_rule":{
-               "friendly_name":"Nuværende lade regel",
-               "value_template":""
+                "friendly_name":"Nuværende lade regel",
+                "value_template":""
             },
             f"{__name__}_emoji_description":{
-               "friendly_name":"Emoji forklaring",
-               "value_template":"",
+                "friendly_name":"Emoji forklaring",
+                "value_template":"",
             },
             f"{__name__}_overview":{
-               "friendly_name":"Oversigt",
-               "value_template":""
+                "friendly_name":"Oversigt",
+                "value_template":""
             },
             f"{__name__}_charging_history":{
-               "friendly_name":"Lade historik",
-               "value_template":""
+                "friendly_name":"Lade historik",
+                "value_template":""
             }
-         }
-      }
-   ]
+        }
+    }]
 }
 
 ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
