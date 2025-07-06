@@ -1,0 +1,52 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: numberbox-card (https://github.com/junkfix/numberbox-card)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+
+type: custom:stack-in-card
+mode: vertical
+cards:
+  - type: markdown
+    content: >-
+      ## 📎 Powerwall-indstillinger
+
+      <details> <summary><b>Læs mere</b></summary>
+
+      <ha-alert alert-type="info">
+        Lav en automation, der <b>deaktiverer Powerwall-afladning</b>, når elbilen lader.
+      </ha-alert>
+
+
+      **Opladning af elbil med solcelle-overskudsproduktion** starter kun, når
+      Powerwall-batteriniveauet er over:   <br> **"{{
+      states.input_number.ev_ev_charge_after_powerwall_battery_level.name }}"**
+
+      <br><br> **🔋 Brug Powerwall-strøm til elbilen – betingelser:**
+
+      - **⚙️ Krav**:
+        - **{{ states.input_boolean.ev_solar_charging.name }}** skal være aktiv.
+        - **{{ states.input_boolean.ev_powerwall_discharge_above_needed.name }}** skal være tændt.
+
+        - Lav en automation, der tillader afladning kun når:
+          - `input_boolean.ev_powerwall_discharge_above_needed` er aktiv **og**
+          - Powerwall-batteriniveauet er over værdien i `input_number.ev_ev_charge_after_powerwall_battery_level`.
+
+      - **🛠 Brugerdefineret tærskel**:
+        - Kun strøm **over den valgte grænse** (justerbar nedenfor) bruges til opladning af elbilen.
+        - Nuværende grænse: **{{ states.input_number.ev_ev_charge_after_powerwall_battery_level.state | int }}%**
+
+      </details>
+  - type: custom:mushroom-entity-card
+    entity: input_boolean.ev_powerwall_discharge_above_needed
+    name: Tillad afladning fra Powerwall
+    icon: mdi:battery-arrow-down
+    tap_action:
+      action: toggle
+    hold_action:
+      action: more-info
+    double_tap_action:
+      action: none
+  - type: custom:numberbox-card
+    border: false
+    entity: input_number.ev_ev_charge_after_powerwall_battery_level
+    name: Minimum Powerwall-niveau (%)
