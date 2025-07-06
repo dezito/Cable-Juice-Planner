@@ -55,7 +55,7 @@ cards:
           service: script.cable_juice_planner_opdatering
           target: {}
         hold_action:
-          action: none
+          action: more-info
         double_tap_action:
           action: none
         icon: mdi:cloud-download

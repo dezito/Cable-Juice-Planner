@@ -56,13 +56,13 @@ cards:
   - type: custom:mushroom-entity-card
     entity: input_datetime.ev_trip_date_time
     hold_action:
-      action: none
+      action: more-info
     double_tap_action:
       action: none
   - type: custom:mushroom-entity-card
     entity: input_datetime.ev_trip_homecoming_date_time
     hold_action:
-      action: none
+      action: more-info
     double_tap_action:
       action: none
   - type: custom:mushroom-chips-card
@@ -73,6 +73,6 @@ cards:
         tap_action:
           action: toggle
         hold_action:
-          action: none
+          action: more-info
         use_entity_picture: false
     alignment: end
