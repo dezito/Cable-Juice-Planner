@@ -2159,30 +2159,58 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
 
-def get_all_entities():
+def get_all_entities(persistent_notification_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_all_entities")
     global DEFAULT_ENTITIES
     entities = []
-    yaml_card = ["type: grid", "cards:"]
+    yaml_card = ["type: vertical-stack\n", "cards:\n"]
     
     for domain_name, sub_dict in DEFAULT_ENTITIES.items():
+        if "homeassistant" in domain_name:
+            continue
+        
         if domain_name == "sensor":
-            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:")
+            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:\n")
             for sensor_dict in sub_dict:
                 for entity_name in sensor_dict["sensors"].keys():
-                    yaml_card.append(f"    - {domain_name}.{entity_name}")
+                    yaml_card.append(f"    - {domain_name}.{entity_name}\n")
                     entities.append(f"{domain_name}.{entity_name}")
         else:
-            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:")
+            yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:\n")
             for entity_name in sub_dict.keys():
-                yaml_card.append(f"    - {domain_name}.{entity_name}")
+                yaml_card.append(f"    - {domain_name}.{entity_name}\n")
                 entities.append(f"{domain_name}.{entity_name}")
     
-    _LOGGER.info(f"Entities:\n{"\n".join(yaml_card)}")
+    yaml_card.append("  - type: markdown\n    content: >-\n")
+    for entity in entities:
+        description = DEFAULT_ENTITIES.get("homeassistant", {}).get('customize', {}).get(entity, {}).get('description', '')
+        description = f"<br>{description}<br><br>" if description else ""
+        yaml_card.append(f"      - <b>`{entity}`</b>{description}\n")
+        
+    notify_message = [f"## Alle entities:\n\n"]
+    for entity in entities:
+        description = DEFAULT_ENTITIES.get("homeassistant", {}).get('customize', {}).get(entity, {}).get('description', '')
+        description = f"\n{description}\n" if description else ""
+        notify_message.append(f"- <b>`{entity}`</b>{description}\n")
+        
+    my_persistent_notification(
+        message = "\n".join(notify_message),
+        title = f"{TITLE} Alle entities",
+        persistent_notification_id = f"{__name__}_get_all_entities_notification"
+    )
+        
+    if persistent_notification_only:
+        return
+    
+    _LOGGER.info(f"Entities:\n{"".join(yaml_card)}")
     
     return entities
 
-#get_all_entities()
+@service(f"pyscript.{__name__}_all_entities")
+def service_all_entities(trigger_type=None, trigger_id=None, **kwargs):
+    _LOGGER = globals()['_LOGGER'].getChild("service_all_entities")
+    
+    get_all_entities(persistent_notification_only=True)
 
 set_charging_rule(f"📟Starter scriptet op")
 init()
