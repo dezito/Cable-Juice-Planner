@@ -3,6 +3,8 @@ import aiofiles
 import asyncio
 import json
 import yaml
+import re
+import textwrap
 import sys, os, os.path
 
 from logging import getLogger
@@ -165,46 +167,60 @@ async def load_yaml(filename=None):
         _LOGGER.error(f"Filename does not exist {filename}")
     return {}
 
-async def save_yaml(filename=None, db=None, comment_db=None):
-    """
-    Saves a dictionary to a YAML file asynchronously.
-
-    Parameters:
-    - filename (str): The name of the YAML file to save.
-    - db (dict): The dictionary to save into the file.
-    - comment_db (dict): Dictionary containing comments for specific keys.
-
-    Returns:
-    - bool: True if the file was successfully written, False if an error occurred.
-    """
-    _LOGGER = globals()['_LOGGER'].getChild("save_yaml")
+async def save_yaml(filename=None, db=None, comment_db=None, max_width=120):
+    _LOGGER = globals().get('_LOGGER')
+    
     filename = _add_config_folder_path(_add_ext(filename, 'yaml'))
 
     try:
         async with aiofiles.open(filename, "w", encoding="utf-8") as f:
-            f.write(yaml.dump(db, sort_keys=True, allow_unicode=True))
+            await f.write(yaml.dump(db, sort_keys=True, allow_unicode=True))
 
-        if comment_db:
-            async with aiofiles.open(filename, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
+        if comment_db is None:
+            return True
 
-            new_lines = []
-            for line in lines:
-                try:
-                    key = line.split(':')[0].strip()
-                    if key in comment_db and comment_db[key]:
-                        if " # " in line:
-                            line = line.split(' # ')[0]
-                        line = f"{line.rstrip('\n')} # {comment_db[key]}\n"
-                    new_lines.append(line)
-                except Exception as e:
-                    _LOGGER.warning(f"Can't add comment in file {filename} async with line {line}: {e}")
-                    new_lines.append(line)
+        async with aiofiles.open(filename, 'r', encoding='utf-8') as file:
+            lines = await file.readlines()
 
-            async with aiofiles.open(filename, 'w', encoding='utf-8') as file:
-                file.writelines(new_lines)
+        new_lines = []
+        parents = []
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                new_lines.append(line)
+                continue
+
+            indent = len(line) - len(line.lstrip())
+            level = indent // 2
+
+            match = re.match(r"^\s*([^\s:#]+):", line)
+            if not match:
+                new_lines.append(line)
+                continue
+
+            key = match.group(1)
+            parents = parents[:level] + [key]
+            full_key = ".".join(parents)
+            comment = comment_db.get(full_key)
+            if comment:
+                wrapped_comment = textwrap.wrap(comment, width=max_width - indent - 4)
+                comment_lines = [f"{' ' * indent}# {line}" for line in wrapped_comment]
+                
+                extra_indent = indent + 2
+                comment_lines = [f"{' ' * extra_indent}# {line}" for line in wrapped_comment]
+
+                line = re.sub(r" *#.*", "", line).rstrip("\n")
+                new_lines.append(f"{line}\n")
+                new_lines.extend([f"{c}\n" for c in comment_lines])
+            else:
+                new_lines.append(line)
+
+        async with aiofiles.open(filename, 'w', encoding='utf-8') as file:
+            await file.writelines(new_lines)
 
         return True
+
     except Exception as error:
         _LOGGER.error(f"Can't write {filename} file: {error}")
         return False
