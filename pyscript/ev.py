@@ -2993,12 +2993,10 @@ def peak_battery_level_after_last_plug():
         
         status_dict = get_values(CONFIG['charger']['entity_ids']['status_entity_id'], from_time_stamp, to_time_stamp, include_timestamps=True, error_state={})
         
-        found_disconnected = False
         last_connected = None
         for ts in sorted(status_dict.keys(), reverse=True):
             value = status_dict[ts]
             if value in CHARGER_NOT_READY_STATUS:
-                found_disconnected = True
                 break
             elif value in CHARGER_READY_STATUS:
                 last_connected = ts
