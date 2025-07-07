@@ -112,6 +112,10 @@ ERROR_COUNT = 0
 
 POWERWALL_CHARGING_TEXT = ""
 
+SOLAR_PRODUCTION_TRIGGER = 100.0  # Minimum solar production in Watt to consider solar available
+POWERWALL_CHARGING_TRIGGER = 500.0  # Minimum Powerwall charging in Watt to consider Powerwall charging
+POWERWALL_DISCHARGING_TRIGGER = 500.0 # Minimum Powerwall discharging in Watt to consider Powerwall discharging
+
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
@@ -1704,6 +1708,28 @@ def is_entity_available(entity):
                 _LOGGER.warning(f"Reloading {integration} integration")
                 my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
                 reload_entity_integration(entity)
+
+def is_powerwall_charging(charge_watt = 0.0):
+    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_charging")
+    if not isinstance(charge_watt, (int, float)):
+        _LOGGER.error(f"Invalid discharge_watt value: {charge_watt}")
+        return False
+    return True if charge_watt > POWERWALL_CHARGING_TRIGGER else False
+
+def is_powerwall_discharging(discharge_watt = 0.0):
+    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_discharging")
+    if not isinstance(discharge_watt, (int, float)):
+        _LOGGER.error(f"Invalid discharge_watt value: {discharge_watt}")
+        return False
+    return True if discharge_watt > POWERWALL_DISCHARGING_TRIGGER else False
+
+def is_solar_production_available(watt = 0.0):
+    _LOGGER = globals()['_LOGGER'].getChild("is_solar_production_available")
+    if not isinstance(watt, (int, float)):
+        _LOGGER.error(f"Invalid watt value: {watt}")
+        return False
+    return True if watt > SOLAR_PRODUCTION_TRIGGER else False
+    
 
 def get_all_unavailable_entities():
     _LOGGER = globals()['_LOGGER'].getChild("get_all_unavailable_entities")
@@ -4131,7 +4157,7 @@ def _charging_history(charging_data = None, charging_type = ""):
             _LOGGER.warning(f"ended:{ended} added_percentage:{added_percentage} added_kwh:{added_kwh} cost:{cost} price:{price} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
             CHARGING_HISTORY_DB[start]["ended"] = ended
             
-            if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "solar":
+            if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "local_energy":
                 if CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] > 0.0:
                     solar_ratio = CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] / CHARGING_HISTORY_DB[start]["kWh"]
                     
@@ -7472,7 +7498,7 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[currentHour]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and solar_watt > 0.0:
+            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(solar_watt):
                 charging_rule = f"Ignorer solcelle overproduktion, fordi strømmen er dyr"
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 inverter_amps[1] = 0.0
@@ -7492,7 +7518,7 @@ def charge_if_needed():
             battery = round(completed_battery_level - battery_level(), 1)
             kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
             cost = round(current_price * kwh, 2)
-            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "charging_loss")
+            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "charging_loss")
         elif manual_charging_enabled() or manual_charging_solar_enabled():
             charging_limit = get_max_recommended_charge_limit_battery_level()
             if not manual_charging_solar_enabled():
@@ -7506,13 +7532,13 @@ def charge_if_needed():
                 charging_rule = f"{emoji_parse({'manual': True, "solar": True})}Manuel ladning tilladt, kun sol {solar_charging}"
                 
             if amps[1] > 0.0:
-                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': True if inverter_amps[1] != 0.0 else False}, "manual")
+                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(solar_watt)}, "manual")
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
             if currentHour in CHARGE_HOURS:
-                CHARGE_HOURS[currentHour]['solar'] = True if solar_watt > 0.0 else False
-                CHARGE_HOURS[currentHour]['powerwall'] = True if powerwall_discharge_watt > 0.0 else False
+                CHARGE_HOURS[currentHour]['solar'] = is_solar_production_available(solar_watt)
+                CHARGE_HOURS[currentHour]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                 charging_history(CHARGE_HOURS[currentHour], "planned")
                 
                 battery_level_plus_charge = battery_level() + CHARGE_HOURS[currentHour]['battery_level']
@@ -7534,23 +7560,23 @@ def charge_if_needed():
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
                     cost = round(current_price * kwh, 2)
-                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "low_battery")
+                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "low_battery")
                     charging_limit = get_min_daily_battery_level()
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
                     charging_rule = f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
             elif solar_charging_enabled() and inverter_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
                 if currentHour in CHARGE_HOURS:
-                    CHARGE_HOURS[currentHour]['solar'] = True if solar_watt > 0.0 else False
-                    CHARGE_HOURS[currentHour]['powerwall'] = True if powerwall_discharge_watt > 0.0 else False
+                    CHARGE_HOURS[currentHour]['solar'] = is_solar_production_available(solar_watt)
+                    CHARGE_HOURS[currentHour]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                     charging_history(CHARGE_HOURS[currentHour], "planned")
                 else:
-                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': True if solar_watt > 0.0 else False, 'powerwall': True if powerwall_discharge_watt > 0.0 else False}, "solar")
+                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
                 amps = inverter_amps
                 
-                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if solar_watt > 0.0 else ""
-                powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if powerwall_discharge_watt > 0.0 else ""
-                inverter_string = " &".join([solar_string, powerwall_string]) if solar_watt > 0.0 and powerwall_discharge_watt > 0.0 else solar_string or powerwall_string
+                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(solar_watt) else ""
+                powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
+                inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(solar_watt) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
                 charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
                 
