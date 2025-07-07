@@ -2464,7 +2464,6 @@ def get_powerwall_battery_level():
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e}")
         return 100.0
-get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True, error_state=100.0)
 
 def get_ev_charge_after_powerwall_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("get_ev_charge_after_powerwall_battery_level")
