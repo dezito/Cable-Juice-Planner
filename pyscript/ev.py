@@ -7846,7 +7846,13 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
     ev_watt = ev_kwh * 1000.0
 
     watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
-    watts_from_local_energy = min(watts_from_local_energy, ev_watt) if ev_watt > 0.0 else watts_from_local_energy
+    
+    _LOGGER.warning(f"ev_watt:{ev_watt} watts_from_local_energy:{watts_from_local_energy} solar_watts_of_local_energy:{solar_watts_of_local_energy} powerwall_watts_of_local_energy:{powerwall_watts_of_local_energy}")
+    if watts_from_local_energy > ev_watt:
+        miscalculated_ratio = watts_from_local_energy / ev_watt if ev_watt > 0.0 else 0.0
+        solar_watts_of_local_energy = solar_watts_of_local_energy * miscalculated_ratio
+        powerwall_watts_of_local_energy = powerwall_watts_of_local_energy * miscalculated_ratio
+        watts_from_local_energy = ev_watt
     
     solar_kwh_available = round(max(watts_from_local_energy, 0.0) / 1000, 3)
     solar_kwh_of_local_energy = round(solar_watts_of_local_energy / 1000, 3)
