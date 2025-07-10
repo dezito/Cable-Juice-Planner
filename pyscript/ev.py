@@ -7502,7 +7502,7 @@ def charge_if_needed():
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
             elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(solar_watt):
-                charging_rule = f"Ignorer solcelle overproduktion, fordi strømmen er dyr"
+                charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr"
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 inverter_amps[1] = 0.0
                 
