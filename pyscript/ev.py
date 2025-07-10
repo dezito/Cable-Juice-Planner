@@ -1852,52 +1852,57 @@ def commands_history_clean_entity_integration():
     for integration in ENTITY_INTEGRATION_DICT["commands_history"].keys():
         ENTITY_INTEGRATION_DICT["commands_history"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_history"][integration] if dt[0] >= now - datetime.timedelta(days=1)]
     
-def allow_command_entity_integration(entity_id = None, command = "None", integration = None, check_only = False):
+def allow_command_entity_integration(entity_id=None, command="None", integration=None, check_only=False):
     _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
-    
-    allowed = None
-    
+
+    allowed = False
+    now = getTime()
+
     if integration is None:
         integration = get_integration(entity_id)
-    
+
     if integration is None and entity_id.split(".")[0] in ("input_number", "input_select", "input_boolean", "input_text", "input_datetime"):
         integration = entity_id.split(".")[0]
-    
-    if integration is not None:
-        now = getTime()
-        try:
-            ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] if dt[0] >= now - datetime.timedelta(hours=1)]
-                
-            if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
-                extra_buffer = 0
-                if "wake" in str(entity_id).lower():
-                    extra_buffer = 3
-                    
-                daily_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"] - INTEGRATION_DAILY_LIMIT_BUFFER
-                hourly_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] - extra_buffer
-                
-                #_LOGGER.info(f"DEBUG {entity_id} {command} {integration} {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration])} < {hourly_limit} = {len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit} and {ENTITY_INTEGRATION_DICT['counter'][integration]} < {daily_limit} = {ENTITY_INTEGRATION_DICT['counter'][integration] < daily_limit} extra_buffer:{extra_buffer}")
-                if len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit and ENTITY_INTEGRATION_DICT["counter"][integration] < daily_limit and ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] != command:
-                    if not check_only:
-                        ENTITY_INTEGRATION_DICT["commands_last_hour"][integration].append((now, f"{entity_id}: {command}"))
-                        ENTITY_INTEGRATION_DICT["counter"][integration] += 1
-                    allowed = True if allowed is None else allowed
-            else:
-                allowed = True if allowed is None else allowed
-        except Exception as e:
-            _LOGGER.error(f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}")
-            allowed = True if allowed is None else allowed
-    else:
+
+    if integration is None:
         _LOGGER.warning(f"integration was none allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})")
-        allowed = True if allowed is None else allowed
-    
-    if allowed is None:
-        allowed = False
-    
-    if allowed is True and check_only is False:
+        return False
+
+    try:
+        ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [
+            dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]
+            if dt[0] >= now - datetime.timedelta(hours=1)
+        ]
+
+        if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
+            extra_buffer = 3 if "wake" in str(entity_id).lower() else 0
+
+            daily_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"] - INTEGRATION_DAILY_LIMIT_BUFFER
+            hourly_limit = ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] - extra_buffer
+
+            if (
+                len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) < hourly_limit
+                and ENTITY_INTEGRATION_DICT["counter"][integration] < daily_limit
+                and ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] != command
+            ):
+                allowed = True
+                if not check_only:
+                    ENTITY_INTEGRATION_DICT["commands_last_hour"][integration].append((now, f"{entity_id}: {command}"))
+                    ENTITY_INTEGRATION_DICT["counter"][integration] += 1
+        else:
+            allowed = True
+
+    except Exception as e:
+        _LOGGER.error(
+            f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n"
+            f"{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}"
+        )
+        allowed = True
+
+    if allowed and not check_only:
         ENTITY_INTEGRATION_DICT["commands_history"][integration].append((now, f"{entity_id}: {command}"))
-    
+
     return allowed
 
 def set_charging_rule(text=""):
