@@ -6207,22 +6207,23 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         
     watts_from_local_energy_solar_only = watts_from_local_energy
 
-    if is_powerwall_configured() and not solar_only:
+    if is_powerwall_configured():
         discharge_above_needed = get_powerwall_discharge_above_needed()
         powerwall_battery_level = get_powerwall_battery_level()
         powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
         powerwall_charging_power = powerwall_max_charging_power(period=period)
         
-        if powerwall_battery_level <= powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > 0.0 and period != 59):
-            watts_from_local_energy -= powerwall_charging_power if powerwall_charging_power > 0.0 else CONFIG["solar"]["powerwall_charging_power_limit"]
-
-        total_production += powerwall_discharging_consumption
+        if powerwall_battery_level <= powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
+            watts_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
         
-        if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
-            if powerwall_discharging_consumption < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
-                watts_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
-            else:
-                watts_from_local_energy += powerwall_discharging_consumption
+        if not solar_only:
+            total_production += powerwall_discharging_consumption
+            _LOGGER.error(f"powerwall_charging_power: {powerwall_charging_power} if {powerwall_battery_level} < {powerwall_reserved_battery_level}: {powerwall_battery_level < powerwall_reserved_battery_level}")
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
+                if powerwall_discharging_consumption < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
+                    watts_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
+                else:
+                    watts_from_local_energy += powerwall_discharging_consumption
 
         if (powerwall_battery_level < powerwall_reserved_battery_level
             and powerwall_charging_power == 0.0
