@@ -5530,8 +5530,8 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_after_work_sum'] = sum(charging_plan[day]['battery_level_after_work'])
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
 
-    _LOGGER.info(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
-    _LOGGER.info(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
+    _LOGGER.debug(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
+    _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     charging_plan_attr = dict()
     charging_hours_attr = dict()
