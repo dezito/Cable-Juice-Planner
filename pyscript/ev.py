@@ -5637,7 +5637,6 @@ def cheap_grid_charge_hours():
                 overview.extend(get_hours_plan())
                 overview.append("</details>\n")
         
-        charging_plan_list = []
         sorted_charge_hours = sorted(
             {k: v for k, v in chargeHours.items() if isinstance(k, datetime.datetime)}.items(),
             key=lambda kv: kv[0]
