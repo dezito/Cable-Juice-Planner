@@ -4484,6 +4484,29 @@ def cheap_grid_charge_hours():
 
     sorted_by_cheapest_price = sorted(hour_prices.items(), key=lambda kv: (kv[1], kv[0]))
     
+    def change_timestamp_with_minutes(timestamp: datetime.datetime):
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.change_timestamp_with_minutes")
+        
+        what_day = daysBetween(getTime(), timestamp)
+        work_minute = 0
+        trip_minute = 0
+        if isinstance(charging_plan[what_day]['work_last_charging'], datetime.datetime):
+            if charging_plan[what_day]['work_last_charging'].hour == timestamp.hour and charging_plan[what_day]['work_last_charging'].minute != 0:
+                work_minute = max(charging_plan[what_day]['work_last_charging'].minute, work_minute)
+        if isinstance(charging_plan[what_day]['work_homecoming'], datetime.datetime):
+            if charging_plan[what_day]['work_homecoming'].hour == timestamp.hour and charging_plan[what_day]['work_homecoming'].minute != 0:
+                work_minute = max(charging_plan[what_day]['work_homecoming'].minute, work_minute)
+        
+        if isinstance(charging_plan[what_day]['trip_last_charging'], datetime.datetime):
+            if charging_plan[what_day]['trip_last_charging'].hour == timestamp.hour and charging_plan[what_day]['trip_last_charging'].minute != 0:
+                trip_minute = max(charging_plan[what_day]['trip_last_charging'].minute, trip_minute)
+        if isinstance(charging_plan[what_day]['trip_homecoming'], datetime.datetime):
+            if charging_plan[what_day]['trip_homecoming'].hour == timestamp.hour and charging_plan[what_day]['trip_homecoming'].minute != 0:
+                trip_minute = max(charging_plan[what_day]['trip_homecoming'].minute, trip_minute)
+        
+        return timestamp.replace(minute=max(work_minute, trip_minute, 0))
+        
+    
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
         working = False
@@ -4492,11 +4515,10 @@ def cheap_grid_charge_hours():
         
         try:
             if charging_plan[day]['workday']:
-                working = in_between(getHour(timestamp), charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
+                working = in_between(timestamp.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
 
             if trip_datetime:
-                if in_between(timestamp, trip_datetime, trip_homecoming_datetime):
-                    on_trip = True
+                on_trip = in_between(timestamp.hour, trip_datetime.hour, trip_homecoming_datetime.hour)
         except Exception as e:
             _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e}")
         
@@ -4506,9 +4528,16 @@ def cheap_grid_charge_hours():
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.kwh_available_in_hour")
         hour_in_chargeHours = False
         kwh_available = False
+        
+        kwh = MAX_KWH_CHARGING - 1.0
+        
+        percentage_missed = hour.minute / 60
+        kwh_missed = kwh * percentage_missed
+        
+        kwh -= kwh_missed
         if hour in chargeHours:
             hour_in_chargeHours = True
-            if chargeHours[hour]['kWh'] < (MAX_KWH_CHARGING - 1.0):
+            if chargeHours[hour]['kWh'] < kwh:
                 kwh_available = True
         return [hour_in_chargeHours, kwh_available]
 
@@ -4559,6 +4588,11 @@ def cheap_grid_charge_hours():
         price = float(price)
         kwhNeeded = float(kwhNeeded)
         
+        percentage_missed = hour.minute / 60
+        kwh_missed = kwh * percentage_missed
+        kwh -= kwh_missed
+
+            
         if battery_level:
             if max_recommended_battery_level is None:
                 max_recommended_battery_level = get_max_recommended_charge_limit_battery_level()
@@ -4569,12 +4603,12 @@ def cheap_grid_charge_hours():
                 kwh -= abs(kwh_diff)
             
         if kwh_available == True and hour in chargeHours:
-            kwh = kwh - chargeHours[hour]['kWh']
+            kwh -= chargeHours[hour]['kWh']
             
         if check_max_charging_plan and check_max_charging_plan['day'] is not None:
             kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
             kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
-            
+        
         if kwh > 0.5:
             if hour not in chargeHours:
                 chargeHours[hour] = {
@@ -4821,6 +4855,8 @@ def cheap_grid_charge_hours():
                             
                         if not in_between(timestamp, current_hour, last_charging):
                             continue
+                            
+                        timestamp = change_timestamp_with_minutes(timestamp)
                         
                         hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
                         if hour_in_chargeHours and not kwh_available:
@@ -4860,6 +4896,7 @@ def cheap_grid_charge_hours():
                             '''if round(sum(charging_plan[what_day][battery_level_id]), 0) >= get_max_recommended_charge_limit_battery_level() - 1.0:
                                 #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
                                 continue'''
+                            
                             kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
                             
                             if timestamp in chargeHours and battery_level_added:
@@ -4921,6 +4958,8 @@ def cheap_grid_charge_hours():
                         for timestamp, price in sorted_by_cheapest_price:
                             if not in_between(timestamp, current_hour, last_charging):
                                 continue
+                            
+                            timestamp = change_timestamp_with_minutes(timestamp)
                             
                             hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
                             if hour_in_chargeHours and not kwh_available:
@@ -5658,7 +5697,7 @@ def cheap_grid_charge_hours():
                     "unit": round(value['Price'], 2),
                 }
             else:
-                if timestamp == current_interval["end"] + datetime.timedelta(hours=1) and daysBetween(current_interval["start"], timestamp) == 0:
+                if timestamp == current_interval["end"].replace(minute=0) + datetime.timedelta(hours=1) and daysBetween(current_interval["start"], timestamp) == 0:
                     has_combined = True
                     current_interval["end"] = timestamp
                     current_interval["type"] = join_unique_emojis(current_interval["type"], emoji_parse(value))
