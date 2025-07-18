@@ -2555,6 +2555,12 @@ def set_default_entity_states():
             if not is_entity_configured(entity_id):
                 continue
             
+            if not is_powerwall_configured() and "powerwall" in entity_id:
+                continue
+            
+            if not is_solar_configured() and "solar" in entity_id:
+                continue
+            
             if not is_entity_available(entity_id):
                 raise Exception(f"Entity {entity_id} not available cant set state")
 
@@ -2673,6 +2679,9 @@ def get_ultra_cheap_grid_charging_max_battery_level():
 
 def get_powerwall_discharge_above_needed():
     _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_discharge_above_needed")
+    if not is_powerwall_configured():
+        return False
+    
     try:
         state = get_state(f"input_boolean.{__name__}_powerwall_discharge_above_needed", float_type=False, error_state="off")
         return True if state == "on" else False
@@ -2681,6 +2690,9 @@ def get_powerwall_discharge_above_needed():
 
 def get_powerwall_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_battery_level")
+    if not is_powerwall_configured():
+        return 100.0
+    
     try:
         return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True))
     except Exception as e:
@@ -2689,6 +2701,9 @@ def get_powerwall_battery_level():
 
 def get_ev_charge_after_powerwall_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild("get_ev_charge_after_powerwall_battery_level")
+    if not is_powerwall_configured():
+        return 100.0
+    
     try:
         return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True))
     except Exception as e:
@@ -2972,6 +2987,9 @@ def get_current_hour_price():
 def get_powerwall_kwh_price(kwh = None):
     _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_kwh_price")
     global POWER_VALUES_DB, KWH_AVG_PRICES_DB, LOCAL_ENERGY_PRICES
+    
+    if not is_powerwall_configured():
+        return 0.0
     
     def is_valid(data: dict, keys: list) -> bool:
         for key in keys:
@@ -6380,22 +6398,24 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
 def powerwall_max_charging_power(period=60):
     _LOGGER = globals()['_LOGGER'].getChild("powerwall_max_charging_power")
     
+    if not is_powerwall_configured():
+        return 0.0
+    
     to_time_stamp = getTime()
     from_time_stamp = to_time_stamp - datetime.timedelta(minutes=period)
             
     max_power = CONFIG['solar']['powerwall_charging_power_limit']
 
     try:
-        if is_powerwall_configured():
-            powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=None)
-            
-            if powerwall_values is None or len(powerwall_values) == 0:
-                raise Exception(f"No powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']} found from {from_time_stamp} to {to_time_stamp}")
-            
-            if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
-                max_power = abs(max(get_specific_values(powerwall_values, positive_only = True)))
-            else:
-                max_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
+        powerwall_values = get_values(CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id'], from_time_stamp, to_time_stamp, float_type=True, convert_to="W", error_state=None)
+        
+        if powerwall_values is None or len(powerwall_values) == 0:
+            raise Exception(f"No powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']} found from {from_time_stamp} to {to_time_stamp}")
+        
+        if CONFIG['home']['invert_powerwall_watt_flow_entity_id']:
+            max_power = abs(max(get_specific_values(powerwall_values, positive_only = True)))
+        else:
+            max_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e}")
         
@@ -6403,6 +6423,9 @@ def powerwall_max_charging_power(period=60):
 
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
+    
+    if not is_powerwall_configured():
+        return 0.0
     
     powerwall_charging_consumption = 0.0
     
@@ -6421,6 +6444,9 @@ def charge_from_powerwall(from_time_stamp, to_time_stamp):
 
 def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     _LOGGER = globals()['_LOGGER'].getChild("discharge_from_powerwall")
+    
+    if not is_powerwall_configured():
+        return 0.0
     
     powerwall_discharging_consumption = 0.0
     
@@ -7191,7 +7217,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         loop_sell = []
 
         if is_away and not is_powerwall_configured():
-            return
+            return powerwall_kwh_needed
 
         # Cloudiness forecast
         if cloudiness is not None:
