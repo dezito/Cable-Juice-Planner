@@ -2555,6 +2555,12 @@ def set_default_entity_states():
             if not is_entity_configured(entity_id):
                 continue
             
+            if not is_powerwall_configured() and "powerwall" in entity_id:
+                continue
+            
+            if not is_solar_configured() and "solar" in entity_id:
+                continue
+            
             if not is_entity_available(entity_id):
                 raise Exception(f"Entity {entity_id} not available cant set state")
 
