@@ -472,6 +472,7 @@ DEFAULT_CONFIG = {
         "inverter_discharging_power_limit": 5000.0,
         "powerwall_charging_power_limit": 5000.0,
         "powerwall_discharging_power": 5000.0,
+        "enable_selling_during_expensive_hours": True
     },
     "testing_mode": False
 }
@@ -556,6 +557,7 @@ COMMENT_DB_YAML = {
     "solar.inverter_discharging_power_limit": "Inverter discharging power limit (Watt)",
     "solar.powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
     "solar.powerwall_discharging_power": f"Powerwall discharging power (Watt), used to charge ev from powerwall, when powerwall battery level is above ev_charge_after_powerwall_battery_level and input_boolean.{__name__}_powerwall_discharge_above_needed is on",
+    "solar.enable_selling_during_expensive_hours": f"Enable selling solar power during expensive hours, if not enabled, solar power will be used for charging the ev. input_number.{__name__}_solar_sell_fixed_price must be set to -1.0, to use the hourly sell price.",
 }
 
 DEFAULT_ENTITIES = {
@@ -7539,7 +7541,7 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[currentHour]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(solar_watt):
+            elif solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(solar_watt):
                 charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr"
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 inverter_amps[1] = 0.0
