@@ -4414,11 +4414,11 @@ def get_hour_prices():
                         if timestamp in hour_prices:
                             continue
                         
-                        avg_price = average(KWH_AVG_PRICES_DB['history'][h][d])
+                        avg_price = average(KWH_AVG_PRICES_DB['history'][h][d]) # Refund is already included in KWH_AVG_PRICES_DB
                         price = round(avg_price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
                         
-                        missing_hours[timestamp] = avg_price
-                        hour_prices[timestamp] = avg_price
+                        missing_hours[timestamp] = price
+                        hour_prices[timestamp] = price
                         
                 if missing_hours:
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
