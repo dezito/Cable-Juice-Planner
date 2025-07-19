@@ -8038,7 +8038,7 @@ def charge_if_needed():
             if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER:
                 powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER else powerwall_discharging_consumption
 
-        inverter_watt = min(solar_watt, CONFIG["solar"]["inverter_discharging_power_limit"])
+        inverter_watt = solar_watt
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
                         
         currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
