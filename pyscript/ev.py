@@ -8035,8 +8035,8 @@ def charge_if_needed():
             
             powerwall_discharging_consumption = power_values(period=max(CONFIG["cron_interval"] * 2, 20))["powerwall_discharging_consumption"]
             powerwall_discharge_watt = powerwall_discharging_consumption
-            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption <= 100.0:
-                powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption <= 100.0 else powerwall_discharging_consumption
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER:
+                powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER else powerwall_discharging_consumption
 
         inverter_watt = min(solar_watt, CONFIG["solar"]["inverter_discharging_power_limit"])
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
