@@ -2225,8 +2225,8 @@ def init():
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
         if not file_exists(file_path):
-            TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
-            done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+            TASKS[f'init_not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
+            done, pending = task.wait({TASKS[f'init_not_exists_save_yaml_{file_path}']})
     
             _LOGGER.error(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
@@ -2249,8 +2249,8 @@ def init():
 
         updated, content = update_dict_with_new_keys(content, default_content)
         if updated or file_path == f"{__name__}_config.yaml":
-            TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-            done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+            TASKS[f'init_updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+            done, pending = task.wait({TASKS[f'init_updated_save_yaml_{file_path}']})
             
         if key_renaming:
             old_content = content.copy()
@@ -2300,8 +2300,8 @@ def init():
                 config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
                 my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{file_path}_renaming_keys")
                 
-                TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-                done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+                TASKS[f'init_key_moved_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+                done, pending = task.wait({TASKS[f'init_key_moved_save_yaml_{file_path}']})
         
         deprecated_keys = compare_dicts_unique_to_dict1(content, default_content)
         if deprecated_keys:
@@ -2401,16 +2401,9 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
     finally:
-        task_names = [f"init_load_yaml_{__name__}_config.yaml", f"init_save_yaml_{__name__}_config.yaml",
-                       f"init_load_yaml_packages/{__name__}.yaml", f"init_save_yaml_packages/{__name__}.yaml"]
-        for task_name in task_names:
-            if task_name not in TASKS:
-                continue
-            
-            if isinstance(task_name, asyncio.Task) and not TASKS[task_name].done():
-                _LOGGER.warning(f"Cleaning up task {task_name} that is still pending")
-                
-            task_cancel(task_name, task_remove=True)
+        for task_name in list(TASKS.keys()):
+            if task_name.startswith("init_"):
+                task_cancel(task_name, task_remove=True)
 
 @service(f"pyscript.{__name__}_all_entities")
 def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
