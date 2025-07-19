@@ -9142,7 +9142,7 @@ if INITIALIZATION_COMPLETE:
         
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
             try:
-                CONFIG = load_yaml(f"{__name__}_config")
+                #CONFIG = load_yaml(f"{__name__}_config")
                 CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
                 CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
                 CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
