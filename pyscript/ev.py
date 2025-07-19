@@ -7298,7 +7298,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         end_work = None
         
         try:
-            if get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
+            if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
                 work_last_charging = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_departure_{dayName}").hour) - datetime.timedelta(hours=stop_prediction_before)
                 end_work = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_homecoming_{dayName}").hour)
         except Exception as e:
