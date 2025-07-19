@@ -9099,7 +9099,6 @@ if INITIALIZATION_COMPLETE:
                             raise Exception(f"Charging loss was not negative {charging_loss * 100.0}%, set charging limit in car and let charging complete")
                         
                         CONFIG['charger']['charging_loss'] = charging_loss
-                        save_changes(f"{__name__}_config", CONFIG)
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
                         my_notify(message = f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
