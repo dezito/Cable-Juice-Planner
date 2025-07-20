@@ -9136,9 +9136,8 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("shutdown")
         global CONFIG, TASKS
         
-        set_charging_rule(f"📟Scriptet lukket ned")
-        stop_current_charging_session()
-        reset_counter_entity_integration()
+        TASKS['shutdown_stop_current_charging_session'] = task.create(stop_current_charging_session)
+        TASKS['shutdown_reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
         
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
             try:
@@ -9170,6 +9169,8 @@ if INITIALIZATION_COMPLETE:
                 my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
         else:
             _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
+            
+        done, pending = task.wait({TASKS['shutdown_stop_current_charging_session'], TASKS['shutdown_reset_counter_entity_integration']})
         
         task_shutdown()
             
