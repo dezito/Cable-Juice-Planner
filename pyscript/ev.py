@@ -9140,6 +9140,7 @@ if INITIALIZATION_COMPLETE:
         TASKS['shutdown_reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
         
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
+            set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
             try:
                 #CONFIG = load_yaml(f"{__name__}_config")
                 CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
@@ -9168,6 +9169,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
                 my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
         else:
+            set_charging_rule(f"📟Lukker scriptet ned\nGemmer ikke konfigurations filen, da den er manuel redigeret")
             _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
             
         done, pending = task.wait({TASKS['shutdown_stop_current_charging_session'], TASKS['shutdown_reset_counter_entity_integration']})
