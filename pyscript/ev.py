@@ -2135,8 +2135,9 @@ def set_charging_rule(text=""):
         
         powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
         
+        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if line.strip()])
         try:
-            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}{powerwall_sting}")
+            set_state(f"sensor.{__name__}_current_charging_rule", f"{text}{limit_string}{powerwall_sting}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
             
