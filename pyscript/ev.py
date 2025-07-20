@@ -2135,8 +2135,9 @@ def set_charging_rule(text=""):
         
         powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
         
+        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if line.strip()])
         try:
-            set_state(f"sensor.{__name__}_current_charging_rule", f"{testing}{text}{testing}{limit_string}{powerwall_sting}")
+            set_state(f"sensor.{__name__}_current_charging_rule", f"{text}{limit_string}{powerwall_sting}")
         except Exception as e:
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
             
@@ -2225,8 +2226,8 @@ def init():
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
         if not file_exists(file_path):
-            TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
-            done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+            TASKS[f'init_not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
+            done, pending = task.wait({TASKS[f'init_not_exists_save_yaml_{file_path}']})
     
             _LOGGER.error(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
@@ -2249,8 +2250,8 @@ def init():
 
         updated, content = update_dict_with_new_keys(content, default_content)
         if updated or file_path == f"{__name__}_config.yaml":
-            TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-            done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+            TASKS[f'init_updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+            done, pending = task.wait({TASKS[f'init_updated_save_yaml_{file_path}']})
             
         if key_renaming:
             old_content = content.copy()
@@ -2300,8 +2301,8 @@ def init():
                 config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
                 my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{file_path}_renaming_keys")
                 
-                TASKS[f'init_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-                done, pending = task.wait({TASKS[f'init_save_yaml_{file_path}']})
+                TASKS[f'init_key_moved_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+                done, pending = task.wait({TASKS[f'init_key_moved_save_yaml_{file_path}']})
         
         deprecated_keys = compare_dicts_unique_to_dict1(content, default_content)
         if deprecated_keys:
@@ -2401,16 +2402,9 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
     finally:
-        task_names = [f"init_load_yaml_{__name__}_config.yaml", f"init_save_yaml_{__name__}_config.yaml",
-                       f"init_load_yaml_packages/{__name__}.yaml", f"init_save_yaml_packages/{__name__}.yaml"]
-        for task_name in task_names:
-            if task_name not in TASKS:
-                continue
-            
-            if isinstance(task_name, asyncio.Task) and not TASKS[task_name].done():
-                _LOGGER.warning(f"Cleaning up task {task_name} that is still pending")
-                
-            task_cancel(task_name, task_remove=True)
+        for task_name in list(TASKS.keys()):
+            if task_name.startswith("init_"):
+                task_cancel(task_name, task_remove=True)
 
 @service(f"pyscript.{__name__}_all_entities")
 def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
@@ -5046,17 +5040,6 @@ def cheap_grid_charge_hours():
         unused_solar_kwh = {}
         unused_solar_cost = {}
         solar_unit = get_solar_sell_price()
-            
-        fill_up_days = {
-            1: 0.0,
-            4: 0.0,
-            7: 0.0
-            }
-        kwh_needed_to_fill_up = kwh_needed_for_charging(get_max_recommended_charge_limit_battery_level())
-        kwh_needed_to_fill_up_share = kwh_needed_to_fill_up / len(fill_up_days)
-        
-        for day in fill_up_days.keys():
-            fill_up_days[day] = kwh_needed_to_fill_up_share
         
         ignored_reference_battery_level = 0.0
         
@@ -5077,7 +5060,6 @@ def cheap_grid_charge_hours():
             charging_plan[day]['battery_level_after_work'].append(starting_battery_level)
                 
             if charging_plan[day]['trip']:
-                
                 trip_battery_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
 
                 if charging_plan[day]['workday'] and charging_plan[day]['trip_goto'] >= charging_plan[day]['work_goto']:
@@ -5088,11 +5070,23 @@ def cheap_grid_charge_hours():
                 charging_plan[day]['trip_kwh_needed'] = max(kwh_needed_for_charging(trip_battery_needed, reference_battery_level), 0.0)
                 
             _LOGGER.debug(f"---------------------------------{day} {charging_plan[day]['day_text']} {charging_plan[day]['work_goto']} {day}---------------------------------")
-            
-            charging_plan[day]['battery_level_after_work'].append(charging_plan[day]['work_battery_level_needed'] * -1)
+                
+            if charging_plan[day]['workday']:
+                charging_plan[day]['battery_level_after_work'].append(charging_plan[day]['work_battery_level_needed'] * -1)
             
             charging_plan[day]['battery_level_at_midnight'].append(sum(charging_plan[day]['battery_level_after_work']))
             charging_plan[day]['battery_level_at_midnight'].append(charging_plan[day]['solar_prediction'])
+            
+            fill_up_days = {
+                1: 0.0,
+                4: 0.0,
+                7: 0.0
+                }
+            kwh_needed_to_fill_up = kwh_needed_for_charging(get_max_recommended_charge_limit_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
+            kwh_needed_to_fill_up_share = kwh_needed_to_fill_up / len(fill_up_days)
+            
+            for key in fill_up_days.keys():
+                fill_up_days[key] += kwh_needed_to_fill_up_share
             
             _LOGGER.debug(f"charging_plan[{day}]['battery_level_before_work'] {charging_plan[day]['battery_level_before_work']} {sum(charging_plan[day]['battery_level_before_work'])}")
             _LOGGER.debug(f"charging_plan[{day}]['battery_level_after_work'] {charging_plan[day]['battery_level_after_work']} {sum(charging_plan[day]['battery_level_after_work'])}")
@@ -5215,20 +5209,16 @@ def cheap_grid_charge_hours():
                 
                 if need_recommended_full_charge:
                     _LOGGER.info(f"Days since last fully charged: {days_since_last_fully_charged}. Need full charge: {need_recommended_full_charge}")
-                
-                if charging_plan[day]['offday']:
-                    add_charging_to_days(day, day, "battery_level_before_work", charging_plan[day]['offday_battery_level_needed'] * -1)
-                    for i in range(day, 8):
-                        if i in fill_up_days.keys():
-                            fill_up_days[i] += charging_plan[day]['offday_kwh_needed']
-                            _LOGGER.error(f"Fill up day {i} with {charging_plan[day]['offday_kwh_needed']}kWh fill_up_days[{i}] {fill_up_days[i]}")
-                            break
                     
-                fill_up = fill_up_charging_enabled() and charging_plan[day]['offday'] and day in fill_up_days.keys()
+                fill_up = fill_up_charging_enabled()# and charging_plan[day]['offday'] and day in fill_up_days.keys()
                 
                 if fill_up or need_recommended_full_charge:
                     rules = []
-                    kwh_needed_to_fill_up_day = fill_up_days[day]
+                    kwh_needed_to_fill_up_day = fill_up_days.get(day, 0.0)
+                    
+                    if fill_up and kwh_needed_to_fill_up_day <= 0.0:
+                        if sum(charging_plan[day]['battery_level_at_midnight']) < charging_plan[day]['offday_battery_level_needed'] + get_min_daily_battery_level():
+                            kwh_needed_to_fill_up_day = kwh_needed_for_charging(charging_plan[day]['offday_battery_level_needed'] + get_min_daily_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
                     
                     if need_recommended_full_charge:
                         kwh_needed_to_fill_up_day = max(kwh_needed_for_charging(100.0, battery_level() + charging_plan[day]['solar_prediction']), kwh_needed_to_fill_up_day)
@@ -5337,7 +5327,7 @@ def cheap_grid_charge_hours():
                             battery_level_needed = charging_plan[day][battery_level_needed_key] if battery_level_needed_key =="work_battery_level_needed" else charging_plan[day][battery_level_needed_key] + charging_plan[day]["trip_battery_level_above_max"]
                             kwh_needed = charging_plan[day]['trip_kwh_needed' if event_type == 'trip' else 'work_kwh_needed']
                             cost = charging_plan[day]["trip_total_cost" if event_type == "trip" else "work_total_cost"]
-                        elif event_type == 'offday' and charging_plan[day][event_type]:
+                        elif event_type == 'offday' and charging_plan[day][event_type] and day > 0:
                             event_time_start = charging_plan[day]['start_of_day']
                             event_time_end = charging_plan[day]['end_of_day']
                             
@@ -5367,7 +5357,8 @@ def cheap_grid_charge_hours():
                         if event_type in ('workday', 'trip'):
                             kwh_needed += solar_kwh
                         elif event_type == 'offday':
-                            kwh_needed = max(charging_plan[day]['offday_kwh_needed'] - kwh_needed, 0.0)
+                            #kwh_needed = max(charging_plan[day]['offday_kwh_needed'] - kwh_needed, 0.0)
+                            kwh_needed += solar_kwh
                         
                         battery_level_expenses_solar_percentage_loop = 0.0
                         battery_level_expenses_solar_kwh_loop = 0.0
@@ -5578,11 +5569,13 @@ def cheap_grid_charge_hours():
                     }
             except Exception as e:
                 _LOGGER.warning(f"Cant create solar over production prediction for day {day}: {e}")
-                    
                 
             if charging_plan[day]['trip']:
                 total_trip_battery_level_needed = max((charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0) * -1
                 charging_plan[day]['battery_level_at_midnight'].append(total_trip_battery_level_needed)
+                
+            if charging_plan[day]['offday']:
+                charging_plan[day]['battery_level_at_midnight'].append(charging_plan[day]['offday_battery_level_needed'] * -1)
         #_LOGGER.error(f"charge_hours_alternative:\n{pformat(charge_hours_alternative, width=200, compact=True)}")
         return [totalCost, totalkWh]
     
@@ -6082,13 +6075,17 @@ def cheap_grid_charge_hours():
                 if k % 1 == 0:
                     if d["event_type"] == "trip":
                         total_trip_battery_level_needed = max((charging_plan[int(k)]['trip_battery_level_needed'] + charging_plan[int(k)]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0)
-                        battery_level_before_trip_sum = int(round(sum(charging_plan[int(k)]['battery_level_after_work']),0))
+                        battery_level_before_trip_sum = int(round(charging_plan[int(k)]['battery_level_after_work_sum'],0))
                         battery_level_after_trip_sum = int(round(battery_level_before_trip_sum - total_trip_battery_level_needed,0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_trip_sum}-{battery_level_after_trip_sum}%"
-                    else:
-                        battery_level_before_work_sum = int(round(sum(charging_plan[int(k)]['battery_level_before_work']),0))
+                    elif d["event_type"] == "work":
+                        battery_level_before_work_sum = int(round(charging_plan[int(k)]['battery_level_before_work_sum'],0))
                         battery_level_after_work_sum = int(round(battery_level_before_work_sum - d['battery_needed'],0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_work_sum}-{battery_level_after_work_sum}%"
+                    else:
+                        battery_level_at_midnight_sum = int(round(min(charging_plan[int(k)]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
+                        battery_level_after_offday_sum = int(round(battery_level_at_midnight_sum - d['battery_needed'],0))
+                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_at_midnight_sum}-{battery_level_after_offday_sum}%"
                     
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
@@ -6552,7 +6549,7 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         "powerwall_charging_timestamps": f"powerwall_charging_timestamps_{random_int}"
     }
     
-    watts_from_local_energy = 0.0
+    watts_available_from_local_energy = 0.0
     
     try:
         now = getTime()
@@ -6584,15 +6581,15 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         total_production = solar_production
         
         if without_all_exclusion:
-            watts_from_local_energy = total_production - power_consumption_without_all_exclusion
+            watts_available_from_local_energy = total_production - power_consumption_without_all_exclusion
             power_needed_from_powerwall = max(power_consumption_without_all_exclusion - solar_production, 0.0)
             powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
         else:
-            watts_from_local_energy = total_production - power_consumption_without_ignored
+            watts_available_from_local_energy = total_production - power_consumption_without_ignored
             power_needed_from_powerwall = max(power_consumption_without_ignored - solar_production, 0.0)
             powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
             
-        watts_from_local_energy_solar_only = watts_from_local_energy
+        watts_available_from_local_energy_solar_only = watts_available_from_local_energy
 
         if is_powerwall_configured():
             
@@ -6617,28 +6614,28 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
                 _LOGGER.error(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
                 
                 if not include_local_energy_distribution and powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
-                    watts_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
+                    watts_available_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
                 if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
-                    watts_from_local_energy += powerwall_charging_consumption
+                    watts_available_from_local_energy += powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
                 else:
-                    watts_from_local_energy -= powerwall_charging_consumption
+                    watts_available_from_local_energy -= powerwall_charging_consumption
             
             if not solar_only:
                 total_production += powerwall_discharging_available
                 
                 if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
                     if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
-                        watts_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
+                        watts_available_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
                     else:
-                        watts_from_local_energy += powerwall_discharging_available
+                        watts_available_from_local_energy += powerwall_discharging_available
 
             if (powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
-                and watts_from_local_energy > 0.0):
-                POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% not charging, even when battery level is <{powerwall_reserved_battery_level}%"
+                and watts_available_from_local_energy > 0.0):
+                POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
             elif powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER:
                 if powerwall_forced_stop_charging:
                     POWERWALL_CHARGING_TEXT = f"Powerwall standset – opladning sker senere"
@@ -6649,11 +6646,11 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             else:
                 POWERWALL_CHARGING_TEXT = ""
 
-        watts_from_local_energy = round(min(max(watts_from_local_energy, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
-        watts_from_local_energy_solar_only = round(min(max(watts_from_local_energy_solar_only, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
+        watts_available_from_local_energy = round(min(max(watts_available_from_local_energy, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
+        watts_available_from_local_energy_solar_only = round(min(max(watts_available_from_local_energy_solar_only, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
 
         if update_entity:
-            set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_from_local_energy_solar_only)
+            set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_available_from_local_energy_solar_only)
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
@@ -6669,25 +6666,27 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
                 set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_available", powerwall_discharging_available)
                 set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_production", total_production)
                 
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_from_local_energy)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
 
 
         if include_local_energy_distribution:
             solar_watts_of_local_energy = 0.0
             powerwall_watts_of_local_energy = 0.0
-
-            if watts_from_local_energy > 0.0:
-                solar_watts_of_local_energy = (solar_production / total_production) * ev_used_consumption if solar_production > 0.0 and total_production > 0.0 else 0.0
-                powerwall_watts_of_local_energy = (powerwall_discharging_available / total_production) * ev_used_consumption if powerwall_discharging_available > 0.0 and total_production > 0.0 else 0.0
             
-            return watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
+            watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
+            
+            if watts_from_local_energy > 0.0:
+                solar_watts_of_local_energy = (solar_production / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
+                powerwall_watts_of_local_energy = (powerwall_discharging_available / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
+            
+            return watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
     except Exception as e:
         _LOGGER.error(f"Error calculating local energy available: {e}")
     finally:
         for task_name in task_names.values():
             task_cancel(task_name, task_remove=True)
             
-    return watts_from_local_energy
+    return watts_available_from_local_energy
 
 def max_local_energy_available_remaining_hour():
     _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_hour")
@@ -7298,7 +7297,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         end_work = None
         
         try:
-            if get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
+            if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
                 work_last_charging = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_departure_{dayName}").hour) - datetime.timedelta(hours=stop_prediction_before)
                 end_work = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_homecoming_{dayName}").hour)
         except Exception as e:
@@ -8035,10 +8034,10 @@ def charge_if_needed():
             
             powerwall_discharging_consumption = power_values(period=max(CONFIG["cron_interval"] * 2, 20))["powerwall_discharging_consumption"]
             powerwall_discharge_watt = powerwall_discharging_consumption
-            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption <= 100.0:
-                powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption <= 100.0 else powerwall_discharging_consumption
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER:
+                powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER else powerwall_discharging_consumption
 
-        inverter_watt = min(solar_watt, CONFIG["solar"]["inverter_discharging_power_limit"])
+        inverter_watt = solar_watt
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
                         
         currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
@@ -8332,7 +8331,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     values = power_values(from_time_stamp = past, to_time_stamp = now)
     ev_used_consumption = values['ev_used_consumption']
     
-    watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
+    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
     
     min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
     
@@ -8421,7 +8420,7 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
         ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="kW", error_state=0.0))), 3)
     ev_watt = ev_kwh * 1000.0
 
-    watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
+    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
     
     _LOGGER.debug(f"ev_watt:{ev_watt} watts_from_local_energy:{watts_from_local_energy} solar_watts_of_local_energy:{solar_watts_of_local_energy} powerwall_watts_of_local_energy:{powerwall_watts_of_local_energy}")
     if watts_from_local_energy > ev_watt:
@@ -8756,6 +8755,10 @@ if INITIALIZATION_COMPLETE:
             TASKS["triggers_charge_if_needed_is_battery_fully_charged"] = task.create(is_battery_fully_charged)
             TASKS["triggers_charge_if_needed_set_estimated_range"] = task.create(set_estimated_range)
             done, pending = task.wait({TASKS["triggers_charge_if_needed_charge_if_needed"], TASKS["triggers_charge_if_needed_is_battery_fully_charged"], TASKS["triggers_charge_if_needed_set_estimated_range"]})
+            
+            if var_name == f"input_button.{__name__}_enforce_planning" and TESTING:
+                TASKS["triggers_charge_if_needed_debug_info"] = task.create(debug_info)
+                done, pending = task.wait({TASKS["triggers_charge_if_needed_debug_info"]})
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("triggers_charge_if_needed_"):
@@ -9099,7 +9102,6 @@ if INITIALIZATION_COMPLETE:
                             raise Exception(f"Charging loss was not negative {charging_loss * 100.0}%, set charging limit in car and let charging complete")
                         
                         CONFIG['charger']['charging_loss'] = charging_loss
-                        save_changes(f"{__name__}_config", CONFIG)
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
                         my_notify(message = f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
@@ -9136,13 +9138,13 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("shutdown")
         global CONFIG, TASKS
         
-        set_charging_rule(f"📟Scriptet lukket ned")
-        stop_current_charging_session()
-        reset_counter_entity_integration()
+        TASKS['shutdown_stop_current_charging_session'] = task.create(stop_current_charging_session)
+        TASKS['shutdown_reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
         
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
+            set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
             try:
-                CONFIG = load_yaml(f"{__name__}_config")
+                #CONFIG = load_yaml(f"{__name__}_config")
                 CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
                 CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
                 CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
@@ -9169,7 +9171,10 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
                 my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
         else:
+            set_charging_rule(f"📟Lukker scriptet ned\nGemmer ikke konfigurations filen, da den er manuel redigeret")
             _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
+            
+        done, pending = task.wait({TASKS['shutdown_stop_current_charging_session'], TASKS['shutdown_reset_counter_entity_integration']})
         
         task_shutdown()
             
