@@ -5039,17 +5039,6 @@ def cheap_grid_charge_hours():
         unused_solar_kwh = {}
         unused_solar_cost = {}
         solar_unit = get_solar_sell_price()
-            
-        fill_up_days = {
-            1: 0.0,
-            4: 0.0,
-            7: 0.0
-            }
-        kwh_needed_to_fill_up = kwh_needed_for_charging(get_max_recommended_charge_limit_battery_level())
-        kwh_needed_to_fill_up_share = kwh_needed_to_fill_up / len(fill_up_days)
-        
-        for day in fill_up_days.keys():
-            fill_up_days[day] = kwh_needed_to_fill_up_share
         
         ignored_reference_battery_level = 0.0
         
@@ -5070,7 +5059,6 @@ def cheap_grid_charge_hours():
             charging_plan[day]['battery_level_after_work'].append(starting_battery_level)
                 
             if charging_plan[day]['trip']:
-                
                 trip_battery_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
 
                 if charging_plan[day]['workday'] and charging_plan[day]['trip_goto'] >= charging_plan[day]['work_goto']:
@@ -5081,11 +5069,23 @@ def cheap_grid_charge_hours():
                 charging_plan[day]['trip_kwh_needed'] = max(kwh_needed_for_charging(trip_battery_needed, reference_battery_level), 0.0)
                 
             _LOGGER.debug(f"---------------------------------{day} {charging_plan[day]['day_text']} {charging_plan[day]['work_goto']} {day}---------------------------------")
-            
-            charging_plan[day]['battery_level_after_work'].append(charging_plan[day]['work_battery_level_needed'] * -1)
+                
+            if charging_plan[day]['workday']:
+                charging_plan[day]['battery_level_after_work'].append(charging_plan[day]['work_battery_level_needed'] * -1)
             
             charging_plan[day]['battery_level_at_midnight'].append(sum(charging_plan[day]['battery_level_after_work']))
             charging_plan[day]['battery_level_at_midnight'].append(charging_plan[day]['solar_prediction'])
+            
+            fill_up_days = {
+                1: 0.0,
+                4: 0.0,
+                7: 0.0
+                }
+            kwh_needed_to_fill_up = kwh_needed_for_charging(get_max_recommended_charge_limit_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
+            kwh_needed_to_fill_up_share = kwh_needed_to_fill_up / len(fill_up_days)
+            
+            for key in fill_up_days.keys():
+                fill_up_days[key] += kwh_needed_to_fill_up_share
             
             _LOGGER.debug(f"charging_plan[{day}]['battery_level_before_work'] {charging_plan[day]['battery_level_before_work']} {sum(charging_plan[day]['battery_level_before_work'])}")
             _LOGGER.debug(f"charging_plan[{day}]['battery_level_after_work'] {charging_plan[day]['battery_level_after_work']} {sum(charging_plan[day]['battery_level_after_work'])}")
@@ -5208,20 +5208,16 @@ def cheap_grid_charge_hours():
                 
                 if need_recommended_full_charge:
                     _LOGGER.info(f"Days since last fully charged: {days_since_last_fully_charged}. Need full charge: {need_recommended_full_charge}")
-                
-                if charging_plan[day]['offday']:
-                    add_charging_to_days(day, day, "battery_level_before_work", charging_plan[day]['offday_battery_level_needed'] * -1)
-                    for i in range(day, 8):
-                        if i in fill_up_days.keys():
-                            fill_up_days[i] += charging_plan[day]['offday_kwh_needed']
-                            _LOGGER.error(f"Fill up day {i} with {charging_plan[day]['offday_kwh_needed']}kWh fill_up_days[{i}] {fill_up_days[i]}")
-                            break
                     
-                fill_up = fill_up_charging_enabled() and charging_plan[day]['offday'] and day in fill_up_days.keys()
+                fill_up = fill_up_charging_enabled()# and charging_plan[day]['offday'] and day in fill_up_days.keys()
                 
                 if fill_up or need_recommended_full_charge:
                     rules = []
-                    kwh_needed_to_fill_up_day = fill_up_days[day]
+                    kwh_needed_to_fill_up_day = fill_up_days.get(day, 0.0)
+                    
+                    if fill_up and kwh_needed_to_fill_up_day <= 0.0:
+                        if sum(charging_plan[day]['battery_level_at_midnight']) < charging_plan[day]['offday_battery_level_needed'] + get_min_daily_battery_level():
+                            kwh_needed_to_fill_up_day = kwh_needed_for_charging(charging_plan[day]['offday_battery_level_needed'] + get_min_daily_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
                     
                     if need_recommended_full_charge:
                         kwh_needed_to_fill_up_day = max(kwh_needed_for_charging(100.0, battery_level() + charging_plan[day]['solar_prediction']), kwh_needed_to_fill_up_day)
@@ -5330,7 +5326,7 @@ def cheap_grid_charge_hours():
                             battery_level_needed = charging_plan[day][battery_level_needed_key] if battery_level_needed_key =="work_battery_level_needed" else charging_plan[day][battery_level_needed_key] + charging_plan[day]["trip_battery_level_above_max"]
                             kwh_needed = charging_plan[day]['trip_kwh_needed' if event_type == 'trip' else 'work_kwh_needed']
                             cost = charging_plan[day]["trip_total_cost" if event_type == "trip" else "work_total_cost"]
-                        elif event_type == 'offday' and charging_plan[day][event_type]:
+                        elif event_type == 'offday' and charging_plan[day][event_type] and day > 0:
                             event_time_start = charging_plan[day]['start_of_day']
                             event_time_end = charging_plan[day]['end_of_day']
                             
@@ -5360,7 +5356,8 @@ def cheap_grid_charge_hours():
                         if event_type in ('workday', 'trip'):
                             kwh_needed += solar_kwh
                         elif event_type == 'offday':
-                            kwh_needed = max(charging_plan[day]['offday_kwh_needed'] - kwh_needed, 0.0)
+                            #kwh_needed = max(charging_plan[day]['offday_kwh_needed'] - kwh_needed, 0.0)
+                            kwh_needed += solar_kwh
                         
                         battery_level_expenses_solar_percentage_loop = 0.0
                         battery_level_expenses_solar_kwh_loop = 0.0
@@ -5571,11 +5568,13 @@ def cheap_grid_charge_hours():
                     }
             except Exception as e:
                 _LOGGER.warning(f"Cant create solar over production prediction for day {day}: {e}")
-                    
                 
             if charging_plan[day]['trip']:
                 total_trip_battery_level_needed = max((charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0) * -1
                 charging_plan[day]['battery_level_at_midnight'].append(total_trip_battery_level_needed)
+                
+            if charging_plan[day]['offday']:
+                charging_plan[day]['battery_level_at_midnight'].append(charging_plan[day]['offday_battery_level_needed'] * -1)
         #_LOGGER.error(f"charge_hours_alternative:\n{pformat(charge_hours_alternative, width=200, compact=True)}")
         return [totalCost, totalkWh]
     
@@ -6075,13 +6074,17 @@ def cheap_grid_charge_hours():
                 if k % 1 == 0:
                     if d["event_type"] == "trip":
                         total_trip_battery_level_needed = max((charging_plan[int(k)]['trip_battery_level_needed'] + charging_plan[int(k)]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0)
-                        battery_level_before_trip_sum = int(round(sum(charging_plan[int(k)]['battery_level_after_work']),0))
+                        battery_level_before_trip_sum = int(round(charging_plan[int(k)]['battery_level_after_work_sum'],0))
                         battery_level_after_trip_sum = int(round(battery_level_before_trip_sum - total_trip_battery_level_needed,0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_trip_sum}-{battery_level_after_trip_sum}%"
-                    else:
-                        battery_level_before_work_sum = int(round(sum(charging_plan[int(k)]['battery_level_before_work']),0))
+                    elif d["event_type"] == "work":
+                        battery_level_before_work_sum = int(round(charging_plan[int(k)]['battery_level_before_work_sum'],0))
                         battery_level_after_work_sum = int(round(battery_level_before_work_sum - d['battery_needed'],0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_work_sum}-{battery_level_after_work_sum}%"
+                    else:
+                        battery_level_at_midnight_sum = int(round(min(charging_plan[int(k)]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
+                        battery_level_after_offday_sum = int(round(battery_level_at_midnight_sum - d['battery_needed'],0))
+                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_at_midnight_sum}-{battery_level_after_offday_sum}%"
                     
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
