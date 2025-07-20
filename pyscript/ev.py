@@ -8752,6 +8752,10 @@ if INITIALIZATION_COMPLETE:
             TASKS["triggers_charge_if_needed_is_battery_fully_charged"] = task.create(is_battery_fully_charged)
             TASKS["triggers_charge_if_needed_set_estimated_range"] = task.create(set_estimated_range)
             done, pending = task.wait({TASKS["triggers_charge_if_needed_charge_if_needed"], TASKS["triggers_charge_if_needed_is_battery_fully_charged"], TASKS["triggers_charge_if_needed_set_estimated_range"]})
+            
+            if var_name == f"input_button.{__name__}_enforce_planning" and TESTING:
+                TASKS["triggers_charge_if_needed_debug_info"] = task.create(debug_info)
+                done, pending = task.wait({TASKS["triggers_charge_if_needed_debug_info"]})
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("triggers_charge_if_needed_"):
