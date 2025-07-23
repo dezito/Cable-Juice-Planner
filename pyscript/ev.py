@@ -1180,26 +1180,31 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
     global TASKS
     _LOGGER = globals()['_LOGGER'].getChild("task_wait_until")
     
-    if task_name not in TASKS:
-        return True
-    
-    if not isinstance(TASKS[task_name], asyncio.Task):
-        return True
-    
-    if TASKS[task_name].done():
-        return True
-    
-    period = 0
-    while not TASKS[task_name].done():
-        task.wait_until(timeout=wait_period)
-        period += wait_period
-        if period >= timeout:
-            break
-    
-    if TASKS[task_name].done():
-        return True
-    else:
-        return False
+    try:
+        if task_name not in TASKS:
+            return True
+        
+        if not isinstance(TASKS[task_name], asyncio.Task):
+            return True
+        
+        if TASKS[task_name].done():
+            return True
+        
+        period = 0
+        while task_name in TASKS and (not TASKS[task_name].done() or not TASKS[task_name].cancelled()):
+            task.wait_until(timeout=wait_period)
+            period += wait_period
+            if period >= timeout:
+                break
+        
+        if TASKS[task_name].done():
+            return True
+        else:
+            return False
+    except Exception as e:
+        _LOGGER.error(f"Error while waiting for task {task_name} (INSTANCE_ID: {INSTANCE_ID}): {e}")
+        
+    return False
     
 def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
     global TASKS
