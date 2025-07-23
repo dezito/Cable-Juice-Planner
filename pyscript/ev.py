@@ -1941,6 +1941,11 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild("save_changes")
     global COMMENT_DB_YAML
     
+    db = db.copy() if isinstance(db, dict) else db
+    
+    if db == {} or db == [] or db is None:
+        _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
+    
     try:
         TASKS[f'save_changes_db_disk_{file}'] = task.create(load_yaml, file)
         done, pending = task.wait({TASKS[f'save_changes_db_disk_{file}']})
@@ -1954,8 +1959,8 @@ def save_changes(file, db):
     if "version" in db_disk:
         del db_disk["version"]
     
-    comment_db = COMMENT_DB_YAML if f"{__name__}_config" in file else None
-    if db != db_disk or db == {}:
+    comment_db = COMMENT_DB_YAML.copy() if f"{__name__}_config" in file else None
+    if db != db_disk:
         try:
             _LOGGER.info(f"Saving {file} to disk")
             TASKS[f'save_changes_save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
@@ -2254,7 +2259,11 @@ def init():
         notify_critical_change(cfg = content, filename = file_path)
 
         updated, content = update_dict_with_new_keys(content, default_content)
-        if updated or file_path == f"{__name__}_config.yaml":
+            
+        if content == {}:
+            raise Exception(f"{file_path} is empty after updating keys, removing file")
+        
+        if (updated or file_path == f"{__name__}_config.yaml"):
             TASKS[f'init_updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
             done, pending = task.wait({TASKS[f'init_updated_save_yaml_{file_path}']})
             
@@ -2298,6 +2307,9 @@ def init():
                         else:
                             keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} (Oprettet)")
                             keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) to {new_path} (Created)")
+                            
+            if content == {}:
+                raise Exception(f"{file_path} is empty after renaming keys, removing file")
                 
             if old_content != content:
                 for log_string in keys_renamed_log:
@@ -2335,7 +2347,7 @@ def init():
     
     _LOGGER.info(welcome())
     try:
-        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG, CONFIG_KEYS_RENAMING, COMMENT_DB_YAML, check_first_run=True, prompt_restart=False)
+        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG.copy(), CONFIG_KEYS_RENAMING.copy(), COMMENT_DB_YAML.copy(), check_first_run=True, prompt_restart=False)
         CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
 
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
@@ -2384,7 +2396,7 @@ def init():
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES, ENTITIES_RENAMING, None, check_nested_keys=True, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES.copy(), ENTITIES_RENAMING.copy(), None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
