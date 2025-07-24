@@ -5946,8 +5946,8 @@ def cheap_grid_charge_hours():
         battery_level_expenses_unit_report = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] if BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None else 0.0
         
         if battery_level_expenses_kwh_report > 0.0:
-            overview.append("## Batteri niveau udgifter ##")
             overview.append("<center>\n")
+            overview.append("## 🔋 Batteri niveau udgifter ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
             overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
@@ -6014,8 +6014,8 @@ def cheap_grid_charge_hours():
         if current_interval:
             merged_intervals.append(current_interval)
         
-        overview.append("## Lade oversigt ##")
         overview.append("<center>\n")
+        overview.append("## 🔌 Lade oversigt ##")
         
         if merged_intervals:
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
@@ -6074,8 +6074,8 @@ def cheap_grid_charge_hours():
         work_overview_total_kwh = []
         work_overview_total_cost = []
         
-        overview.append("## Afgangsplan ##")
         overview.append("<center>\n")
+        overview.append("## 📅 Afgangsplan ##")
         
         if work_overview:
             solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
@@ -6178,8 +6178,8 @@ def cheap_grid_charge_hours():
     
     try:
         if solar_over_production:
-            overview.append("## Solcelle over produktion ##")
             overview.append("<center>\n")
+            overview.append("## ☀️ Solcelle over produktion ##")
             
             if solar_over_production:
                 overview.append("| Tid |  |  |  | % |  | kWh |")
