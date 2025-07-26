@@ -8965,7 +8965,7 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
-            if is_ev_configured() or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
+            if (is_ev_configured() and ready_to_charge()) or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
                 if is_ev_configured() and value in EV_PLUGGED_STATES:
                     task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
                     
