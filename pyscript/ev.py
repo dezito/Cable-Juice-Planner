@@ -5970,7 +5970,7 @@ def cheap_grid_charge_hours():
             kr_km = round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2) if LAST_DRIVE_EFFICIENCY_DATA['distance'] > 0 else 0.0
             
             overview.append("<center>\n")
-            overview.append("## 🧾 Sidste kørsel effektivitet ##")
+            overview.append("## 🛣️ Sidste kørsel effektivitet ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
             overview.append(f"| **📅 Kørselsdato** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
@@ -5992,7 +5992,7 @@ def cheap_grid_charge_hours():
         
         if battery_level_expenses_kwh_report > 0.0:
             overview.append("<center>\n")
-            overview.append("## 🔋 Batteri niveau udgifter ##")
+            overview.append("## 🔎 Batteri niveau udgifter ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
             overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
@@ -6060,7 +6060,7 @@ def cheap_grid_charge_hours():
             merged_intervals.append(current_interval)
         
         overview.append("<center>\n")
-        overview.append("## 🔌 Lade oversigt ##")
+        overview.append("## 📖 Lade oversigt ##")
         
         if merged_intervals:
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
@@ -6120,7 +6120,7 @@ def cheap_grid_charge_hours():
         work_overview_total_cost = []
         
         overview.append("<center>\n")
-        overview.append("## 📅 Afgangsplan ##")
+        overview.append("## 🗓️ Afgangsplan ##")
         
         if work_overview:
             solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
@@ -6224,7 +6224,7 @@ def cheap_grid_charge_hours():
     try:
         if solar_over_production:
             overview.append("<center>\n")
-            overview.append("## ☀️ Solcelle over produktion ##")
+            overview.append("## 🌞 Solcelle over produktion ##")
             
             if solar_over_production:
                 overview.append("| Tid |  |  |  | % |  | kWh |")
