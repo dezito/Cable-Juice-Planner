@@ -3659,13 +3659,10 @@ def drive_efficiency(state=None):
             cost_str = ""
             cost = 0.0
             
-            attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
-            if "battery_level_expenses_unit" in attr_list:
-                
-                if attr_list and attr_list['battery_level_expenses_unit'] is not None:
-                    unit = attr_list['battery_level_expenses_unit']
-                    cost = round(unit * usedkWh, 2)
-                    cost_str = f"Pris: {cost:.2f}kr\n"
+            if "battery_level_expenses_unit" in BATTERY_LEVEL_EXPENSES and BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None:
+                unit = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit']
+                cost = round(unit * usedkWh, 2)
+                cost_str = f"Pris: {cost:.2f}kr\n"
             
             wh_km = round(1000 / distancePerkWh, 2)
             
