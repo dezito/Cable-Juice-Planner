@@ -157,6 +157,7 @@ OVERVIEW_HISTORY = {}
 BATTERY_LEVEL_EXPENSES = {}
 CHARGING_PLAN = {}
 CHARGE_HOURS = {}
+LAST_DRIVE_EFFICIENCY_DATA = {}
 
 LOCAL_ENERGY_PREDICTION_DB = {
     "solar_prediction": {},
@@ -2474,6 +2475,18 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
 set_charging_rule(f"📟Starter scriptet op")
 init()
 
+if TESTING:
+    LAST_DRIVE_EFFICIENCY_DATA = {
+        "timestamp": getTime(),
+        "distance": 100.0,
+        "usedkWh": 20.0,
+        "usedBattery": 30.0,
+        "cost": 15.0,
+        "efficiency": 90.0,
+        "distancePerkWh": 5.0,
+        "wh_km": 175.0
+    }
+
 if INITIALIZATION_COMPLETE:
     solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
     SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * solar_min_amp)
@@ -2575,7 +2588,7 @@ def set_default_entity_states():
             if not is_entity_available(entity_id):
                 raise Exception(f"Entity {entity_id} not available cant set state")
 
-            if str(get_state(entity_id, float_type=False, error_state=None)) != str(value):
+            if str(get_state(entity_id, float_type=False, error_state=None)) in ENTITY_UNAVAILABLE_STATES:
                 _LOGGER.info(f"Setting {entity_id} to {value}")
 
             set_state(entity_id, value)
@@ -3551,7 +3564,7 @@ def drive_efficiency_save_car_stats(bootup=False):
     
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
-    global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING
+    global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING, LAST_DRIVE_EFFICIENCY_DATA
     
     state = str(state).lower()
     
@@ -3606,6 +3619,10 @@ def drive_efficiency(state=None):
                 current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
                 last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+                
+                if not is_ev_configured() and last_battery_level == 0.0:
+                    last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
+                    _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
 
                 usedBattery = last_battery_level - battery_level()
                 kilometers = current_odometer - last_odometer
@@ -3654,15 +3671,23 @@ def drive_efficiency(state=None):
             cost_str = ""
             cost = 0.0
             
-            attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
-            if "battery_level_expenses_unit" in attr_list:
-                
-                if attr_list and attr_list['battery_level_expenses_unit'] is not None:
-                    unit = attr_list['battery_level_expenses_unit']
-                    cost = round(unit * usedkWh, 2)
-                    cost_str = f"Pris: {cost:.2f}kr\n"
+            if "battery_level_expenses_unit" in BATTERY_LEVEL_EXPENSES and BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None:
+                unit = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit']
+                cost = round(unit * usedkWh, 2)
+                cost_str = f"Pris: {cost:.2f}kr\n"
             
             wh_km = round(1000 / distancePerkWh, 2)
+            
+            LAST_DRIVE_EFFICIENCY_DATA = {
+                "timestamp": getTime(),
+                "distance": kilometers,
+                "usedkWh": usedkWh,
+                "usedBattery": usedBattery,
+                "cost": cost,
+                "efficiency": efficiency,
+                "distancePerkWh": distancePerkWh,
+                "wh_km": wh_km
+            }
             
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
                 my_notify(message = f"""
@@ -3672,6 +3697,7 @@ def drive_efficiency(state=None):
                         Kørsel effektivitet: {round(efficiency, 1)}%
                         {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
                         """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                
                 
             set_last_drive_efficiency_attributes(kilometers, usedkWh, usedBattery, cost, efficiency, distancePerkWh, wh_km)
     except Exception as e:
@@ -4773,11 +4799,13 @@ def cheap_grid_charge_hours():
         "workday_in_week": False
     }
     
-    reset_current_battery_level_expenses()
     
     hour_prices = get_hour_prices()
 
     sorted_by_cheapest_price = sorted(hour_prices.items(), key=lambda kv: (kv[1], kv[0]))
+    
+    reset_current_battery_level_expenses()
+    current_battery_level_expenses()
     
     def change_timestamp_with_minutes(timestamp: datetime.datetime):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.change_timestamp_with_minutes")
@@ -5059,8 +5087,6 @@ def cheap_grid_charge_hours():
         solar_unit = get_solar_sell_price()
         
         ignored_reference_battery_level = 0.0
-        
-        current_battery_level_expenses()
         
         for day in sorted([key for key in charging_plan.keys() if isinstance(key, int)]):
             day_before = max(day - 1, 0)
@@ -5940,14 +5966,33 @@ def cheap_grid_charge_hours():
     overview = []
     
     try:
+        if LAST_DRIVE_EFFICIENCY_DATA:
+            kr_km = round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2) if LAST_DRIVE_EFFICIENCY_DATA['distance'] > 0 else 0.0
+            
+            overview.append("<center>\n")
+            overview.append("## 🛣️ Sidste kørsel effektivitet ##")
+            overview.append("|  |  |")
+            overview.append("|:---|---:|")
+            overview.append(f"| **📅 Kørselsdato** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
+            overview.append(f"| **🚗 Sidste kørsel afstand** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distance'], 1):.1f} km** |")
+            overview.append(f"| **🔋 Brugt batteri** | **{round(LAST_DRIVE_EFFICIENCY_DATA['usedBattery'], 1):.1f}% ({round(LAST_DRIVE_EFFICIENCY_DATA['usedkWh'], 2):.2f} kWh)** |")
+            overview.append(f"| **💰 Udgift** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} kr ({kr_km:.2f} kr/km)**")
+            overview.append(f"| **📊 Kørsel effektivitet** | **{round(LAST_DRIVE_EFFICIENCY_DATA['efficiency'], 1):.1f}%** |")
+            overview.append(f"| **📏 Afstand pr. kWh** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distancePerkWh'], 2):.2f} km/kWh ({LAST_DRIVE_EFFICIENCY_DATA['wh_km']} Wh/km)** |")
+            overview.append("***")
+            overview.append("</center>\n")
+    except Exception as e:
+        _LOGGER.error(f"Failed to calculate last drive efficiency: {e}")
+    
+    try:
         battery_level_expenses_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"]
         battery_level_expenses_kwh_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"]
         battery_level_expenses_solar_percentage_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"]
         battery_level_expenses_unit_report = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] if BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None else 0.0
         
         if battery_level_expenses_kwh_report > 0.0:
-            overview.append("## Batteri niveau udgifter ##")
             overview.append("<center>\n")
+            overview.append("## 🔎 Batteri niveau udgifter ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
             overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
@@ -6014,8 +6059,8 @@ def cheap_grid_charge_hours():
         if current_interval:
             merged_intervals.append(current_interval)
         
-        overview.append("## Lade oversigt ##")
         overview.append("<center>\n")
+        overview.append("## 📖 Lade oversigt ##")
         
         if merged_intervals:
             overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
@@ -6074,8 +6119,8 @@ def cheap_grid_charge_hours():
         work_overview_total_kwh = []
         work_overview_total_cost = []
         
-        overview.append("## Afgangsplan ##")
         overview.append("<center>\n")
+        overview.append("## 🗓️ Afgangsplan ##")
         
         if work_overview:
             solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
@@ -6178,8 +6223,8 @@ def cheap_grid_charge_hours():
     
     try:
         if solar_over_production:
-            overview.append("## Solcelle over produktion ##")
             overview.append("<center>\n")
+            overview.append("## 🌞 Solcelle over produktion ##")
             
             if solar_over_production:
                 overview.append("| Tid |  |  |  | % |  | kWh |")
@@ -7261,7 +7306,10 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
-                    timestamps.append(loop_datetime)
+                    now = getTime()
+                    if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
+                        timestamps.append(loop_datetime)
+                        
                     diff = powerwall_kwh_needed - loop_kwh
                     charging_kwh = loop_kwh if diff >= 0.0 else powerwall_kwh_needed
                     powerwall_kwh_needed -= charging_kwh
@@ -7972,14 +8020,14 @@ def charging_without_rule():
     
     entity_id = CONFIG['charger']['entity_ids']['power_consumtion_entity_id']
     
-    power = get_state(entity_id, float_type=True, error_state=0.0)
+    power = abs(float(get_state(entity_id, float_type=True, error_state=0.0)))
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
     trigger_count = 3
     
-    if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
+    if power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']:
         if CHARGING_NO_RULE_COUNT > 0:
-            stop_charging()
+            stop_charging(force = True if CHARGING_NO_RULE_COUNT >= 2 else False)
         
         if CHARGING_NO_RULE_COUNT > trigger_count:
             if not CURRENT_CHARGING_SESSION['start']:
@@ -7989,15 +8037,16 @@ def charging_without_rule():
             _LOGGER.warning(f"Charging without rule for {entity_id} power: {power}W, power_avg: {power_avg}W {CHARGING_NO_RULE_COUNT} times")
             
             if CHARGING_NO_RULE_COUNT == trigger_count + 1:
-                unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
-                if unavailable_entities:
-                    unavailable_entities_str = "\n\nFølgende enheder er ikke tilgængelige:"
                 
-                for entity in unavailable_entities:
-                    unavailable_entities_str += f"\n- {entity}"
-                my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{unavailable_entities_str}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
-            
+                if unavailable_entities:
+                    unavailable_entities_list = ["\n\nFølgende enheder er ikke tilgængelige:"]
+                
+                    for entity in unavailable_entities:
+                        unavailable_entities_list.append(f"\n- {entity}")
+                        
+                    my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{''.join(unavailable_entities_list)}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
+                
             integration = get_integration(entity_id)
             
             if integration:
@@ -8935,7 +8984,7 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
-            if is_ev_configured() or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
+            if (is_ev_configured() and ready_to_charge()) or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
                 if is_ev_configured() and value in EV_PLUGGED_STATES:
                     task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
                     
