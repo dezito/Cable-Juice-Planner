@@ -3607,6 +3607,10 @@ def drive_efficiency(state=None):
                 current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
                 last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
+                
+                if not is_ev_configured() and last_battery_level == 0.0:
+                    last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
+                    _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
 
                 usedBattery = last_battery_level - battery_level()
                 kilometers = current_odometer - last_odometer
