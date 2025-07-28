@@ -4787,11 +4787,13 @@ def cheap_grid_charge_hours():
         "workday_in_week": False
     }
     
-    reset_current_battery_level_expenses()
     
     hour_prices = get_hour_prices()
 
     sorted_by_cheapest_price = sorted(hour_prices.items(), key=lambda kv: (kv[1], kv[0]))
+    
+    reset_current_battery_level_expenses()
+    current_battery_level_expenses()
     
     def change_timestamp_with_minutes(timestamp: datetime.datetime):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.change_timestamp_with_minutes")
@@ -5073,8 +5075,6 @@ def cheap_grid_charge_hours():
         solar_unit = get_solar_sell_price()
         
         ignored_reference_battery_level = 0.0
-        
-        current_battery_level_expenses()
         
         for day in sorted([key for key in charging_plan.keys() if isinstance(key, int)]):
             day_before = max(day - 1, 0)
