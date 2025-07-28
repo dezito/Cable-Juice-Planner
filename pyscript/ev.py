@@ -2588,7 +2588,7 @@ def set_default_entity_states():
             if not is_entity_available(entity_id):
                 raise Exception(f"Entity {entity_id} not available cant set state")
 
-            if str(get_state(entity_id, float_type=False, error_state=None)) != str(value):
+            if str(get_state(entity_id, float_type=False, error_state=None)) in ENTITY_UNAVAILABLE_STATES:
                 _LOGGER.info(f"Setting {entity_id} to {value}")
 
             set_state(entity_id, value)
