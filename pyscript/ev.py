@@ -2475,6 +2475,18 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
 set_charging_rule(f"📟Starter scriptet op")
 init()
 
+if TESTING:
+    LAST_DRIVE_EFFICIENCY_DATA = {
+        "timestamp": getTime(),
+        "distance": 100.0,
+        "usedkWh": 20.0,
+        "usedBattery": 30.0,
+        "cost": 15.0,
+        "efficiency": 90.0,
+        "distancePerkWh": 5.0,
+        "wh_km": 175.0
+    }
+
 if INITIALIZATION_COMPLETE:
     solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
     SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * solar_min_amp)
@@ -5955,6 +5967,8 @@ def cheap_grid_charge_hours():
     
     try:
         if LAST_DRIVE_EFFICIENCY_DATA:
+            kr_km = round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2) if LAST_DRIVE_EFFICIENCY_DATA['distance'] > 0 else 0.0
+            
             overview.append("<center>\n")
             overview.append("## 🧾 Sidste kørsel effektivitet ##")
             overview.append("|  |  |")
@@ -5962,7 +5976,7 @@ def cheap_grid_charge_hours():
             overview.append(f"| **📅 Kørselsdato** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
             overview.append(f"| **🚗 Sidste kørsel afstand** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distance'], 1):.1f} km** |")
             overview.append(f"| **🔋 Brugt batteri** | **{round(LAST_DRIVE_EFFICIENCY_DATA['usedBattery'], 1):.1f}% ({round(LAST_DRIVE_EFFICIENCY_DATA['usedkWh'], 2):.2f} kWh)** |")
-            overview.append(f"| **💰 Udgift** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} kr ({round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2):.2f} kr/km)**")
+            overview.append(f"| **💰 Udgift** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} kr ({kr_km:.2f} kr/km)**")
             overview.append(f"| **📊 Kørsel effektivitet** | **{round(LAST_DRIVE_EFFICIENCY_DATA['efficiency'], 1):.1f}%** |")
             overview.append(f"| **📏 Afstand pr. kWh** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distancePerkWh'], 2):.2f} km/kWh ({LAST_DRIVE_EFFICIENCY_DATA['wh_km']} Wh/km)** |")
             overview.append("***")
