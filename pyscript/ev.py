@@ -8020,14 +8020,14 @@ def charging_without_rule():
     
     entity_id = CONFIG['charger']['entity_ids']['power_consumtion_entity_id']
     
-    power = get_state(entity_id, float_type=True, error_state=0.0)
+    power = abs(float(get_state(entity_id, float_type=True, error_state=0.0)))
     power_avg = round(abs(float(get_average_value(entity_id, past, now, convert_to="W", error_state=0.0))), 3)
     
     trigger_count = 3
     
-    if power != 0.0 and (power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']):
+    if power > CONFIG['charger']['power_voltage'] and power_avg > CONFIG['charger']['power_voltage']:
         if CHARGING_NO_RULE_COUNT > 0:
-            stop_charging()
+            stop_charging(force = True if CHARGING_NO_RULE_COUNT >= 2 else False)
         
         if CHARGING_NO_RULE_COUNT > trigger_count:
             if not CURRENT_CHARGING_SESSION['start']:
@@ -8037,15 +8037,16 @@ def charging_without_rule():
             _LOGGER.warning(f"Charging without rule for {entity_id} power: {power}W, power_avg: {power_avg}W {CHARGING_NO_RULE_COUNT} times")
             
             if CHARGING_NO_RULE_COUNT == trigger_count + 1:
-                unavailable_entities_str = ""
                 unavailable_entities = get_all_unavailable_entities()
-                if unavailable_entities:
-                    unavailable_entities_str = "\n\nFølgende enheder er ikke tilgængelige:"
                 
-                for entity in unavailable_entities:
-                    unavailable_entities_str += f"\n- {entity}"
-                my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{unavailable_entities_str}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
-            
+                if unavailable_entities:
+                    unavailable_entities_list = ["\n\nFølgende enheder er ikke tilgængelige:"]
+                
+                    for entity in unavailable_entities:
+                        unavailable_entities_list.append(f"\n- {entity}")
+                        
+                    my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{''.join(unavailable_entities_list)}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
+                
             integration = get_integration(entity_id)
             
             if integration:
