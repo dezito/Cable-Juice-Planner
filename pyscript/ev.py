@@ -1467,8 +1467,13 @@ def get_debug_info_sections():
                 "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
                 "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
                 "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
+                "CHARGING_HISTORY_RUNNING": CHARGING_HISTORY_RUNNING,
             },
-            "details": {"CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION},
+            "details": {
+                "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
+                "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
+                "EV_SEND_COMMAND_QUEUE": EV_SEND_COMMAND_QUEUE,
+            },
         },
         "Task Management": {
             "table": {
