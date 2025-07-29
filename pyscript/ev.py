@@ -187,8 +187,8 @@ SOLAR_SELL_TARIFF = {
     "solar_production_seller_cut": 0.01
 }
 
-CHARGING_HISTORY_RUNNING = False
-CHARGING_HISTORY_QUEUE = []
+CHARGING_HISTORY_QUEUE = asyncio.Queue()
+
 EV_SEND_COMMAND_QUEUE = []
 
 INTEGRATION_OFFLINE_TIMESTAMP = {}
@@ -1224,6 +1224,10 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
             task_wait_until(task_name, timeout=3.0, wait_period=0.2)
             
+        if "charging_history_worker" in task_name and not TASKS[task_name].done():
+            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            
         if not task_wait_until(task_name, timeout=1, wait_period=0.2):
             TASKS[task_name].cancel()
         
@@ -1467,7 +1471,7 @@ def get_debug_info_sections():
                 "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
                 "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
                 "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
-                "CHARGING_HISTORY_RUNNING": CHARGING_HISTORY_RUNNING,
+                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
             },
             "details": {
                 "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
@@ -4428,35 +4432,45 @@ def charging_power_to_emulated_battery_level():
 
     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
 
-def charging_history(charging_data=None, charging_type=""):
+async def charging_history(charging_data=None, charging_type=""):
     _LOGGER = globals()['_LOGGER'].getChild("charging_history")
-    global CHARGING_HISTORY_RUNNING, CHARGING_HISTORY_QUEUE
-
-    CHARGING_HISTORY_QUEUE.append([charging_data, charging_type])
-
-    if CHARGING_HISTORY_RUNNING:
-        _LOGGER.warning(f"Queue is already running, current queue size: {len(CHARGING_HISTORY_QUEUE)}")
-        return
-
-    CHARGING_HISTORY_RUNNING = True
-
+    
     try:
-        while CHARGING_HISTORY_QUEUE:
-            job = CHARGING_HISTORY_QUEUE.pop(0)
-            _charging_history(charging_data=job[0], charging_type=job[1])
+        await CHARGING_HISTORY_QUEUE.put((charging_data, charging_type))
+        _LOGGER.info(f"Tilføjet til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
 
+        task_key = "charging_history_worker"
+        task_running = TASKS.get(task_key)
+
+        if not task_running or task_running.done():
+            _LOGGER.info("Starter ny charging_history_worker task")
+            TASKS[task_key] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.error(f"Charging history queue failed: {e}")
+        _LOGGER.exception(f"Fejl ved tilføjelse til charging_history kø: {e}")
         my_persistent_notification(
-            f"Charging history queue failed: {e}",
-            f"{TITLE} error",
-            persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+            f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
+            f"{TITLE} fejl",
+            persistent_notification_id=f"{__name__}_charging_history_failed"
         )
+        
+async def charging_history_worker():
+    _LOGGER = globals()['_LOGGER'].getChild("charging_history_worker")
+    
+    while not CHARGING_HISTORY_QUEUE.empty():
+        try:
+            charging_data, charging_type = await CHARGING_HISTORY_QUEUE.get()
+            await _charging_history(charging_data=charging_data, charging_type=charging_type)
+            CHARGING_HISTORY_QUEUE.task_done()
 
-    finally:
-        CHARGING_HISTORY_RUNNING = False
+        except Exception as e:
+            _LOGGER.exception(f"Fejl i charging_history_worker: {e}")
+            my_persistent_notification(
+                f"Charging history queue failed: {e}",
+                f"{TITLE} fejl",
+                persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+            )
 
-def _charging_history(charging_data = None, charging_type = ""):
+async def _charging_history(charging_data = None, charging_type = ""):
     _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
     global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
     
