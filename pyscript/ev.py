@@ -188,6 +188,7 @@ SOLAR_SELL_TARIFF = {
 }
 
 CHARGING_HISTORY_QUEUE = asyncio.Queue()
+CHARGING_HISTORY_QUEUE_LAST_RESULT = {}
 
 INTEGRATION_OFFLINE_TIMESTAMP = {}
 
@@ -1477,6 +1478,7 @@ def get_debug_info_sections():
             "details": {
                 "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
                 "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
+                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
             },
         },
         "Task Management": {
@@ -4455,12 +4457,16 @@ async def charging_history(charging_data=None, charging_type=""):
         
 async def charging_history_worker():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_worker")
-    charging_data, charging_type = None, None
+    global CHARGING_HISTORY_QUEUE_LAST_RESULT
+    
+    last_result = None
     
     while not CHARGING_HISTORY_QUEUE.empty():
         try:
             charging_data, charging_type = await CHARGING_HISTORY_QUEUE.get()
             last_result = await _charging_history(charging_data=charging_data, charging_type=charging_type)
+            CHARGING_HISTORY_QUEUE_LAST_RESULT = last_result
+            
             CHARGING_HISTORY_QUEUE.task_done()
 
         except Exception as e:
@@ -4470,7 +4476,7 @@ async def charging_history_worker():
                 f"{TITLE} fejl",
                 persistent_notification_id=f"{__name__}_charging_history_queue_failed"
             )
-    return charging_data, charging_type
+    return last_result
 
 async def _charging_history(charging_data = None, charging_type = ""):
     _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
@@ -4600,7 +4606,14 @@ async def _charging_history(charging_data = None, charging_type = ""):
     if update_entity:
         charging_history_combine_and_set()
     
-    return charging_data, charging_type
+    return {
+        "added_kwh": added_kwh if "added_kwh" in locals() else 0.0,
+        "charging_type": charging_type,
+        "charging_data": charging_data,
+        "session_started": start if 'start' in locals() else False,
+        "session_ended": charging_type != CURRENT_CHARGING_SESSION['type'],
+        "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
+    }
 
 def stop_current_charging_session():
     charging_history(None, "")
