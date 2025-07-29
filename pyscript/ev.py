@@ -8919,7 +8919,7 @@ if INITIALIZATION_COMPLETE:
                 
                 TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
                 TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["notify_set_battery_level"], TASKS["wake_up_ev"]})
+                done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
                 
                 TASKS["state_trigger_charger_port_charge_if_needed"] = task.create(charge_if_needed)
                 done, pending = task.wait({TASKS["state_trigger_charger_port_charge_if_needed"]})
