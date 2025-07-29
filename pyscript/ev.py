@@ -187,9 +187,8 @@ SOLAR_SELL_TARIFF = {
     "solar_production_seller_cut": 0.01
 }
 
-CHARGING_HISTORY_RUNNING = False
-CHARGING_HISTORY_QUEUE = []
-EV_SEND_COMMAND_QUEUE = []
+CHARGING_HISTORY_QUEUE = asyncio.Queue()
+CHARGING_HISTORY_QUEUE_LAST_RESULT = {}
 
 INTEGRATION_OFFLINE_TIMESTAMP = {}
 
@@ -1216,19 +1215,25 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             return True
         
         if not isinstance(TASKS[task_name], asyncio.Task):
-            if task_remove:
+            if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
         
+        task_wait_until(task_name, timeout=0.5, wait_period=0.2)
+        
         if "save" in task_name and "saving" in task_name and not TASKS[task_name].done():
             _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            
+        if "charging_history_worker" in task_name and not TASKS[task_name].done():
+            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
             task_wait_until(task_name, timeout=3.0, wait_period=0.2)
             
         if not task_wait_until(task_name, timeout=1, wait_period=0.2):
             TASKS[task_name].cancel()
         
         if task_wait_until(task_name, timeout=timeout, wait_period=wait_period):
-            if task_remove:
+            if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
         else:
@@ -1244,13 +1249,14 @@ def task_shutdown():
     SHUTTING_DOWN = True
     
     tasks_done_list = []
-    for task_name, task_id in TASKS.items():
+    for task_name, task_id in list(TASKS.items()):
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
     
     for task_name in tasks_done_list:
         try:
-            del TASKS[task_name]
+            if task_name in TASKS:
+                del TASKS[task_name]
         except KeyError:
             _LOGGER.error(f"Error deleting task {task_name} from TASKS (INSTANCE_ID: {INSTANCE_ID})")
     
@@ -1467,12 +1473,12 @@ def get_debug_info_sections():
                 "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
                 "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
                 "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
-                "CHARGING_HISTORY_RUNNING": CHARGING_HISTORY_RUNNING,
+                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
             },
             "details": {
                 "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
                 "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
-                "EV_SEND_COMMAND_QUEUE": EV_SEND_COMMAND_QUEUE,
+                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
             },
         },
         "Task Management": {
@@ -4428,35 +4434,51 @@ def charging_power_to_emulated_battery_level():
 
     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
 
-def charging_history(charging_data=None, charging_type=""):
+async def charging_history(charging_data=None, charging_type=""):
     _LOGGER = globals()['_LOGGER'].getChild("charging_history")
-    global CHARGING_HISTORY_RUNNING, CHARGING_HISTORY_QUEUE
-
-    CHARGING_HISTORY_QUEUE.append([charging_data, charging_type])
-
-    if CHARGING_HISTORY_RUNNING:
-        _LOGGER.warning(f"Queue is already running, current queue size: {len(CHARGING_HISTORY_QUEUE)}")
-        return
-
-    CHARGING_HISTORY_RUNNING = True
-
+    
     try:
-        while CHARGING_HISTORY_QUEUE:
-            job = CHARGING_HISTORY_QUEUE.pop(0)
-            _charging_history(charging_data=job[0], charging_type=job[1])
+        await CHARGING_HISTORY_QUEUE.put((charging_data, charging_type))
+        _LOGGER.debug(f"Tilføjet charging_data:{charging_data}, charging_type:\"{charging_type}\" til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
 
+        task_key = "charging_history_worker"
+        task_running = TASKS.get(task_key)
+
+        if not task_running or task_running.done():
+            _LOGGER.info("Starter ny charging_history_worker task")
+            TASKS[task_key] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.error(f"Charging history queue failed: {e}")
+        _LOGGER.exception(f"Fejl ved tilføjelse til charging_history kø: {e}")
         my_persistent_notification(
-            f"Charging history queue failed: {e}",
-            f"{TITLE} error",
-            persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+            f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
+            f"{TITLE} fejl",
+            persistent_notification_id=f"{__name__}_charging_history_failed"
         )
+        
+async def charging_history_worker():
+    _LOGGER = globals()['_LOGGER'].getChild("charging_history_worker")
+    global CHARGING_HISTORY_QUEUE_LAST_RESULT
+    
+    last_result = None
+    
+    while not CHARGING_HISTORY_QUEUE.empty():
+        try:
+            charging_data, charging_type = await CHARGING_HISTORY_QUEUE.get()
+            last_result = await _charging_history(charging_data=charging_data, charging_type=charging_type)
+            CHARGING_HISTORY_QUEUE_LAST_RESULT = last_result
+            
+            CHARGING_HISTORY_QUEUE.task_done()
 
-    finally:
-        CHARGING_HISTORY_RUNNING = False
+        except Exception as e:
+            _LOGGER.exception(f"Fejl i charging_history_worker: {e}")
+            my_persistent_notification(
+                f"Charging history queue failed: {e}",
+                f"{TITLE} fejl",
+                persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+            )
+    return last_result
 
-def _charging_history(charging_data = None, charging_type = ""):
+async def _charging_history(charging_data = None, charging_type = ""):
     _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
     global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
     
@@ -4583,6 +4605,15 @@ def _charging_history(charging_data = None, charging_type = ""):
         
     if update_entity:
         charging_history_combine_and_set()
+    
+    return {
+        "added_kwh": added_kwh if "added_kwh" in locals() else 0.0,
+        "charging_type": charging_type,
+        "charging_data": charging_data,
+        "session_started": start if 'start' in locals() else False,
+        "session_ended": charging_type != CURRENT_CHARGING_SESSION['type'],
+        "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
+    }
 
 def stop_current_charging_session():
     charging_history(None, "")
@@ -8919,7 +8950,7 @@ if INITIALIZATION_COMPLETE:
                 
                 TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
                 TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["notify_set_battery_level"], TASKS["wake_up_ev"]})
+                done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
                 
                 TASKS["state_trigger_charger_port_charge_if_needed"] = task.create(charge_if_needed)
                 done, pending = task.wait({TASKS["state_trigger_charger_port_charge_if_needed"]})
