@@ -1214,9 +1214,11 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             return True
         
         if not isinstance(TASKS[task_name], asyncio.Task):
-            if task_remove:
+            if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
+        
+        task_wait_until(task_name, timeout=0.5, wait_period=0.2)
         
         if "save" in task_name and "saving" in task_name and not TASKS[task_name].done():
             _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
@@ -1230,7 +1232,7 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             TASKS[task_name].cancel()
         
         if task_wait_until(task_name, timeout=timeout, wait_period=wait_period):
-            if task_remove:
+            if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
         else:
@@ -1246,13 +1248,14 @@ def task_shutdown():
     SHUTTING_DOWN = True
     
     tasks_done_list = []
-    for task_name, task_id in TASKS.items():
+    for task_name, task_id in list(TASKS.items()):
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
     
     for task_name in tasks_done_list:
         try:
-            del TASKS[task_name]
+            if task_name in TASKS:
+                del TASKS[task_name]
         except KeyError:
             _LOGGER.error(f"Error deleting task {task_name} from TASKS (INSTANCE_ID: {INSTANCE_ID})")
     
