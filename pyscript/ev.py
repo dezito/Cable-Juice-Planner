@@ -189,8 +189,6 @@ SOLAR_SELL_TARIFF = {
 
 CHARGING_HISTORY_QUEUE = asyncio.Queue()
 
-EV_SEND_COMMAND_QUEUE = []
-
 INTEGRATION_OFFLINE_TIMESTAMP = {}
 
 CURRENT_CHARGING_SESSION = {}
@@ -1476,7 +1474,6 @@ def get_debug_info_sections():
             "details": {
                 "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
                 "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
-                "EV_SEND_COMMAND_QUEUE": EV_SEND_COMMAND_QUEUE,
             },
         },
         "Task Management": {
