@@ -6585,6 +6585,9 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         power_consumption_without_ignored = round(power_consumption - ignored_consumption, 2)
         power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
         power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
+    except Exception as e:
+        _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}")
+        my_persistent_notification(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_values")
     finally:
         for task_name in task_names.values():
             task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2)
@@ -6749,6 +6752,7 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             return watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
     except Exception as e:
         _LOGGER.error(f"Error calculating local energy available: {e}")
+        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_available")
     finally:
         for task_name in task_names.values():
             task_cancel(task_name, task_remove=True)
@@ -6832,6 +6836,9 @@ def max_local_energy_available_remaining_hour():
             
         _LOGGER.debug(f"max_local_energy_available_remaining_hour returnDict:{returnDict}")
         _LOGGER.debug(f"max_local_energy_available_remaining_hour output:{returnDict['output']}")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
+        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_hour")
     finally:
         for task_name in [predictedSolarPower_task_name, total_task_name]:
             task_cancel(task_name, task_remove=True)
@@ -7521,6 +7528,9 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             day_prediction_task_names.append(task_name)
         
         done, pending = task.wait(day_prediction_task_set)
+    except Exception as e:
+        _LOGGER.error(f"Error during day prediction tasks: {e}")
+        my_persistent_notification(f"Failed to run local energy prediction tasks", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_prediction_tasks")
     finally:
         for task_name in day_prediction_task_names:
             task_cancel(task_name, task_remove=True)
@@ -8773,6 +8783,9 @@ if INITIALIZATION_COMPLETE:
             if CONFIG['notification']['update_available']:
                 TASKS["startup_check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS["startup_check_master_updates"]})
+        except Exception as e:
+            _LOGGER.error(f"Error during startup: {e}")
+            my_persistent_notification(f"Error during startup: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_startup_error")
         finally:
             for line in log_lines:
                 _LOGGER.info(line)
@@ -8830,6 +8843,9 @@ if INITIALIZATION_COMPLETE:
             if var_name == f"input_button.{__name__}_enforce_planning" and TESTING:
                 TASKS["triggers_charge_if_needed_debug_info"] = task.create(debug_info)
                 done, pending = task.wait({TASKS["triggers_charge_if_needed_debug_info"]})
+        except Exception as e:
+            _LOGGER.error(f"Error in triggers_charge_if_needed: {e}")
+            my_persistent_notification(f"Error in triggers_charge_if_needed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_triggers_charge_if_needed_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("triggers_charge_if_needed_"):
@@ -8876,14 +8892,18 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_power")
         global CURRENT_CHARGING_SESSION
         
+        if not isinstance(value, (float, int)) or isinstance(old_value, (float, int)):
+            return
+        
         try:
             if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['type'] == "no_rule":
                 if not charging_without_rule():
                     TASKS["state_trigger_charger_power_stop_current_charging_session"] = task.create(stop_current_charging_session)
                     done, pending = task.wait({TASKS["state_trigger_charger_power_stop_current_charging_session"]})
                     set_charging_rule(f"Lader ikke")
-        except:
-            pass
+        except Exception as e:
+            _LOGGER.error(f"Error in state_trigger_charger_power: {e}")
+            my_persistent_notification(f"Error in state_trigger_charger_power: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_power_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("state_trigger_charger_power_"):
@@ -8917,6 +8937,9 @@ if INITIALIZATION_COMPLETE:
                     done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"]})
                     
                     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
+        except Exception as e:
+            _LOGGER.error(f"Error in state_trigger_charger_port: {e}")
+            my_persistent_notification(f"Error in state_trigger_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_port_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("state_trigger_charger_port_"):
@@ -8931,6 +8954,9 @@ if INITIALIZATION_COMPLETE:
                 if value == "home":
                     TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
+                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
             finally:
                 for task_name in list(TASKS.keys()):
                     if task_name.startswith("state_trigger_ev_location_"):
@@ -9000,6 +9026,9 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS["power_connected_trigger_drive_efficiency"]})
             TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"]})
+        except Exception as e:
+            _LOGGER.error(f"Error in power_connected_trigger: {e}")
+            my_persistent_notification(f"Error in power_connected_trigger: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_connected_trigger_error")
         finally:
             for task_name in ["power_connected_trigger_wait_until_odometer_stable", "power_connected_trigger_drive_efficiency", "power_connected_trigger_notify_battery_under_daily_battery_level"]:
                 task_cancel(task_name, task_remove=True)
@@ -9014,6 +9043,9 @@ if INITIALIZATION_COMPLETE:
                 
                 if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
                     power_connected_trigger(value)
+            except Exception as e:
+                _LOGGER.error(f"Error in state_trigger_charger_cable_connected: {e}")
+                my_persistent_notification(f"Error in state_trigger_charger_cable_connected: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_cable_connected_error")
             finally:
                 for task_name in list(TASKS.keys()):
                     if task_name.startswith("state_trigger_charger_cable_connected_"):
@@ -9026,6 +9058,9 @@ if INITIALIZATION_COMPLETE:
             try:
                 TASKS["cron_five_every_minute_preheat_ev"] = task.create(preheat_ev)
                 done, pending = task.wait({TASKS["cron_five_every_minute_preheat_ev"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in cron_five_every_minute: {e}")
+                my_persistent_notification(f"Error in cron_five_every_minute: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_five_every_minute_error")
             finally:
                 for task_name in list(TASKS.keys()):
                     if task_name.startswith("cron_five_every_minute_"):
@@ -9056,6 +9091,9 @@ if INITIALIZATION_COMPLETE:
                 if old_value == 0.0 and value > 0.0:
                     TASKS["emulated_battery_level_changed_drive_efficiency"] = task.create(drive_efficiency, "on")
                     done, pending = task.wait({TASKS["emulated_battery_level_changed_drive_efficiency"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in emulated_battery_level_changed: {e}")
+                my_persistent_notification(f"Error in emulated_battery_level_changed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_emulated_battery_level_changed_error")
             finally:
                 for task_name in list(TASKS.keys()):
                     if task_name.startswith("emulated_battery_level_changed_"):
@@ -9082,6 +9120,9 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS['cron_hour_end_solar_available_append_to_db'], TASKS['cron_hour_end_power_values_to_db'],
                                     TASKS['cron_hour_end_stop_current_charging_session'], TASKS['cron_hour_end_kwh_charged_by_solar'],
                                     TASKS['cron_hour_end_solar_charged_percentage'], TASKS['cron_hour_end_commands_history_clean_entity_integration']})
+        except Exception as e:
+            _LOGGER.error(f"Error in cron_hour_end: {e}")
+            my_persistent_notification(f"Error in cron_hour_end: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_hour_end_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("cron_hour_end_"):
@@ -9098,6 +9139,9 @@ if INITIALIZATION_COMPLETE:
             if CONFIG['notification']['update_available']:
                 TASKS["cron_new_day_check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS["cron_new_day_check_master_updates"]})
+        except Exception as e:
+            _LOGGER.error(f"Error in cron_new_day: {e}")
+            my_persistent_notification(f"Error in cron_new_day: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_new_day_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("cron_new_day_"):
@@ -9110,6 +9154,9 @@ if INITIALIZATION_COMPLETE:
         try:
             TASKS["cron_append_kwh_prices_append_kwh_prices"] = task.create(append_kwh_prices)
             done, pending = task.wait({TASKS["cron_append_kwh_prices_append_kwh_prices"]})
+        except Exception as e:
+            _LOGGER.error(f"Error in cron_append_kwh_prices: {e}")
+            my_persistent_notification(f"Error in cron_append_kwh_prices: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_append_kwh_prices_error")
         finally:
             for task_name in list(TASKS.keys()):
                 if task_name.startswith("cron_append_kwh_prices_"):
