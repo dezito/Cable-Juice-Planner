@@ -5835,7 +5835,7 @@ def cheap_grid_charge_hours():
         total_solar_available_price = []
         
         if solar_charging_enabled():
-            if day == 0 and ((charging_plan[day]['workday'] and getTime() >= charging_plan[day]['work_homecoming']) or not charging_plan[day]['workday']):
+            if day == 0:# and ((charging_plan[day]['workday'] and getTime() >= charging_plan[day]['work_homecoming']) or not charging_plan[day]['workday']):
                 total_solar_available += solar_kwh_prediction['today']
                 total_solar_available_price.append(solar_price_prediction['today'])
             elif 1 <= day <= 5 and (today + datetime.timedelta(days=day)) in solar_kwh_prediction:
