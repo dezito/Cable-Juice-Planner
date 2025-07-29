@@ -4455,11 +4455,12 @@ async def charging_history(charging_data=None, charging_type=""):
         
 async def charging_history_worker():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_worker")
+    charging_data, charging_type = None, None
     
     while not CHARGING_HISTORY_QUEUE.empty():
         try:
             charging_data, charging_type = await CHARGING_HISTORY_QUEUE.get()
-            await _charging_history(charging_data=charging_data, charging_type=charging_type)
+            last_result = await _charging_history(charging_data=charging_data, charging_type=charging_type)
             CHARGING_HISTORY_QUEUE.task_done()
 
         except Exception as e:
@@ -4469,6 +4470,7 @@ async def charging_history_worker():
                 f"{TITLE} fejl",
                 persistent_notification_id=f"{__name__}_charging_history_queue_failed"
             )
+    return charging_data, charging_type
 
 async def _charging_history(charging_data = None, charging_type = ""):
     _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
@@ -4597,6 +4599,8 @@ async def _charging_history(charging_data = None, charging_type = ""):
         
     if update_entity:
         charging_history_combine_and_set()
+    
+    return charging_data, charging_type
 
 def stop_current_charging_session():
     charging_history(None, "")
