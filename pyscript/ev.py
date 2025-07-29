@@ -4437,7 +4437,7 @@ async def charging_history(charging_data=None, charging_type=""):
     
     try:
         await CHARGING_HISTORY_QUEUE.put((charging_data, charging_type))
-        _LOGGER.info(f"Tilføjet til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
+        _LOGGER.debug(f"Tilføjet charging_data:{charging_data}, charging_type:\"{charging_type}\" til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
 
         task_key = "charging_history_worker"
         task_running = TASKS.get(task_key)
