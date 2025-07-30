@@ -1240,7 +1240,10 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             _LOGGER.error(f"Task {task_name} is still not done after waiting, ignoring it (INSTANCE_ID: {INSTANCE_ID})")
             return False
     except Exception as e:
-        _LOGGER.error(f"Error while killing task {task_name}: {e} {TASKS[task_name]} (INSTANCE_ID: {INSTANCE_ID})")
+        if task_name in TASKS:
+            _LOGGER.error(f"Error while killing task {task_name}: {e} {TASKS[task_name]} (INSTANCE_ID: {INSTANCE_ID})")
+        else:
+            _LOGGER.error(f"Error while killing task {task_name}: {e} (INSTANCE_ID: {INSTANCE_ID})")
         
 def task_shutdown():
     task.unique("task_shutdown")
