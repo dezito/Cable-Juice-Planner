@@ -133,7 +133,6 @@ EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected
 INSTANCE_ID = random.randint(0, 10000)
 TASKS = {}
 TASKS_REMOVE = []
-SHUTTING_DOWN = False
 
 CONFIG = {}
 CONFIG_LAST_MODIFIED = None
@@ -1247,9 +1246,8 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
         
 def task_shutdown():
     task.unique("task_shutdown")
-    global TASKS, SHUTTING_DOWN
-    
-    SHUTTING_DOWN = True
+    _LOGGER = globals()['_LOGGER'].getChild("task_shutdown")
+    global TASKS
     
     tasks_done_list = []
     for task_name, task_id in list(TASKS.items()):
