@@ -1410,88 +1410,111 @@ def append_overview_output(title = None, timestamp = None):
     
     OVERVIEW_HISTORY = limit_dict_size(OVERVIEW_HISTORY, 10)
     
+def format_debug_value(value):
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    elif isinstance(value, datetime.timedelta):
+        return str(value)
+    elif isinstance(value, dict):
+        return {
+            format_debug_value(k): format_debug_value(v)
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        return [format_debug_value(v) for v in value]
+    elif isinstance(value, tuple):
+        return tuple([format_debug_value(v) for v in value])
+    return value
+
+def format_debug_table(table):
+    return {k: format_debug_value(v) for k, v in table.items()} if table else None
+
+def format_debug_details(details):
+    return {k: format_debug_value(v) for k, v in details.items()} if details else None
+
 def get_debug_info_sections():
     return {
-        "Status and Initialization": {
-            "table": {
+        "System Status": {
+            "table": format_debug_table({
                 "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
                 "PREHEATING": PREHEATING,
-            },
+            }),
             "details": None,
         },
-        "Configuration": {
-            "table": {
+        "System Configuration": {
+            "table": format_debug_table({
                 "CHARGER_CONFIGURED": CHARGER_CONFIGURED,
                 "SOLAR_CONFIGURED": SOLAR_CONFIGURED,
                 "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
                 "EV_CONFIGURED": EV_CONFIGURED,
-                "CONFIG_LAST_MODIFIED": CONFIG_LAST_MODIFIED,
-            },
-            "details": {"CONFIG": CONFIG},
+                "CONFIG_LAST_MODIFIED": datetime.datetime.fromtimestamp(CONFIG_LAST_MODIFIED) if isinstance(CONFIG_LAST_MODIFIED, (float, int)) else CONFIG_LAST_MODIFIED,
+            }),
+            "details": format_debug_details({"CONFIG": CONFIG}),
         },
-        "Entities Integration Limits, Counters & Command history": {
+        "Entity Integration & Limits": {
             "table": None,
-            "details": {"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT},
+            "details": format_debug_details({"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT}),
         },
-        "Charging Plan": {
-            "table": {
+        "Charging Plan & Price Logic": {
+            "table": format_debug_table({
                 "CURRENT_CHARGING_AMPS": CURRENT_CHARGING_AMPS,
                 "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
-            },
-            "details": {
-                "BATTERY_LEVEL_EXPENSES": BATTERY_LEVEL_EXPENSES,
+            }),
+            "details": format_debug_details({
                 "CHARGING_PLAN": CHARGING_PLAN,
                 "CHARGE_HOURS": CHARGE_HOURS,
                 "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
-            },
+            }),
         },
-        "Solar and Powerwall": {
+        "Charging Expenses": {
             "table": None,
-            "details": {
+            "details": format_debug_details({"BATTERY_LEVEL_EXPENSES": BATTERY_LEVEL_EXPENSES}),
+        },
+        "Local Energy Forecast": {
+            "table": None,
+            "details": format_debug_details({
                 "LOCAL_ENERGY_PRICES": LOCAL_ENERGY_PRICES,
                 "LOCAL_ENERGY_PREDICTION_DB": LOCAL_ENERGY_PREDICTION_DB,
-            }
+            }),
         },
-        "Charging Loss": {
-            "table": {
+        "Charging Loss Metrics": {
+            "table": format_debug_table({
                 "CHARGING_LOSS_CAR_BEGIN_KWH": CHARGING_LOSS_CAR_BEGIN_KWH,
                 "CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL": CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL,
                 "CHARGING_LOSS_CHARGER_BEGIN_KWH": CHARGING_LOSS_CHARGER_BEGIN_KWH,
                 "CHARGING_LOSS_CHARGING_COMPLETED": CHARGING_LOSS_CHARGING_COMPLETED,
-            },
+            }),
             "details": None,
         },
-        "Errors and Counters": {
-            "table": {
+        "Charging Sessions & History": {
+            "table": format_debug_table({
+                "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
+                "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
+                "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
+                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
+            }),
+            "details": format_debug_details({
+                "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
+                "CHARGING_HISTORY_QUEUE": list(CHARGING_HISTORY_QUEUE._queue) if CHARGING_HISTORY_QUEUE else [],
+                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
+            }),
+        },
+        "Runtime Counters & Errors": {
+            "table": format_debug_table({
                 "CHARGING_IS_BEGINNING": CHARGING_IS_BEGINNING,
                 "CHARGING_NO_RULE_COUNT": CHARGING_NO_RULE_COUNT,
                 "ERROR_COUNT": ERROR_COUNT,
                 "RESTARTING_CHARGER": RESTARTING_CHARGER,
                 "RESTARTING_CHARGER_COUNT": RESTARTING_CHARGER_COUNT,
-            },
+            }),
             "details": None,
         },
-        "Timestamps and Sessions": {
-            "table": {
-                "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
-                "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
-                "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
-                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
-            },
-            "details": {
-                "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
-                "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
-                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
-            },
-        },
-        "Task Management": {
-            "table": {
+        "Task Runtime State": {
+            "table": format_debug_table({
                 "INSTANCE_ID": INSTANCE_ID,
                 "TASKS_COUNT": len(TASKS) if TASKS else 0,
-            },
-            "details": {
-                "TASKS": TASKS,
-            },
+            }),
+            "details": format_debug_details({"TASKS": TASKS}),
         },
     }
 
