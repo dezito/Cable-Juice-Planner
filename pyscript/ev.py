@@ -7483,12 +7483,15 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
                 work_last_charging = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_departure_{dayName}").hour) - datetime.timedelta(hours=stop_prediction_before)
                 end_work = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_homecoming_{dayName}").hour)
+                
+                if day == 0 and in_between(getTime(), work_last_charging, end_work) and ready_to_charge():
+                    work_last_charging = None
+                    end_work = None
         except Exception as e:
             _LOGGER.warning(f"Cant get input_datetime.{__name__}_workday_homecoming_{dayName} datetime, using from sunrise: {e}")
             
         if forecast_dict:
             if from_hour <= to_hour:
-        
                 if is_powerwall_configured():
                     powerwall_battery_level = get_powerwall_battery_level() if day == 0 else 0.0
                     powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
