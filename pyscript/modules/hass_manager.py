@@ -38,7 +38,7 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
             output = get_last_value(entity_id, float_type=float_type, error_state=error_state)
             
         if float_type is True:
-            output = float(output)
+            output = float(output) if output not in [None, "unknown", "unavailable"] else error_state
     except Exception as e:
         if entity_id == "":
             entity_id == None
