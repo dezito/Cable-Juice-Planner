@@ -133,7 +133,6 @@ EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected
 INSTANCE_ID = random.randint(0, 10000)
 TASKS = {}
 TASKS_REMOVE = []
-SHUTTING_DOWN = False
 
 CONFIG = {}
 CONFIG_LAST_MODIFIED = None
@@ -1240,13 +1239,15 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
             _LOGGER.error(f"Task {task_name} is still not done after waiting, ignoring it (INSTANCE_ID: {INSTANCE_ID})")
             return False
     except Exception as e:
-        _LOGGER.error(f"Error while killing task {task_name}: {e} {TASKS[task_name]} (INSTANCE_ID: {INSTANCE_ID})")
+        if task_name in TASKS:
+            _LOGGER.error(f"Error while killing task {task_name}: {e} {TASKS[task_name]} (INSTANCE_ID: {INSTANCE_ID})")
+        else:
+            _LOGGER.error(f"Error while killing task {task_name}: {e} (INSTANCE_ID: {INSTANCE_ID})")
         
 def task_shutdown():
     task.unique("task_shutdown")
-    global TASKS, SHUTTING_DOWN
-    
-    SHUTTING_DOWN = True
+    _LOGGER = globals()['_LOGGER'].getChild("task_shutdown")
+    global TASKS
     
     tasks_done_list = []
     for task_name, task_id in list(TASKS.items()):
@@ -1407,88 +1408,129 @@ def append_overview_output(title = None, timestamp = None):
     
     OVERVIEW_HISTORY = limit_dict_size(OVERVIEW_HISTORY, 10)
     
+def format_debug_value(value):
+    if isinstance(value, (datetime.datetime, datetime.date, datetime.time)):
+        return value.isoformat()
+    elif isinstance(value, datetime.timedelta):
+        return str(value)
+    elif isinstance(value, dict):
+        return {
+            format_debug_value(k): format_debug_value(v)
+            for k, v in value.items()
+        }
+    elif isinstance(value, list):
+        return [format_debug_value(v) for v in value]
+    elif isinstance(value, tuple):
+        return tuple([format_debug_value(v) for v in value])
+    return value
+
+def format_debug_table(table):
+    return {k: format_debug_value(v) for k, v in table.items()} if table else None
+
+def format_debug_details(details):
+    return {k: format_debug_value(v) for k, v in details.items()} if details else None
+
 def get_debug_info_sections():
     return {
-        "Status and Initialization": {
-            "table": {
+        "System Status": {
+            "table": format_debug_table({
                 "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
                 "PREHEATING": PREHEATING,
-            },
+                "TESTING": TESTING,
+            }),
             "details": None,
         },
-        "Configuration": {
-            "table": {
+        "System Configuration": {
+            "table": format_debug_table({
                 "CHARGER_CONFIGURED": CHARGER_CONFIGURED,
                 "SOLAR_CONFIGURED": SOLAR_CONFIGURED,
                 "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
                 "EV_CONFIGURED": EV_CONFIGURED,
-                "CONFIG_LAST_MODIFIED": CONFIG_LAST_MODIFIED,
-            },
-            "details": {"CONFIG": CONFIG},
+                "CONFIG_LAST_MODIFIED": datetime.datetime.fromtimestamp(CONFIG_LAST_MODIFIED) if isinstance(CONFIG_LAST_MODIFIED, (float, int)) else CONFIG_LAST_MODIFIED,
+            }),
+            "details": format_debug_details({"CONFIG": CONFIG}),
         },
-        "Entities Integration Limits, Counters & Command history": {
+        "Entity Integration & Limits": {
             "table": None,
-            "details": {"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT},
+            "details": format_debug_details({"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT}),
         },
-        "Charging Plan": {
-            "table": {
+        "Charging Plan & Price Logic": {
+            "table": format_debug_table({
                 "CURRENT_CHARGING_AMPS": CURRENT_CHARGING_AMPS,
                 "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
-            },
-            "details": {
-                "BATTERY_LEVEL_EXPENSES": BATTERY_LEVEL_EXPENSES,
+            }),
+            "details": format_debug_details({
                 "CHARGING_PLAN": CHARGING_PLAN,
                 "CHARGE_HOURS": CHARGE_HOURS,
                 "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
-            },
+            }),
         },
-        "Solar and Powerwall": {
+        "Charging Expenses": {
             "table": None,
-            "details": {
+            "details": format_debug_details({"BATTERY_LEVEL_EXPENSES": BATTERY_LEVEL_EXPENSES}),
+        },
+        "Local Energy Forecast": {
+            "table": None,
+            "details": format_debug_details({
                 "LOCAL_ENERGY_PRICES": LOCAL_ENERGY_PRICES,
                 "LOCAL_ENERGY_PREDICTION_DB": LOCAL_ENERGY_PREDICTION_DB,
-            }
+            }),
         },
-        "Charging Loss": {
-            "table": {
+        "Charging Loss Metrics": {
+            "table": format_debug_table({
                 "CHARGING_LOSS_CAR_BEGIN_KWH": CHARGING_LOSS_CAR_BEGIN_KWH,
                 "CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL": CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL,
                 "CHARGING_LOSS_CHARGER_BEGIN_KWH": CHARGING_LOSS_CHARGER_BEGIN_KWH,
                 "CHARGING_LOSS_CHARGING_COMPLETED": CHARGING_LOSS_CHARGING_COMPLETED,
-            },
+            }),
             "details": None,
         },
-        "Errors and Counters": {
-            "table": {
+        "Charging Sessions & History": {
+            "table": format_debug_table({
+                "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
+                "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
+                "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
+                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
+                "CHARGING_HISTORY_ENDING_BYTE_SIZE": CHARGING_HISTORY_ENDING_BYTE_SIZE,
+            }),
+            "details": format_debug_details({
+                "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
+                "CHARGING_HISTORY_QUEUE": list(CHARGING_HISTORY_QUEUE._queue) if CHARGING_HISTORY_QUEUE else [],
+                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
+            }),
+        },
+        "Runtime Counters & Errors": {
+            "table": format_debug_table({
                 "CHARGING_IS_BEGINNING": CHARGING_IS_BEGINNING,
                 "CHARGING_NO_RULE_COUNT": CHARGING_NO_RULE_COUNT,
                 "ERROR_COUNT": ERROR_COUNT,
                 "RESTARTING_CHARGER": RESTARTING_CHARGER,
                 "RESTARTING_CHARGER_COUNT": RESTARTING_CHARGER_COUNT,
-            },
+            }),
             "details": None,
         },
-        "Timestamps and Sessions": {
-            "table": {
-                "LAST_WAKE_UP_DATETIME": LAST_WAKE_UP_DATETIME,
-                "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
-                "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
-                "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
-            },
-            "details": {
-                "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
-                "CHARGING_HISTORY_QUEUE": CHARGING_HISTORY_QUEUE,
-                "CHARGING_HISTORY_QUEUE_LAST_RESULT": CHARGING_HISTORY_QUEUE_LAST_RESULT,
-            },
-        },
-        "Task Management": {
-            "table": {
+        "Task Runtime State": {
+            "table": format_debug_table({
                 "INSTANCE_ID": INSTANCE_ID,
                 "TASKS_COUNT": len(TASKS) if TASKS else 0,
-            },
-            "details": {
-                "TASKS": TASKS,
-            },
+            }),
+            "details": format_debug_details({"TASKS": TASKS}),
+        },
+        "Driving Efficiency": {
+            "table": None,
+            "details": format_debug_details({"LAST_DRIVE_EFFICIENCY_DATA": LAST_DRIVE_EFFICIENCY_DATA}),
+        },
+        "Tariff Settings": {
+            "table": None,
+            "details": format_debug_details({"SOLAR_SELL_TARIFF": SOLAR_SELL_TARIFF}),
+        },
+        "Solar & Powerwall Thresholds": {
+            "table": format_debug_table({
+                "SOLAR_PRODUCTION_TRIGGER": SOLAR_PRODUCTION_TRIGGER,
+                "POWERWALL_CHARGING_TRIGGER": POWERWALL_CHARGING_TRIGGER,
+                "POWERWALL_DISCHARGING_TRIGGER": POWERWALL_DISCHARGING_TRIGGER,
+            }),
+            "details": None,
         },
     }
 
@@ -3541,6 +3583,7 @@ def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost
 
 def drive_efficiency_save_car_stats(bootup=False):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
+    
     def set_last_odometer():
         odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
         set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
@@ -3558,7 +3601,34 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_percentage'])
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_solar_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_solar_percentage'])
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_unit", BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'])
+    
+    def set_last_drive_efficiency_data():
+        global LAST_DRIVE_EFFICIENCY_DATA
+        if LAST_DRIVE_EFFICIENCY_DATA:
+            return
         
+        if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
+            return
+        
+        attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
+        
+        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km"]
+        for key in key_list:
+            if key not in attributes:
+                return
+        
+        _LOGGER.info(f"Setting last drive efficiency data")
+        
+        LAST_DRIVE_EFFICIENCY_DATA = {
+            "timestamp": attributes["timestamp"],
+            "distance": float(attributes["distance"]),
+            "usedkWh": float(attributes["usedkWh"]),
+            "usedBattery": float(attributes["usedBattery"]),
+            "cost": float(attributes["cost"]),
+            "efficiency": float(attributes["efficiency"]),
+            "distancePerkWh": float(attributes["distancePerkWh"]),
+            "wh_km": float(attributes["wh_km"])
+        }
     
     if bootup:
         if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ENTITY_UNAVAILABLE_STATES:
@@ -3568,11 +3638,14 @@ def drive_efficiency_save_car_stats(bootup=False):
         if get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", try_history=False) in ENTITY_UNAVAILABLE_STATES:
             _LOGGER.info("Setting last battery level")
             set_last_battery_level()
+            
+        set_last_drive_efficiency_data()
+        
     else:
         if is_ev_configured():
             set_last_odometer()
         set_last_battery_level()
-    
+
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING, LAST_DRIVE_EFFICIENCY_DATA
@@ -3699,6 +3772,8 @@ def drive_efficiency(state=None):
                 "distancePerkWh": distancePerkWh,
                 "wh_km": wh_km
             }
+            
+            set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.last_drive_efficiency_data", LAST_DRIVE_EFFICIENCY_DATA)
             
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
                 my_notify(message = f"""
@@ -7408,12 +7483,15 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{dayName}") == "on":
                 work_last_charging = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_departure_{dayName}").hour) - datetime.timedelta(hours=stop_prediction_before)
                 end_work = date.replace(hour=get_state(f"input_datetime.{__name__}_workday_homecoming_{dayName}").hour)
+                
+                if day == 0 and in_between(getTime(), work_last_charging, end_work) and ready_to_charge():
+                    work_last_charging = None
+                    end_work = None
         except Exception as e:
             _LOGGER.warning(f"Cant get input_datetime.{__name__}_workday_homecoming_{dayName} datetime, using from sunrise: {e}")
             
         if forecast_dict:
             if from_hour <= to_hour:
-        
                 if is_powerwall_configured():
                     powerwall_battery_level = get_powerwall_battery_level() if day == 0 else 0.0
                     powerwall_reserved_battery_level = get_ev_charge_after_powerwall_battery_level()
@@ -7567,6 +7645,17 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             task_cancel(task_name, task_remove=True)
     
     if powerwall_charging_timestamps:
+        if get_powerwall_battery_level() < get_ev_charge_after_powerwall_battery_level() - 1.0:
+            charging_planned_today = False
+            for timestamp in powerwall_charging_timestamps_list:
+                if daysBetween(timestamp, today) == 0:
+                    charging_planned_today = True
+                    break
+            
+            if not charging_planned_today:
+                powerwall_charging_timestamps_list.append(reset_time_to_hour(getTime()))
+        
+        powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
         LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
         return powerwall_charging_timestamps_list
     
