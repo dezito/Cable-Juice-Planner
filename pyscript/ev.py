@@ -3583,6 +3583,7 @@ def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost
 
 def drive_efficiency_save_car_stats(bootup=False):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
+    
     def set_last_odometer():
         odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
         set_state(f"sensor.{__name__}_drive_efficiency_last_odometer", odometer_value)
@@ -3600,7 +3601,34 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_percentage'])
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_solar_percentage", BATTERY_LEVEL_EXPENSES['battery_level_expenses_solar_percentage'])
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_unit", BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'])
+    
+    def set_last_drive_efficiency_data():
+        global LAST_DRIVE_EFFICIENCY_DATA
+        if LAST_DRIVE_EFFICIENCY_DATA:
+            return
         
+        if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
+            return
+        
+        attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
+        
+        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km"]
+        for key in key_list:
+            if key not in attributes:
+                return
+        
+        _LOGGER.info(f"Setting last drive efficiency data")
+        
+        LAST_DRIVE_EFFICIENCY_DATA = {
+            "timestamp": attributes["timestamp"],
+            "distance": float(attributes["distance"]),
+            "usedkWh": float(attributes["usedkWh"]),
+            "usedBattery": float(attributes["usedBattery"]),
+            "cost": float(attributes["cost"]),
+            "efficiency": float(attributes["efficiency"]),
+            "distancePerkWh": float(attributes["distancePerkWh"]),
+            "wh_km": float(attributes["wh_km"])
+        }
     
     if bootup:
         if is_ev_configured() and get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", try_history=False) in ENTITY_UNAVAILABLE_STATES:
@@ -3610,11 +3638,14 @@ def drive_efficiency_save_car_stats(bootup=False):
         if get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", try_history=False) in ENTITY_UNAVAILABLE_STATES:
             _LOGGER.info("Setting last battery level")
             set_last_battery_level()
+            
+        set_last_drive_efficiency_data()
+        
     else:
         if is_ev_configured():
             set_last_odometer()
         set_last_battery_level()
-    
+
 def drive_efficiency(state=None):
     _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING, LAST_DRIVE_EFFICIENCY_DATA
@@ -3741,6 +3772,8 @@ def drive_efficiency(state=None):
                 "distancePerkWh": distancePerkWh,
                 "wh_km": wh_km
             }
+            
+            set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.last_drive_efficiency_data", LAST_DRIVE_EFFICIENCY_DATA)
             
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
                 my_notify(message = f"""
