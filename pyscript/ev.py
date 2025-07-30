@@ -7645,6 +7645,17 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             task_cancel(task_name, task_remove=True)
     
     if powerwall_charging_timestamps:
+        if get_powerwall_battery_level() < get_ev_charge_after_powerwall_battery_level() - 1.0:
+            charging_planned_today = False
+            for timestamp in powerwall_charging_timestamps_list:
+                if daysBetween(timestamp, today) == 0:
+                    charging_planned_today = True
+                    break
+            
+            if not charging_planned_today:
+                powerwall_charging_timestamps_list.append(reset_time_to_hour(getTime()))
+        
+        powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
         LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
         return powerwall_charging_timestamps_list
     
