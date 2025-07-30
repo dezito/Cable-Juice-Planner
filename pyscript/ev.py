@@ -1436,6 +1436,7 @@ def get_debug_info_sections():
             "table": format_debug_table({
                 "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
                 "PREHEATING": PREHEATING,
+                "TESTING": TESTING,
             }),
             "details": None,
         },
@@ -1490,6 +1491,7 @@ def get_debug_info_sections():
                 "LAST_TRIP_CHANGE_DATETIME": LAST_TRIP_CHANGE_DATETIME,
                 "INTEGRATION_OFFLINE_TIMESTAMP": INTEGRATION_OFFLINE_TIMESTAMP,
                 "CHARGING_HISTORY_QUEUE SIZE": CHARGING_HISTORY_QUEUE.qsize() if CHARGING_HISTORY_QUEUE else 0,
+                "CHARGING_HISTORY_ENDING_BYTE_SIZE": CHARGING_HISTORY_ENDING_BYTE_SIZE,
             }),
             "details": format_debug_details({
                 "CURRENT_CHARGING_SESSION": CURRENT_CHARGING_SESSION,
@@ -1513,6 +1515,22 @@ def get_debug_info_sections():
                 "TASKS_COUNT": len(TASKS) if TASKS else 0,
             }),
             "details": format_debug_details({"TASKS": TASKS}),
+        },
+        "Driving Efficiency": {
+            "table": None,
+            "details": format_debug_details({"LAST_DRIVE_EFFICIENCY_DATA": LAST_DRIVE_EFFICIENCY_DATA}),
+        },
+        "Tariff Settings": {
+            "table": None,
+            "details": format_debug_details({"SOLAR_SELL_TARIFF": SOLAR_SELL_TARIFF}),
+        },
+        "Solar & Powerwall Thresholds": {
+            "table": format_debug_table({
+                "SOLAR_PRODUCTION_TRIGGER": SOLAR_PRODUCTION_TRIGGER,
+                "POWERWALL_CHARGING_TRIGGER": POWERWALL_CHARGING_TRIGGER,
+                "POWERWALL_DISCHARGING_TRIGGER": POWERWALL_DISCHARGING_TRIGGER,
+            }),
+            "details": None,
         },
     }
 
