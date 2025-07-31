@@ -8815,6 +8815,9 @@ def notify_set_battery_level():
         my_notify(message = f"Husk at sætte batteri niveauet på elbilen i Home Assistant", title = f"{TITLE} Elbilen batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 def notify_battery_under_daily_battery_level():
+    if not ready_to_charge():
+        return
+    
     if battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
         data = {
             "actions": [
