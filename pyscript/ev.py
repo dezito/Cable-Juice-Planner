@@ -3680,9 +3680,16 @@ def drive_efficiency(state=None):
                 
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
                 
+                if last_battery_level == 0.0:
+                    last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
+                    _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
+                    
+                    reset_current_battery_level_expenses()
+                    current_battery_level_expenses()
+                
                 usedBattery = last_battery_level - battery_level()
                 usedkWh = percentage_to_kwh(usedBattery)
-                
+                    
                 if usedkWh == 0.0 or usedBattery == 0.0:
                     _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
                     return
@@ -3703,10 +3710,6 @@ def drive_efficiency(state=None):
                 current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
                 last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
-                
-                if not is_ev_configured() and last_battery_level == 0.0:
-                    last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
-                    _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
 
                 usedBattery = last_battery_level - battery_level()
                 kilometers = current_odometer - last_odometer
@@ -8812,6 +8815,9 @@ def notify_set_battery_level():
         my_notify(message = f"Husk at sætte batteri niveauet på elbilen i Home Assistant", title = f"{TITLE} Elbilen batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
 
 def notify_battery_under_daily_battery_level():
+    if not ready_to_charge():
+        return
+    
     if battery_level() < get_min_daily_battery_level() and battery_level() != 0.0:
         data = {
             "actions": [
@@ -9135,17 +9141,16 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
-            if (is_ev_configured() and ready_to_charge()) or (not is_ev_configured() and value in CHARGER_NOT_READY_STATUS):
-                if is_ev_configured() and value in EV_PLUGGED_STATES:
+            if ready_to_charge():
+                if is_ev_configured():
                     task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
                     
                     TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
                     done, pending = task.wait({TASKS["power_connected_trigger_wait_until_odometer_stable"]})
                     
-                TASKS["power_connected_trigger_drive_efficiency"] = task.create(drive_efficiency, str(value))
-                done, pending = task.wait({TASKS["power_connected_trigger_drive_efficiency"]})
+            TASKS["power_connected_trigger_drive_efficiency"] = task.create(drive_efficiency, str(value))
             TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
-            done, pending = task.wait({TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"]})
+            done, pending = task.wait({TASKS["power_connected_trigger_drive_efficiency"], TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"]})
         except Exception as e:
             _LOGGER.error(f"Error in power_connected_trigger: {e}")
             my_persistent_notification(f"Error in power_connected_trigger: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_connected_trigger_error")
