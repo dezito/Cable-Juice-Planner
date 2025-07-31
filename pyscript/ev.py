@@ -4546,7 +4546,8 @@ async def charging_history_worker():
             CHARGING_HISTORY_QUEUE_LAST_RESULT = last_result
             
             CHARGING_HISTORY_QUEUE.task_done()
-
+        except (TypeError, AttributeError) as e:
+            _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e}")
         except Exception as e:
             _LOGGER.exception(f"Fejl i charging_history_worker: {e}")
             my_persistent_notification(
