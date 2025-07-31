@@ -1923,7 +1923,7 @@ def is_entity_available(entity):
     integration = get_integration(entity)
     
     try:
-        entity_state = str(get_state(entity, try_history=True, error_state="unknown"))
+        entity_state = str(get_state(entity, error_state="unknown"))
         if entity_state in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Entity state is {entity_state}")
         
@@ -3707,7 +3707,7 @@ def drive_efficiency(state=None):
                 if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
                     raise Exception(f"{CONFIG['ev_car']['entity_ids']['odometer_entity_id']} is not available, ignoring drive")
 
-                current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
+                current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True))
                 last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
 
@@ -7882,9 +7882,9 @@ def ready_to_charge():
     else:
         if is_ev_configured():
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
-                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
             else:
-                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, try_history=True, error_state="connected")
+                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
             
                 if currentLocation in ENTITY_UNAVAILABLE_STATES or currentLocation in CHARGER_NOT_READY_STATUS:
                     currentLocation = "away"
@@ -8454,7 +8454,7 @@ def kwh_charged_by_solar():
     
     ev_solar_kwh = round(solar_watt / 1000, 3)
     try:
-        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
         if solar_kwh is not None:
             solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
             set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
@@ -8469,8 +8469,8 @@ def solar_charged_percentage():
     
     if not is_solar_configured(): return
     
-    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None)
-    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, error_state=None)
+    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
     
     if total_ev_kwh is None or total_solar_ev_kwh is None:
         _LOGGER.warning(f"total_ev_kwh or total_solar_ev_kwh is None")
@@ -8516,7 +8516,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
     except:
         pass
     
-    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, try_history=True, error_state=None)
+    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
     if co2_emitted is not None and grid_co2_emitted > 0.0:
         co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
         
@@ -9305,7 +9305,7 @@ if INITIALIZATION_COMPLETE:
         
         try:
             battery_size = CONFIG['ev_car']['battery_size']
-            charger_current_kwh = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None))
+            charger_current_kwh = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=None))
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'] else get_completed_battery_level()
             completed_battery_size = battery_size * (completed_battery_level / 100.0)
             
