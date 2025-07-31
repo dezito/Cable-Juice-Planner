@@ -7428,7 +7428,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
-                    now = getTime()
+                    now = reset_time_to_hour()
                     if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
                         timestamps.append(loop_datetime)
                         
