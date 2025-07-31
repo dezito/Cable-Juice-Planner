@@ -4899,7 +4899,7 @@ def cheap_grid_charge_hours():
         return
 
     today = getTimeStartOfDay()
-    current_hour = reset_time_to_hour(getTime())
+    current_hour = reset_time_to_hour()
     now = getTime()
     
     chargeHours = {}
@@ -5362,7 +5362,7 @@ def cheap_grid_charge_hours():
             
             try:
                 days_need_between_recommended_full_charge = int(float(get_state(f"input_number.{__name__}_full_charge_recommended", error_state=0)))
-                days_since_last_fully_charged = daysBetween(get_state(f"input_datetime.{__name__}_last_full_charge", try_history=True, error_state=resetDatetime()), getTime())
+                days_since_last_fully_charged = daysBetween(get_state(f"input_datetime.{__name__}_last_full_charge", error_state=resetDatetime()), getTime())
                 need_recommended_full_charge = days_need_between_recommended_full_charge != 0 and days_since_last_fully_charged > days_need_between_recommended_full_charge and day == 1
                 
                 if need_recommended_full_charge:
@@ -5896,7 +5896,7 @@ def cheap_grid_charge_hours():
                 if (charging_plan[day]['workday'] and
                 ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or
                 (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1))):
-                    charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour(getTime()))
+                    charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour())
                     last_charging = charging_plan[day]['trip_last_charging']
 
                 for i in range(charging_hours):
@@ -7657,7 +7657,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     break
             
             if not charging_planned_today:
-                powerwall_charging_timestamps_list.append(reset_time_to_hour(getTime()))
+                powerwall_charging_timestamps_list.append(reset_time_to_hour())
         
         powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
         LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
