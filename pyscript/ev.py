@@ -1196,7 +1196,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
             if period >= timeout:
                 break
         
-        if TASKS[task_name].done():
+        if task_name in TASKS and TASKS[task_name].done():
             return True
         else:
             return False
@@ -1229,13 +1229,17 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2):
             task_wait_until(task_name, timeout=30.0, wait_period=0.2)
             
         if not task_wait_until(task_name, timeout=1, wait_period=0.2):
-            TASKS[task_name].cancel()
+            if task_name in TASKS:
+                TASKS[task_name].cancel()
         
         if task_wait_until(task_name, timeout=timeout, wait_period=wait_period):
             if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
         else:
+            if task_name not in TASKS:
+                return True
+            
             _LOGGER.error(f"Task {task_name} is still not done after waiting, ignoring it (INSTANCE_ID: {INSTANCE_ID})")
             return False
     except Exception as e:
