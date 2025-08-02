@@ -3,6 +3,7 @@ import datetime
 import random
 import string
 import subprocess
+from collections.abc import Iterable
 from itertools import chain
 from typing import Optional
 from pprint import pformat
@@ -1205,48 +1206,97 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
         
     return False
     
-def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2):
+def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, startswith=False):
     global TASKS
     _LOGGER = globals()['_LOGGER'].getChild("task_cancel")
-    
-    try:
-        if task_name not in TASKS:
-            return True
-        
-        if not isinstance(TASKS[task_name], asyncio.Task):
-            if task_remove and task_name in TASKS:
-                del TASKS[task_name]
-            return True
-        
-        task_wait_until(task_name, timeout=0.5, wait_period=0.2)
-        
-        if "save" in task_name and "saving" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
-            
-        if "charging_history_worker" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
-            
-        if not task_wait_until(task_name, timeout=1, wait_period=0.2):
-            if task_name in TASKS:
-                TASKS[task_name].cancel()
-        
-        if task_wait_until(task_name, timeout=timeout, wait_period=wait_period):
-            if task_remove and task_name in TASKS:
-                del TASKS[task_name]
-            return True
-        else:
-            if task_name not in TASKS:
+
+    def _cancel_one(task_key: str) -> bool:
+        global TASKS
+        _LOGGER = globals()['_LOGGER'].getChild(f"_cancel_one_{task_key}")
+        try:
+            if task_key not in TASKS:
                 return True
-            
-            _LOGGER.error(f"Task {task_name} is still not done after waiting, ignoring it (INSTANCE_ID: {INSTANCE_ID})")
+
+            task_obj = TASKS[task_key]
+
+            if not isinstance(task_obj, asyncio.Task):
+                if task_remove:
+                    TASKS.pop(task_key, None)
+                return True
+
+            task_wait_until(task_key, timeout=0.5, wait_period=0.2)
+
+            if "save" in task_key and "saving" in task_key and not task_obj.done():
+                _LOGGER.warning(f"Waiting 30s for task {task_key} (saving)")
+                task_wait_until(task_key, timeout=30.0, wait_period=0.2)
+
+            if "charging_history_worker" in task_key and not task_obj.done():
+                _LOGGER.warning(f"Waiting 30s for task {task_key} (charging history)")
+                task_wait_until(task_key, timeout=30.0, wait_period=0.2)
+
+            if not task_wait_until(task_key, timeout=1, wait_period=0.2):
+                task_obj.cancel()
+
+            if task_wait_until(task_key, timeout=timeout, wait_period=wait_period):
+                if task_remove:
+                    TASKS.pop(task_key, None)
+                return True
+            else:
+                _LOGGER.error(f"Task {task_key} still not done after timeout (INSTANCE_ID: {INSTANCE_ID})")
+                return False
+
+        except Exception as e:
+            _LOGGER.error(f"Exception while cancelling {task_key}: {e} (INSTANCE_ID: {INSTANCE_ID})")
             return False
-    except Exception as e:
-        if task_name in TASKS:
-            _LOGGER.error(f"Error while killing task {task_name}: {e} {TASKS[task_name]} (INSTANCE_ID: {INSTANCE_ID})")
-        else:
-            _LOGGER.error(f"Error while killing task {task_name}: {e} (INSTANCE_ID: {INSTANCE_ID})")
+
+    task_names = []
+
+    if isinstance(task_name, str):
+        task_names = [n for n in TASKS.keys() if n.startswith(task_name)] if startswith else [task_name]
+
+    elif isinstance(task_name, Iterable):
+        for name in task_name:
+            if isinstance(name, asyncio.Task):
+                task_names.append(name.get_name())
+                _LOGGER.warning(f"Received asyncio.Task object, using its name: {name.get_name()}")
+            elif isinstance(name, str):
+                task_names.extend([n for n in TASKS.keys() if n.startswith(name)] if startswith else [name])
+            else:
+                _LOGGER.warning(f"Ignoring invalid task name: {name}")
+
+    else:
+        _LOGGER.error(f"Invalid type for task_name: {type(task_name)}")
+        return False
+
+    if not task_names:
+        _LOGGER.warning("No matching tasks to cancel")
+        return True
+
+    task_set = set()
+    for name in set(task_names):
+        TASKS[f"task_cancel__cancel_one_{name}"] = task.create(_cancel_one, name)
+        TASKS[f"task_cancel__cancel_one_{name}"].set_name(f"task_cancel__cancel_one_{name}")
+        task_set.add(TASKS[f"task_cancel__cancel_one_{name}"])
+    
+    done, pending = task.wait(task_set)
+
+    all_success = True
+    for task_job in task_set:
+        name = task_job.get_name()
+        
+        try:
+            result = TASKS[name].result()
+            if result is not True:
+                _LOGGER.warning(f"Task cancel failed for: {name}")
+                all_success = False
+        except Exception as e:
+            _LOGGER.error(f"Exception cancelling task {name}: {e}")
+            all_success = False
+        finally:
+            TASKS.pop(name, None)
+
+    return all_success
+
         
 def task_shutdown():
     task.unique("task_shutdown")
@@ -1642,8 +1692,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
                  "check_master_updates_total_commits_behind", "check_master_updates_merge_commits",
                  "check_master_updates_commit_log_lines"
                  ]
-        for task_name in task_list:
-            task_cancel(task_name, task_remove=True, timeout=5.0)
+        task_cancel(task_list, task_remove=True, timeout=5.0)
 
     _LOGGER.info(f"Check {branch} updates: {result}")
 
@@ -1742,10 +1791,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             persistent_notification_id=f"{__name__}_update_repo"
         )
     finally:
-        task_list = ["check_master_updates_local_head", "check_master_updates_remote_head",
-                     "check_master_updates_total_commits_behind", "check_master_updates_merge_commits"]
-        for task_name in task_list:
-            task_cancel(task_name, task_remove=True, timeout=5.0)
+        task_cancel("check_master_updates_", task_remove=True, timeout=5.0, startswith=True)
 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
@@ -1824,13 +1870,13 @@ def save_error_to_file(error_message, caller_function_name = None):
         if not error_log:
             error_log = dict()
     
-        TASKS["convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, get_debug_info_sections().copy())
-        done, pending = task.wait({TASKS["convert_tuples_to_lists"]})
+        TASKS["save_error_to_file_convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, get_debug_info_sections().copy())
+        done, pending = task.wait({TASKS["save_error_to_file_convert_tuples_to_lists"]})
         
         debug_dict = {
             "caller_function_name": caller_function_name,
             "error_message": error_message,
-            "live_image": TASKS["convert_tuples_to_lists"].result(),
+            "live_image": TASKS["save_error_to_file_convert_tuples_to_lists"].result(),
         }
         if error_log:
             error_log = limit_dict_size(error_log, 30)
@@ -1842,16 +1888,15 @@ def save_error_to_file(error_message, caller_function_name = None):
                     return
                 break
                 
-        TASKS["remove_anchors"] = task.create(remove_anchors, debug_dict)
-        done, pending = task.wait({TASKS["remove_anchors"]})
-        error_log[getTime()] = TASKS["remove_anchors"].result()
+        TASKS["save_error_to_file_remove_anchors"] = task.create(remove_anchors, debug_dict)
+        done, pending = task.wait({TASKS["save_error_to_file_remove_anchors"]})
+        error_log[getTime()] = TASKS["save_error_to_file_remove_anchors"].result()
         
         save_changes(filename, error_log)
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     finally:
-        for task_name in ["save_error_to_file_error_log", "convert_tuples_to_lists", "remove_anchors"]:
-            task_cancel(task_name, task_remove=True, timeout=5.0)
+        task_cancel("save_error_to_file_", task_remove=True, timeout=5.0, startswith=True)
     
 def is_charger_configured(cfg = None):
     _LOGGER = globals()['_LOGGER'].getChild("is_charger_configured")
@@ -2500,9 +2545,7 @@ def init():
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
         my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
     finally:
-        for task_name in list(TASKS.keys()):
-            if task_name.startswith("init_"):
-                task_cancel(task_name, task_remove=True)
+        task_cancel("init_", task_remove=True, startswith=True)
 
 @service(f"pyscript.{__name__}_all_entities")
 def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
@@ -3442,6 +3485,8 @@ def load_drive_efficiency():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_drive_efficiency()")
         my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_drive_efficiency")
+    finally:
+        task_cancel("load_drive_efficiency_", task_remove=True, startswith=True)
     
     if DRIVE_EFFICIENCY_DB == {} or not DRIVE_EFFICIENCY_DB:
         DRIVE_EFFICIENCY_DB = []
@@ -3505,6 +3550,8 @@ def load_km_kwh_efficiency():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_km_kwh_efficiency()")
         my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_km_kwh_efficiency")
+    finally:
+        task_cancel("load_km_kwh_efficiency_", task_remove=True, startswith=True)
     
     if KM_KWH_EFFICIENCY_DB == {} or not KM_KWH_EFFICIENCY_DB:
         KM_KWH_EFFICIENCY_DB = []
@@ -3933,6 +3980,8 @@ def load_charging_history():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_charging_history()")
         my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
+    finally:
+        task_cancel("load_charging_history_", task_remove=True, startswith=True)
     
     if CHARGING_HISTORY_DB == {} or not CHARGING_HISTORY_DB:
         CHARGING_HISTORY_DB = {}
@@ -6741,8 +6790,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}")
         my_persistent_notification(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_values")
     finally:
-        for task_name in task_names.values():
-            task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2)
+        task_cancel(task_names.values(), task_remove=True, timeout=3.0, wait_period=0.2)
             
     return {
         "power_consumption": power_consumption,
@@ -6909,8 +6957,7 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         _LOGGER.error(f"Error calculating local energy available: {e}")
         my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_available")
     finally:
-        for task_name in task_names.values():
-            task_cancel(task_name, task_remove=True)
+        task_cancel(task_names.values(), task_remove=True)
             
     return watts_available_from_local_energy
 
@@ -6995,8 +7042,7 @@ def max_local_energy_available_remaining_hour():
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
         my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_hour")
     finally:
-        for task_name in [predictedSolarPower_task_name, total_task_name]:
-            task_cancel(task_name, task_remove=True)
+        task_cancel("max_local_energy_available_remaining_period_", task_remove=True, startswith=True)
             
     return returnDict['output']
 
@@ -7192,6 +7238,8 @@ def load_power_values_db():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_power_values_db()")
         my_persistent_notification(f"Failed to load {__name__}_power_values_db", f"{TITLE} error", persistent_notification_id=f"{__name__}load_power_values_db")
+    finally:
+        task_cancel("load_power_values_db_", task_remove=True, startswith=True)
     
     if POWER_VALUES_DB == {} or not POWER_VALUES_DB:
         POWER_VALUES_DB = {}
@@ -7267,6 +7315,8 @@ def load_solar_available_db():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_solar_available_db()")
         my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_solar_available_db")
+    finally:
+        task_cancel("load_solar_available_db_", task_remove=True, startswith=True)
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
         SOLAR_PRODUCTION_AVAILABLE_DB = {}
@@ -7398,12 +7448,11 @@ def get_solar_kwh_forecast():
         task_set = set()
         for ending in endings:
             TASKS[f"forecast_task_{ending}_{random_int}"] = task.create(forecast_task, base_entity_id=base_entity_id, ending=ending)
+            TASKS[f"forecast_task_{ending}_{random_int}"].set_name(f"forecast_task_{ending}_{random_int}")
             task_set.add(TASKS[f"forecast_task_{ending}_{random_int}"])
         done, pending = task.wait(task_set)
         
-        for ending in endings:
-            task_name = f"forecast_task_{ending}_{random_int}"
-            task_cancel(task_name, task_remove=True)
+        task_cancel(task_set, task_remove=True)
             
     return forecast
 
@@ -7687,22 +7736,21 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     
     random_int = random.randint(0, 1000000)
     day_prediction_task_set = set()
-    day_prediction_task_names = []
     
     try:
         for day in range(days + 1):
             task_name = f"{__name__}_local_energy_prediction_day_prediction_task_{day}_{random_int}"
             TASKS[task_name] = task.create(day_prediction_task, day, today, sunrise, sunset, stop_prediction_before, forecast_dict, solar_forecast_from_integration, end_trip, trip_last_charging, using_grid_price)
+            TASKS[task_name].set_name(task_name)
+            
             day_prediction_task_set.add(TASKS[task_name])
-            day_prediction_task_names.append(task_name)
         
         done, pending = task.wait(day_prediction_task_set)
     except Exception as e:
         _LOGGER.error(f"Error during day prediction tasks: {e}")
         my_persistent_notification(f"Failed to run local energy prediction tasks", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_prediction_tasks")
     finally:
-        for task_name in day_prediction_task_names:
-            task_cancel(task_name, task_remove=True)
+        task_cancel(day_prediction_task_set, task_remove=True)
     
     if powerwall_charging_timestamps:
         if get_powerwall_battery_level() < get_ev_charge_after_powerwall_battery_level() - 1.0:
@@ -8748,6 +8796,8 @@ def load_kwh_prices():
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = "load_kwh_prices()")
         my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_kwh_prices")
+    finally:
+        task_cancel("load_kwh_prices_", task_remove=True, startswith=True)
     
     if KWH_AVG_PRICES_DB == {} or not KWH_AVG_PRICES_DB:
         KWH_AVG_PRICES_DB = {}
@@ -8982,9 +9032,7 @@ if INITIALIZATION_COMPLETE:
                 
             my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_startup")
             
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("startup_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("startup_", task_remove=True, startswith=True)
         
         append_overview_output(f"📟{BASENAME} started")
    
@@ -9037,9 +9085,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in triggers_charge_if_needed: {e}")
             my_persistent_notification(f"Error in triggers_charge_if_needed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_triggers_charge_if_needed_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("triggers_charge_if_needed_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("triggers_charge_if_needed_", task_remove=True, startswith=True)
 
     @state_trigger(f"input_number.{__name__}_trip_charge_procent")
     @state_trigger(f"input_number.{__name__}_trip_range_needed")
@@ -9095,9 +9141,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in state_trigger_charger_power: {e}")
             my_persistent_notification(f"Error in state_trigger_charger_power: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_power_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("state_trigger_charger_power_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("state_trigger_charger_power_", task_remove=True, startswith=True)
     
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -9131,9 +9175,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in state_trigger_charger_port: {e}")
             my_persistent_notification(f"Error in state_trigger_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_port_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("state_trigger_charger_port_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("state_trigger_charger_port_", task_remove=True, startswith=True)
          
     if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
         @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
@@ -9148,9 +9190,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
                 my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
             finally:
-                for task_name in list(TASKS.keys()):
-                    if task_name.startswith("state_trigger_ev_location_"):
-                        task_cancel(task_name, task_remove=True)
+                task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)
     
     def wait_until_odometer_stable():
         task.unique("wait_until_odometer_stable")
@@ -9219,9 +9259,8 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in power_connected_trigger: {e}")
             my_persistent_notification(f"Error in power_connected_trigger: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_connected_trigger_error")
         finally:
-            for task_name in ["power_connected_trigger_wait_until_odometer_stable", "power_connected_trigger_drive_efficiency", "power_connected_trigger_notify_battery_under_daily_battery_level"]:
-                task_cancel(task_name, task_remove=True)
-        
+            task_cancel("power_connected_trigger_", task_remove=True, startswith=True)
+
     if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
         @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
         def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -9236,9 +9275,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Error in state_trigger_charger_cable_connected: {e}")
                 my_persistent_notification(f"Error in state_trigger_charger_cable_connected: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_cable_connected_error")
             finally:
-                for task_name in list(TASKS.keys()):
-                    if task_name.startswith("state_trigger_charger_cable_connected_"):
-                        task_cancel(task_name, task_remove=True)
+                task_cancel("state_trigger_charger_cable_connected_", task_remove=True, startswith=True)
             
     if is_ev_configured():
         @time_trigger(f"cron(0/5 * * * *)")
@@ -9251,9 +9288,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Error in cron_five_every_minute: {e}")
                 my_persistent_notification(f"Error in cron_five_every_minute: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_five_every_minute_error")
             finally:
-                for task_name in list(TASKS.keys()):
-                    if task_name.startswith("cron_five_every_minute_"):
-                        task_cancel(task_name, task_remove=True)
+                task_cancel("cron_five_every_minute_", task_remove=True, startswith=True)
         
         if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
@@ -9284,9 +9319,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.error(f"Error in emulated_battery_level_changed: {e}")
                 my_persistent_notification(f"Error in emulated_battery_level_changed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_emulated_battery_level_changed_error")
             finally:
-                for task_name in list(TASKS.keys()):
-                    if task_name.startswith("emulated_battery_level_changed_"):
-                        task_cancel(task_name, task_remove=True)
+                task_cancel("emulated_battery_level_changed_", task_remove=True, startswith=True)
                 
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -9313,9 +9346,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in cron_hour_end: {e}")
             my_persistent_notification(f"Error in cron_hour_end: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_hour_end_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("cron_hour_end_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("cron_hour_end_", task_remove=True, startswith=True)
         
     @time_trigger(f"cron(0 0 * * *)")
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -9332,9 +9363,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in cron_new_day: {e}")
             my_persistent_notification(f"Error in cron_new_day: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_new_day_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("cron_new_day_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("cron_new_day_", task_remove=True, startswith=True)
         
     @time_trigger(f"cron(0 1 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -9347,9 +9376,7 @@ if INITIALIZATION_COMPLETE:
             _LOGGER.error(f"Error in cron_append_kwh_prices: {e}")
             my_persistent_notification(f"Error in cron_append_kwh_prices: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_append_kwh_prices_error")
         finally:
-            for task_name in list(TASKS.keys()):
-                if task_name.startswith("cron_append_kwh_prices_"):
-                    task_cancel(task_name, task_remove=True)
+            task_cancel("cron_append_kwh_prices_", task_remove=True, startswith=True)
     
     @state_trigger(f"input_boolean.{__name__}_calculate_charging_loss")#TODO Add phase and amp levels measurements
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
