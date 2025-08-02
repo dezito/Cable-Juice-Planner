@@ -498,3 +498,50 @@ def check_next_24_hours_diff(dict1, dict2):
         'only_in_dict1': list(only_in_dict1),
         'only_in_dict2': list(only_in_dict2)
     }
+
+def time_window_minutes_left(minute: int, total_minutes: int) -> int:
+    """
+    Calculates the number of minutes left until the next multiple of total_minutes.
+    If minute is already a multiple, returns total_minutes.
+    """
+    return total_minutes - (minute % total_minutes) if (minute % total_minutes) != 0 else total_minutes
+
+def time_window_minutes_left_from_datetime(dt: datetime, total_minutes: int) -> int:
+    """
+    Wrapper around time_window_minutes_left using a datetime object.
+    """
+    return time_window_minutes_left(dt.minute, total_minutes)
+
+def time_window_linear_weight(minute: int, total_minutes: int, max_value: float = 1.0) -> float:
+    """
+    Calculates a linear increasing weight based on the number of minutes left until the next multiple of total_minutes.
+    The weight decreases linearly from max_value to 0 as the minute approaches total_minutes.
+    """
+    minutes = time_window_minutes_left(minute, total_minutes)
+    factor = 1 - (minutes / total_minutes)
+    return max_value * factor
+
+def time_window_parabolic_weight(minute: int, total_minutes: int, max_value: float = 1.0, curve_ratio: float = 1.0) -> float:
+    """
+    Calculates a parabolic weight based on the number of minutes left until the next multiple of total_minutes.
+    The weight decreases parabolically from max_value to 0 as the minute approaches total_minutes.
+    The curve_ratio controls the steepness of the parabola.
+    """
+    minutes = time_window_minutes_left(minute, total_minutes)
+    x = (minutes - total_minutes / 2) / (total_minutes / 2)
+    x *= curve_ratio
+    weight = max(0.0, 1.0 - x ** 2)
+    return max_value * weight
+
+def time_window_gaussian_weight(minute: int, total_minutes: int, max_value: float = 1.0, sigma_ratio: float = 0.2) -> float:
+    """
+    Calculates a Gaussian weight based on the number of minutes left until the next multiple of total_minutes.
+    The weight decreases according to a Gaussian distribution centered at total_minutes / 2.
+    The sigma_ratio controls the width of the Gaussian curve.
+    """
+    minutes = time_window_minutes_left(minute, total_minutes)
+    center = total_minutes / 2
+    sigma = total_minutes * sigma_ratio
+    exponent = -((minutes - center) ** 2) / (2 * sigma ** 2)
+    weight = math.exp(exponent)
+    return max_value * weight

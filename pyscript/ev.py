@@ -78,7 +78,12 @@ from utils import (
     update_dict_with_new_keys,
     limit_dict_size,
     contains_any,
-    check_next_24_hours_diff)
+    check_next_24_hours_diff,
+    time_window_minutes_left,
+    time_window_minutes_left_from_datetime,
+    time_window_linear_weight,
+    time_window_parabolic_weight,
+    time_window_gaussian_weight)
 
 import homeassistant.helpers.sun as sun
 
@@ -159,13 +164,14 @@ CHARGING_PLAN = {}
 CHARGE_HOURS = {}
 LAST_DRIVE_EFFICIENCY_DATA = {}
 
-LOCAL_ENERGY_PREDICTION_DB = {
-    "solar_prediction": {},
-}
 LOCAL_ENERGY_PRICES = {
     "solar_kwh_price": {},
     "powerwall_kwh_price": {},
 }
+LOCAL_ENERGY_PREDICTION_DB = {
+    "solar_prediction": {},
+}
+MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = {}
 
 COLOR_THRESHOLDS = [
     ("price1", "#0064FF"),
@@ -1539,6 +1545,7 @@ def get_debug_info_sections():
             "details": format_debug_details({
                 "LOCAL_ENERGY_PRICES": LOCAL_ENERGY_PRICES,
                 "LOCAL_ENERGY_PREDICTION_DB": LOCAL_ENERGY_PREDICTION_DB,
+                "MAX_LOCAL_ENERGY_AVAILABLE_HISTORY": MAX_LOCAL_ENERGY_AVAILABLE_HISTORY,
             }),
         },
         "Charging Loss Metrics": {
@@ -6961,15 +6968,12 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             
     return watts_available_from_local_energy
 
-def max_local_energy_available_remaining_hour():
-    _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_hour")
-    global TASKS
+def max_local_energy_available_remaining_period():
+    _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_period")
+    global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY
     
     if not is_solar_configured():
-        return {
-            "period": f"No solar installed",
-            "watt": 0.0
-        }
+        return 0.0
     
     time_to = getMinute()
     
@@ -6985,66 +6989,61 @@ def max_local_energy_available_remaining_hour():
             time_to = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
     
     random_int = random.randint(0, 10000)
-    predictedSolarPower_task_name = f"max_local_energy_available_remaining_hour_predictedSolarPower_{random_int}"
-    total_task_name = f"max_local_energy_available_remaining_hour_total_{random_int}"
+    predicted_solar_power_task_name = f"max_local_energy_available_remaining_period_predicted_solar_power_{random_int}"
+    total_task_name = f"max_local_energy_available_remaining_period_total_{random_int}"
+    
+    watt_available = 0.0
     
     try:
-        TASKS[predictedSolarPower_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion=True)
+        TASKS[predicted_solar_power_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion=True)
         TASKS[total_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=time_to, without_all_exclusion=False, update_entity=False, solar_only=True)
-        done, pending = task.wait({TASKS[predictedSolarPower_task_name], TASKS[total_task_name]})
+        done, pending = task.wait({TASKS[predicted_solar_power_task_name], TASKS[total_task_name]})
             
-        returnDict = {
-            "predictedSolarPower": {
-                "watt": max(TASKS[predictedSolarPower_task_name].result(), 0.0)
-            }
-        }
+        predicted_solar_power = max(TASKS[predicted_solar_power_task_name].result(), 0.0)
+        predicted_solar_power_period = f"0-{time_to}"
+        predicted_solar_power_period_watt = 0.0
         
         if time_to >= CONFIG['cron_interval']:
-            returnDict['total'] = {
-                "period": f"0-{time_to}",
-                "watt": max(TASKS[total_task_name].result(), 0.0)
-            }
-        else:
-            returnDict['total'] = {
-                "period": f"0-{time_to}",
-                "watt": 0.0
-            }
+            predicted_solar_power_period_watt = max(TASKS[total_task_name].result(), 0.0)
         
         solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
         solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
-        allowed_above_under_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if returnDict['predictedSolarPower']['watt'] >= solar_threadhold else 0.0
-        predictedSolarPower = returnDict['predictedSolarPower']['watt'] + allowed_above_under_solar_available
+        allow_grid_charging_above_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predicted_solar_power >= solar_threadhold else 0.0
         
         multiple = 1.0
         
         if CONFIG['solar']['max_to_current_hour']:
-            multiple = 1 + round((getMinute() / 60), 2)
-        elif CONFIG['solar']['solarpower_use_before_minutes'] > 0:
-            period_calculations = CONFIG['solar']['solarpower_use_before_minutes'] / CONFIG['cron_interval']
-            multiply_factor = 1.0 if period_calculations > 4.0 else 0.5
-            
-            #multiple = 1 + round(time_to / CONFIG['solar']['solarpower_use_before_minutes'], 2) #Linear weighting
-            multiple = round(1 + max(1.0 - 4.0 * ((time_to - (float(CONFIG['cron_interval'])/2.0))/float(CONFIG['cron_interval']))**2.0, 0.0), 2) #Parabolic weighting
-            multiple *= multiply_factor
-        else:
-            multiple = 0.0
-            
-        extra_watt = max((returnDict['total']['watt'] * multiple), 0.0)
+            multiple = 1 + (getMinute() / 60)
+        elif CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
+            max_multiple = 2.0
+            #multiple = time_window_linear_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
+            #multiple = time_window_parabolic_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, curve_ratio=0.5) #Parabolic weighting
+            multiple = time_window_gaussian_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, sigma_ratio=0.3) #Gaussian weighting
         
-        returnDict['output'] = {
-            "period": f"predictedSolarPower:{predictedSolarPower} + {allowed_above_under_solar_available} + {returnDict['total']['period']}:{returnDict['total']['watt']} multiple:{multiple} extra_watt:{extra_watt} (min 0.0)",
-            "watt": predictedSolarPower + extra_watt
-        }
-            
-        _LOGGER.debug(f"max_local_energy_available_remaining_hour returnDict:{returnDict}")
-        _LOGGER.debug(f"max_local_energy_available_remaining_hour output:{returnDict['output']}")
+        multiple = round(multiple, 3)
+        extra_watt = round(max((predicted_solar_power_period_watt * multiple), 0.0), 2)
+        watt_available = max(predicted_solar_power + allow_grid_charging_above_solar_available + extra_watt, 0.0)
+        
+        MAX_LOCAL_ENERGY_AVAILABLE_HISTORY[getTime().isoformat()] = {
+            "1. predicted_solar_power": predicted_solar_power,
+            "2. allow_grid_charging_above_solar_available": allow_grid_charging_above_solar_available,
+            "3. predicted_solar_power_period": predicted_solar_power_period,
+            "4. predicted_solar_power_period_watt": predicted_solar_power_period_watt,
+            "5. multiple": multiple,
+            "6. extra_watt (4. * 5.)": extra_watt,
+            "7. watt_available (1. + 2. + 6.)": watt_available
+            }
+        MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = limit_dict_size(MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, 10)
+        
+        
+        _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except Exception as e:
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
-        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_hour")
+        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_period")
     finally:
         task_cancel("max_local_energy_available_remaining_period_", task_remove=True, startswith=True)
             
-    return returnDict['output']
+    return watt_available
 
 def inverter_available(error = ""):
     _LOGGER = globals()['_LOGGER'].getChild("inverter_available")
@@ -8330,10 +8329,7 @@ def charge_if_needed():
                 trip_reset()
                 cheap_grid_charge_hours()
                 
-        solar_available = max_local_energy_available_remaining_hour()
-        
-        solar_period = solar_available['period']
-        solar_watt = solar_available['watt']
+        local_energy_available_period = max_local_energy_available_remaining_period()
 
         powerwall_discharge_watt = 0.0
         if is_powerwall_configured():
@@ -8346,7 +8342,7 @@ def charge_if_needed():
             if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER:
                 powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER else powerwall_discharging_consumption
 
-        inverter_watt = solar_watt
+        inverter_watt = local_energy_available_period
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
                         
         currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
@@ -8357,8 +8353,6 @@ def charge_if_needed():
                 
         '''if trip_planned:
             inverter_amps[1] = 0.0'''
-            
-        _LOGGER.info(f"Solar Production Available Remaining Hour: {solar_available}")
         
         if inverter_amps[1] != 0.0:
             alsoCheapPower = ""
@@ -8383,7 +8377,7 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[timestamp]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(solar_watt):
+            elif CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(local_energy_available_period):
                 charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr ({round(get_solar_sell_price(), 2)}kr.)"
                 _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                 inverter_amps[1] = 0.0
@@ -8403,7 +8397,7 @@ def charge_if_needed():
             battery = round(completed_battery_level - battery_level(), 1)
             kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
             cost = round(current_price * kwh, 2)
-            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "charging_loss")
+            charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'charging_loss': True, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "charging_loss")
         elif manual_charging_enabled() or manual_charging_solar_enabled():
             charging_limit = get_max_recommended_charge_limit_battery_level()
             if not manual_charging_solar_enabled():
@@ -8417,13 +8411,13 @@ def charge_if_needed():
                 charging_rule = f"{emoji_parse({'manual': True, "solar": True})}Manuel ladning tilladt, kun sol {solar_charging}"
                 
             if amps[1] > 0.0:
-                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(solar_watt)}, "manual")
+                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(local_energy_available_period)}, "manual")
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
             if current_hour_in_charge_hours():
                 timestamp = current_hour_in_charge_hours()
-                CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(solar_watt)
+                CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
                 CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                 charging_history(CHARGE_HOURS[timestamp], "planned")
                 
@@ -8446,7 +8440,7 @@ def charge_if_needed():
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
                     kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
                     cost = round(current_price * kwh, 2)
-                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "low_battery")
+                    charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "low_battery")
                     charging_limit = get_min_daily_battery_level()
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
                     charging_rule = f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%"
@@ -8454,21 +8448,20 @@ def charge_if_needed():
             elif solar_charging_enabled() and inverter_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
                 if current_hour_in_charge_hours():
                     timestamp = current_hour_in_charge_hours()
-                    CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(solar_watt)
+                    CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
                     CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                     charging_history(CHARGE_HOURS[timestamp], "planned")
                 else:
-                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(solar_watt), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
+                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
                 amps = inverter_amps
                 
-                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(solar_watt) else ""
+                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
                 powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
-                inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(solar_watt) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
+                inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
                 charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
                 
                 _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
-                _LOGGER.debug(f"solar_watt:{solar_watt} solar_period:{solar_period}")
             else:
                 if not charging_without_rule():
                     stop_current_charging_session()
