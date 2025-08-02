@@ -2227,8 +2227,6 @@ def set_charging_rule(text=""):
 def restart_script():
     _LOGGER = globals()['_LOGGER'].getChild("restart_script")
     
-    task_shutdown()
-    
     _LOGGER.info("Restarting script")
     set_charging_rule(f"📟Genstarter scriptet")
     if service.has_service("pyscript", "reload"):
