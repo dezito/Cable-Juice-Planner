@@ -9478,7 +9478,6 @@ if INITIALIZATION_COMPLETE:
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
             set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
             try:
-                #CONFIG = load_yaml(f"{__name__}_config")
                 CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance(ignore_realistic_estimated_range=True)
                 CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance(day_text="monday", ignore_realistic_estimated_range=True)
                 CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance(day_text="tuesday", ignore_realistic_estimated_range=True)
