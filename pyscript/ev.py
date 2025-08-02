@@ -2687,7 +2687,7 @@ def get_vin_cupra_born(entity_id):
         vin = get_identifiers(entity_id)[0][1].replace("vw","")
     return vin
 
-def get_entity_daily_distance(day_text = None, date = None):
+def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_estimated_range=False):
     _LOGGER = globals()['_LOGGER'].getChild("get_entity_daily_distance")
     try:
         if day_text is None and date is None:
@@ -2702,7 +2702,7 @@ def get_entity_daily_distance(day_text = None, date = None):
             if distance == 0.0 or workday == "off":
                 distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
 
-        if is_ev_configured():
+        if is_ev_configured() and not ignore_realistic_estimated_range:
             estimated_range_attr = get_attr(f"sensor.{__name__}_estimated_range")
             if "total" in estimated_range_attr and float(estimated_range_attr["total"]) > 0.0:
                 estimated_range_per_percent = float(estimated_range_attr["total"]) / 100
@@ -9403,14 +9403,14 @@ if INITIALIZATION_COMPLETE:
             set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
             try:
                 #CONFIG = load_yaml(f"{__name__}_config")
-                CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance()
-                CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance("monday")
-                CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance("tuesday")
-                CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance("wednesday")
-                CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance("thursday")
-                CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance("friday")
-                CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance("saturday")
-                CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance("sunday")
+                CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance(ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance(day_text="monday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance(day_text="tuesday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance(day_text="wednesday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance(day_text="thursday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance(day_text="friday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance(day_text="saturday", ignore_realistic_estimated_range=True)
+                CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance(day_text="sunday", ignore_realistic_estimated_range=True)
                                 
                 CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
                 CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
