@@ -1205,7 +1205,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
         
     return False
     
-def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
+def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2):
     global TASKS
     _LOGGER = globals()['_LOGGER'].getChild("task_cancel")
     
@@ -1221,12 +1221,12 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
         task_wait_until(task_name, timeout=0.5, wait_period=0.2)
         
         if "save" in task_name and "saving" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
             
         if "charging_history_worker" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
             
         if not task_wait_until(task_name, timeout=1, wait_period=0.2):
             TASKS[task_name].cancel()
