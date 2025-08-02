@@ -9483,6 +9483,7 @@ if INITIALIZATION_COMPLETE:
             
         done, pending = task.wait({TASKS['shutdown_stop_current_charging_session'], TASKS['shutdown_reset_counter_entity_integration']})
         
+        task.wait_until(timeout=1.0)
         task_shutdown()
             
 @state_trigger(f"input_button.{__name__}_restart_script")
