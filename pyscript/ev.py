@@ -8221,7 +8221,7 @@ def charge_if_needed():
         return False
     
     try:
-        charging_rule = f"Lader ikke"
+        charging_rule = None
         
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
@@ -8377,6 +8377,7 @@ def charge_if_needed():
                 if not charging_without_rule():
                     stop_current_charging_session()
                     _LOGGER.info("No rules for charging")
+                    charging_rule = f"Lader ikke"
         else:
             if not charging_without_rule():
                 stop_current_charging_session()
@@ -8391,7 +8392,8 @@ def charge_if_needed():
         else:
             stop_charging()
         
-        set_charging_rule(charging_rule)
+        if charging_rule:
+            set_charging_rule(charging_rule)
         set_charger_charging_amps(*amps)
     except Exception as e:
         global ERROR_COUNT
