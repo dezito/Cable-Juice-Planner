@@ -529,7 +529,7 @@ COMMENT_DB_YAML = {
     "ev_car.entity_ids.usable_battery_level_entity_id": "**Required** Must precise battery level",
     "ev_car.entity_ids.charge_port_door_entity_id": f"Used to determine if ev charge port is open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
     "ev_car.entity_ids.charge_cable_entity_id": f"Used to determine if ev is connected to charger (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "ev_car.entity_ids.charge_switch_entity_id": "Start/stop charging on EV",
+    "ev_car.entity_ids.charge_switch_entity_id": f"Start/stop charging on EV (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
     "ev_car.entity_ids.charging_limit_entity_id": "Setting charging battery limit on EV",
     "ev_car.entity_ids.charging_amps_entity_id": "Setting charging amps on EV",
     "ev_car.entity_ids.location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
