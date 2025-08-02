@@ -1254,10 +1254,18 @@ def task_shutdown():
     global TASKS
     
     tasks_done_list = []
-    for task_name, task_id in list(TASKS.items()):
+    tasks_length = len(TASKS) + 1
+    
+    for i, task_name in enumerate(list(TASKS.keys())):
+        i += 1
+        set_charging_rule(f"📟Lukker tråde ned {i}/{tasks_length}")
+        
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
+            
+        task.wait_until(timeout=0.2, wait_period=0.1)
     
+    set_charging_rule("📟Lukker tråde ned - Færdig")
     for task_name in tasks_done_list:
         try:
             if task_name in TASKS:
@@ -1266,6 +1274,7 @@ def task_shutdown():
             _LOGGER.error(f"Error deleting task {task_name} from TASKS (INSTANCE_ID: {INSTANCE_ID})")
     
     if len(TASKS) > 0:
+        set_charging_rule("📟 Ikke alle tråde blev lukket ned")
         _LOGGER.error(f"Some tasks were not killed:\n{pformat(TASKS, indent=4, width=200)} (INSTANCE_ID: {INSTANCE_ID})")
         _LOGGER.error("Please report this issue to the developer.")
         my_persistent_notification(
@@ -1273,6 +1282,8 @@ def task_shutdown():
             message=f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}\n\nPlease report this issue to the developer with the above information\nat https://github.com/dezito/Cable-Juice-Planner/issues",
             persistent_notification_id=f"{__name__}_task_shutdown_error_{INSTANCE_ID}"
         )
+        
+    task.wait_until(timeout=1.0)
         
     TASKS = dict()  # Clear TASKS dictionary
 
