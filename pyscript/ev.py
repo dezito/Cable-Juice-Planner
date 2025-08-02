@@ -1318,7 +1318,7 @@ def task_shutdown():
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
             
-        task.wait_until(timeout=0.2, wait_period=0.1)
+        task.wait_until(timeout=0.2)
     
     set_charging_rule("📟Lukker tråde ned - Færdig")
     for task_name in tasks_done_list:
