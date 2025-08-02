@@ -8624,7 +8624,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
 def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_solar_kwh")
     
-    if not is_solar_configured(): return 0.0
+    if not is_solar_configured(): return 0.0, 0.0, 0.0
     
     minutes = getMinute() if solar_period_current_hour else period
     
