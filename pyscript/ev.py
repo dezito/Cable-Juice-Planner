@@ -6897,8 +6897,9 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
                     watts_available_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
                 if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
+                    #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
-                    watts_available_from_local_energy += powerwall_charging_consumption
+                    watts_available_from_local_energy += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
                 else:
                     watts_available_from_local_energy -= powerwall_charging_consumption
