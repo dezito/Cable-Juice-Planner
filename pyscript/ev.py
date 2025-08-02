@@ -44,6 +44,7 @@ from mynotify import (
 from mytime import (
     getTime,
     getTimePlusDays,
+    monthsBetween,
     daysBetween,
     hoursBetween,
     minutesBetween,
@@ -4036,13 +4037,11 @@ def save_charging_history():
     global CHARGING_HISTORY_DB
     
     if CHARGING_HISTORY_DB:
-        this_month = getYear(getTime()) * 12 + getMonth(getTime())
+        now = getTime()
         
         try:
             for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
-                key_month = getYear(key) * 12 + getMonth(key)
-                if this_month - key_month > CONFIG['database']['charging_history_db_data_to_save']:
-                    _LOGGER.warning(f"{this_month} - {key_month} = {this_month - key_month} > {CONFIG['database']['charging_history_db_data_to_save']}")
+                if monthsBetween(key, now, error_value=0) > CONFIG['database']['charging_history_db_data_to_save'] + 1:
                     _LOGGER.warning(f"Removing {key} from CHARGING_HISTORY_DB")
                     del CHARGING_HISTORY_DB[key]
                 
