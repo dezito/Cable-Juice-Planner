@@ -1196,7 +1196,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
             if period >= timeout:
                 break
         
-        if TASKS[task_name].done():
+        if task_name in TASKS and TASKS[task_name].done():
             return True
         else:
             return False
@@ -1205,7 +1205,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
         
     return False
     
-def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
+def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2):
     global TASKS
     _LOGGER = globals()['_LOGGER'].getChild("task_cancel")
     
@@ -1221,21 +1221,25 @@ def task_cancel(task_name, task_remove=True, timeout=3.0, wait_period=0.2):
         task_wait_until(task_name, timeout=0.5, wait_period=0.2)
         
         if "save" in task_name and "saving" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (saving task) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
             
         if "charging_history_worker" in task_name and not TASKS[task_name].done():
-            _LOGGER.warning(f"Waiting 3 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
-            task_wait_until(task_name, timeout=3.0, wait_period=0.2)
+            _LOGGER.warning(f"Waiting 30 seconds for task {task_name} (charging history worker) to finish before killing it (INSTANCE_ID: {INSTANCE_ID})")
+            task_wait_until(task_name, timeout=30.0, wait_period=0.2)
             
         if not task_wait_until(task_name, timeout=1, wait_period=0.2):
-            TASKS[task_name].cancel()
+            if task_name in TASKS:
+                TASKS[task_name].cancel()
         
         if task_wait_until(task_name, timeout=timeout, wait_period=wait_period):
             if task_remove and task_name in TASKS:
                 del TASKS[task_name]
             return True
         else:
+            if task_name not in TASKS:
+                return True
+            
             _LOGGER.error(f"Task {task_name} is still not done after waiting, ignoring it (INSTANCE_ID: {INSTANCE_ID})")
             return False
     except Exception as e:
@@ -1270,7 +1274,7 @@ def task_shutdown():
             persistent_notification_id=f"{__name__}_task_shutdown_error_{INSTANCE_ID}"
         )
         
-    TASKS = None
+    TASKS = dict()  # Clear TASKS dictionary
 
 def calculate_price_levels(prices):
     """ Beregner de forskellige prisniveauer baseret på lowest, mean og highest price. """
@@ -1738,6 +1742,10 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("debug_info")
     debug_info = []
 
+    debug_info.append(f"<center>\n")
+    debug_info.append(f"#### Debug info runtime {getTime()} ####\n")
+    debug_info.append(f"</center>\n")
+
     # Generate debug info from structured data
     for section, content in get_debug_info_sections().items():
         debug_info.append(f"<center>\n\n### {section}\n</center>\n")
@@ -1923,7 +1931,7 @@ def is_entity_available(entity):
     integration = get_integration(entity)
     
     try:
-        entity_state = str(get_state(entity, try_history=True, error_state="unknown"))
+        entity_state = str(get_state(entity, error_state="unknown"))
         if entity_state in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Entity state is {entity_state}")
         
@@ -3707,7 +3715,7 @@ def drive_efficiency(state=None):
                 if not is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
                     raise Exception(f"{CONFIG['ev_car']['entity_ids']['odometer_entity_id']} is not available, ignoring drive")
 
-                current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, try_history=True))
+                current_odometer = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True))
                 last_odometer = float(get_state(f"sensor.{__name__}_drive_efficiency_last_odometer", float_type=True, error_state=current_odometer))
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
 
@@ -4546,7 +4554,8 @@ async def charging_history_worker():
             CHARGING_HISTORY_QUEUE_LAST_RESULT = last_result
             
             CHARGING_HISTORY_QUEUE.task_done()
-
+        except (TypeError, AttributeError) as e:
+            _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e}")
         except Exception as e:
             _LOGGER.exception(f"Fejl i charging_history_worker: {e}")
             my_persistent_notification(
@@ -4898,7 +4907,7 @@ def cheap_grid_charge_hours():
         return
 
     today = getTimeStartOfDay()
-    current_hour = reset_time_to_hour(getTime())
+    current_hour = reset_time_to_hour()
     now = getTime()
     
     chargeHours = {}
@@ -5361,7 +5370,7 @@ def cheap_grid_charge_hours():
             
             try:
                 days_need_between_recommended_full_charge = int(float(get_state(f"input_number.{__name__}_full_charge_recommended", error_state=0)))
-                days_since_last_fully_charged = daysBetween(get_state(f"input_datetime.{__name__}_last_full_charge", try_history=True, error_state=resetDatetime()), getTime())
+                days_since_last_fully_charged = daysBetween(get_state(f"input_datetime.{__name__}_last_full_charge", error_state=resetDatetime()), getTime())
                 need_recommended_full_charge = days_need_between_recommended_full_charge != 0 and days_since_last_fully_charged > days_need_between_recommended_full_charge and day == 1
                 
                 if need_recommended_full_charge:
@@ -5895,7 +5904,7 @@ def cheap_grid_charge_hours():
                 if (charging_plan[day]['workday'] and
                 ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or
                 (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1))):
-                    charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour(getTime()))
+                    charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour())
                     last_charging = charging_plan[day]['trip_last_charging']
 
                 for i in range(charging_hours):
@@ -7427,7 +7436,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
-                    now = getTime()
+                    now = reset_time_to_hour()
                     if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
                         timestamps.append(loop_datetime)
                         
@@ -7656,7 +7665,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     break
             
             if not charging_planned_today:
-                powerwall_charging_timestamps_list.append(reset_time_to_hour(getTime()))
+                powerwall_charging_timestamps_list.append(reset_time_to_hour())
         
         powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
         LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
@@ -7881,9 +7890,9 @@ def ready_to_charge():
     else:
         if is_ev_configured():
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
-                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, try_history=True, error_state="home")
+                currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
             else:
-                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, try_history=True, error_state="connected")
+                currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
             
                 if currentLocation in ENTITY_UNAVAILABLE_STATES or currentLocation in CHARGER_NOT_READY_STATUS:
                     currentLocation = "away"
@@ -8212,7 +8221,7 @@ def charge_if_needed():
         return False
     
     try:
-        charging_rule = f"Lader ikke"
+        charging_rule = None
         
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
@@ -8368,6 +8377,7 @@ def charge_if_needed():
                 if not charging_without_rule():
                     stop_current_charging_session()
                     _LOGGER.info("No rules for charging")
+                    charging_rule = f"Lader ikke"
         else:
             if not charging_without_rule():
                 stop_current_charging_session()
@@ -8382,7 +8392,8 @@ def charge_if_needed():
         else:
             stop_charging()
         
-        set_charging_rule(charging_rule)
+        if charging_rule:
+            set_charging_rule(charging_rule)
         set_charger_charging_amps(*amps)
     except Exception as e:
         global ERROR_COUNT
@@ -8453,7 +8464,7 @@ def kwh_charged_by_solar():
     
     ev_solar_kwh = round(solar_watt / 1000, 3)
     try:
-        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
         if solar_kwh is not None:
             solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
             set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
@@ -8468,8 +8479,8 @@ def solar_charged_percentage():
     
     if not is_solar_configured(): return
     
-    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None)
-    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, try_history=True, error_state=None)
+    total_ev_kwh = get_state(CONFIG['charger']['entity_ids']['lifetime_kwh_meter_entity_id'], float_type=True, error_state=None)
+    total_solar_ev_kwh = get_state(f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
     
     if total_ev_kwh is None or total_solar_ev_kwh is None:
         _LOGGER.warning(f"total_ev_kwh or total_solar_ev_kwh is None")
@@ -8515,7 +8526,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
     except:
         pass
     
-    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, try_history=True, error_state=None)
+    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
     if co2_emitted is not None and grid_co2_emitted > 0.0:
         co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
         
@@ -8613,7 +8624,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
 def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_solar_kwh")
     
-    if not is_solar_configured(): return 0.0
+    if not is_solar_configured(): return 0.0, 0.0, 0.0
     
     minutes = getMinute() if solar_period_current_hour else period
     
@@ -9304,7 +9315,7 @@ if INITIALIZATION_COMPLETE:
         
         try:
             battery_size = CONFIG['ev_car']['battery_size']
-            charger_current_kwh = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, try_history=True, error_state=None))
+            charger_current_kwh = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=None))
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'] else get_completed_battery_level()
             completed_battery_size = battery_size * (completed_battery_level / 100.0)
             
