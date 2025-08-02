@@ -6726,7 +6726,10 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
     _LOGGER = globals()["_LOGGER"].getChild("local_energy_available")
     global TASKS, POWERWALL_CHARGING_TEXT
 
-    if not is_solar_configured(): return 0.0
+    if not is_solar_configured():
+        if include_local_energy_distribution:
+            return 0.0, 0.0, 0.0, 0.0
+        return 0.0
 
     random_int = random.randint(0, 10000)
     task_names = {
@@ -7608,7 +7611,8 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     }
     
     if not is_solar_configured() or not inverter_available(f"Inverter not available)"):
-        _LOGGER.error("Solar not configured or inverter not available")
+        if powerwall_charging_timestamps:
+            return []
         return output, output_sell
     
     try:
