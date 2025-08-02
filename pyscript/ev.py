@@ -2325,7 +2325,17 @@ def init():
         _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content, width=200, compact=True)}")
 
         if not content:
-            raise Exception(f"Failed to load {file_path}")
+            set_charging_rule(f"📟Indlæser {file_path} igen om 5 sekunder, da der skete en fejl")
+            _LOGGER.warning(f"Content of {file_path} is empty, reloading it")
+            
+            task.wait_until(timeout=5.0)
+            
+            TASKS[f'init_load_yaml_{file_path}'] = task.create(load_yaml, file_path)
+            done, pending = task.wait({TASKS[f'init_load_yaml_{file_path}']})
+            content = TASKS[f'init_load_yaml_{file_path}'].result()
+            
+            if not content:
+                raise Exception(f"Failed to load {file_path}")
 
         notify_critical_change(cfg = content, filename = file_path)
 
