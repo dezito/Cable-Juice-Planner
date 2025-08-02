@@ -1274,7 +1274,7 @@ def task_shutdown():
             persistent_notification_id=f"{__name__}_task_shutdown_error_{INSTANCE_ID}"
         )
         
-    TASKS = None
+    TASKS = dict()  # Clear TASKS dictionary
 
 def calculate_price_levels(prices):
     """ Beregner de forskellige prisniveauer baseret på lowest, mean og highest price. """
