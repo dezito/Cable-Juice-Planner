@@ -1742,6 +1742,10 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild("debug_info")
     debug_info = []
 
+    debug_info.append(f"<center>\n")
+    debug_info.append(f"#### Debug info runtime {getTime()} ####\n")
+    debug_info.append(f"</center>\n")
+
     # Generate debug info from structured data
     for section, content in get_debug_info_sections().items():
         debug_info.append(f"<center>\n\n### {section}\n</center>\n")
