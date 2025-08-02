@@ -3430,8 +3430,13 @@ def load_drive_efficiency():
     if not is_ev_configured(): return
     
     try:
-        create_yaml(f"{__name__}_drive_efficiency_db", db=DRIVE_EFFICIENCY_DB)
-        DRIVE_EFFICIENCY_DB = load_yaml(f"{__name__}_drive_efficiency_db")
+        filename = f"{__name__}_drive_efficiency_db"
+        TASKS['load_drive_efficiency_create_yaml'] = task.create(create_yaml, filename, db=DRIVE_EFFICIENCY_DB)
+        done, pending = task.wait({TASKS['load_drive_efficiency_create_yaml']})
+        
+        TASKS['load_drive_efficiency_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_drive_efficiency_load_yaml']})
+        DRIVE_EFFICIENCY_DB = TASKS['load_drive_efficiency_load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_drive_efficiency_db: {e}"
         _LOGGER.error(error_message)
@@ -3488,8 +3493,13 @@ def load_km_kwh_efficiency():
     if not is_ev_configured(): return
     
     try:
-        create_yaml(f"{__name__}_km_kwh_efficiency_db", db=KM_KWH_EFFICIENCY_DB)
-        KM_KWH_EFFICIENCY_DB = load_yaml(f"{__name__}_km_kwh_efficiency_db")
+        filename = f"{__name__}_km_kwh_efficiency_db"
+        TASKS['load_km_kwh_efficiency_create_yaml'] = task.create(create_yaml, filename, db=KM_KWH_EFFICIENCY_DB)
+        done, pending = task.wait({TASKS['load_km_kwh_efficiency_create_yaml']})
+        
+        TASKS['load_km_kwh_efficiency_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_km_kwh_efficiency_load_yaml']})
+        KM_KWH_EFFICIENCY_DB = TASKS['load_km_kwh_efficiency_load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e}"
         _LOGGER.error(error_message)
@@ -3911,8 +3921,13 @@ def load_charging_history():
         return data, renamed
     
     try:
-        create_yaml(f"{__name__}_charging_history_db", db=CHARGING_HISTORY_DB)
-        CHARGING_HISTORY_DB = load_yaml(f"{__name__}_charging_history_db")
+        filename = f"{__name__}_charging_history_db"
+        TASKS['load_charging_history_create_yaml'] = task.create(create_yaml, filename, db=CHARGING_HISTORY_DB)
+        done, pending = task.wait({TASKS['load_charging_history_create_yaml']})
+        
+        TASKS['load_charging_history_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_charging_history_load_yaml']})
+        CHARGING_HISTORY_DB = TASKS['load_charging_history_load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_charging_history_db: {e}"
         _LOGGER.error(error_message)
@@ -7158,7 +7173,11 @@ def load_power_values_db():
     version = 1.0
     
     try:
-        database = load_yaml(f"{__name__}_power_values_db")
+        filename = f"{__name__}_power_values_db"
+        TASKS['load_power_values_db_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_power_values_db_load_yaml']})
+        database = TASKS['load_power_values_db_load_yaml'].result()
+        
         if "version" in database:
             version = float(database["version"])
             del database["version"]
@@ -7166,7 +7185,8 @@ def load_power_values_db():
         POWER_VALUES_DB = database.copy()
         
         if not POWER_VALUES_DB:
-            create_yaml(f"{__name__}_power_values_db", db=POWER_VALUES_DB)
+            TASKS['load_power_values_db_create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
+            done, pending = task.wait({TASKS['load_power_values_db_create_yaml']})
     except Exception as e:
         error_message = f"Cant load {__name__}_power_values_db: {e}"
         _LOGGER.error(error_message)
@@ -7228,7 +7248,11 @@ def load_solar_available_db():
     version = 1.0
     
     try:
-        database = load_yaml(f"{__name__}_solar_production_available_db")
+        filename = f"{__name__}_solar_production_available_db"
+        TASKS['load_solar_available_db_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_solar_available_db_load_yaml']})
+        database = TASKS['load_solar_available_db_load_yaml'].result()
+        
         if "version" in database:
             version = float(database["version"])
             del database["version"]
@@ -7236,7 +7260,8 @@ def load_solar_available_db():
         SOLAR_PRODUCTION_AVAILABLE_DB = database.copy()
         
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
-            create_yaml(f"{__name__}_solar_production_available_db", db=SOLAR_PRODUCTION_AVAILABLE_DB)
+            TASKS['load_solar_available_db_create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
+            done, pending = task.wait({TASKS['load_solar_available_db_create_yaml']})
     except Exception as e:
         error_message = f"Cant load {__name__}_solar_production_available_db: {e}"
         _LOGGER.error(error_message)
@@ -8704,7 +8729,11 @@ def load_kwh_prices():
     force_save = False
     
     try:
-        database = load_yaml(f"{__name__}_kwh_avg_prices_db")
+        filename = f"{__name__}_kwh_avg_prices_db"
+        TASKS['load_kwh_prices_load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS['load_kwh_prices_load_yaml']})
+        database = TASKS['load_kwh_prices_load_yaml'].result()
+        
         if "version" in database:
             version = float(database["version"])
             del database["version"]
@@ -8712,7 +8741,8 @@ def load_kwh_prices():
         KWH_AVG_PRICES_DB = database.copy()
 
         if not KWH_AVG_PRICES_DB:
-            create_yaml(f"{__name__}_kwh_avg_prices_db", db=KWH_AVG_PRICES_DB)
+            TASKS['load_kwh_prices_create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
+            done, pending = task.wait({TASKS['load_kwh_prices_create_yaml']})
     except Exception as e:
         error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e}"
         _LOGGER.error(error_message)
