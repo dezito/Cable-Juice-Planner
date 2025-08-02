@@ -1264,7 +1264,6 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
         for name in task_name:
             if isinstance(name, asyncio.Task):
                 task_names.append(name.get_name())
-                _LOGGER.warning(f"Received asyncio.Task object, using its name: {name.get_name()}")
             elif isinstance(name, str):
                 task_names.extend([n for n in TASKS.keys() if n.startswith(name)] if startswith else [name])
             else:
