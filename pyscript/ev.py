@@ -9295,7 +9295,9 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS["state_trigger_charger_cable_connected_wake_up_ev"]})
                 
                 if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
-                    power_connected_trigger(value)
+                    
+                    TASKS["state_trigger_charger_cable_connected_power_connected_trigger"] = task.create(power_connected_trigger, value)
+                    done, pending = task.wait({TASKS["state_trigger_charger_cable_connected_power_connected_trigger"]})
             except Exception as e:
                 _LOGGER.error(f"Error in state_trigger_charger_cable_connected: {e}")
                 my_persistent_notification(f"Error in state_trigger_charger_cable_connected: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_cable_connected_error")
@@ -9320,12 +9322,34 @@ if INITIALIZATION_COMPLETE:
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
                 def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
-                    power_connected_trigger(value)
+                    
+                    if not is_ev_home():
+                        return
+                    
+                    try:
+                        TASKS["state_trigger_ev_charger_port_power_connected_trigger"] = task.create(power_connected_trigger, value)
+                        done, pending = task.wait({TASKS["state_trigger_ev_charger_port_power_connected_trigger"]})
+                    except Exception as e:
+                        _LOGGER.error(f"Error in state_trigger_ev_charger_port: {e}")
+                        my_persistent_notification(f"Error in state_trigger_ev_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_charger_port_error")
+                    finally:
+                        task_cancel("state_trigger_ev_charger_port_", task_remove=True, startswith=True)
             else:
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
                 def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
                     _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
-                    power_connected_trigger(value)
+                    
+                    if not is_ev_home():
+                        return
+                    
+                    try:
+                        TASKS["state_trigger_ev_charger_cable_power_connected_trigger"] = task.create(power_connected_trigger, value)
+                        done, pending = task.wait({TASKS["state_trigger_ev_charger_cable_power_connected_trigger"]})
+                    except Exception as e:
+                        _LOGGER.error(f"Error in state_trigger_ev_charger_cable: {e}")
+                        my_persistent_notification(f"Error in state_trigger_ev_charger_cable: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_charger_cable_error")
+                    finally:
+                        task_cancel("state_trigger_ev_charger_cable_", task_remove=True, startswith=True)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
