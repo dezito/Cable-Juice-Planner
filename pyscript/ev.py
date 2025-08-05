@@ -3776,7 +3776,7 @@ def drive_efficiency(state=None):
     state = str(state).lower()
     
     heating_states = ("preheat", "preheat_cancel")
-    states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
+    states = tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
     
     if state not in states:
         _LOGGER.warning(f"Ignoring state not in {states}: {state}")
@@ -3790,16 +3790,17 @@ def drive_efficiency(state=None):
         elif state == "preheat_cancel":
             PREHEATING = False
             return
-
-        if state in EV_UNPLUGGED_STATES:
+        elif state in EV_UNPLUGGED_STATES + CHARGER_NOT_READY_STATUS:
+            if battery_level() <= 0.0:
+                return
+            
             if not PREHEATING:
                 drive_efficiency_save_car_stats()
             PREHEATING = False
-        elif state in EV_PLUGGED_STATES:
+        elif state in EV_PLUGGED_STATES + CHARGER_READY_STATUS:
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
-                kilometers = 0.0
                 
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
                 
@@ -3807,16 +3808,16 @@ def drive_efficiency(state=None):
                     last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
                     _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
                     
-                    reset_current_battery_level_expenses()
-                    current_battery_level_expenses()
+                reset_current_battery_level_expenses()
+                current_battery_level_expenses()
                 
                 usedBattery = last_battery_level - battery_level()
                 usedkWh = percentage_to_kwh(usedBattery)
+                kilometers = round(get_estimated_total_range() * (usedBattery / 100.0), 1)
                     
                 if usedkWh == 0.0 or usedBattery == 0.0:
                     _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
                     return
-                
             else:
                 if not DRIVE_EFFICIENCY_DB:
                     load_drive_efficiency()
@@ -3858,8 +3859,8 @@ def drive_efficiency(state=None):
                     f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
                 )
 
-                if kilometers <= 10.0 or usedBattery <= 5.0:
-                    _LOGGER.warning(f"{kilometers}km <= 10.0 or {usedBattery} usedBattery <= 5.0, ignoring drive")
+                if kilometers <= 5.0 or usedBattery <= 2.0:
+                    _LOGGER.warning(f"{kilometers}km <= 5.0 or {usedBattery} usedBattery <= 2.0, ignoring drive")
                     return
 
                 if efficiency > 150.0:
@@ -9168,55 +9169,6 @@ if INITIALIZATION_COMPLETE:
         finally:
             task_cancel("state_trigger_charger_power_", task_remove=True, startswith=True)
     
-    @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
-    def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
-        global CURRENT_CHARGING_SESSION, TASKS
-        try:
-            _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
-            if old_value in CHARGER_NOT_READY_STATUS:
-                
-                TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
-                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
-                
-                TASKS["state_trigger_charger_port_charge_if_needed"] = task.create(charge_if_needed)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_charge_if_needed"]})
-            elif value in CHARGER_NOT_READY_STATUS:
-                TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
-                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"], TASKS["state_trigger_charger_port_wake_up_ev"]})
-                
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
-                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
-            elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
-                if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
-                    TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
-                    done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"]})
-                    
-                    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
-        except Exception as e:
-            _LOGGER.error(f"Error in state_trigger_charger_port: {e}")
-            my_persistent_notification(f"Error in state_trigger_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_port_error")
-        finally:
-            task_cancel("state_trigger_charger_port_", task_remove=True, startswith=True)
-         
-    if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
-        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
-        def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
-            global TASKS
-            try:
-                if value == "home":
-                    TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
-                    done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
-            except Exception as e:
-                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
-                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
-            finally:
-                task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)
-    
     def wait_until_odometer_stable():
         task.unique("wait_until_odometer_stable")
         _LOGGER = globals()['_LOGGER'].getChild("wait_until_odometer_stable")
@@ -9284,11 +9236,74 @@ if INITIALIZATION_COMPLETE:
             my_persistent_notification(f"Error in power_connected_trigger: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_connected_trigger_error")
         finally:
             task_cancel("power_connected_trigger_", task_remove=True, startswith=True)
+    
+    @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
+    def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
+        _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
+        global CURRENT_CHARGING_SESSION, TASKS
+        
+        if not is_ev_home():
+            return
+            
+        try:
+            _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
+            if old_value in CHARGER_NOT_READY_STATUS:
+                TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
+                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
+                
+                TASKS["state_trigger_charger_port_charge_if_needed"] = task.create(charge_if_needed)
+                done, pending = task.wait({TASKS["state_trigger_charger_port_charge_if_needed"]})
+                
+                if is_ev_configured():
+                    TASKS["state_trigger_charger_port_power_connected_trigger"] = task.create(power_connected_trigger, value)
+                    done, pending = task.wait({TASKS["state_trigger_charger_port_power_connected_trigger"]})
+            elif value in CHARGER_NOT_READY_STATUS:
+                TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
+                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"], TASKS["state_trigger_charger_port_wake_up_ev"]})
+                
+                TASKS["state_trigger_charger_port_power_connected_trigger"] = task.create(power_connected_trigger, value)
+                done, pending = task.wait({TASKS["state_trigger_charger_port_power_connected_trigger"]})
+                
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
+                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
+            elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
+                if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
+                    TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
+                    done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"]})
+                    
+                    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
+        except Exception as e:
+            _LOGGER.error(f"Error in state_trigger_charger_port: {e}")
+            my_persistent_notification(f"Error in state_trigger_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_port_error")
+        finally:
+            task_cancel("state_trigger_charger_port_", task_remove=True, startswith=True)
+         
+    """if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
+        def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
+            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
+            global TASKS
+            try:
+                if value == "home":
+                    TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
+                    done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
+                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
+            finally:
+                task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)"""
 
-    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
+    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['status_entity_id']):
         @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
         def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
             _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
+            
+            if not is_ev_configured() and value in EV_PLUGGED_STATES:
+                return
+            
             try:
                 TASKS["state_trigger_charger_cable_connected_wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS["state_trigger_charger_cable_connected_wake_up_ev"]})
@@ -9359,15 +9374,15 @@ if INITIALIZATION_COMPLETE:
             except:
                 return
             
-            try:
-                if old_value == 0.0 and value > 0.0:
-                    TASKS["emulated_battery_level_changed_drive_efficiency"] = task.create(drive_efficiency, "on")
-                    done, pending = task.wait({TASKS["emulated_battery_level_changed_drive_efficiency"]})
-            except Exception as e:
-                _LOGGER.error(f"Error in emulated_battery_level_changed: {e}")
-                my_persistent_notification(f"Error in emulated_battery_level_changed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_emulated_battery_level_changed_error")
-            finally:
-                task_cancel("emulated_battery_level_changed_", task_remove=True, startswith=True)
+            if old_value == 0.0 and value > 0.0:
+                try:
+                    TASKS["emulated_battery_level_changed_power_connected_trigger"] = task.create(power_connected_trigger, "on")
+                    done, pending = task.wait({TASKS["emulated_battery_level_changed_power_connected_trigger"]})
+                except Exception as e:
+                    _LOGGER.error(f"Error in emulated_battery_level_changed: {e}")
+                    my_persistent_notification(f"Error in emulated_battery_level_changed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_emulated_battery_level_changed_error")
+                finally:
+                    task_cancel("emulated_battery_level_changed_", task_remove=True, startswith=True)
                 
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
