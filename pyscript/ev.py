@@ -3885,7 +3885,8 @@ def drive_efficiency(state=None):
             if "battery_level_expenses_unit" in BATTERY_LEVEL_EXPENSES and BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None:
                 unit = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit']
                 cost = round(unit * usedkWh, 2)
-                cost_str = f"Pris: {cost:.2f}kr\n"
+                kr_km = round(cost / kilometers, 2) if kilometers > 0 else 0.0
+                cost_str = f"Pris: {cost:.2f}kr ({kr_km:.2f} kr/km)\n"
             
             wh_km = round(1000 / distancePerkWh, 2)
             
