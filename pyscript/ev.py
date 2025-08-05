@@ -3519,15 +3519,15 @@ def set_state_drive_efficiency():
     if not is_ev_configured(): return
     
     try:
-        drive_efficiency = get_list_values(DRIVE_EFFICIENCY_DB)
+        drive_efficiency_values = get_list_values(DRIVE_EFFICIENCY_DB)
         
-        if not drive_efficiency:
+        if not drive_efficiency_values:
             _LOGGER.warning("DRIVE_EFFICIENCY_DB is empty or contains no valid float values.")
             return
         
-        set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
-        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency))))
-        set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
+        set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency_values[0])
+        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency_values))))
+        set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
             if "dato" in item:
