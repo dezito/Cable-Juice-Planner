@@ -9270,13 +9270,12 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
-            if ready_to_charge():
-                if is_ev_configured():
-                    task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
-                    
-                    TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
-                    done, pending = task.wait({TASKS["power_connected_trigger_wait_until_odometer_stable"]})
-                    
+            if ready_to_charge() and is_ev_configured():
+                task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
+                
+                TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
+                done, pending = task.wait({TASKS["power_connected_trigger_wait_until_odometer_stable"]})
+            
             TASKS["power_connected_trigger_drive_efficiency"] = task.create(drive_efficiency, str(value))
             TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS["power_connected_trigger_drive_efficiency"], TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"]})
