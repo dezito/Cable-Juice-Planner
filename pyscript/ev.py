@@ -9223,7 +9223,7 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
-            if ready_to_charge() and is_ev_configured():
+            if is_ev_configured():
                 task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
                 
                 TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
