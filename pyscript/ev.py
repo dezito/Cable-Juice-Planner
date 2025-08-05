@@ -2745,6 +2745,35 @@ def get_list_values(data):
                 float_list.append(item[1])
     return float_list
 
+def is_ev_home():
+    _LOGGER = globals()['_LOGGER'].getChild("is_ev_home")
+    
+    current_location = "home"
+    
+    try:
+        if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
+        else:
+            now = getTime()
+            minutes_ago = now - datetime.timedelta(minutes=15)
+            
+            charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
+            charger_was_connected = set(CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS) & set(get_values(CONFIG['charger']['entity_ids']['status_entity_id'], minutes_ago, now, include_timestamps=False, error_state=["connected"]))
+            _LOGGER.info(f"charger_status: {charger_status}")
+            _LOGGER.info(f"charger_was_connected: {charger_was_connected}")
+            
+            if charger_status in ENTITY_UNAVAILABLE_STATES or (charger_status in CHARGER_NOT_READY_STATUS and not charger_was_connected):
+                current_location = "away"
+                _LOGGER.info(f"current_location: {current_location}, setting to away")
+            else:
+                current_location = "home"
+                _LOGGER.info(f"current_location: {current_location}, setting to home")
+    except Exception as e:
+        _LOGGER.error(f"Error getting current location: {e}")
+        current_location = "home"
+    
+    return True if current_location == "home" else False
+
 def is_calculating_charging_loss():
     _LOGGER = globals()['_LOGGER'].getChild("is_calculating_charging_loss")
     try:
@@ -7985,7 +8014,7 @@ def ready_to_charge():
         return True
     else:
         if is_ev_configured():
-            if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            """if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
                 currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
             else:
                 currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
@@ -7995,15 +8024,16 @@ def ready_to_charge():
                     _LOGGER.info(f"currentLocation: {currentLocation}, setting to away")
                 else:
                     currentLocation = "home"
-                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")"""
 
             
-            charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
+            #charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
             
             #_LOGGER.info(f"currentLocation: {currentLocation}, charger_connector: {charger_connector}, ev_charger_connector: {ev_charger_connector}")
-            if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
-                charger_status in CHARGER_READY_STATUS) and currentLocation != "home":
+            """if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
+                charger_status in CHARGER_READY_STATUS) and currentLocation != "home":"""
+            if (ev_charger_connector in EV_PLUGGED_STATES or charger_status in CHARGER_READY_STATUS) and not is_ev_home():
                 _LOGGER.info("To long away from home")
                 set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
                 return
@@ -8013,7 +8043,8 @@ def ready_to_charge():
                 return True #Test to charge anyway'''
 
             #TODO check charger_connector on monta
-            if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
+            #if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
+            if ev_charger_connector not in EV_PLUGGED_STATES:
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen\nPrøver at vække bilen")
                 wake_up_ev()
