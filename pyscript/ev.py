@@ -4622,7 +4622,6 @@ async def charging_history(charging_data=None, charging_type=""):
         task_running = TASKS.get(task_key)
 
         if not task_running or task_running.done():
-            _LOGGER.info("Starter ny charging_history_worker task")
             TASKS[task_key] = task.create(charging_history_worker)
     except Exception as e:
         _LOGGER.exception(f"Fejl ved tilføjelse til charging_history kø: {e}")
