@@ -1275,7 +1275,10 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
         return False
 
     if not task_names:
-        _LOGGER.warning("No matching tasks to cancel")
+        if startswith:
+            _LOGGER.warning(f"No matching tasks to cancel with prefix: {task_name}")
+        else:
+            _LOGGER.warning(f"No matching tasks to cancel with name: {task_name}")
         return True
 
     task_set = set()
