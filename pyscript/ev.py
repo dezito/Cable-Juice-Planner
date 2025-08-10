@@ -9215,6 +9215,8 @@ if INITIALIZATION_COMPLETE:
                         _LOGGER.info(f"Odometer stable at {current_odometer} now, no need to wait anymore")
                         break
                 task.wait_until(timeout=60)
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+            pass
         except Exception as e:
             _LOGGER.error(f"Error in wait_until_odometer_stable: {e}")
             
