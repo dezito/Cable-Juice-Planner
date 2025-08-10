@@ -5253,7 +5253,7 @@ def cheap_grid_charge_hours():
             solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
             solar_kwh_added = percentage_to_kwh(solar_percentage_added, include_charging_loss=True)
             
-            _LOGGER.info(f"Removing {solar_kwh_added}kWh {solar_percentage_added}% from solar prediction for {timestamp}")
+            _LOGGER.info(f"Added {timestamp} charging, removing solar prediction {solar_kwh_added}kWh {solar_percentage_added}% from day {day}")
             
             charging_plan[day]['solar_prediction'] = charging_plan[day]['solar_prediction'] - solar_percentage_added
             charging_plan[day]['solar_kwh_prediction'] = charging_plan[day]['solar_kwh_prediction'] - solar_kwh_added
