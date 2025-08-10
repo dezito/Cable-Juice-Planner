@@ -6,6 +6,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.util import dt as dt_util
 
+ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
+
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
@@ -125,7 +127,7 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     if isinstance(history_data, dict):
         for ts, value in history_data.items():
             try:
-                if value not in ["unknown", "unavailable"]:
+                if value not in ENTITY_UNAVAILABLE_STATES:
                     if float_type is True:
                         try:
                             value = float(value)
