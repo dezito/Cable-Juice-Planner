@@ -1309,7 +1309,6 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
 
     return all_success
 
-        
 def task_shutdown():
     task.unique("task_shutdown")
     _LOGGER = globals()['_LOGGER'].getChild("task_shutdown")
@@ -1319,15 +1318,15 @@ def task_shutdown():
     tasks_length = len(TASKS) + 1
     
     for i, task_name in enumerate(list(TASKS.keys())):
-        i += 1
-        set_charging_rule(f"📟Lukker tråde ned {i}/{tasks_length}")
+        set_charging_rule(f"📟Lukket tråde ned {i}/{tasks_length}")
         
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
             
+        i += 1
         task.wait_until(timeout=0.2)
     
-    set_charging_rule("📟Lukker tråde ned - Færdig")
+    set_charging_rule("📟Lukket tråde ned - Færdig")
     for task_name in tasks_done_list:
         try:
             if task_name in TASKS:
