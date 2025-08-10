@@ -4092,7 +4092,7 @@ def save_charging_history():
         
 def charging_history_recalc_price():
     _LOGGER = globals()['_LOGGER'].getChild("charging_history_recalc_price")
-    global CHARGING_HISTORY_DB
+    global CHARGING_HISTORY_DB, TASKS
     
     if CHARGING_HISTORY_DB:
         now = getTime()
@@ -4707,7 +4707,7 @@ async def charging_history_worker():
 
 async def _charging_history(charging_data = None, charging_type = ""):
     _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
-    global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
+    global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION, TASKS
     
     def get_current_statistic(charging_ended = False):
         start = CURRENT_CHARGING_SESSION['start']
