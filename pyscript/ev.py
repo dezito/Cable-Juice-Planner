@@ -1298,6 +1298,8 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
             if result is not True:
                 _LOGGER.warning(f"Task cancel failed for: {name}")
                 all_success = False
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+            pass
         except Exception as e:
             _LOGGER.error(f"Exception cancelling task {name}: {e}")
             all_success = False
