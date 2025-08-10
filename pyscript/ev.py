@@ -4131,9 +4131,27 @@ def charging_history_recalc_price():
                 
                 end_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
                 added_kwh = end_charger_meter - start_charger_meter
-                kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
                 added_percentage = kwh_to_percentage(added_kwh, include_charging_loss = True)
-                price = calc_kwh_price(getMinute(), solar_period_current_hour = True)
+                
+                kwh_from_local_energy = 0.0
+                solar_kwh_of_local_energy = 0.0
+                powerwall_kwh_of_local_energy = 0.0
+                price = 0.0
+                
+                try:
+                    TASKS["charging_history_recalc_price_calc_local_energy_kwh"] = task.create(calc_local_energy_kwh, getMinute(), added_kwh, solar_period_current_hour = True)
+                    TASKS["charging_history_recalc_price_calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), solar_period_current_hour = True)
+                    done, pending = task.wait({TASKS["charging_history_recalc_price_calc_local_energy_kwh"], TASKS["charging_history_recalc_price_calc_kwh_price"]})
+                    
+                    kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS["charging_history_recalc_price_calc_local_energy_kwh"].result()
+                    price = TASKS["charging_history_recalc_price_calc_kwh_price"].result()
+                except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+                    _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
+                except Exception as e:
+                    _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
+                finally:
+                    task_cancel("charging_history_recalc_price_", task_remove=True, startswith=True)
+                
                 cost = added_kwh * price
                 if kwh_from_local_energy <= 0.0 and (solar_kwh_of_local_energy <= 0.0 or powerwall_kwh_of_local_energy <= 0.0):
                     return False
@@ -4695,9 +4713,27 @@ async def _charging_history(charging_data = None, charging_type = ""):
         start = CURRENT_CHARGING_SESSION['start']
         charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
         added_kwh = round(charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
-        kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
         added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True), 1)
-        price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
+        
+        kwh_from_local_energy = 0.0
+        solar_kwh_of_local_energy = 0.0
+        powerwall_kwh_of_local_energy = 0.0
+        price = 0.0
+        
+        try:
+            TASKS["_charging_history_calc_local_energy_kwh"] = task.create(calc_local_energy_kwh, minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
+            TASKS["_charging_history_calc_kwh_price"] = task.create(calc_kwh_price, minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True)
+            done, pending = task.wait({TASKS["_charging_history_calc_local_energy_kwh"], TASKS["_charging_history_calc_kwh_price"]})
+            
+            kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS["_charging_history_calc_local_energy_kwh"].result()
+            price = round(TASKS["_charging_history_calc_kwh_price"].result(), 3)
+        except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
+        except Exception as e:
+            _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
+        finally:
+            task_cancel("_charging_history_", task_remove=True, startswith=True)
+        
         cost = round(added_kwh * price, 2)
         
         CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
@@ -4748,7 +4784,6 @@ async def _charging_history(charging_data = None, charging_type = ""):
             #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
             calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
             
-            _LOGGER.debug(f"CURRENT_CHARGING_SESSION {CURRENT_CHARGING_SESSION['start']} {getTime()} {getMinute()} {minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute())} calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True) {calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True)}")
             min_kwh = 0.1
             
             if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
