@@ -8773,8 +8773,19 @@ def calc_co2_emitted(period = None, added_kwh = None):
 
 def calc_kwh_price(period = 60, update_entities = False, solar_period_current_hour = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_kwh_price")
+    global TASKS
     
     ev_total_price_kwh = 0.0
+    
+    random_int = random.randint(0, 10000)
+    task_names = {
+        "calc_kwh_price_values": f"calc_kwh_price_values_{random_int}",
+        "calc_kwh_price_local_energy_available": f"calc_kwh_price_local_energy_available_{random_int}",
+        "calc_kwh_price_get_refund": f"calc_kwh_price_get_refund_{random_int}",
+        "calc_kwh_price_grid_kwh_price": f"calc_kwh_price_grid_kwh_price_{random_int}",
+        "calc_kwh_price_solar_kwh_price": f"calc_kwh_price_solar_kwh_price_{random_int}",
+        "calc_kwh_price_powerwall_kwh_price": f"calc_kwh_price_powerwall_kwh_price_{random_int}",
+    }
     
     try:
         minutes = getMinute() if solar_period_current_hour else period
@@ -8783,14 +8794,14 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         now = getTime()
         past = now - datetime.timedelta(minutes=minutes)
         
-        TASKS["calc_kwh_price_values"] = task.create(power_values, from_time_stamp = past, to_time_stamp = now)
-        TASKS["calc_kwh_price_local_energy_available"] = task.create(local_energy_available, period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
-        done, pending = task.wait({TASKS["kwh_charged_by_solar_ev_watt"], TASKS["calc_kwh_price_local_energy_available"]})
+        TASKS[task_names["calc_kwh_price_values"]] = task.create(power_values, from_time_stamp = past, to_time_stamp = now)
+        TASKS[task_names["calc_kwh_price_local_energy_available"]] = task.create(local_energy_available, period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
+        done, pending = task.wait({TASKS[task_names["calc_kwh_price_values"]], TASKS[task_names["calc_kwh_price_local_energy_available"]]})
         
-        values = TASKS["calc_kwh_price_values"].result()
+        values = TASKS[task_names["calc_kwh_price_values"]].result()
         ev_used_consumption = values['ev_used_consumption']
         
-        watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = TASKS["calc_kwh_price_local_energy_available"].result()
+        watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = TASKS[task_names["calc_kwh_price_local_energy_available"]].result()
         
         min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
         
@@ -8802,16 +8813,16 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         
         ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
         
-        TASKS["calc_kwh_price_get_refund"] = task.create(get_refund)
-        TASKS["calc_kwh_price_grid_kwh_price"] = task.create(get_state, CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True, error_state=0.0)
-        TASKS["calc_kwh_price_solar_kwh_price"] = task.create(get_solar_sell_price, set_entity_attr=update_entities)
-        TASKS["calc_kwh_price_powerwall_kwh_price"] = task.create(get_powerwall_kwh_price)
-        done, pending = task.wait({TASKS["calc_kwh_price_grid_kwh_price"], TASKS["calc_kwh_price_solar_kwh_price"], TASKS["calc_kwh_price_powerwall_kwh_price"]})
+        TASKS[task_names["calc_kwh_price_get_refund"]] = task.create(get_refund)
+        TASKS[task_names["calc_kwh_price_grid_kwh_price"]] = task.create(get_state, CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True, error_state=0.0)
+        TASKS[task_names["calc_kwh_price_solar_kwh_price"]] = task.create(get_solar_sell_price, set_entity_attr=update_entities)
+        TASKS[task_names["calc_kwh_price_powerwall_kwh_price"]] = task.create(get_powerwall_kwh_price)
+        done, pending = task.wait({TASKS[task_names["calc_kwh_price_get_refund"]], TASKS[task_names["calc_kwh_price_grid_kwh_price"]], TASKS[task_names["calc_kwh_price_solar_kwh_price"]], TASKS[task_names["calc_kwh_price_powerwall_kwh_price"]]})
         
-        refund = TASKS["calc_kwh_price_get_refund"].result()
-        grid_kwh_price = TASKS["calc_kwh_price_grid_kwh_price"].result() - refund
-        solar_kwh_price = TASKS["calc_kwh_price_solar_kwh_price"].result()
-        powerwall_kwh_price = TASKS["calc_kwh_price_powerwall_kwh_price"].result()
+        refund = TASKS[task_names["calc_kwh_price_get_refund"]].result()
+        grid_kwh_price = TASKS[task_names["calc_kwh_price_grid_kwh_price"]].result() - refund
+        solar_kwh_price = TASKS[task_names["calc_kwh_price_solar_kwh_price"]].result()
+        powerwall_kwh_price = TASKS[task_names["calc_kwh_price_powerwall_kwh_price"]].result()
         
         try:
             ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
@@ -8874,7 +8885,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
     except Exception as e:
         _LOGGER.error(f"Error calculating kWh price: {e}")
     finally:
-        task_cancel("calc_kwh_price_", task_remove=True, startswith=True)
+        task_cancel(task_names.values(), task_remove=True, startswith=True)
         
     return ev_total_price_kwh
 
