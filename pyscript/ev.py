@@ -4107,7 +4107,6 @@ def charging_history_recalc_price():
                 start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
                 ended = CHARGING_HISTORY_DB[start]["ended"]
                 emoji = CHARGING_HISTORY_DB[start]["emoji"]
-                emoji = CHARGING_HISTORY_DB[start]["emoji"]
                 
                 if ended == ">": return False
                 
