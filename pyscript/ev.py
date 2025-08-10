@@ -9224,9 +9224,9 @@ if INITIALIZATION_COMPLETE:
         global TASKS
         
         try:
+            task_cancel("power_connected_trigger_", task_remove=True, startswith=True)
+            
             if is_ev_configured():
-                task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
-                
                 TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
                 done, pending = task.wait({TASKS["power_connected_trigger_wait_until_odometer_stable"]})
             
