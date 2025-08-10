@@ -129,7 +129,7 @@ POWERWALL_DISCHARGING_TRIGGER = 500.0 # Minimum Powerwall discharging in Watt to
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
-ENTITY_UNAVAILABLE_STATES = ("unavailable", "unknown")
+ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
 CHARGER_READY_STATUS = ("on", "connect", "connected", "ready", "ready_to_charge", "awaiting_authorization", "awaiting_start")
 CHARGER_NOT_READY_STATUS = ("off", "disconnect", "disconnected")
 CHARGER_COMPLETED_STATUS = ("completed", "finished")
