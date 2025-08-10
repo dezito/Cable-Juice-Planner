@@ -2,7 +2,9 @@ from dateutil import parser
 
 import homeassistant.helpers.device as device_helper
 
-from history import get_last_value
+from history import get_previous_value
+
+ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
@@ -34,11 +36,13 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
         
         output = state.get(entity_id)
         
-        if try_history and output in ["unknown", "unavailable"]:
-            output = get_last_value(entity_id, float_type=float_type, error_state=error_state)
+        if try_history and output in ENTITY_UNAVAILABLE_STATES:
+            output = get_previous_value(entity_id, float_type=float_type, error_state=error_state)
+            if entity_id == "sensor.batteries_state_of_capacity":
+                _LOGGER.warning(f"Using get_previous_value batteries_state_of_capacity for {entity_id}, output is {output}")
             
         if float_type is True:
-            output = float(output) if output not in [None, "unknown", "unavailable"] else error_state
+            output = float(output) if output not in ENTITY_UNAVAILABLE_STATES else error_state
     except Exception as e:
         if entity_id == "":
             entity_id == None
