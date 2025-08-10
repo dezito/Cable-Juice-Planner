@@ -4132,32 +4132,32 @@ def charging_history_recalc_price():
                 
                 end_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
                 added_kwh = end_charger_meter - start_charger_meter
-                added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
+                kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
                 added_percentage = kwh_to_percentage(added_kwh, include_charging_loss = True)
                 price = calc_kwh_price(getMinute(), solar_period_current_hour = True)
                 cost = added_kwh * price
-                
-                if added_kwh_by_solar > 0.0 or emoji_parse({'solar': True}) in emoji:
-                    emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
-                else:
+                if kwh_from_local_energy <= 0.0 and (solar_kwh_of_local_energy <= 0.0 or powerwall_kwh_of_local_energy <= 0.0):
                     return False
+                
+                if solar_kwh_of_local_energy > 0.0:
+                    emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
+                elif len(emoji.split(" ")) > 1 and solar_kwh_of_local_energy <= 0.0:
+                    emojis = set(emoji.split(" "))
+                    emojis.discard(emoji_parse({'solar': True}))
+                    emoji = " ".join(emojis)
+                    
+                if powerwall_kwh_of_local_energy > 0.0:
+                    emoji = join_unique_emojis(emoji, emoji_parse({'powerwall': True}))
+                elif len(emoji.split(" ")) > 1 and powerwall_kwh_of_local_energy <= 0.0:
+                    emojis = set(emoji.split(" "))
+                    emojis.discard(emoji_parse({'powerwall': True}))
+                    emoji = " ".join(emojis)
 
                 CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-                CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+                CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
                 CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
                 CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
                 
-                if len(emoji.split(" ")) > 1:
-                    if solar_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'solar': True}))
-                        emoji = " ".join(emojis)
-                        
-                    if powerwall_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'powerwall': True}))
-                        emoji = " ".join(emojis)
-                    
                 CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
                 CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
                 CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
