@@ -6,14 +6,12 @@ from dateutil.relativedelta import relativedelta
 def datetime_to_unix(date_time = None):
     return time.mktime(date_time.timetuple())
 
-#Timestamps
 def getTimestampSeconds():
     return getTime().total_seconds()
 
 def getTimestampMinutes():
     return getTime().total_minutes()
 
-#Plus/minus time
 def getTime():
     date = datetime.datetime.now()
     return datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)

@@ -5,7 +5,6 @@ from logging import getLogger
 BASENAME = f"pyscript.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-# Dictionary to store start times
 start_times = {}
 
 def start_benchmark(section):

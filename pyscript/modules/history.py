@@ -17,32 +17,26 @@ def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
     numeric_data = []
     non_numeric_data = {}
 
-    # Filtrér og konverter værdierne til float, men behold ikke-numeriske data
     for timestamp, value in sorted_data:
         try:
             float_value = float(value)
             numeric_data.append((timestamp, float_value))
         except ValueError:
-            non_numeric_data[timestamp] = value  # Behold de ikke-konvertible værdier
+            non_numeric_data[timestamp] = value
 
     interpolated_dict = {}
 
     if numeric_data:
-        # Adskil timestamps og værdier efter filtrering
         existing_timestamps, existing_values = zip(*numeric_data)
         
-        # Lav en liste med lige fordelte timestamps mellem from_time og to_time
-        float_timestamps = np.linspace(from_time, to_time, num_points)
+        float_timestamps = np.linspace(from_datetime, to_datetime, num_points)
         
-        # Interpoler værdierne ved de ønskede timestamps
         interpolated_values = np.interp(float_timestamps, existing_timestamps, existing_values)
         
-        # Konverter float timestamps til datetime og lav dictionary
         for ts, val in zip(float_timestamps, interpolated_values):
             dt = datetime.datetime.fromtimestamp(ts)
             interpolated_dict[dt] = val
 
-    # Tilføj ikke-numeriske data (og konverter timestamps hvis nødvendigt)
     for ts, val in non_numeric_data.items():
         if isinstance(ts, (int, float)):
             ts = datetime.datetime.fromtimestamp(ts)
@@ -140,7 +134,6 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
             except:
                 pass
 
-    # Calculate the average value of the entity
     if states:
         if include_timestamps:
             return states
