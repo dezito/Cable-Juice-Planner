@@ -9246,12 +9246,12 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
         global CURRENT_CHARGING_SESSION, TASKS
         
-        if not is_ev_home():
+        if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
             return
             
         try:
             _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
-            if old_value in CHARGER_NOT_READY_STATUS:
+            if value in CHARGER_READY_STATUS and old_value in CHARGER_NOT_READY_STATUS:
                 TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
                 TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
