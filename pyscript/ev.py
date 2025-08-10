@@ -8690,8 +8690,10 @@ def kwh_charged_by_solar():
         except Exception as e:
             _LOGGER.error(e)
             my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_kwh_charged_by_solar")
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
-        pass
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating kwh charged by solar: {e}")
     finally:
         task_cancel("kwh_charged_by_solar_", task_remove=True, startswith=True)
         
@@ -8760,8 +8762,10 @@ def calc_co2_emitted(period = None, added_kwh = None):
             _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
             set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
             return co2_emitted
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
-        pass
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating co2 emitted: {e}")
     finally:
         task_cancel("calc_co2_emitted_", task_remove=True, startswith=True)
         
@@ -8865,8 +8869,10 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
                 set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
             
             set_charging_price(ev_total_price_kwh)
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
-        pass
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e}")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating kWh price: {e}")
     finally:
         task_cancel("calc_kwh_price_", task_remove=True, startswith=True)
         
