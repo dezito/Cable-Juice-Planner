@@ -8628,29 +8628,39 @@ def kwh_charged_by_solar():
     _LOGGER = globals()['_LOGGER'].getChild("kwh_charged_by_solar")
     
     if not is_solar_configured(): return
-        
-    now = getTime()
-    past = now - datetime.timedelta(minutes=60)
     
-    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
-    solar_watt = round(max(local_energy_available(period = 60, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0), 3)
-    
-    if not ev_watt:
-        return
-    
-    solar_watt = min(solar_watt, ev_watt)
-    
-    ev_solar_kwh = round(solar_watt / 1000, 3)
     try:
-        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
-        if solar_kwh is not None:
-            solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
-            set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
-        else:
-            raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
-    except Exception as e:
-        _LOGGER.error(e)
-        my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_kwh_charged_by_solar")
+        now = getTime()
+        past = now - datetime.timedelta(minutes=60)
+        
+        TASKS["kwh_charged_by_solar_ev_watt"] = task.create(get_average_value, CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+        TASKS["kwh_charged_by_solar_solar_watt"] = task.create(local_energy_available, period = 60, without_all_exclusion = True, solar_only = True)
+        done, pending = task.wait({TASKS["kwh_charged_by_solar_ev_watt"], TASKS["kwh_charged_by_solar_solar_watt"]})
+        
+        ev_watt = round(abs(float(TASKS["kwh_charged_by_solar_ev_watt"].result())), 3)
+        solar_watt = round(max(TASKS["kwh_charged_by_solar_solar_watt"].result(), 0.0), 3)
+        
+        if not ev_watt:
+            return
+        
+        solar_watt = min(solar_watt, ev_watt)
+        
+        ev_solar_kwh = round(solar_watt / 1000, 3)
+        try:
+            solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
+            if solar_kwh is not None:
+                solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
+                set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
+            else:
+                raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
+        except Exception as e:
+            _LOGGER.error(e)
+            my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_kwh_charged_by_solar")
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+        pass
+    finally:
+        task_cancel("kwh_charged_by_solar_", task_remove=True, startswith=True)
+        
     
 def solar_charged_percentage():
     _LOGGER = globals()['_LOGGER'].getChild("solar_percentage")
@@ -8684,119 +8694,148 @@ def calc_co2_emitted(period = None, added_kwh = None):
     
     if CONFIG['charger']['entity_ids']['co2_entity_id'] not in state.names(domain="sensor"): return
     
-    minutes = getMinute() if period is None else period
-    
-    now = getTime()
-    past = now - datetime.timedelta(minutes=minutes)
-    
-    ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))) / 1000.0, 3)
-    solar_kwh_available = round(max(local_energy_available(period = minutes, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0) / 1000.0, 3)
-       
-    ev_solar_kwh = round(solar_kwh_available, 3)
-    ev_grid_kwh =  round(max(ev_kwh - (solar_kwh_available), 0.0), 3)
-    
-    grid_co2_emitted = 0.0
-    grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
     try:
-        solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
-        grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
-        grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
-    except:
-        pass
-    
-    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
-    if co2_emitted is not None and grid_co2_emitted > 0.0:
-        co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
+        minutes = getMinute() if period is None else period
         
-        _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
-        set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
-        return co2_emitted
+        now = getTime()
+        past = now - datetime.timedelta(minutes=minutes)
+        
+        TASKS["calc_co2_emitted_ev_kwh"] = task.create(get_average_value, CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+        TASKS["calc_co2_emitted_solar_kwh_available"] = task.create(local_energy_available, period = minutes, without_all_exclusion = True, solar_only = True)
+        done, pending = task.wait({TASKS["calc_co2_emitted_ev_kwh"], TASKS["calc_co2_emitted_solar_kwh_available"]})
+        
+        ev_kwh = round(abs(float(TASKS["calc_co2_emitted_ev_kwh"].result())) / 1000.0, 3)
+        solar_kwh_available = round(max(TASKS["calc_co2_emitted_solar_kwh_available"].result(), 0.0) / 1000.0, 3)
+        
+        ev_solar_kwh = round(solar_kwh_available, 3)
+        ev_grid_kwh =  round(max(ev_kwh - (solar_kwh_available), 0.0), 3)
+        
+        grid_co2_emitted = 0.0
+        grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
+        try:
+            solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
+            grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
+            grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
+        except:
+            pass
+        
+        co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
+        if co2_emitted is not None and grid_co2_emitted > 0.0:
+            co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
+            
+            _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
+            set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
+            return co2_emitted
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+        pass
+    finally:
+        task_cancel("calc_co2_emitted_", task_remove=True, startswith=True)
+        
     return 0.0
 
 def calc_kwh_price(period = 60, update_entities = False, solar_period_current_hour = False):
     _LOGGER = globals()['_LOGGER'].getChild("calc_kwh_price")
-    minutes = getMinute() if solar_period_current_hour else period
-    minutes = 60 if not in_between(getMinute(), 1, 58) else minutes
     
-    now = getTime()
-    past = now - datetime.timedelta(minutes=minutes)
-
-    values = power_values(from_time_stamp = past, to_time_stamp = now)
-    ev_used_consumption = values['ev_used_consumption']
+    ev_total_price_kwh = 0.0
     
-    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
-    
-    min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
-    
-    if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
-        _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
-        ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
-    else:
-        watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
-    
-    ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
-    
-    grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
     try:
-        ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
-        ev_grid_cost = round(ev_grid_share * grid_kwh_price, 5)
-    except:
-        ev_grid_share = 0.0
-        ev_grid_cost = 0.0
-    _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
-    
-    solar_kwh_price = get_solar_sell_price(set_entity_attr=update_entities)
-    try:
-        ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
-        ev_solar_cost = round(ev_solar_share * solar_kwh_price, 5)
-    except:
-        ev_solar_share = 0.0
-        ev_solar_cost = 0.0
-    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
-    
-    powerwall_kwh_price = get_powerwall_kwh_price()
-    try:
-        ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
-        ev_powerwall_cost = round(ev_powerwall_share * powerwall_kwh_price, 5)
-    except:
-        ev_powerwall_share = 0.0
-        ev_powerwall_cost = 0.0
-    _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
-    _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
-
-    ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
-
-    if update_entities:
-        _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
-        set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
-
-        if not is_solar_configured():
-            raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
-            refund = get_refund()
-            price = raw_price - refund
-            set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
-        else:
-            set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
-            
-            if is_powerwall_configured():
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
-
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
+        minutes = getMinute() if solar_period_current_hour else period
+        minutes = 60 if not in_between(getMinute(), 1, 58) else minutes
         
-        set_charging_price(ev_total_price_kwh)
+        now = getTime()
+        past = now - datetime.timedelta(minutes=minutes)
+        
+        TASKS["calc_kwh_price_values"] = task.create(power_values, from_time_stamp = past, to_time_stamp = now)
+        TASKS["calc_kwh_price_local_energy_available"] = task.create(local_energy_available, period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
+        done, pending = task.wait({TASKS["kwh_charged_by_solar_ev_watt"], TASKS["calc_kwh_price_local_energy_available"]})
+        
+        values = TASKS["calc_kwh_price_values"].result()
+        ev_used_consumption = values['ev_used_consumption']
+        
+        watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = TASKS["calc_kwh_price_local_energy_available"].result()
+        
+        min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
+        
+        if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
+            _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
+            ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
+        else:
+            watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
+        
+        ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
+        
+        TASKS["calc_kwh_price_get_refund"] = task.create(get_refund)
+        TASKS["calc_kwh_price_grid_kwh_price"] = task.create(get_state, CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True, error_state=0.0)
+        TASKS["calc_kwh_price_solar_kwh_price"] = task.create(get_solar_sell_price, set_entity_attr=update_entities)
+        TASKS["calc_kwh_price_powerwall_kwh_price"] = task.create(get_powerwall_kwh_price)
+        done, pending = task.wait({TASKS["calc_kwh_price_grid_kwh_price"], TASKS["calc_kwh_price_solar_kwh_price"], TASKS["calc_kwh_price_powerwall_kwh_price"]})
+        
+        refund = TASKS["calc_kwh_price_get_refund"].result()
+        grid_kwh_price = TASKS["calc_kwh_price_grid_kwh_price"].result() - refund
+        solar_kwh_price = TASKS["calc_kwh_price_solar_kwh_price"].result()
+        powerwall_kwh_price = TASKS["calc_kwh_price_powerwall_kwh_price"].result()
+        
+        try:
+            ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
+            ev_grid_cost = round(ev_grid_share * grid_kwh_price, 5)
+        except:
+            ev_grid_share = 0.0
+            ev_grid_cost = 0.0
+        _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
+        _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
+        
+        try:
+            ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+            ev_solar_cost = round(ev_solar_share * solar_kwh_price, 5)
+        except:
+            ev_solar_share = 0.0
+            ev_solar_cost = 0.0
+        _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+        _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
+        
+        try:
+            ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+            ev_powerwall_cost = round(ev_powerwall_share * powerwall_kwh_price, 5)
+        except:
+            ev_powerwall_share = 0.0
+            ev_powerwall_cost = 0.0
+        _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
+        _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
 
+        ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
+
+        if update_entities:
+            _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
+            set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
+
+            if not is_solar_configured():
+                raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
+                price = raw_price - refund
+                set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
+            else:
+                set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
+                
+                if is_powerwall_configured():
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
+
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
+            
+            set_charging_price(ev_total_price_kwh)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+        pass
+    finally:
+        task_cancel("calc_kwh_price_", task_remove=True, startswith=True)
+        
     return ev_total_price_kwh
 
 def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
