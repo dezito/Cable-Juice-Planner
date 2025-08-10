@@ -4695,14 +4695,14 @@ async def _charging_history(charging_data = None, charging_type = ""):
         start = CURRENT_CHARGING_SESSION['start']
         charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
         added_kwh = round(charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
-        added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
+        kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
         added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True), 1)
         price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
         cost = round(added_kwh * price, 2)
         
         CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
         CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-        CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
         CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
