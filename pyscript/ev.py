@@ -5240,6 +5240,28 @@ def cheap_grid_charge_hours():
 
         return [very_cheap_price, ultra_cheap_price]
     
+    def remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction = None):
+        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.remove_solar_prediction_from_charge_hours")
+        global LOCAL_ENERGY_PREDICTION_DB
+        nonlocal charging_plan
+        
+        if solar_percentage_prediction is None:
+            solar_percentage_prediction = charging_plan[day]['solar_prediction']
+        
+        if timestamp in LOCAL_ENERGY_PREDICTION_DB["solar_prediction_timestamps"]:
+            solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
+            solar_kwh_added = percentage_to_kwh(solar_percentage_added, include_charging_loss=True)
+            
+            _LOGGER.info(f"Removing {solar_kwh_added}kWh {solar_percentage_added}% from solar prediction for {timestamp}")
+            
+            charging_plan[day]['solar_prediction'] = charging_plan[day]['solar_prediction'] - solar_percentage_added
+            charging_plan[day]['solar_kwh_prediction'] = charging_plan[day]['solar_kwh_prediction'] - solar_kwh_added
+            
+            if solar_percentage_prediction is not None:
+                charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
+                charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
+                
+    
     def future_charging(totalCost, totalkWh):
         _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
         global BATTERY_LEVEL_EXPENSES
@@ -5464,11 +5486,16 @@ def cheap_grid_charge_hours():
                                 continue'''
                             
                             kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
+
                             
                             if timestamp in chargeHours and battery_level_added:
-                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
+                                
+                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                                 battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                                
                                 if battery_level_sum > 0.0:
                                     if "trip" in charging_plan[day]['rules']:
                                         cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
@@ -5558,19 +5585,24 @@ def cheap_grid_charge_hours():
                                 break
                             elif kwh_needed_to_fill_up_day > 0.0:
                                 kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-
-                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                             
                             elif ultra_cheap_price and ultra_cheap_kwh_needed_today > 0.0:
                                 ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                                 
                             elif very_cheap_price and very_cheap_kwh_needed_today > 0.0:
                                 very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                             else:
                                 continue
                             
@@ -5958,7 +5990,10 @@ def cheap_grid_charge_hours():
             "battery_level_before_work": [],
             "battery_level_after_work": [],
             "battery_level_at_midnight": [],
-            "charging_sessions": {}
+            "charging_sessions": {},
+            "solar_prediction": 0.0,
+            "solar_kwh_prediction": 0.0,
+            "solar_cost_prediction": 0.0,
         }
         
         if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{day_text}") == "on":
@@ -6030,15 +6065,19 @@ def cheap_grid_charge_hours():
                     last_charging = charging_plan[day]['trip_last_charging']
 
                 for i in range(charging_hours):
-                    charging_hour = last_charging - datetime.timedelta(hours=i)
+                    timestamp = last_charging - datetime.timedelta(hours=i)
                     
                     try:
-                        hour_in_chargeHours, kwh_available = kwh_available_in_hour(charging_hour)
-                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[charging_hour])
+                        hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
+                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[timestamp])
                         
-                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, charging_hour, hour_prices[charging_hour], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
-                        charging_plan[day]['trip_kwh_needed'] += percentage_to_kwh(battery_level_added, include_charging_loss=False)
-                        charging_plan[day]["trip_total_cost"] += chargeHours[charging_hour]["Cost"]
+                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, timestamp, hour_prices[timestamp], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
+                        kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=False)
+                        charging_plan[day]['trip_kwh_needed'] += kwh_added
+                        charging_plan[day]["trip_total_cost"] += chargeHours[timestamp]["Cost"]
+                        
+                        solar_percentage_prediction = kwh_to_percentage(solar_kwh_prediction[getTimeStartOfDay(timestamp)], include_charging_loss=True)
+                        remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction=solar_percentage_prediction)
                         
                         charging_sessions_id = "battery_level_before_work"
                         
@@ -6055,9 +6094,9 @@ def cheap_grid_charge_hours():
                     
                         if charging_sessions_id not in charging_plan[day]['charging_sessions']:
                             charging_plan[day]['charging_sessions'][charging_sessions_id] = {}
-                        charging_plan[day]['charging_sessions'][charging_sessions_id][charging_hour] = chargeHours[charging_hour]
+                        charging_plan[day]['charging_sessions'][charging_sessions_id][timestamp] = chargeHours[timestamp]
                     except Exception as e:
-                        _LOGGER.warning(f"Date not yet in database: {charging_hour} ({e})")
+                        _LOGGER.warning(f"Date not yet in database: {timestamp} ({e})")
         elif fill_up_charging_enabled():
             charging_plan[day]['offday'] = True
             charging_plan[day]['offday_range_needed'] = get_entity_daily_distance()
@@ -6085,9 +6124,13 @@ def cheap_grid_charge_hours():
                 total_solar_available += solar_kwh_prediction['avg']
                 total_solar_available_price.append(solar_price_prediction['avg'])
             
-        charging_plan[day]['solar_prediction'] = round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
-        charging_plan[day]['solar_kwh_prediction'] = round(total_solar_available, 2)
-        charging_plan[day]['solar_cost_prediction'] = round((total_solar_available * average(total_solar_available_price)), 2)
+        charging_plan[day]['solar_prediction'] += round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
+        charging_plan[day]['solar_kwh_prediction'] += round(total_solar_available, 2)
+        charging_plan[day]['solar_cost_prediction'] += round((total_solar_available * average(total_solar_available_price)), 2)
+        
+        charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
+        charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
+        charging_plan[day]['solar_cost_prediction'] = max(charging_plan[day]['solar_cost_prediction'], 0.0)
         
         if not charging_plan[day]['rules']:
             charging_plan[day]['rules'].append("no_rule")
