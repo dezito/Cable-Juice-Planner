@@ -38,8 +38,6 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
         
         if try_history and output in ENTITY_UNAVAILABLE_STATES:
             output = get_previous_value(entity_id, float_type=float_type, error_state=error_state)
-            if entity_id == "sensor.batteries_state_of_capacity":
-                _LOGGER.warning(f"Using get_previous_value batteries_state_of_capacity for {entity_id}, output is {output}")
             
         if float_type is True:
             output = float(output) if output not in ENTITY_UNAVAILABLE_STATES else error_state
