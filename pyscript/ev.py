@@ -171,6 +171,7 @@ LOCAL_ENERGY_PRICES = {
 }
 LOCAL_ENERGY_PREDICTION_DB = {
     "solar_prediction": {},
+    "solar_prediction_timestamps": {},
 }
 MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = {}
 
