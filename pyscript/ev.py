@@ -7529,8 +7529,9 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
 
     def process_forecast(day, loop_datetime, is_away, current_hour_factor, cloudiness, solar_forecast_from_integration,
                         total_db, total_db_sell, total_forecast, total_forecast_sell,
-                        total_avg, total_avg_sell, timestamps, powerwall_kwh_needed):
+                        total_avg, total_avg_sell, powerwall_kwh_needed):
         _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction.process_forecast")
+        nonlocal solar_prediction_timestamps_dict, powerwall_charging_timestamps_dict
         
         loop_kwh = []
         loop_sell = []
@@ -7565,17 +7566,23 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
                     now = reset_time_to_hour()
-                    if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
-                        timestamps.append(loop_datetime)
                         
                     diff = powerwall_kwh_needed - loop_kwh
                     charging_kwh = loop_kwh if diff >= 0.0 else powerwall_kwh_needed
                     powerwall_kwh_needed -= charging_kwh
                     
+                    if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
+                        powerwall_charging_timestamps_dict[loop_datetime] = charging_kwh
+                    
                     if diff < 0.0:
                         loop_kwh = loop_kwh - abs(diff)
                         
                 if powerwall_kwh_needed <= 0.0:
+                    if loop_datetime not in solar_prediction_timestamps_dict:
+                        solar_prediction_timestamps_dict[loop_datetime] = loop_kwh
+                    else:
+                        solar_prediction_timestamps_dict[loop_datetime] += loop_kwh
+                        
                     total_avg.append(loop_kwh)
                     total_avg_sell.append(loop_sell)
                     
@@ -7584,7 +7591,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     def day_prediction_task(day, today, sunrise, sunset, stop_prediction_before, forecast_dict, solar_forecast_from_integration, end_trip, trip_last_charging, using_grid_price):
         _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction.day_prediction_task")
         global LOCAL_ENERGY_PREDICTION_DB
-        nonlocal output, output_sell, powerwall_charging_timestamps_list
+        nonlocal output, output_sell, solar_prediction_timestamps_dict, powerwall_charging_timestamps_dict
         
         date = today + datetime.timedelta(days=day)
         output[date] = 0.0
@@ -7662,7 +7669,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                             total_away_database, total_away_database_sell,
                             total_away_forecast, total_away_forecast_sell,
                             total_away, total_away_sell,
-                            powerwall_charging_timestamps_list, powerwall_kwh_needed
+                            powerwall_kwh_needed
                         )
                     else:
                         home_hours.append(hour)
@@ -7682,7 +7689,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                         total_database, total_database_sell,
                         total_forecast, total_forecast_sell,
                         total, total_sell,
-                        powerwall_charging_timestamps_list, powerwall_kwh_needed
+                        powerwall_kwh_needed
                     )
                         
             total = sum(total)
@@ -7764,7 +7771,8 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         
     using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
     
-    powerwall_charging_timestamps_list = []
+    solar_prediction_timestamps_dict = {}
+    powerwall_charging_timestamps_dict = {}
     
     random_int = random.randint(0, 1000000)
     day_prediction_task_set = set()
@@ -7784,20 +7792,22 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     finally:
         task_cancel(day_prediction_task_set, task_remove=True)
     
+    if solar_prediction_timestamps_dict:
+        LOCAL_ENERGY_PREDICTION_DB["solar_prediction_timestamps"] = solar_prediction_timestamps_dict
+    
     if powerwall_charging_timestamps:
         if get_powerwall_battery_level() < get_ev_charge_after_powerwall_battery_level() - 1.0:
             charging_planned_today = False
-            for timestamp in powerwall_charging_timestamps_list:
+            for timestamp in powerwall_charging_timestamps_dict.keys():
                 if daysBetween(timestamp, today) == 0:
                     charging_planned_today = True
                     break
             
             if not charging_planned_today:
-                powerwall_charging_timestamps_list.append(reset_time_to_hour())
+                powerwall_charging_timestamps_dict.append(reset_time_to_hour())
         
-        powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
-        LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
-        return powerwall_charging_timestamps_list
+        LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_dict
+        return powerwall_charging_timestamps_dict.keys()
     
     avg = []
     avg_sell = []
