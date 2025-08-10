@@ -7847,7 +7847,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     break
             
             if not charging_planned_today:
-                powerwall_charging_timestamps_dict.append(reset_time_to_hour())
+                powerwall_charging_timestamps_dict[reset_time_to_hour()] = percentage_to_kwh(get_ev_charge_after_powerwall_battery_level() - get_powerwall_battery_level())
         
         LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_dict
         return powerwall_charging_timestamps_dict.keys()
