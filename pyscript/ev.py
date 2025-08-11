@@ -9155,12 +9155,6 @@ def load_kwh_prices():
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global KWH_AVG_PRICES_DB
-    
-    def convert_to_int_if_possible(key):
-        try:
-            return int(key)
-        except (ValueError, TypeError):
-            return key
         
     def set_default_values(name):
         global KWH_AVG_PRICES_DB
