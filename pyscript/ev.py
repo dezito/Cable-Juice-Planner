@@ -9251,22 +9251,23 @@ def append_kwh_prices():
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
         if "today" in get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id']):
-            today = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], "today")
-            
-            max_price = max(today) - get_refund()
-            mean_price = round(average(today), 3) - get_refund()
-            min_price = min(today) - get_refund()
-            
-            max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
-            
-            KWH_AVG_PRICES_DB['max'].insert(0, max_price)
-            KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
-            KWH_AVG_PRICES_DB['min'].insert(0, min_price)
-            KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
-            KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
-            KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
-
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+            
+            if "today" not in power_prices_attr:
+                today = power_prices_attr["today"]
+                
+                max_price = max(today) - get_refund()
+                mean_price = round(average(today), 3) - get_refund()
+                min_price = min(today) - get_refund()
+                
+                max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
+                
+                KWH_AVG_PRICES_DB['max'].insert(0, max_price)
+                KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
+                KWH_AVG_PRICES_DB['min'].insert(0, min_price)
+                KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
+                KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
+                KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
             
             transmissions_nettarif = 0.0
             systemtarif = 0.0
