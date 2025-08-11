@@ -9738,6 +9738,8 @@ if INITIALIZATION_COMPLETE:
                     if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
                         return
                     
+                    _LOGGER.info(f"Ev charge port changed from {old_value} to {value}")
+                    
                     try:
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
