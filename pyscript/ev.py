@@ -2723,6 +2723,23 @@ def emoji_text_format(text, group_size=3):
     
     return '<br>'.join(grouped_text)
 
+def emoji_update_local_energy(emojis=[], kwh_from_local_energy=0.0, solar_kwh_of_local_energy=0.0, powerwall_kwh_of_local_energy=0.0):
+    if solar_kwh_of_local_energy > 0.0:
+        emojis = join_unique_emojis(emojis, emoji_parse({'solar': True}))
+    elif len(emojis.split(" ")) > 1 and solar_kwh_of_local_energy <= 0.0:
+        emojis_set = set(emojis.split(" "))
+        emojis_set.discard(emoji_parse({'solar': True}))
+        emojis = " ".join(emojis_set)
+        
+    if powerwall_kwh_of_local_energy > 0.0:
+        emojis = join_unique_emojis(emojis, emoji_parse({'powerwall': True}))
+    elif len(emojis.split(" ")) > 1 and powerwall_kwh_of_local_energy <= 0.0:
+        emojis_set = set(emojis.split(" "))
+        emojis_set.discard(emoji_parse({'powerwall': True}))
+        emojis = " ".join(emojis_set)
+        
+    return emojis
+
 def set_default_entity_states():
     func_name = "set_default_entity_states"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -4261,23 +4278,11 @@ def charging_history_recalc_price():
                     task_cancel("charging_history_recalc_price_", task_remove=True, startswith=True)
                 
                 cost = added_kwh * price
-                if kwh_from_local_energy <= 0.0 and (solar_kwh_of_local_energy <= 0.0 or powerwall_kwh_of_local_energy <= 0.0):
-                    return False
+                """if kwh_from_local_energy <= 0.0 and (solar_kwh_of_local_energy <= 0.0 or powerwall_kwh_of_local_energy <= 0.0):
+                    return False"""
                 
-                if solar_kwh_of_local_energy > 0.0:
-                    emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
-                elif len(emoji.split(" ")) > 1 and solar_kwh_of_local_energy <= 0.0:
-                    emojis = set(emoji.split(" "))
-                    emojis.discard(emoji_parse({'solar': True}))
-                    emoji = " ".join(emojis)
-                    
-                if powerwall_kwh_of_local_energy > 0.0:
-                    emoji = join_unique_emojis(emoji, emoji_parse({'powerwall': True}))
-                elif len(emoji.split(" ")) > 1 and powerwall_kwh_of_local_energy <= 0.0:
-                    emojis = set(emoji.split(" "))
-                    emojis.discard(emoji_parse({'powerwall': True}))
-                    emoji = " ".join(emojis)
-
+                emoji = emoji_sorting(emoji_update_local_energy(emojis=emoji, kwh_from_local_energy=kwh_from_local_energy, solar_kwh_of_local_energy=solar_kwh_of_local_energy, powerwall_kwh_of_local_energy=powerwall_kwh_of_local_energy))
+                
                 CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
                 CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
                 CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
@@ -4493,18 +4498,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                         else:
                             break
                 
-                emoji = emoji_sorting(emoji)
-                
-                if len(emoji.split(" ")) > 1:
-                    if solar_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'solar': True}))
-                        emoji = " ".join(emojis)
-                        
-                    if powerwall_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'powerwall': True}))
-                        emoji = " ".join(emojis)
+                emoji = emoji_sorting(emoji_update_local_energy(emojis=emoji, kwh_from_local_energy=kWh_from_local_energy, solar_kwh_of_local_energy=solar_kwh_of_local_energy, powerwall_kwh_of_local_energy=powerwall_kwh_of_local_energy))
                 
                 combined_db[started] = {
                     "cost": round(cost, 3),
