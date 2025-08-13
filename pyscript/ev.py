@@ -3852,7 +3852,7 @@ def drive_efficiency_save_car_stats(bootup=False):
         
         attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
         
-        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km"]
+        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km", "reported"]
         for key in key_list:
             if key not in attributes:
                 return
@@ -3867,7 +3867,8 @@ def drive_efficiency_save_car_stats(bootup=False):
             "cost": float(attributes["cost"]),
             "efficiency": float(attributes["efficiency"]),
             "distancePerkWh": float(attributes["distancePerkWh"]),
-            "wh_km": float(attributes["wh_km"])
+            "wh_km": float(attributes["wh_km"]),
+            "reported": attributes["reported"]
         }
     
     if bootup:
@@ -3882,6 +3883,9 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_last_drive_efficiency_data()
         
     else:
+        if "reported" in LAST_DRIVE_EFFICIENCY_DATA:
+            LAST_DRIVE_EFFICIENCY_DATA["reported"] = False
+            
         if is_ev_configured():
             set_last_odometer()
         set_last_battery_level()
@@ -3916,6 +3920,9 @@ def drive_efficiency(state=None):
                 drive_efficiency_save_car_stats()
             PREHEATING = False
         elif state in EV_PLUGGED_STATES + CHARGER_READY_STATUS:
+            if "reported" in LAST_DRIVE_EFFICIENCY_DATA and LAST_DRIVE_EFFICIENCY_DATA["reported"]:
+                return
+            
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
@@ -4016,7 +4023,8 @@ def drive_efficiency(state=None):
                 "cost": cost,
                 "efficiency": efficiency,
                 "distancePerkWh": distancePerkWh,
-                "wh_km": wh_km
+                "wh_km": wh_km,
+                "reported": True
             }
             
             set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.last_drive_efficiency_data", LAST_DRIVE_EFFICIENCY_DATA)
