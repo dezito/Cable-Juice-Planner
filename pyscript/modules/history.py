@@ -6,43 +6,43 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.util import dt as dt_util
 
+ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
+
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
-def interpolate_sensor_data(sensor_data, from_time, to_time, num_points):
-    # Omdan sensordata til en sorteret liste af (timestamp, value) tuples
+def timestamps_correction(from_datetime, to_datetime):
+    from_time = min(from_datetime, to_datetime)
+    to_time = max(from_datetime, to_datetime)
+    return from_time, to_time
+
+def interpolate_sensor_data(sensor_data, from_datetime, to_datetime, num_points):
     sorted_data = sorted(sensor_data.items())
     
     numeric_data = []
     non_numeric_data = {}
 
-    # Filtrér og konverter værdierne til float, men behold ikke-numeriske data
     for timestamp, value in sorted_data:
         try:
             float_value = float(value)
             numeric_data.append((timestamp, float_value))
         except ValueError:
-            non_numeric_data[timestamp] = value  # Behold de ikke-konvertible værdier
+            non_numeric_data[timestamp] = value
 
     interpolated_dict = {}
 
     if numeric_data:
-        # Adskil timestamps og værdier efter filtrering
         existing_timestamps, existing_values = zip(*numeric_data)
         
-        # Lav en liste med lige fordelte timestamps mellem from_time og to_time
-        float_timestamps = np.linspace(from_time, to_time, num_points)
+        float_timestamps = np.linspace(from_datetime, to_datetime, num_points)
         
-        # Interpoler værdierne ved de ønskede timestamps
         interpolated_values = np.interp(float_timestamps, existing_timestamps, existing_values)
         
-        # Konverter float timestamps til datetime og lav dictionary
         for ts, val in zip(float_timestamps, interpolated_values):
             dt = datetime.datetime.fromtimestamp(ts)
             interpolated_dict[dt] = val
 
-    # Tilføj ikke-numeriske data (og konverter timestamps hvis nødvendigt)
     for ts, val in non_numeric_data.items():
         if isinstance(ts, (int, float)):
             ts = datetime.datetime.fromtimestamp(ts)
@@ -118,17 +118,16 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     _LOGGER = globals()['_LOGGER'].getChild("get_values")
     from power_convert import power_convert
     
-    from_time = min(from_datetime, to_datetime)
-    to_time = max(from_datetime, to_datetime)
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
-    history_data = fetch_history_data(hass, entity_id, from_time, to_time)
+    history_data = fetch_history_data(hass, entity_id, from_datetime, to_datetime)
     
     states = {}
 
     if isinstance(history_data, dict):
         for ts, value in history_data.items():
             try:
-                if value not in ["unknown", "unavailable"]:
+                if value not in ENTITY_UNAVAILABLE_STATES:
                     if float_type is True:
                         try:
                             value = float(value)
@@ -140,7 +139,6 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
             except:
                 pass
 
-    # Calculate the average value of the entity
     if states:
         if include_timestamps:
             return states
@@ -165,17 +163,16 @@ def get_min_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_min_value")
     
-    from_time = min(from_datetime, to_datetime)
-    to_time = max(from_datetime, to_datetime)
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
-    states = get_values(entity_id, from_time, to_time, float_type=True, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
     
     if states:
         min_value = min(states)
-        _LOGGER.debug(f"The min value of {entity_id} between {from_time} and {to_time} is {min_value}: {states}")
+        _LOGGER.debug(f"The min value of {entity_id} between {from_datetime} and {to_datetime} is {min_value}: {states}")
         return min_value
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime}")
         
     return error_state
 
@@ -195,17 +192,16 @@ def get_max_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_max_value")
     
-    from_time = min(from_datetime, to_datetime)
-    to_time = max(from_datetime, to_datetime)
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
-    states = get_values(entity_id, from_time, to_time, float_type=True, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
     
     if states:
         max_value = max(states)
-        _LOGGER.debug(f"The max value of {entity_id} between {from_time} and {to_time} is {max_value}: {states}")
+        _LOGGER.debug(f"The max value of {entity_id} between {from_datetime} and {to_datetime} is {max_value}: {states}")
         return max_value
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime}")
         
     return error_state
 
@@ -225,18 +221,17 @@ def get_average_value(entity_id, from_datetime, to_datetime, convert_to=None, er
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_average_value")
     
-    from_time = min(from_datetime, to_datetime)
-    to_time = max(from_datetime, to_datetime)
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
-    states = get_values(entity_id, from_time, to_time, float_type=True, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
     
     if states:
         avg_value = sum(states) / len(states)
         avg_value = avg_value
-        _LOGGER.debug(f"The average value of {entity_id} between {from_time} and {to_time} is {avg_value}")
+        _LOGGER.debug(f"The average value of {entity_id} between {from_datetime} and {to_datetime} is {avg_value}")
         return avg_value
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime}")
         
     return error_state
 
@@ -256,20 +251,19 @@ def get_delta_value(entity_id, from_datetime, to_datetime, convert_to=None, erro
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_delta_value")
     
-    from_time = min(from_datetime, to_datetime)
-    to_time = max(from_datetime, to_datetime)
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
-    states = get_values(entity_id, from_time, to_time, float_type=True, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
     
     if states:
         first_state = states[0]
         last_state = states[-1]
         delta = last_state - first_state
         _LOGGER.debug(f"first_state:{first_state} last_state:{last_state} delta:{delta}\n states:{states}")
-        _LOGGER.debug(f"The delta value of {entity_id} between {from_time} and {to_time} is {delta}")
+        _LOGGER.debug(f"The delta value of {entity_id} between {from_datetime} and {to_datetime} is {delta}")
         return delta
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime}")
 
     return error_state
 
@@ -288,17 +282,17 @@ def get_last_value(entity_id, float_type=False, convert_to=None, error_state="un
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_last_value")
     
-    to_time = datetime.datetime.now()
-    from_time = to_time - datetime.timedelta(days=1)
+    to_datetime = datetime.datetime.now()
+    from_datetime = to_datetime - datetime.timedelta(days=1)
     
-    states = get_values(entity_id, from_time, to_time, float_type=float_type, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to = convert_to, error_state=None)
     
     if isinstance(states, list) and len(states) != 0:
         last_value = states[-1]
-        _LOGGER.debug(f"The last value of {entity_id} between {from_time} and {to_time} is {last_value}")
+        _LOGGER.debug(f"The last value of {entity_id} between {from_datetime} and {to_datetime} is {last_value}")
         return last_value
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time} returning {error_state}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime} returning {error_state}")
         
     return error_state
 
@@ -317,19 +311,19 @@ def get_previous_value(entity_id, float_type=False, convert_to=None, error_state
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_previous_value")
     
-    to_time = datetime.datetime.now()
-    from_time = to_time - datetime.timedelta(days=1)
+    to_datetime = datetime.datetime.now()
+    from_datetime = to_datetime - datetime.timedelta(days=1)
     
-    states = get_values(entity_id, from_time, to_time, float_type=float_type, convert_to = convert_to, error_state=None)
+    states = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to = convert_to, error_state=None)
     
     if states:
         last_value = states[-1]
         for value in states[::-1]:
             if value != last_value:
-                _LOGGER.debug(f"The previous value of {entity_id} between {from_time} and {to_time} is {value}")
+                _LOGGER.debug(f"The previous value of {entity_id} between {from_datetime} and {to_datetime} is {value}")
                 return value
     else:
-        _LOGGER.debug(f"No data found for {entity_id} between {from_time} and {to_time}")
+        _LOGGER.debug(f"No data found for {entity_id} between {from_datetime} and {to_datetime}")
         
     try:
         if float_type is True:

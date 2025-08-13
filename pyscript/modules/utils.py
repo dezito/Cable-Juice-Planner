@@ -11,7 +11,7 @@ _LOGGER = getLogger(BASENAME)
 
 def in_between(check, start, end):
     """
-    Checks if a given value falls within a specified range, inclusive of the start and exclusive of the end. 
+    Checks if a given value falls within a specified range, inclusive of the start and exclusive of the end.
     Handles wrap-around logic for ranges that span the boundary (e.g., overnight).
 
     Parameters:
@@ -303,7 +303,7 @@ def delete_dict_key_with_path(d, path):
     keys = path.split('.')
     current = d
 
-    for i, key in enumerate(keys[:-1]):  # Iterate up to the second last key
+    for i, key in enumerate(keys[:-1]):
         if key.isdigit():
             key = int(key)
             if isinstance(current, list) and 0 <= key < len(current):
@@ -358,21 +358,19 @@ def update_keys_recursive(obj, key_mapping):
     - bool: True if any updates were made, False otherwise.
     """
     _LOGGER = globals()['_LOGGER'].getChild("update_keys_recursive")
-    updated = False  # Flag to track if any updates are made
+    updated = False
 
     if isinstance(obj, dict):
         for old_key, new_key in key_mapping.items():
             if old_key in obj:
                 obj[new_key] = obj.pop(old_key)
-                updated = True  # Set flag to True if a key is updated
+                updated = True
         for value in obj.values():
-            # Recursively update and check if nested dictionaries/lists are updated
             if update_keys_recursive(value, key_mapping):
                 updated = True
 
     elif isinstance(obj, list):
         for item in obj:
-            # Recursively update and check if items in the list are updated
             if update_keys_recursive(item, key_mapping):
                 updated = True
 
@@ -394,13 +392,11 @@ def compare_dicts_unique_to_dict1(dict1, dict2, path=""):
         if key not in dict2:
             unique_to_dict1[path + key] = dict1[key]
         elif isinstance(dict1[key], dict) and isinstance(dict2.get(key), dict):
-            # Recursively compare nested dictionaries
             nested_unique = compare_dicts_unique_to_dict1(dict1[key], dict2.get(key, {}), path + key + ".")
             unique_to_dict1.update(nested_unique)
         elif isinstance(dict1[key], list) and isinstance(dict2.get(key), list):
             for idx, item in enumerate(dict1[key]):
                 if isinstance(item, dict):
-                    # Assuming dict2[key] is a list of dictionaries of the same length as dict1[key]
                     nested_unique = compare_dicts_unique_to_dict1(item, dict2[key][idx], path + key + f".{idx}.")
                     unique_to_dict1.update(nested_unique)
 
@@ -465,7 +461,6 @@ def limit_dict_size(dct, size):
     """
     _LOGGER = globals()['_LOGGER'].getChild("limit_dict_size")
     
-    # Konverter dictionary til en liste, behold kun de nyeste X elementer, og lav det tilbage til en dictionary
     return dict(list(dct.items())[-size:])
 
 def contains_any(first, second):
@@ -473,13 +468,10 @@ def contains_any(first, second):
     Checks if at least one element from 'first' exists in 'second'.
     Uses set operations for efficiency.
     """
-    # Convert both inputs to sets
     first_set = set(first) if not isinstance(first, str) else {first}
     second_set = set(second) if not isinstance(second, str) else {second}
 
-    # Check if there's any intersection
     return bool(first_set & second_set)
-
 
 def check_next_24_hours_diff(dict1, dict2):
     now = datetime.datetime.now()

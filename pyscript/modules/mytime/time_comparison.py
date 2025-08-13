@@ -7,7 +7,6 @@ def monthsBetween(now, then, error_value=0):
         now = now.replace(tzinfo=None)
         then = then.replace(tzinfo=None)
 
-        # Calculate the number of months between the two dates
         months_diff = (then.year - now.year) * 12 + (then.month - now.month)
 
         return months_diff
@@ -64,18 +63,5 @@ def secondsBetween(now, then, error_value=0):
         return error_value
 
 def inBetween(check, start, end):
-    '''if start > end:
-        if check > start or check < end:
-            return True
-    elif start < end:
-        if check > start and check < end:
-            return True
-    elif check == start:
-        return True
-    return False
-    if start <= end:
-        return start <= check < end
-    else: # over midnight e.g., 23:30-04:15
-        return start <= check or check < end'''
     #return check <= start < end if check <= end else check <= start or start < end
     return start <= check < end if start <= end else start <= check or check < end

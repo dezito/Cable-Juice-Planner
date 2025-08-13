@@ -122,14 +122,14 @@ ERROR_COUNT = 0
 
 POWERWALL_CHARGING_TEXT = ""
 
-SOLAR_PRODUCTION_TRIGGER = 100.0  # Minimum solar production in Watt to consider solar available
+SOLAR_PRODUCTION_TRIGGER = 500.0  # Minimum solar production in Watt to consider solar available
 POWERWALL_CHARGING_TRIGGER = 500.0  # Minimum Powerwall charging in Watt to consider Powerwall charging
 POWERWALL_DISCHARGING_TRIGGER = 500.0 # Minimum Powerwall discharging in Watt to consider Powerwall discharging
 
 LAST_WAKE_UP_DATETIME = resetDatetime()
 LAST_TRIP_CHANGE_DATETIME = getTime()
 
-ENTITY_UNAVAILABLE_STATES = ("unavailable", "unknown")
+ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
 CHARGER_READY_STATUS = ("on", "connect", "connected", "ready", "ready_to_charge", "awaiting_authorization", "awaiting_start")
 CHARGER_NOT_READY_STATUS = ("off", "disconnect", "disconnected")
 CHARGER_COMPLETED_STATUS = ("completed", "finished")
@@ -171,6 +171,7 @@ LOCAL_ENERGY_PRICES = {
 }
 LOCAL_ENERGY_PREDICTION_DB = {
     "solar_prediction": {},
+    "solar_prediction_timestamps": {},
 }
 MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = {}
 
@@ -509,7 +510,7 @@ COMMENT_DB_YAML = {
     "first_run": "**Required** After editing the file set this to false",
     "cron_interval": "**Required** Interval between state check and function runs",
     "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
-    "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
+    "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
     "charger.entity_ids.power_consumtion_entity_id": "**Required** Charging power in Watt",
     "charger.entity_ids.kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
     "charger.entity_ids.lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
@@ -1176,7 +1177,8 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
 }
 
 def welcome():
-    _LOGGER = globals()['_LOGGER'].getChild("welcome")
+    func_name = "welcome"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     return f'''
 -------------------------------------------------------------------
 🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
@@ -1184,8 +1186,9 @@ def welcome():
 '''
 
 def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
+    func_name = "task_wait_until"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
-    _LOGGER = globals()['_LOGGER'].getChild("task_wait_until")
     
     try:
         if task_name not in TASKS:
@@ -1214,8 +1217,10 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
     return False
     
 def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, startswith=False):
+    func_name = "task_cancel"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
-    _LOGGER = globals()['_LOGGER'].getChild("task_cancel")
 
     def _cancel_one(task_key: str) -> bool:
         global TASKS
@@ -1275,14 +1280,17 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
         return False
 
     if not task_names:
-        _LOGGER.warning("No matching tasks to cancel")
+        if startswith:
+            _LOGGER.warning(f"No matching tasks to cancel with prefix: {task_name}")
+        else:
+            _LOGGER.warning(f"No matching tasks to cancel with name: {task_name}")
         return True
 
     task_set = set()
     for name in set(task_names):
-        TASKS[f"task_cancel__cancel_one_{name}"] = task.create(_cancel_one, name)
-        TASKS[f"task_cancel__cancel_one_{name}"].set_name(f"task_cancel__cancel_one_{name}")
-        task_set.add(TASKS[f"task_cancel__cancel_one_{name}"])
+        TASKS[f"{func_prefix}_cancel_one_{name}"] = task.create(_cancel_one, name)
+        TASKS[f"{func_prefix}_cancel_one_{name}"].set_name(f"{func_prefix}_cancel_one_{name}")
+        task_set.add(TASKS[f"{func_prefix}_cancel_one_{name}"])
     
     done, pending = task.wait(task_set)
 
@@ -1295,6 +1303,8 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
             if result is not True:
                 _LOGGER.warning(f"Task cancel failed for: {name}")
                 all_success = False
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+            pass
         except Exception as e:
             _LOGGER.error(f"Exception cancelling task {name}: {e}")
             all_success = False
@@ -1303,25 +1313,25 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
 
     return all_success
 
-        
 def task_shutdown():
-    task.unique("task_shutdown")
-    _LOGGER = globals()['_LOGGER'].getChild("task_shutdown")
+    func_name = "task_shutdown"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
     
     tasks_done_list = []
     tasks_length = len(TASKS) + 1
     
     for i, task_name in enumerate(list(TASKS.keys())):
-        i += 1
-        set_charging_rule(f"📟Lukker tråde ned {i}/{tasks_length}")
+        set_charging_rule(f"📟Lukket tråde ned {i}/{tasks_length}")
         
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
             
+        i += 1
         task.wait_until(timeout=0.2)
     
-    set_charging_rule("📟Lukker tråde ned - Færdig")
+    set_charging_rule("📟Lukket tråde ned - Færdig")
     for task_name in tasks_done_list:
         try:
             if task_name in TASKS:
@@ -1336,7 +1346,7 @@ def task_shutdown():
         my_persistent_notification(
             title=f"⚠️ {__name__} - Task Kill Error",
             message=f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}\n\nPlease report this issue to the developer with the above information\nat https://github.com/dezito/Cable-Juice-Planner/issues",
-            persistent_notification_id=f"{__name__}_task_shutdown_error_{INSTANCE_ID}"
+            persistent_notification_id=f"{__name__}_{func_name}_error_{INSTANCE_ID}"
         )
         
     task.wait_until(timeout=1.0)
@@ -1464,7 +1474,9 @@ def get_hours_plan():
     return output
 
 def append_overview_output(title = None, timestamp = None):
-    task.unique("append_overview_output")
+    func_name = "append_overview_output"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global OVERVIEW_HISTORY
     
     if timestamp is None:
@@ -1643,8 +1655,10 @@ async def run_git_command(cmd):
 
 @service(f"pyscript.{__name__}_check_master_updates")
 def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
-    task.unique("check_master_updates")
-    _LOGGER = globals()['_LOGGER'].getChild("check_master_updates")
+    func_name = "check_master_updates"
+    func_prefix = f"{func_name}_"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
     
     config_path = get_config_folder()
@@ -1659,35 +1673,35 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
         run_git_command(["git", "-C", repo_path, "fetch", "origin", branch])
 
-        TASKS['check_master_updates_local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS['check_master_updates_remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS['check_master_updates_local_head'], TASKS['check_master_updates_remote_head']})
+        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
-        local_head = TASKS['check_master_updates_local_head'].result()
-        remote_head = TASKS['check_master_updates_remote_head'].result()
+        local_head = TASKS[f'{func_prefix}local_head'].result()
+        remote_head = TASKS[f'{func_prefix}remote_head'].result()
         
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
             my_persistent_notification(
                 "✅ Ingen opdateringer tilgængelige",
                 title=f"{TITLE} Opdateringstjek",
-                persistent_notification_id=f"{__name__}_check_master_updates"
+                persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS['check_master_updates_total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
-        TASKS['check_master_updates_merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
-        TASKS['check_master_updates_commit_log_lines'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
-        done, pending = task.wait({TASKS['check_master_updates_total_commits_behind'], TASKS['check_master_updates_merge_commits'], TASKS['check_master_updates_commit_log_lines']})
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
+        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
         
-        total_commits_behind = int(TASKS['check_master_updates_total_commits_behind'].result() or "0")
+        total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
         
-        merge_commits = TASKS['check_master_updates_merge_commits'].result()
+        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
         merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
         
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        commit_log_lines = str(TASKS['check_master_updates_commit_log_lines'].result()).split("\n")
+        commit_log_lines = str(TASKS[f'{func_prefix}commit_log_lines'].result()).split("\n")
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
         
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
@@ -1695,11 +1709,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
     finally:
-        task_list = ["check_master_updates_local_head", "check_master_updates_remote_head",
-                 "check_master_updates_total_commits_behind", "check_master_updates_merge_commits",
-                 "check_master_updates_commit_log_lines"
-                 ]
-        task_cancel(task_list, task_remove=True, timeout=5.0)
+        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
 
     _LOGGER.info(f"Check {branch} updates: {result}")
 
@@ -1710,28 +1720,30 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} bagud**\n\n"
             f"**Ændringer:**\n{result['commit_log']}",
             title=f"{TITLE} Opdatering tilgængelig",
-            persistent_notification_id=f"{__name__}_check_master_updates"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
     elif "error" in result:
         _LOGGER.error(f"Could not check for updates: {result['error']}")
         my_persistent_notification(
             f"⚠️ Kan ikke tjekke efter opdateringer: {result['error']}",
             title=f"{TITLE} Fejl",
-            persistent_notification_id=f"{__name__}_check_master_updates"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
     elif trigger_type == "service":
         _LOGGER.info("No updates available")
         my_persistent_notification(
             "✅ Ingen opdateringer tilgængelige",
             title=f"{TITLE} Opdateringstjek",
-            persistent_notification_id=f"{__name__}_check_master_updates"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
 
 
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
-    task.unique("update_repo")
-    _LOGGER = globals()['_LOGGER'].getChild("update_repo")
+    func_name = "update_repo"
+    func_prefix = f"{func_name}_"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
 
     config_path = get_config_folder()
@@ -1743,29 +1755,29 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
         run_git_command(["git", "-C", repo_path, "fetch", "--all"])
 
-        TASKS['check_master_updates_local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS['check_master_updates_remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS['check_master_updates_local_head'], TASKS['check_master_updates_remote_head']})
+        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
-        local_head = TASKS['check_master_updates_local_head'].result()
-        remote_head = TASKS['check_master_updates_remote_head'].result()
+        local_head = TASKS[f'{func_prefix}local_head'].result()
+        remote_head = TASKS[f'{func_prefix}remote_head'].result()
         
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
             my_persistent_notification(
                 "✅ Ingen opdateringer tilgængelige",
                 title=f"{TITLE} Opdateringstjek",
-                persistent_notification_id=f"{__name__}_update_repo"
+                persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS['check_master_updates_total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
-        TASKS['check_master_updates_merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
-        done, pending = task.wait({TASKS['check_master_updates_total_commits_behind'], TASKS['check_master_updates_merge_commits']})
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
+        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
         
-        total_commits_behind = int(TASKS['check_master_updates_total_commits_behind'].result() or "0")
+        total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
 
-        merge_commits = TASKS['check_master_updates_merge_commits'].result()
+        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
         merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
@@ -1784,7 +1796,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             f"🚀 Opdatering gennemført!\n\n📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} bagud**\n\n"
             f"**Ændringer hentet fra GitHub:**\n{commit_log_md}",
             title=f"{TITLE} Opdatering fuldført",
-            persistent_notification_id=f"{__name__}_update_repo"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
 
         task.wait_until(timeout=5)
@@ -1795,15 +1807,16 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         my_persistent_notification(
             f"⚠️ Opdateringsfejl: {str(e)}",
             title=f"{TITLE} Fejl under opdatering",
-            persistent_notification_id=f"{__name__}_update_repo"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
     finally:
-        task_cancel("check_master_updates_", task_remove=True, timeout=5.0, startswith=True)
+        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
-    task.unique("debug_info")
-    _LOGGER = globals()['_LOGGER'].getChild("debug_info")
+    func_name = "debug_info"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     debug_info = []
 
     debug_info.append(f"<center>\n")
@@ -1844,10 +1857,12 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     debug_info_output = "\n".join(debug_info)
 
     #_LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
-    my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_debug_info")
+    my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_{func_name}")
 
 def save_error_to_file(error_message, caller_function_name = None):
-    _LOGGER = globals()['_LOGGER'].getChild("save_error_to_file")
+    func_name = "save_error_to_file"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     # Convert get_debug_info_sections() to ensure compatibility with YAML
     def convert_tuples_to_lists(obj):
         if isinstance(obj, tuple):
@@ -1870,20 +1885,20 @@ def save_error_to_file(error_message, caller_function_name = None):
     filename = f"{__name__}_error_log.yaml"
     
     try:
-        TASKS['save_error_to_file_error_log'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['save_error_to_file_error_log']})
-        error_log = TASKS['save_error_to_file_error_log'].result()
+        TASKS[f'{func_prefix}error_log'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}error_log']})
+        error_log = TASKS[f'{func_prefix}error_log'].result()
         
         if not error_log:
             error_log = dict()
     
-        TASKS["save_error_to_file_convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, get_debug_info_sections().copy())
-        done, pending = task.wait({TASKS["save_error_to_file_convert_tuples_to_lists"]})
+        TASKS[f"{func_prefix}convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, get_debug_info_sections().copy())
+        done, pending = task.wait({TASKS[f"{func_prefix}convert_tuples_to_lists"]})
         
         debug_dict = {
             "caller_function_name": caller_function_name,
             "error_message": error_message,
-            "live_image": TASKS["save_error_to_file_convert_tuples_to_lists"].result(),
+            "live_image": TASKS[f"{func_prefix}convert_tuples_to_lists"].result(),
         }
         if error_log:
             error_log = limit_dict_size(error_log, 30)
@@ -1895,18 +1910,19 @@ def save_error_to_file(error_message, caller_function_name = None):
                     return
                 break
                 
-        TASKS["save_error_to_file_remove_anchors"] = task.create(remove_anchors, debug_dict)
-        done, pending = task.wait({TASKS["save_error_to_file_remove_anchors"]})
-        error_log[getTime()] = TASKS["save_error_to_file_remove_anchors"].result()
+        TASKS[f"{func_prefix}remove_anchors"] = task.create(remove_anchors, debug_dict)
+        done, pending = task.wait({TASKS[f"{func_prefix}remove_anchors"]})
+        error_log[getTime()] = TASKS[f"{func_prefix}remove_anchors"].result()
         
         save_changes(filename, error_log)
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     finally:
-        task_cancel("save_error_to_file_", task_remove=True, timeout=5.0, startswith=True)
+        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
     
 def is_charger_configured(cfg = None):
-    _LOGGER = globals()['_LOGGER'].getChild("is_charger_configured")
+    func_name = "is_charger_configured"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGER_CONFIGURED
     
     def check_criteria(cfg):
@@ -1927,7 +1943,8 @@ def is_charger_configured(cfg = None):
     return CHARGER_CONFIGURED
 
 def is_solar_configured(cfg = None):
-    _LOGGER = globals()['_LOGGER'].getChild("is_solar_configured")
+    func_name = "is_solar_configured"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global SOLAR_CONFIGURED
     
     def check_criteria(cfg):
@@ -1943,7 +1960,8 @@ def is_solar_configured(cfg = None):
     return SOLAR_CONFIGURED
         
 def is_powerwall_configured(cfg = None):
-    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_configured")
+    func_name = "is_powerwall_configured"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWERWALL_CONFIGURED
     
     def check_criteria(cfg):
@@ -1959,7 +1977,8 @@ def is_powerwall_configured(cfg = None):
     return POWERWALL_CONFIGURED
 
 def is_ev_configured(cfg = None):
-    _LOGGER = globals()['_LOGGER'].getChild("is_ev_configured")
+    func_name = "is_ev_configured"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global EV_CONFIGURED
     
     def check_criteria(cfg):
@@ -1979,13 +1998,15 @@ def is_ev_configured(cfg = None):
     return EV_CONFIGURED
 
 def is_entity_configured(entity):
-    _LOGGER = globals()['_LOGGER'].getChild("is_entity_configured")
+    func_name = "is_entity_configured"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     if entity is None or entity == "":
         return False
     return True
 
 def is_entity_available(entity):
-    _LOGGER = globals()['_LOGGER'].getChild("is_entity_available")
+    func_name = "is_entity_available"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global INTEGRATION_OFFLINE_TIMESTAMP
     
     if not is_entity_configured(entity):
@@ -2014,32 +2035,37 @@ def is_entity_available(entity):
                 
             if minutesBetween(INTEGRATION_OFFLINE_TIMESTAMP[integration], getTime()) > 30:
                 _LOGGER.warning(f"Reloading {integration} integration")
-                my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{entity}_reload_entity_integration")
+                my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{func_name}_{entity}")
                 reload_entity_integration(entity)
 
 def is_powerwall_charging(charge_watt = 0.0):
-    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_charging")
+    func_name = "is_powerwall_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     if not isinstance(charge_watt, (int, float)):
         _LOGGER.error(f"Invalid discharge_watt value: {charge_watt}")
         return False
     return True if charge_watt > POWERWALL_CHARGING_TRIGGER else False
 
 def is_powerwall_discharging(discharge_watt = 0.0):
-    _LOGGER = globals()['_LOGGER'].getChild("is_powerwall_discharging")
+    func_name = "is_powerwall_discharging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     if not isinstance(discharge_watt, (int, float)):
         _LOGGER.error(f"Invalid discharge_watt value: {discharge_watt}")
         return False
     return True if discharge_watt > POWERWALL_DISCHARGING_TRIGGER else False
 
 def is_solar_production_available(watt = 0.0):
-    _LOGGER = globals()['_LOGGER'].getChild("is_solar_production_available")
+    func_name = "is_solar_production_available"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if not isinstance(watt, (int, float)):
         _LOGGER.error(f"Invalid watt value: {watt}")
         return False
     return True if watt > SOLAR_PRODUCTION_TRIGGER else False
     
 def get_all_unavailable_entities():
-    _LOGGER = globals()['_LOGGER'].getChild("get_all_unavailable_entities")
+    func_name = "get_all_unavailable_entities"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     entities = []
     for value in CONFIG.values():
@@ -2063,7 +2089,9 @@ def get_all_unavailable_entities():
     return entities
 
 def save_changes(file, db):
-    _LOGGER = globals()['_LOGGER'].getChild("save_changes")
+    func_name = "save_changes"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global COMMENT_DB_YAML
     
     db = db.copy() if isinstance(db, dict) else db
@@ -2072,14 +2100,14 @@ def save_changes(file, db):
         _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
     
     try:
-        TASKS[f'save_changes_db_disk_{file}'] = task.create(load_yaml, file)
-        done, pending = task.wait({TASKS[f'save_changes_db_disk_{file}']})
-        db_disk = TASKS[f'save_changes_db_disk_{file}'].result()
+        TASKS[f'{func_prefix}db_disk_{file}'] = task.create(load_yaml, file)
+        done, pending = task.wait({TASKS[f'{func_prefix}db_disk_{file}']})
+        db_disk = TASKS[f'{func_prefix}db_disk_{file}'].result()
     except Exception as e:
         _LOGGER.error(f"Error loading {file} from disk: {e}")
         db_disk = {}
     finally:
-        task_cancel(f'save_changes_db_disk_{file}', task_remove=True, timeout=5.0)
+        task_cancel(f'{func_prefix}db_disk_{file}', task_remove=True, timeout=5.0)
     
     if "version" in db_disk:
         del db_disk["version"]
@@ -2088,16 +2116,18 @@ def save_changes(file, db):
     if db != db_disk:
         try:
             _LOGGER.info(f"Saving {file} to disk")
-            TASKS[f'save_changes_save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
-            done, pending = task.wait({TASKS[f'save_changes_save_yaml_{file}']})
+            TASKS[f'{func_prefix}save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
+            done, pending = task.wait({TASKS[f'{func_prefix}save_yaml_{file}']})
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
-            my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification", persistent_notification_id = f"{__name__}_{file}_save_changes_error")
+            my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification", persistent_notification_id = f"{__name__}_{file}_{func_name}_error")
         finally:
-            task_cancel(f'save_changes_save_yaml_{file}', task_remove=True, timeout=5.0)
+            task_cancel(f'{func_prefix}save_yaml_{file}', task_remove=True, timeout=5.0)
         
 def create_integration_dict():
-    _LOGGER = globals()['_LOGGER'].getChild("create_integration_dict")
+    func_name = "create_integration_dict"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
     
     def integration_lookup(entity_id):
@@ -2120,35 +2150,37 @@ def create_integration_dict():
     
     local_task_names = []
     
-    for value in CONFIG.values():
-        if isinstance(value, dict) and "entity_ids" in value:
-            for entity_id in value["entity_ids"].values():
-                if entity_id is None or entity_id == "":
+    try:
+        for value in CONFIG.values():
+            if isinstance(value, dict) and "entity_ids" in value:
+                for entity_id in value["entity_ids"].values():
+                    if entity_id is None or entity_id == "":
+                        continue
+                    
+                    if isinstance(entity_id, list):
+                        for entity_id_2 in entity_id:
+                            task_name = f"{func_prefix}integration_lookup_{entity_id_2}"
+                            TASKS[task_name] = task.create(integration_lookup, entity_id_2)
+                            local_task_names.append(task_name)
+                    else:
+                        task_name = f"{func_prefix}integration_lookup_{entity_id}"
+                        TASKS[task_name] = task.create(integration_lookup, entity_id)
+                        local_task_names.append(task_name)
+    
+        done, pending = task.wait(set([TASKS[task_name] for task_name in local_task_names]))
+    
+        for task_name in local_task_names:
+            if task_name in TASKS:
+                entity_id, integration = TASKS[task_name].result()
+                
+                if integration is None:
                     continue
                 
-                if isinstance(entity_id, list):
-                    for entity_id_2 in entity_id:
-                        task_name = f"create_integration_dict_integration_lookup_{entity_id_2}"
-                        TASKS[task_name] = task.create(integration_lookup, entity_id_2)
-                        local_task_names.append(task_name)
-                else:
-                    task_name = f"create_integration_dict_integration_lookup_{entity_id}"
-                    TASKS[task_name] = task.create(integration_lookup, entity_id)
-                    local_task_names.append(task_name)
-    
-    done, pending = task.wait(set([TASKS[task_name] for task_name in local_task_names]))
-    
-    for task_name in local_task_names:
-        if task_name in TASKS:
-            entity_id, integration = TASKS[task_name].result()
-            
-            task_cancel(task_name, task_remove=True)
-            
-            if integration is None:
-                continue
-            
-            ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
-            add_to_dict(integration)
+                ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
+                add_to_dict(integration)
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
+        
                     
     ENTITY_INTEGRATION_DICT["supported_integrations"] = {
         key: value
@@ -2159,7 +2191,8 @@ def create_integration_dict():
     _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
 
 def reload_entity_integration(entity_id):
-    _LOGGER = globals()['_LOGGER'].getChild("reload_entity_integration")
+    func_name = "reload_entity_integration"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global ENTITY_INTEGRATION_DICT
     
     integration = get_integration(entity_id)
@@ -2175,7 +2208,8 @@ def reload_entity_integration(entity_id):
         task_cancel(f'reload_entity_integration_{entity_id}', task_remove=True, timeout=5.0)
         
 def reset_counter_entity_integration():
-    _LOGGER = globals()['_LOGGER'].getChild("reset_counter_entity_integration")
+    func_name = "reset_counter_entity_integration"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global ENTITY_INTEGRATION_DICT
     
     _LOGGER.info(f"ENTITY_INTEGRATION_DICT before reset:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
@@ -2191,7 +2225,8 @@ def commands_history_clean_entity_integration():
         ENTITY_INTEGRATION_DICT["commands_history"][integration] = [dt for dt in ENTITY_INTEGRATION_DICT["commands_history"][integration] if dt[0] >= now - datetime.timedelta(days=1)]
     
 def allow_command_entity_integration(entity_id=None, command="None", integration=None, check_only=False):
-    _LOGGER = globals()['_LOGGER'].getChild("allow_command_entity_integration")
+    func_name = "allow_command_entity_integration"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global ENTITY_INTEGRATION_DICT, INTEGRATION_DAILY_LIMIT_BUFFER
 
     allowed = False
@@ -2244,7 +2279,8 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
     return allowed
 
 def set_charging_rule(text=""):
-    _LOGGER = globals()['_LOGGER'].getChild("set_charging_rule")
+    func_name = "set_charging_rule"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWERWALL_CHARGING_TEXT, RESTARTING_CHARGER_COUNT, TESTING
     
     if RESTARTING_CHARGER_COUNT < 3:
@@ -2277,7 +2313,8 @@ def set_charging_rule(text=""):
             _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
             
 def restart_script():
-    _LOGGER = globals()['_LOGGER'].getChild("restart_script")
+    func_name = "restart_script"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     _LOGGER.info("Restarting script")
     set_charging_rule(f"📟Genstarter scriptet")
@@ -2285,7 +2322,8 @@ def restart_script():
         service.call("pyscript", "reload", blocking=True, global_ctx=f"file.{__name__}")
 
 def notify_critical_change(cfg = {}, filename = None):
-    _LOGGER = globals()['_LOGGER'].getChild("notify_critical_change")
+    func_name = "notify_critical_change"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     def check_nested_keys_exist(cfg, dotted_keys):
         missing_keys = []
@@ -2326,7 +2364,7 @@ def notify_critical_change(cfg = {}, filename = None):
                         f"**Handling:**\n"
                         f"Opdater venligst din konfiguration i {__name__}_config.yaml filen.\n",
                 title = f"{TITLE} Kritisk ændring i konfiguration",
-                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_update_required"
+                persistent_notification_id = f"{__name__}_{func_name}_powerwall_update_required"
             )
             
     if filename == f"packages/{__name__}.yaml":
@@ -2347,11 +2385,13 @@ def notify_critical_change(cfg = {}, filename = None):
                         f"**Handling:**\n"
                         f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
                 title = f"{TITLE} Kritisk ændring i entiteter",
-                persistent_notification_id = f"{__name__}_notify_critical_change_powerwall_entities_update_required"
+                persistent_notification_id = f"{__name__}_{func_name}_powerwall_entities_update_required"
             )
 
 def init():
-    _LOGGER = globals()['_LOGGER'].getChild("init")
+    func_name = "init"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
@@ -2359,20 +2399,20 @@ def init():
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
         if not file_exists(file_path):
-            TASKS[f'init_not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
-            done, pending = task.wait({TASKS[f'init_not_exists_save_yaml_{file_path}']})
+            TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
+            done, pending = task.wait({TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}']})
     
             _LOGGER.error(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
-                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\nTilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\nTilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_created")
             else:
-                my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{file_path}_created")
+                my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_created")
             
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
         
-        TASKS[f'init_load_yaml_{file_path}'] = task.create(load_yaml, file_path)
-        done, pending = task.wait({TASKS[f'init_load_yaml_{file_path}']})
-        content = TASKS[f'init_load_yaml_{file_path}'].result()
+        TASKS[f'{func_prefix}load_yaml_{file_path}'] = task.create(load_yaml, file_path)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml_{file_path}']})
+        content = TASKS[f'{func_prefix}load_yaml_{file_path}'].result()
         
         _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content, width=200, compact=True)}")
 
@@ -2382,9 +2422,9 @@ def init():
             
             task.wait_until(timeout=5.0)
             
-            TASKS[f'init_load_yaml_{file_path}'] = task.create(load_yaml, file_path)
-            done, pending = task.wait({TASKS[f'init_load_yaml_{file_path}']})
-            content = TASKS[f'init_load_yaml_{file_path}'].result()
+            TASKS[f'{func_prefix}load_yaml_{file_path}'] = task.create(load_yaml, file_path)
+            done, pending = task.wait({TASKS[f'{func_prefix}load_yaml_{file_path}']})
+            content = TASKS[f'{func_prefix}load_yaml_{file_path}'].result()
             
             if not content:
                 raise Exception(f"Failed to load {file_path}")
@@ -2397,8 +2437,8 @@ def init():
             raise Exception(f"{file_path} is empty after updating keys, removing file")
         
         if (updated or file_path == f"{__name__}_config.yaml"):
-            TASKS[f'init_updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-            done, pending = task.wait({TASKS[f'init_updated_save_yaml_{file_path}']})
+            TASKS[f'{func_prefix}updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+            done, pending = task.wait({TASKS[f'{func_prefix}updated_save_yaml_{file_path}']})
             
         if key_renaming:
             old_content = content.copy()
@@ -2449,10 +2489,10 @@ def init():
                     _LOGGER.info(log_string)
                 
                 config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
-                my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{file_path}_renaming_keys")
+                my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_renaming_keys")
                 
-                TASKS[f'init_key_moved_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
-                done, pending = task.wait({TASKS[f'init_key_moved_save_yaml_{file_path}']})
+                TASKS[f'{func_prefix}key_moved_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+                done, pending = task.wait({TASKS[f'{func_prefix}key_moved_save_yaml_{file_path}']})
         
         deprecated_keys = compare_dicts_unique_to_dict1(content, default_content)
         if deprecated_keys:
@@ -2460,7 +2500,7 @@ def init():
             for key, value in deprecated_keys.items():
                 _LOGGER.warning(f"\t{key}: {value}")
             _LOGGER.warning("Please remove them.")
-            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{TITLE} Forældet nøgler", persistent_notification_id = file_path)
+            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{TITLE} Forældet nøgler", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_deprecated_keys")
             
                 
         if updated:
@@ -2550,13 +2590,14 @@ def init():
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
         set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
-        my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_init")
+        my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_{func_name}_error")
     finally:
-        task_cancel("init_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
 
 @service(f"pyscript.{__name__}_all_entities")
 def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
-    _LOGGER = globals()['_LOGGER'].getChild("get_all_entities")
+    func_name = "get_all_entities"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global DEFAULT_ENTITIES
     entities = []
     yaml_card = ["type: vertical-stack\n", "cards:\n"]
@@ -2592,7 +2633,7 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
     my_persistent_notification(
         message = "\n".join(notify_message),
         title = f"{TITLE} Alle entities",
-        persistent_notification_id = f"{__name__}_get_all_entities_notification"
+        persistent_notification_id = f"{__name__}_{func_name}"
     )
         
     if trigger_type == "service":
@@ -2624,14 +2665,16 @@ if INITIALIZATION_COMPLETE:
     MAX_KWH_CHARGING = MAX_WATT_CHARGING / 1000
 
 def set_entity_friendlynames():
-    _LOGGER = globals()['_LOGGER'].getChild("set_entity_friendlynames")
+    func_name = "set_entity_friendlynames"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     for key, nested_dict in CHARGING_TYPES.items():
         if "entity_name" in nested_dict:
             _LOGGER.info(f"Setting sensor.{nested_dict['entity_name']}.friendly_name: {nested_dict['emoji']} {nested_dict['description']}")
             set_attr(f"sensor.{nested_dict['entity_name']}.friendly_name", f"{nested_dict['emoji']} {nested_dict['description']}")
 
 def emoji_description():
-    _LOGGER = globals()['_LOGGER'].getChild("emoji_description")
+    func_name = "emoji_description"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     emoji_sorted = sorted(CHARGING_TYPES.values(), key=lambda x: float(x.get('priority', 0)))
 
@@ -2680,8 +2723,27 @@ def emoji_text_format(text, group_size=3):
     
     return '<br>'.join(grouped_text)
 
+def emoji_update_local_energy(emojis=[], kwh_from_local_energy=0.0, solar_kwh_of_local_energy=0.0, powerwall_kwh_of_local_energy=0.0):
+    if solar_kwh_of_local_energy > 0.0:
+        emojis = join_unique_emojis(emojis, emoji_parse({'solar': True}))
+    elif len(emojis.split(" ")) > 1 and solar_kwh_of_local_energy <= 0.0:
+        emojis_set = set(emojis.split(" "))
+        emojis_set.discard(emoji_parse({'solar': True}))
+        emojis = " ".join(emojis_set)
+        
+    if powerwall_kwh_of_local_energy > 0.0:
+        emojis = join_unique_emojis(emojis, emoji_parse({'powerwall': True}))
+    elif len(emojis.split(" ")) > 1 and powerwall_kwh_of_local_energy <= 0.0:
+        emojis_set = set(emojis.split(" "))
+        emojis_set.discard(emoji_parse({'powerwall': True}))
+        emojis = " ".join(emojis_set)
+        
+    return emojis
+
 def set_default_entity_states():
-    _LOGGER = globals()['_LOGGER'].getChild("set_default_entity_states")
+    func_name = "set_default_entity_states"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
     set_attr(f"sensor.{__name__}_overview.overview", "<center>\n\n**Ingen oversigt endnu**\n\n</center>")
     
@@ -2742,8 +2804,36 @@ def get_list_values(data):
                 float_list.append(item[1])
     return float_list
 
+def is_ev_home():
+    func_name = "is_ev_home"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    current_location = "home"
+    
+    try:
+        if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
+        else:
+            now = getTime()
+            minutes_ago = now - datetime.timedelta(minutes=15)
+            
+            charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
+            charger_was_connected = set(CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS) & set(get_values(CONFIG['charger']['entity_ids']['status_entity_id'], minutes_ago, now, include_timestamps=False, error_state=["connected"]))
+            
+            if charger_status in ENTITY_UNAVAILABLE_STATES or (charger_status in CHARGER_NOT_READY_STATUS and not charger_was_connected):
+                current_location = "away"
+            else:
+                current_location = "home"
+    except Exception as e:
+        _LOGGER.error(f"Error getting current location: {e}")
+        current_location = "home"
+    
+    return True if current_location == "home" else False
+
 def is_calculating_charging_loss():
-    _LOGGER = globals()['_LOGGER'].getChild("is_calculating_charging_loss")
+    func_name = "is_calculating_charging_loss"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return True if get_state(f"input_boolean.{__name__}_calculate_charging_loss", float_type=False, error_state=False) == "on" else False
     except Exception as e:
@@ -2757,7 +2847,9 @@ def get_vin_cupra_born(entity_id):
     return vin
 
 def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_estimated_range=False):
-    _LOGGER = globals()['_LOGGER'].getChild("get_entity_daily_distance")
+    func_name = "get_entity_daily_distance"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         if day_text is None and date is None:
             distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
@@ -2784,7 +2876,9 @@ def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_est
         return CONFIG['ev_car']['typical_daily_distance_non_working_day']
 
 def get_min_daily_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_min_daily_battery_level")
+    func_name = "get_min_daily_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True))
     except Exception as e:
@@ -2792,7 +2886,9 @@ def get_min_daily_battery_level():
         return CONFIG['ev_car']['min_daily_battery_level']
 
 def get_min_trip_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_min_trip_battery_level")
+    func_name = "get_min_trip_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True))
     except Exception as e:
@@ -2800,7 +2896,9 @@ def get_min_trip_battery_level():
         return CONFIG['ev_car']['min_trip_battery_level']
 
 def get_min_charge_limit_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_min_charge_limit_battery_level")
+    func_name = "get_min_charge_limit_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -2808,7 +2906,9 @@ def get_min_charge_limit_battery_level():
         return CONFIG['ev_car']['min_charge_limit_battery_level']
 
 def get_max_recommended_charge_limit_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_max_recommended_charge_limit_battery_level")
+    func_name = "get_max_recommended_charge_limit_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True))
     except Exception as e:
@@ -2816,7 +2916,9 @@ def get_max_recommended_charge_limit_battery_level():
         return CONFIG['ev_car']['max_recommended_charge_limit_battery_level']
 
 def get_very_cheap_grid_charging_max_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_very_cheap_grid_charging_max_battery_level")
+    func_name = "get_very_cheap_grid_charging_max_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -2824,7 +2926,9 @@ def get_very_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']
 
 def get_ultra_cheap_grid_charging_max_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_ultra_cheap_grid_charging_max_battery_level")
+    func_name = "get_ultra_cheap_grid_charging_max_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True))
     except Exception as e:
@@ -2832,7 +2936,9 @@ def get_ultra_cheap_grid_charging_max_battery_level():
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
 def get_powerwall_discharge_above_needed():
-    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_discharge_above_needed")
+    func_name = "get_powerwall_discharge_above_needed"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if not is_powerwall_configured():
         return False
     
@@ -2843,7 +2949,9 @@ def get_powerwall_discharge_above_needed():
         _LOGGER.warning(f"Cant get powerwall discharge above needed state from input_boolean.{__name__}_powerwall_discharge_above_needed entity: {e}")
 
 def get_powerwall_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_battery_level")
+    func_name = "get_powerwall_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if not is_powerwall_configured():
         return 100.0
     
@@ -2854,7 +2962,9 @@ def get_powerwall_battery_level():
         return 100.0
 
 def get_ev_charge_after_powerwall_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_ev_charge_after_powerwall_battery_level")
+    func_name = "get_ev_charge_after_powerwall_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if not is_powerwall_configured():
         return 100.0
     
@@ -2869,7 +2979,9 @@ def get_ev_charge_after_powerwall_battery_level():
             return 100.0
 
 def get_completed_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_completed_battery_level")
+    func_name = "get_completed_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
@@ -2879,7 +2991,9 @@ def get_completed_battery_level():
         return 100.0
 
 def get_estimated_total_range():
-    _LOGGER = globals()['_LOGGER'].getChild("get_estimated_total_range")
+    func_name = "get_estimated_total_range"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     estimated_total_range = 0.0
     try:
         estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
@@ -2889,7 +3003,9 @@ def get_estimated_total_range():
     return estimated_total_range
 
 def get_trip_date_time():
-    _LOGGER = globals()['_LOGGER'].getChild("get_trip_date_time")
+    func_name = "get_trip_date_time"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     trip_date_time = resetDatetime()
     try:
         trip_date_time = get_state(f"input_datetime.{__name__}_trip_date_time", error_state=resetDatetime())
@@ -2903,7 +3019,9 @@ def get_trip_date_time():
     return trip_date_time
 
 def get_trip_homecoming_date_time():
-    _LOGGER = globals()['_LOGGER'].getChild("get_trip_homecoming_date_time")
+    func_name = "get_trip_homecoming_date_time"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     trip_homecoming_date_time = resetDatetime()
     try:
         trip_homecoming_date_time = get_state(f"input_datetime.{__name__}_trip_homecoming_date_time", error_state=resetDatetime())
@@ -2917,7 +3035,9 @@ def get_trip_homecoming_date_time():
     return trip_homecoming_date_time
 
 def get_trip_range():
-    _LOGGER = globals()['_LOGGER'].getChild("get_trip_range")
+    func_name = "get_trip_range"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     trip_range = 0.0
     try:
         trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed"))
@@ -2931,7 +3051,9 @@ def get_trip_range():
     return trip_range
 
 def get_trip_target_level():
-    _LOGGER = globals()['_LOGGER'].getChild("get_trip_target_level")
+    func_name = "get_trip_target_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     trip_target_level = 0.0
     try:
         trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent"))
@@ -2979,7 +3101,9 @@ def manual_charging_solar_enabled():
         return True
     
 def get_tariffs(hour, day_of_week):
-    _LOGGER = globals()['_LOGGER'].getChild("tariffs")
+    func_name = "get_tariffs"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
@@ -3015,7 +3139,8 @@ def get_tariffs(hour, day_of_week):
             }
 
 def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False):
-    _LOGGER = globals()['_LOGGER'].getChild("get_solar_sell_price")
+    func_name = "get_solar_sell_price"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_solar_configured(): return 0.0
     
@@ -3123,7 +3248,9 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
     return sell_price
 
 def get_refund():
-    _LOGGER = globals()['_LOGGER'].getChild("get_refund")
+    func_name = "get_refund"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return abs(CONFIG['prices']['refund'])
     except Exception as e:
@@ -3131,7 +3258,9 @@ def get_refund():
         return 0.0
 
 def get_current_hour_price():
-    _LOGGER = globals()['_LOGGER'].getChild("get_current_hour_price")
+    func_name = "get_current_hour_price"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         return float(get_state(f"sensor.{__name__}_kwh_cost_price", float_type=True))
     except Exception as e:
@@ -3139,7 +3268,8 @@ def get_current_hour_price():
         return 0.0
 
 def get_powerwall_kwh_price(kwh = None):
-    _LOGGER = globals()['_LOGGER'].getChild("get_powerwall_kwh_price")
+    func_name = "get_powerwall_kwh_price"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWER_VALUES_DB, KWH_AVG_PRICES_DB, LOCAL_ENERGY_PRICES
     
     if not is_powerwall_configured():
@@ -3235,7 +3365,9 @@ def km_percentage_to_km_kwh(percentage):
     return kwh_to_percentage(percentage, include_charging_loss=False)
     
 def distance_per_percentage():
-    _LOGGER = globals()['_LOGGER'].getChild("distance_per_percentage")
+    func_name = "distance_per_percentage"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     output = 3.0
     
     if not is_ev_configured():
@@ -3273,7 +3405,8 @@ def ev_power_connected():
     return get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) in EV_PLUGGED_STATES or get_state(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) in EV_PLUGGED_STATES
     
 def wake_up_ev():
-    _LOGGER = globals()['_LOGGER'].getChild("wake_up_ev")
+    func_name = "wake_up_ev"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global LAST_WAKE_UP_DATETIME
     
     if not is_ev_configured(): return
@@ -3318,7 +3451,8 @@ def wake_up_ev():
                 _LOGGER.warning(f"Limit reached, cant wake up ev")
     
 def send_command(entity_id, command, force = False):
-    _LOGGER = globals()['_LOGGER'].getChild("send_command")
+    func_name = "send_command"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_entity_available(entity_id): return
     
@@ -3346,7 +3480,8 @@ def send_command(entity_id, command, force = False):
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
         
 def ev_send_command(entity_id, command, force = False): #TODO Add start/stop service for EVs
-    _LOGGER = globals()['_LOGGER'].getChild("ev_send_command")
+    func_name = "ev_send_command"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_ev_configured(): return
     
@@ -3400,7 +3535,8 @@ def ev_send_command(entity_id, command, force = False): #TODO Add start/stop ser
         _LOGGER.debug(f"Ignoring command {entity_id} state already: {command}")
         
 def peak_battery_level_after_last_plug():
-    _LOGGER = globals()['_LOGGER'].getChild("peak_battery_level_after_last_plug")
+    func_name = "peak_battery_level_after_last_plug"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     max_battery_level = 0.0
     
@@ -3434,7 +3570,9 @@ def peak_battery_level_after_last_plug():
     return max_battery_level
 
 def battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("battery_level")
+    func_name = "battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         if not is_ev_configured():
             return float(get_state(f"input_number.{__name__}_battery_level", float_type=True, error_state=0.0))
@@ -3451,7 +3589,9 @@ def battery_level():
         return 0.0
 
 def battery_range():
-    _LOGGER = globals()['_LOGGER'].getChild("battery_range")
+    func_name = "battery_range"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     distance = 0.0
     
     if not is_ev_configured():
@@ -3474,26 +3614,28 @@ def is_battery_fully_charged():
     set_state(f"input_datetime.{__name__}_last_full_charge", getTime())
 
 def load_drive_efficiency():
-    _LOGGER = globals()['_LOGGER'].getChild("load_drive_efficiency")
+    func_name = "load_drive_efficiency"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global DRIVE_EFFICIENCY_DB
     
     if not is_ev_configured(): return
     
     try:
         filename = f"{__name__}_drive_efficiency_db"
-        TASKS['load_drive_efficiency_create_yaml'] = task.create(create_yaml, filename, db=DRIVE_EFFICIENCY_DB)
-        done, pending = task.wait({TASKS['load_drive_efficiency_create_yaml']})
+        TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=DRIVE_EFFICIENCY_DB)
+        done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
         
-        TASKS['load_drive_efficiency_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_drive_efficiency_load_yaml']})
-        DRIVE_EFFICIENCY_DB = TASKS['load_drive_efficiency_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        DRIVE_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_drive_efficiency_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_drive_efficiency()")
-        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_drive_efficiency")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("load_drive_efficiency_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if DRIVE_EFFICIENCY_DB == {} or not DRIVE_EFFICIENCY_DB:
         DRIVE_EFFICIENCY_DB = []
@@ -3512,19 +3654,21 @@ def save_drive_efficiency():
     set_state_drive_efficiency()
     
 def set_state_drive_efficiency():
-    _LOGGER = globals()['_LOGGER'].getChild("set_state_drive_efficiency")
+    func_name = "set_state_drive_efficiency"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if not is_ev_configured(): return
     
     try:
-        drive_efficiency = get_list_values(DRIVE_EFFICIENCY_DB)
+        drive_efficiency_values = get_list_values(DRIVE_EFFICIENCY_DB)
         
-        if not drive_efficiency:
+        if not drive_efficiency_values:
             _LOGGER.warning("DRIVE_EFFICIENCY_DB is empty or contains no valid float values.")
             return
         
-        set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency[0])
-        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency))))
-        set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency)))
+        set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency_values[0])
+        set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency_values))))
+        set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
             if "dato" in item:
@@ -3539,26 +3683,28 @@ def set_state_drive_efficiency():
         _LOGGER.error(f"Cant set drive efficiency: {e}")
 
 def load_km_kwh_efficiency():
-    _LOGGER = globals()['_LOGGER'].getChild("load_km_kwh_efficiency")
+    func_name = "load_km_kwh_efficiency"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global KM_KWH_EFFICIENCY_DB
     
     if not is_ev_configured(): return
     
     try:
         filename = f"{__name__}_km_kwh_efficiency_db"
-        TASKS['load_km_kwh_efficiency_create_yaml'] = task.create(create_yaml, filename, db=KM_KWH_EFFICIENCY_DB)
-        done, pending = task.wait({TASKS['load_km_kwh_efficiency_create_yaml']})
+        TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KM_KWH_EFFICIENCY_DB)
+        done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
         
-        TASKS['load_km_kwh_efficiency_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_km_kwh_efficiency_load_yaml']})
-        KM_KWH_EFFICIENCY_DB = TASKS['load_km_kwh_efficiency_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        KM_KWH_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_km_kwh_efficiency()")
-        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_load_km_kwh_efficiency")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("load_km_kwh_efficiency_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if KM_KWH_EFFICIENCY_DB == {} or not KM_KWH_EFFICIENCY_DB:
         KM_KWH_EFFICIENCY_DB = []
@@ -3577,7 +3723,8 @@ def save_km_kwh_efficiency():
     set_state_km_kwh_efficiency()
     
 def set_state_km_kwh_efficiency():
-    _LOGGER = globals()['_LOGGER'].getChild("set_state_km_kwh_efficiency")
+    func_name = "set_state_km_kwh_efficiency"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     if not is_ev_configured():
         return
@@ -3619,11 +3766,12 @@ def set_state_km_kwh_efficiency():
         my_persistent_notification(
             f"Cant set km/kwh efficiency: {e}",
             f"{TITLE} warning",
-            persistent_notification_id=f"{__name__}_set_state_km_kwh_efficiency"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
 
 def set_estimated_range():
-    _LOGGER = globals()['_LOGGER'].getChild("set_estimated_range")
+    func_name = "set_estimated_range"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_ev_configured():
         return
@@ -3656,7 +3804,7 @@ def set_estimated_range():
         my_persistent_notification(
             f"Cant set estimated range: {e}",
             f"{TITLE} warning",
-            persistent_notification_id=f"{__name__}_estimated_range"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
         
 def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost, efficiency, distance_per_kWh, wh_km):
@@ -3673,7 +3821,8 @@ def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost
             _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e}")
 
 def drive_efficiency_save_car_stats(bootup=False):
-    _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency_save_car_stats")
+    func_name = "drive_efficiency_save_car_stats"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     def set_last_odometer():
         odometer_value = float(get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state="unknown"))
@@ -3703,7 +3852,7 @@ def drive_efficiency_save_car_stats(bootup=False):
         
         attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
         
-        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km"]
+        key_list = ["timestamp", "distance", "usedkWh", "usedBattery", "cost", "efficiency", "distancePerkWh", "wh_km", "reported"]
         for key in key_list:
             if key not in attributes:
                 return
@@ -3718,7 +3867,8 @@ def drive_efficiency_save_car_stats(bootup=False):
             "cost": float(attributes["cost"]),
             "efficiency": float(attributes["efficiency"]),
             "distancePerkWh": float(attributes["distancePerkWh"]),
-            "wh_km": float(attributes["wh_km"])
+            "wh_km": float(attributes["wh_km"]),
+            "reported": attributes["reported"]
         }
     
     if bootup:
@@ -3733,18 +3883,22 @@ def drive_efficiency_save_car_stats(bootup=False):
         set_last_drive_efficiency_data()
         
     else:
+        if "reported" in LAST_DRIVE_EFFICIENCY_DATA:
+            LAST_DRIVE_EFFICIENCY_DATA["reported"] = False
+            
         if is_ev_configured():
             set_last_odometer()
         set_last_battery_level()
 
 def drive_efficiency(state=None):
-    _LOGGER = globals()['_LOGGER'].getChild("drive_efficiency")
+    func_name = "drive_efficiency"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global DRIVE_EFFICIENCY_DB, KM_KWH_EFFICIENCY_DB, PREHEATING, LAST_DRIVE_EFFICIENCY_DATA
     
     state = str(state).lower()
     
     heating_states = ("preheat", "preheat_cancel")
-    states = tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
+    states = tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
     
     if state not in states:
         _LOGGER.warning(f"Ignoring state not in {states}: {state}")
@@ -3758,16 +3912,20 @@ def drive_efficiency(state=None):
         elif state == "preheat_cancel":
             PREHEATING = False
             return
-
-        if state in EV_UNPLUGGED_STATES:
+        elif state in EV_UNPLUGGED_STATES + CHARGER_NOT_READY_STATUS:
+            if battery_level() <= 0.0:
+                return
+            
             if not PREHEATING:
                 drive_efficiency_save_car_stats()
             PREHEATING = False
-        elif state in EV_PLUGGED_STATES:
+        elif state in EV_PLUGGED_STATES + CHARGER_READY_STATUS:
+            if "reported" in LAST_DRIVE_EFFICIENCY_DATA and LAST_DRIVE_EFFICIENCY_DATA["reported"]:
+                return
+            
             if not is_ev_configured():
                 distancePerkWh = km_percentage_to_km_kwh(distance_per_percentage())
                 efficiency = 100.0
-                kilometers = 0.0
                 
                 last_battery_level = float(get_state(f"sensor.{__name__}_drive_efficiency_last_battery_level", float_type=True, error_state=battery_level()))
                 
@@ -3775,16 +3933,16 @@ def drive_efficiency(state=None):
                     last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
                     _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
                     
-                    reset_current_battery_level_expenses()
-                    current_battery_level_expenses()
+                reset_current_battery_level_expenses()
+                current_battery_level_expenses()
                 
                 usedBattery = last_battery_level - battery_level()
                 usedkWh = percentage_to_kwh(usedBattery)
+                kilometers = round(get_estimated_total_range() * (usedBattery / 100.0), 1)
                     
                 if usedkWh == 0.0 or usedBattery == 0.0:
                     _LOGGER.warning("Used kWh or Used Battery is 0.0, ignoring drive")
                     return
-                
             else:
                 if not DRIVE_EFFICIENCY_DB:
                     load_drive_efficiency()
@@ -3826,8 +3984,8 @@ def drive_efficiency(state=None):
                     f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
                 )
 
-                if kilometers <= 10.0 or usedBattery <= 5.0:
-                    _LOGGER.warning(f"{kilometers}km <= 10.0 or {usedBattery} usedBattery <= 5.0, ignoring drive")
+                if kilometers <= 5.0 or usedBattery <= 2.0:
+                    _LOGGER.warning(f"{kilometers}km <= 5.0 or {usedBattery} usedBattery <= 2.0, ignoring drive")
                     return
 
                 if efficiency > 150.0:
@@ -3852,7 +4010,8 @@ def drive_efficiency(state=None):
             if "battery_level_expenses_unit" in BATTERY_LEVEL_EXPENSES and BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None:
                 unit = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit']
                 cost = round(unit * usedkWh, 2)
-                cost_str = f"Pris: {cost:.2f}kr\n"
+                kr_km = round(cost / kilometers, 2) if kilometers > 0 else 0.0
+                cost_str = f"Pris: {cost:.2f}kr ({kr_km:.2f} kr/km)\n"
             
             wh_km = round(1000 / distancePerkWh, 2)
             
@@ -3864,7 +4023,8 @@ def drive_efficiency(state=None):
                 "cost": cost,
                 "efficiency": efficiency,
                 "distancePerkWh": distancePerkWh,
-                "wh_km": wh_km
+                "wh_km": wh_km,
+                "reported": True
             }
             
             set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.last_drive_efficiency_data", LAST_DRIVE_EFFICIENCY_DATA)
@@ -3885,11 +4045,12 @@ def drive_efficiency(state=None):
         my_persistent_notification(
             f"Error in drive_efficiency:\n{e}",
             f"{TITLE} warning",
-            persistent_notification_id=f"{__name__}_drive_efficiency"
+            persistent_notification_id=f"{__name__}_{func_name}"
         )
 
 def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
-    _LOGGER = globals()['_LOGGER'].getChild("range_to_battery_level")
+    func_name = "range_to_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     minRangeInBatteryLevel = get_min_charge_limit_battery_level()
     extraRange = extraRange if extraRange is not None else get_entity_daily_distance(day_text=None, date=date)
@@ -3911,7 +4072,8 @@ def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
     return min(minRangeInBatteryLevel, 100.0)
 
 def kwh_needed_for_charging(targetLevel=None, battery=None):
-    _LOGGER = globals()['_LOGGER'].getChild("kwh_needed_for_charging")
+    func_name = "kwh_needed_for_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     targetLevel = targetLevel if targetLevel is not None else get_min_daily_battery_level()
     battery = battery if battery is not None else battery_level()
@@ -3922,7 +4084,8 @@ def kwh_needed_for_charging(targetLevel=None, battery=None):
     return max(kwh, 0.0)
 
 def verify_charge_limit(limit):
-    _LOGGER = globals()['_LOGGER'].getChild("verify_charge_limit")
+    func_name = "verify_charge_limit"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']):
         return limit
@@ -3952,7 +4115,9 @@ def reset_current_charging_session():
 reset_current_charging_session()
 
 def load_charging_history():
-    _LOGGER = globals()['_LOGGER'].getChild("load_charging_history")
+    func_name = "load_charging_history"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
     
     def rename_key_recursive(data, old_key, new_key):
@@ -3976,19 +4141,19 @@ def load_charging_history():
     
     try:
         filename = f"{__name__}_charging_history_db"
-        TASKS['load_charging_history_create_yaml'] = task.create(create_yaml, filename, db=CHARGING_HISTORY_DB)
-        done, pending = task.wait({TASKS['load_charging_history_create_yaml']})
+        TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=CHARGING_HISTORY_DB)
+        done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
         
-        TASKS['load_charging_history_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_charging_history_load_yaml']})
-        CHARGING_HISTORY_DB = TASKS['load_charging_history_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        CHARGING_HISTORY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
         error_message = f"Cant load {__name__}_charging_history_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_charging_history()")
-        my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_load_charging_history")
     finally:
-        task_cancel("load_charging_history_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if CHARGING_HISTORY_DB == {} or not CHARGING_HISTORY_DB:
         CHARGING_HISTORY_DB = {}
@@ -4010,7 +4175,7 @@ def load_charging_history():
             except Exception as e:
                 _LOGGER.error(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}\n  ({last_item})")
                 _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
-                my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_charging_history")
+                my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_last_charging_session")
     
     if is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
         now = getTime()
@@ -4033,7 +4198,8 @@ def load_charging_history():
     charging_history_combine_and_set()
     
 def save_charging_history():
-    _LOGGER = globals()['_LOGGER'].getChild("save_charging_history")
+    func_name = "save_charging_history"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_HISTORY_DB
     
     if CHARGING_HISTORY_DB:
@@ -4051,12 +4217,13 @@ def save_charging_history():
         except Exception as e:
             error_message = f"Cant save {__name__}_charging_history_db: {e}"
             _LOGGER.error(error_message)
-            save_error_to_file(error_message, caller_function_name = "save_charging_history()")
-            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_save_charging_history")
+            save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
         
 def charging_history_recalc_price():
-    _LOGGER = globals()['_LOGGER'].getChild("charging_history_recalc_price")
-    global CHARGING_HISTORY_DB
+    func_name = "charging_history_recalc_price"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global CHARGING_HISTORY_DB, TASKS
     
     if CHARGING_HISTORY_DB:
         now = getTime()
@@ -4070,7 +4237,6 @@ def charging_history_recalc_price():
             try:
                 start_charger_meter = CHARGING_HISTORY_DB[start]["start_charger_meter"]
                 ended = CHARGING_HISTORY_DB[start]["ended"]
-                emoji = CHARGING_HISTORY_DB[start]["emoji"]
                 emoji = CHARGING_HISTORY_DB[start]["emoji"]
                 
                 if ended == ">": return False
@@ -4096,32 +4262,40 @@ def charging_history_recalc_price():
                 
                 end_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
                 added_kwh = end_charger_meter - start_charger_meter
-                added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(getMinute(), added_kwh, solar_period_current_hour = True)
                 added_percentage = kwh_to_percentage(added_kwh, include_charging_loss = True)
-                price = calc_kwh_price(getMinute(), solar_period_current_hour = True)
-                cost = added_kwh * price
                 
-                if added_kwh_by_solar > 0.0 or emoji_parse({'solar': True}) in emoji:
-                    emoji = join_unique_emojis(emoji, emoji_parse({'solar': True}))
-                else:
-                    return False
-
+                kwh_from_local_energy = 0.0
+                solar_kwh_of_local_energy = 0.0
+                powerwall_kwh_of_local_energy = 0.0
+                price = 0.0
+                
+                try:
+                    TASKS["charging_history_recalc_price_calc_local_energy_kwh"] = task.create(calc_local_energy_kwh, getMinute(), added_kwh, solar_period_current_hour = True)
+                    TASKS["charging_history_recalc_price_calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), solar_period_current_hour = True)
+                    done, pending = task.wait({TASKS["charging_history_recalc_price_calc_local_energy_kwh"], TASKS["charging_history_recalc_price_calc_kwh_price"]})
+                    
+                    kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS["charging_history_recalc_price_calc_local_energy_kwh"].result()
+                    price = TASKS["charging_history_recalc_price_calc_kwh_price"].result()
+                except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+                    _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
+                    my_persistent_notification(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price_task_cancelled")
+                except Exception as e:
+                    _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
+                    my_persistent_notification(f"Error calculating local energy kWh or price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price")
+                finally:
+                    task_cancel("charging_history_recalc_price_", task_remove=True, startswith=True)
+                
+                cost = added_kwh * price
+                """if kwh_from_local_energy <= 0.0 and (solar_kwh_of_local_energy <= 0.0 or powerwall_kwh_of_local_energy <= 0.0):
+                    return False"""
+                
+                emoji = emoji_sorting(emoji_update_local_energy(emojis=emoji, kwh_from_local_energy=kwh_from_local_energy, solar_kwh_of_local_energy=solar_kwh_of_local_energy, powerwall_kwh_of_local_energy=powerwall_kwh_of_local_energy))
+                
                 CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-                CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+                CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
                 CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
                 CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
                 
-                if len(emoji.split(" ")) > 1:
-                    if solar_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'solar': True}))
-                        emoji = " ".join(emojis)
-                        
-                    if powerwall_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'powerwall': True}))
-                        emoji = " ".join(emojis)
-                    
                 CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
                 CHARGING_HISTORY_DB[start]["unit"] = round(price, 3)
                 CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
@@ -4137,11 +4311,12 @@ def charging_history_recalc_price():
                     return True
             except Exception as e:
                 _LOGGER.error(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}")
-                my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_history_recalc_price")
+                my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_calculate_last_charging_session")
     return False
 
 def charging_history_combine_and_set(get_ending_byte_size=False):
-    _LOGGER = globals()['_LOGGER'].getChild("charging_history_combine_and_set")
+    func_name = "charging_history_combine_and_set"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_HISTORY_DB, CHARGING_HISTORY_ENDING_BYTE_SIZE
     
     efficiency_adjustment = 1.15
@@ -4331,18 +4506,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                         else:
                             break
                 
-                emoji = emoji_sorting(emoji)
-                
-                if len(emoji.split(" ")) > 1:
-                    if solar_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'solar': True}))
-                        emoji = " ".join(emojis)
-                        
-                    if powerwall_kwh_of_local_energy <= 0.0:
-                        emojis = set(emoji.split(" "))
-                        emojis.discard(emoji_parse({'powerwall': True}))
-                        emoji = " ".join(emojis)
+                emoji = emoji_sorting(emoji_update_local_energy(emojis=emoji, kwh_from_local_energy=kWh_from_local_energy, solar_kwh_of_local_energy=solar_kwh_of_local_energy, powerwall_kwh_of_local_energy=powerwall_kwh_of_local_energy))
                 
                 combined_db[started] = {
                     "cost": round(cost, 3),
@@ -4572,7 +4736,8 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         save_charging_history()
     
 def charging_power_to_emulated_battery_level():
-    _LOGGER = globals()['_LOGGER'].getChild("charging_power_to_emulated_battery_level")
+    func_name = "charging_power_to_emulated_battery_level"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     if is_ev_configured():
         return
@@ -4609,28 +4774,28 @@ def charging_power_to_emulated_battery_level():
     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
 
 async def charging_history(charging_data=None, charging_type=""):
-    _LOGGER = globals()['_LOGGER'].getChild("charging_history")
+    func_name = "charging_history_worker"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
         await CHARGING_HISTORY_QUEUE.put((charging_data, charging_type))
         _LOGGER.debug(f"Tilføjet charging_data:{charging_data}, charging_type:\"{charging_type}\" til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
 
-        task_key = "charging_history_worker"
-        task_running = TASKS.get(task_key)
+        task_running = TASKS.get(func_name)
 
         if not task_running or task_running.done():
-            _LOGGER.info("Starter ny charging_history_worker task")
-            TASKS[task_key] = task.create(charging_history_worker)
+            TASKS[func_name] = task.create(charging_history_worker)
     except Exception as e:
         _LOGGER.exception(f"Fejl ved tilføjelse til charging_history kø: {e}")
         my_persistent_notification(
             f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
             f"{TITLE} fejl",
-            persistent_notification_id=f"{__name__}_charging_history_failed"
+            persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
         
 async def charging_history_worker():
-    _LOGGER = globals()['_LOGGER'].getChild("charging_history_worker")
+    func_name = "charging_history_worker"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_HISTORY_QUEUE_LAST_RESULT
     
     last_result = None
@@ -4649,26 +4814,56 @@ async def charging_history_worker():
             my_persistent_notification(
                 f"Charging history queue failed: {e}",
                 f"{TITLE} fejl",
-                persistent_notification_id=f"{__name__}_charging_history_queue_failed"
+                persistent_notification_id=f"{__name__}_{func_name}_failed"
             )
     return last_result
 
 async def _charging_history(charging_data = None, charging_type = ""):
-    _LOGGER = globals()['_LOGGER'].getChild("_charging_history")
-    global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION
+    func_name = "_charging_history"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION, TASKS
     
     def get_current_statistic(charging_ended = False):
         start = CURRENT_CHARGING_SESSION['start']
         charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
         added_kwh = round(charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
-        added_kwh_by_solar, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = calc_local_energy_kwh(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
         added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True), 1)
-        price = round(calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True), 3)
+        
+        kwh_from_local_energy = 0.0
+        solar_kwh_of_local_energy = 0.0
+        powerwall_kwh_of_local_energy = 0.0
+        price = 0.0
+        
+        try:
+            TASKS[f"{func_prefix}calc_local_energy_kwh"] = task.create(calc_local_energy_kwh, minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh, solar_period_current_hour = False)
+            TASKS[f"{func_prefix}calc_kwh_price"] = task.create(calc_kwh_price, minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True)
+            done, pending = task.wait({TASKS[f"{func_prefix}calc_local_energy_kwh"], TASKS[f"{func_prefix}calc_kwh_price"]})
+            
+            kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS[f"{func_prefix}calc_local_energy_kwh"].result()
+            price = round(TASKS[f"{func_prefix}calc_kwh_price"].result(), 3)
+        except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+            _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
+            my_persistent_notification(
+                f"Charging history task for calculating local energy kWh or price was cancelled or timed out: {e}",
+                f"{TITLE} fejl",
+                persistent_notification_id=f"{__name__}_{func_name}_task_cancelled_or_timed_out"
+            )
+        except Exception as e:
+            _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
+            my_persistent_notification(
+                f"Charging history failed to calculate local energy kWh or price: {e}",
+                f"{TITLE} fejl",
+                persistent_notification_id=f"{__name__}_{func_name}_calc_local_energy_kwh_or_price_failed"
+            )
+        finally:
+            task_cancel(func_prefix, task_remove=True, startswith=True)
+        
         cost = round(added_kwh * price, 2)
         
         CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
         CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
-        CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(added_kwh_by_solar, 3)
+        CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
         CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["cost"] = round(cost, 3)
@@ -4714,7 +4909,6 @@ async def _charging_history(charging_data = None, charging_type = ""):
             #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
             calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
             
-            _LOGGER.debug(f"CURRENT_CHARGING_SESSION {CURRENT_CHARGING_SESSION['start']} {getTime()} {getMinute()} {minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute())} calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True) {calc_kwh_price(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), solar_period_current_hour = True)}")
             min_kwh = 0.1
             
             if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
@@ -4857,7 +5051,8 @@ def current_battery_level_expenses():
     return BATTERY_LEVEL_EXPENSES
 
 def get_hour_prices():
-    _LOGGER = globals()['_LOGGER'].getChild("get_hour_prices")
+    func_name = "get_hour_prices"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
     
     LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
@@ -4960,12 +5155,12 @@ def get_hour_prices():
             except Exception as e:
                 error_message = f"Cant get offline prices: {e}"
                 _LOGGER.error(error_message)
-                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours()")
-                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_offline_prices_error")
+                save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
             
             missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
-            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_error")
+            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_real_prices_error")
     
     return hour_prices
 
@@ -4986,12 +5181,13 @@ def get_expensive_hours(day=0):
     return expensiveDict
 
 def cheap_grid_charge_hours():
-    _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours")
+    func_name = "cheap_grid_charge_hours"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES, CHARGING_PLAN, CHARGE_HOURS
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
         _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
-        my_persistent_notification(f"Kan ikke hente strøm priser, {CONFIG['prices']['entity_ids']['power_prices_entity_id']} findes ikke under domain sensor:", f"{TITLE} warning", persistent_notification_id=f"{__name__}_real_prices_not_found")
+        my_persistent_notification(f"Kan ikke hente strøm priser, {CONFIG['prices']['entity_ids']['power_prices_entity_id']} findes ikke under domain sensor:", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_real_prices_not_found")
         return
 
     today = getTimeStartOfDay()
@@ -5019,7 +5215,9 @@ def cheap_grid_charge_hours():
     current_battery_level_expenses()
     
     def change_timestamp_with_minutes(timestamp: datetime.datetime):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.change_timestamp_with_minutes")
+        nonlocal func_name
+        sub_func_name = "change_timestamp_with_minutes"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
         what_day = daysBetween(getTime(), timestamp)
         work_minute = 0
@@ -5042,7 +5240,10 @@ def cheap_grid_charge_hours():
         
     
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.available_for_charging_prediction")
+        nonlocal func_name
+        sub_func_name = "available_for_charging_prediction"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         working = False
         on_trip = False
         day = daysBetween(getTime(), timestamp)
@@ -5059,7 +5260,10 @@ def cheap_grid_charge_hours():
         return working, on_trip
     
     def kwh_available_in_hour(hour):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.kwh_available_in_hour")
+        nonlocal func_name
+        sub_func_name = "kwh_available_in_hour"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         hour_in_chargeHours = False
         kwh_available = False
         
@@ -5076,7 +5280,10 @@ def cheap_grid_charge_hours():
         return [hour_in_chargeHours, kwh_available]
 
     def check_max_battery_level_allowed(day, what_day, battery_level_id, max_recommended_battery_level, battery_level_to_added):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.check_max_battery_level_allowed")
+        nonlocal func_name
+        sub_func_name = "check_max_battery_level_allowed"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         charging_sessions_id = "battery_level_before_work" if battery_level_id == "battery_level_before_work" else "battery_level_after_work"
         max_battery_level = 0.0
         
@@ -5114,7 +5321,10 @@ def cheap_grid_charge_hours():
         return percentage_to_kwh(battery_level_to_added, include_charging_loss = True)
 
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwh_available, battery_level = None, check_max_charging_plan={"day": None, "what_day": None, "battery_level_id": None}, max_recommended_battery_level = None, rules = []):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.add_to_charge_hours")
+        nonlocal func_name
+        sub_func_name = "add_to_charge_hours"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         cost = 0.0
         kwh = MAX_KWH_CHARGING
         battery_level_added = False
@@ -5185,7 +5395,10 @@ def cheap_grid_charge_hours():
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
 
     def cheap_price_check(price):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.cheap_price_check")
+        nonlocal func_name
+        sub_func_name = "cheap_price_check"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         very_cheap_price = False
         ultra_cheap_price = False
         
@@ -5206,8 +5419,34 @@ def cheap_grid_charge_hours():
 
         return [very_cheap_price, ultra_cheap_price]
     
+    def remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction = None):
+        nonlocal func_name
+        sub_func_name = "remove_solar_prediction_from_charge_hours"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        global LOCAL_ENERGY_PREDICTION_DB
+        nonlocal charging_plan
+        
+        if solar_percentage_prediction is None:
+            solar_percentage_prediction = charging_plan[day]['solar_prediction']
+        
+        if timestamp in LOCAL_ENERGY_PREDICTION_DB["solar_prediction_timestamps"]:
+            solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
+            solar_kwh_added = percentage_to_kwh(solar_percentage_added, include_charging_loss=True)
+            
+            _LOGGER.info(f"Added {timestamp} charging, removing solar prediction {solar_kwh_added}kWh {solar_percentage_added}% from day {day}")
+            
+            charging_plan[day]['solar_prediction'] = charging_plan[day]['solar_prediction'] - solar_percentage_added
+            charging_plan[day]['solar_kwh_prediction'] = charging_plan[day]['solar_kwh_prediction'] - solar_kwh_added
+            
+            if solar_percentage_prediction is not None:
+                charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
+                charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
+                
+    
     def future_charging(totalCost, totalkWh):
-        _LOGGER = globals()['_LOGGER'].getChild("cheap_grid_charge_hours.future_charging")
+        nonlocal func_name
+        sub_func_name = "future_charging"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         global BATTERY_LEVEL_EXPENSES
         
         nonlocal trip_date_time
@@ -5430,11 +5669,16 @@ def cheap_grid_charge_hours():
                                 continue'''
                             
                             kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
+
                             
                             if timestamp in chargeHours and battery_level_added:
-                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
                                 
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
+                                
+                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
                                 battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                                
                                 if battery_level_sum > 0.0:
                                     if "trip" in charging_plan[day]['rules']:
                                         cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
@@ -5524,19 +5768,24 @@ def cheap_grid_charge_hours():
                                 break
                             elif kwh_needed_to_fill_up_day > 0.0:
                                 kwh_needed_to_fill_up_day, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_to_fill_up_day, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-
-                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                             
                             elif ultra_cheap_price and ultra_cheap_kwh_needed_today > 0.0:
                                 ultra_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(ultra_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-                                very_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                                 
                             elif very_cheap_price and very_cheap_kwh_needed_today > 0.0:
                                 very_cheap_kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(very_cheap_kwh_needed_today, totalCost, totalkWh, timestamp, price, very_cheap_price, ultra_cheap_price, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=rules)
-                                ultra_cheap_kwh_needed_today -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
-                                kwh_needed_to_fill_up_day -= percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=True)
+                                ultra_cheap_kwh_needed_today -= kwh_added
+                                kwh_needed_to_fill_up_day -= kwh_added
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                             else:
                                 continue
                             
@@ -5548,8 +5797,8 @@ def cheap_grid_charge_hours():
             except Exception as e:
                 error_message = f"Error in fill up or need recommended full charge for day {day}: {e}"
                 _LOGGER.warning(error_message)
-                save_error_to_file(error_message, caller_function_name = "cheap_grid_charge_hours().future_charging().fill_up_or_need_recommended_full_charge")
-                my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_fill_up_or_need_recommended_full_charge_error")
+                save_error_to_file(error_message, caller_function_name = f"{func_name}().{sub_func_name}().fill_up_or_need_recommended_full_charge")
+                my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_fill_up_or_need_recommended_full_charge_error")
 
             try:
                 solar_kwh = 0.0
@@ -5924,7 +6173,10 @@ def cheap_grid_charge_hours():
             "battery_level_before_work": [],
             "battery_level_after_work": [],
             "battery_level_at_midnight": [],
-            "charging_sessions": {}
+            "charging_sessions": {},
+            "solar_prediction": 0.0,
+            "solar_kwh_prediction": 0.0,
+            "solar_cost_prediction": 0.0,
         }
         
         if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{day_text}") == "on":
@@ -5996,15 +6248,19 @@ def cheap_grid_charge_hours():
                     last_charging = charging_plan[day]['trip_last_charging']
 
                 for i in range(charging_hours):
-                    charging_hour = last_charging - datetime.timedelta(hours=i)
+                    timestamp = last_charging - datetime.timedelta(hours=i)
                     
                     try:
-                        hour_in_chargeHours, kwh_available = kwh_available_in_hour(charging_hour)
-                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[charging_hour])
+                        hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
+                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[timestamp])
                         
-                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, charging_hour, hour_prices[charging_hour], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
-                        charging_plan[day]['trip_kwh_needed'] += percentage_to_kwh(battery_level_added, include_charging_loss=False)
-                        charging_plan[day]["trip_total_cost"] += chargeHours[charging_hour]["Cost"]
+                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, timestamp, hour_prices[timestamp], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
+                        kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=False)
+                        charging_plan[day]['trip_kwh_needed'] += kwh_added
+                        charging_plan[day]["trip_total_cost"] += chargeHours[timestamp]["Cost"]
+                        
+                        solar_percentage_prediction = kwh_to_percentage(solar_kwh_prediction[getTimeStartOfDay(timestamp)], include_charging_loss=True)
+                        remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction=solar_percentage_prediction)
                         
                         charging_sessions_id = "battery_level_before_work"
                         
@@ -6021,9 +6277,9 @@ def cheap_grid_charge_hours():
                     
                         if charging_sessions_id not in charging_plan[day]['charging_sessions']:
                             charging_plan[day]['charging_sessions'][charging_sessions_id] = {}
-                        charging_plan[day]['charging_sessions'][charging_sessions_id][charging_hour] = chargeHours[charging_hour]
+                        charging_plan[day]['charging_sessions'][charging_sessions_id][timestamp] = chargeHours[timestamp]
                     except Exception as e:
-                        _LOGGER.warning(f"Date not yet in database: {charging_hour} ({e})")
+                        _LOGGER.warning(f"Date not yet in database: {timestamp} ({e})")
         elif fill_up_charging_enabled():
             charging_plan[day]['offday'] = True
             charging_plan[day]['offday_range_needed'] = get_entity_daily_distance()
@@ -6051,9 +6307,13 @@ def cheap_grid_charge_hours():
                 total_solar_available += solar_kwh_prediction['avg']
                 total_solar_available_price.append(solar_price_prediction['avg'])
             
-        charging_plan[day]['solar_prediction'] = round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
-        charging_plan[day]['solar_kwh_prediction'] = round(total_solar_available, 2)
-        charging_plan[day]['solar_cost_prediction'] = round((total_solar_available * average(total_solar_available_price)), 2)
+        charging_plan[day]['solar_prediction'] += round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
+        charging_plan[day]['solar_kwh_prediction'] += round(total_solar_available, 2)
+        charging_plan[day]['solar_cost_prediction'] += round((total_solar_available * average(total_solar_available_price)), 2)
+        
+        charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
+        charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
+        charging_plan[day]['solar_cost_prediction'] = max(charging_plan[day]['solar_cost_prediction'], 0.0)
         
         if not charging_plan[day]['rules']:
             charging_plan[day]['rules'].append("no_rule")
@@ -6064,7 +6324,7 @@ def cheap_grid_charge_hours():
             warning_message += f"### Fejl i opsætningen af Arbejdsplan opladning\n"
             for warning in charging_plan_warnings[plan]:
                 warning_message += f"- **{warning}**\n"
-        my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_charging_plan_warnings")
+        my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_{func_name}_charging_plan_warnings")
     
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     
@@ -6471,7 +6731,9 @@ def cheap_grid_charge_hours():
     return chargeHours
 
 def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
-    _LOGGER = globals()['_LOGGER'].getChild("calc_charging_amps")
+    func_name = "calc_charging_amps"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     power = float(power)
     power = power
     
@@ -6533,7 +6795,8 @@ def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
     return [output['phase'], output['amp'], output['watt']]
 
 def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
-    _LOGGER = globals()['_LOGGER'].getChild("set_charger_charging_amps")
+    func_name = "set_charger_charging_amps"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     #Remember to add * before *calc_charging_amps(.......)..
     global CURRENT_CHARGING_AMPS
     
@@ -6597,7 +6860,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
     except Exception as e:
         _LOGGER.warning(f"Cant set dynamic amps on charger: {e}")
         _LOGGER.warning(f"Setting ev cars charging amps to {amps}")
-        my_persistent_notification(f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_dynamic_charging_amps")
+        my_persistent_notification(f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_dynamic")
         try:
             if not is_ev_configured():
                 raise Exception(f"{e}")
@@ -6618,8 +6881,8 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         except Exception as e_second:
             error_message = f"Cant set dynamic amps on charger: {e}\nCant set ev charging amps: {e_second}"
             _LOGGER.error(error_message)
-            save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
-            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_charging_amps")
+            save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
+            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     
     try:
         if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
@@ -6634,8 +6897,8 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
     except Exception as e:
         error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
         _LOGGER.warning(error_message)
-        save_error_to_file(error_message, caller_function_name = f"set_charger_charging_amps(phase = {phase}, amps = {amps}, watt = {watt})")
-        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_ev_charging_amps")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
+        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_ev")
             
             
     if successful:
@@ -6644,10 +6907,13 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         _LOGGER.warning(f"Cant set charger to phase:{phase} amps:{phase_1}/{phase_2}/{phase_3} watt:{watt}")
 
 def power_from_ignored(from_time_stamp, to_time_stamp):
-    _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored")
+    func_name = "power_from_ignored"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     def average_since_sum(entity_id):
-        _LOGGER = globals()['_LOGGER'].getChild("power_from_ignored.average_since_sum")
+        nonlocal func_name
+        sub_func_name = f"average_since_sum"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         if entity_id == "" or entity_id is None: return 0.0
 
         try:
@@ -6666,7 +6932,8 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
     return round(total, 2)
 
 def powerwall_max_charging_power(period=60):
-    _LOGGER = globals()['_LOGGER'].getChild("powerwall_max_charging_power")
+    func_name = "powerwall_max_charging_power"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_powerwall_configured():
         return 0.0
@@ -6692,7 +6959,8 @@ def powerwall_max_charging_power(period=60):
     return max_power
 
 def charge_from_powerwall(from_time_stamp, to_time_stamp):
-    _LOGGER = globals()['_LOGGER'].getChild("charge_from_powerwall")
+    func_name = "charge_from_powerwall"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_powerwall_configured():
         return 0.0
@@ -6713,7 +6981,8 @@ def charge_from_powerwall(from_time_stamp, to_time_stamp):
     return powerwall_charging_consumption
 
 def discharge_from_powerwall(from_time_stamp, to_time_stamp):
-    _LOGGER = globals()['_LOGGER'].getChild("discharge_from_powerwall")
+    func_name = "discharge_from_powerwall"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_powerwall_configured():
         return 0.0
@@ -6734,18 +7003,20 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
     return powerwall_discharging_consumption
 
 def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
-    _LOGGER = globals()['_LOGGER'].getChild("power_values")
+    func_name = "power_values"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
     
     random_int = random.randint(0, 10000)
     
     task_names = {
-        "power_consumption": f"power_consumption_{random_int}",
-        "ignored_consumption": f"ignored_consumption_{random_int}",
-        "powerwall_charging_consumption": f"powerwall_charging_consumption_{random_int}",
-        "powerwall_discharging_consumption": f"powerwall_discharging_consumption_{random_int}",
-        "ev_used_consumption": f"ev_used_consumption_{random_int}",
-        "solar_production": f"solar_production_{random_int}"
+        "power_consumption": f"{func_prefix}power_consumption_{random_int}",
+        "ignored_consumption": f"{func_prefix}ignored_consumption_{random_int}",
+        "powerwall_charging_consumption": f"{func_prefix}powerwall_charging_consumption_{random_int}",
+        "powerwall_discharging_consumption": f"{func_prefix}powerwall_discharging_consumption_{random_int}",
+        "ev_used_consumption": f"{func_prefix}ev_used_consumption_{random_int}",
+        "solar_production": f"{func_prefix}solar_production_{random_int}"
     }
     
     power_consumption = 0.0
@@ -6793,7 +7064,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     except Exception as e:
         _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}")
-        my_persistent_notification(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_values")
+        my_persistent_notification(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
         task_cancel(task_names.values(), task_remove=True, timeout=3.0, wait_period=0.2)
             
@@ -6809,29 +7080,21 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         "power_consumption_without_all_exclusion": power_consumption_without_all_exclusion
     }
 
-def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=False, without_all_exclusion=False, include_local_energy_distribution=False, update_entity=True):
-    _LOGGER = globals()["_LOGGER"].getChild("local_energy_available")
+def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=False, without_all_exclusion=False, include_local_energy_distribution=False):
+    func_name = "local_energy_available"
+    _LOGGER = globals()["_LOGGER"].getChild(func_name)
     global TASKS, POWERWALL_CHARGING_TEXT
-
+    
     if not is_solar_configured():
         if include_local_energy_distribution:
             return 0.0, 0.0, 0.0, 0.0
         return 0.0
-
-    random_int = random.randint(0, 10000)
-    task_names = {
-        "discharge_above_needed": f"discharge_above_needed_{random_int}",
-        "powerwall_battery_level": f"powerwall_battery_level_{random_int}",
-        "powerwall_reserved_battery_level": f"powerwall_reserved_battery_level_{random_int}",
-        "powerwall_charging_power": f"powerwall_charging_power_{random_int}",
-        "powerwall_charging_timestamps": f"powerwall_charging_timestamps_{random_int}"
-    }
     
     watts_available_from_local_energy = 0.0
+    watts_available_from_local_energy_solar_only = 0.0
     
     try:
         now = getTime()
-        current_hour = getTime().replace(minute=0, second=0, tzinfo=None)
         if timeTo is not None:
             # Range mode
             from_time_stamp = now - datetime.timedelta(minutes=timeFrom)
@@ -6856,21 +7119,110 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         powerwall_discharging_consumption = values["powerwall_discharging_consumption"]
         ev_used_consumption = values["ev_used_consumption"]
         solar_production = values["solar_production"]
-        total_production = solar_production
+        total_local_energy = solar_production + powerwall_discharging_consumption
         
-        if without_all_exclusion:
-            watts_available_from_local_energy = total_production - power_consumption_without_all_exclusion
-            power_needed_from_powerwall = max(power_consumption_without_all_exclusion - solar_production, 0.0)
-            powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
-        else:
-            watts_available_from_local_energy = total_production - power_consumption_without_ignored
-            power_needed_from_powerwall = max(power_consumption_without_ignored - solar_production, 0.0)
-            powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
-            
-        watts_available_from_local_energy_solar_only = watts_available_from_local_energy
+        house_power_consumption = power_consumption_without_all_exclusion if without_all_exclusion else power_consumption_without_ignored
+        
+        watts_available_from_local_energy = max(total_local_energy - house_power_consumption, 0.0)
+        watts_available_from_local_energy_solar_only = max(solar_production - house_power_consumption, 0.0)
+        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        
+        watts_available_from_local_energy = round(min(watts_available_from_local_energy, CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
 
-        if is_powerwall_configured():
+        if include_local_energy_distribution:
+            solar_watts_of_local_energy = 0.0
+            powerwall_watts_of_local_energy = 0.0
+            _LOGGER.debug(f"values: {values} watts_available_from_local_energy: {watts_available_from_local_energy} ev_used_consumption: {ev_used_consumption} solar_production: {solar_production} total_local_energy: {total_local_energy} powerwall_discharging_available: {powerwall_discharging_available}")
+            watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
             
+            if watts_from_local_energy > 0.0:
+                solar_watts_of_local_energy = (solar_production / total_local_energy) * watts_from_local_energy if total_local_energy > 0.0 else 0.0
+                powerwall_watts_of_local_energy = (powerwall_discharging_consumption / total_local_energy) * watts_from_local_energy if total_local_energy > 0.0 else 0.0
+            
+            return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
+    except Exception as e:
+        _LOGGER.error(f"Error calculating local energy available: {e}")
+        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        
+        if include_local_energy_distribution:
+            return watts_available_from_local_energy, 0.0, 0.0, 0.0
+    
+    return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy
+
+def max_local_energy_available_remaining_period():
+    func_name = "max_local_energy_available_remaining_period"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, POWERWALL_CHARGING_TEXT
+    
+    if not is_solar_configured():
+        return 0.0
+    
+    now = getTime()
+    current_hour = now.replace(minute=0, second=0, tzinfo=None)
+    period = getMinute()
+    
+    if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
+        period = CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
+        
+        if CONFIG['solar']['solarpower_use_before_minutes'] <= 60:
+            def map_minute(minute: int, usage_period: int) -> int:
+                if usage_period <= 0:
+                    return 0
+                return minute % usage_period
+            
+            period = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
+    
+    random_int = random.randint(0, 10000)
+    task_names = {
+        "power_values": f"{func_prefix}power_values_{random_int}",
+        "predicted_solar_power": f"{func_prefix}predicted_solar_power_{random_int}",
+        "predicted_solar_power_period_watt": f"{func_prefix}predicted_solar_power_period_watt_{random_int}",
+        "discharge_above_needed": f"{func_prefix}discharge_above_needed_{random_int}",
+        "powerwall_battery_level": f"{func_prefix}powerwall_battery_level_{random_int}",
+        "powerwall_reserved_battery_level": f"{func_prefix}powerwall_reserved_battery_level_{random_int}",
+        "powerwall_charging_power": f"{func_prefix}powerwall_charging_power_{random_int}",
+        "powerwall_charging_timestamps": f"{func_prefix}powerwall_charging_timestamps_{random_int}"
+    }
+    
+    watt_available = 0.0
+    
+    try:
+        TASKS[task_names["power_values"]] = task.create(power_values, period=period)
+        TASKS[task_names["predicted_solar_power"]] = task.create(local_energy_available, timeFrom=0, timeTo=max(period, CONFIG['cron_interval'], 10), without_all_exclusion=True)
+        TASKS[task_names["predicted_solar_power_period_watt"]] = task.create(local_energy_available, timeFrom=0, timeTo=period, without_all_exclusion=False, solar_only=True)
+        done, pending = task.wait({TASKS[task_names["predicted_solar_power"]], TASKS[task_names["predicted_solar_power_period_watt"]]})
+        
+        predicted_solar_power = max(TASKS[task_names["predicted_solar_power"]].result(), 0.0)
+        predicted_solar_power_period = f"0-{period}"
+        predicted_solar_power_period_watt = 0.0
+        
+        if period >= CONFIG['cron_interval']:
+            predicted_solar_power_period_watt = max(TASKS[task_names["predicted_solar_power_period_watt"]].result(), 0.0)
+        
+        solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
+        solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
+        allow_grid_charging_above_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predicted_solar_power >= solar_threadhold else 0.0
+
+        values = TASKS[task_names["power_values"]].result()
+        ignored_consumption = values["ignored_consumption"]
+        power_consumption = values["power_consumption"]
+        power_consumption_without_ignored = values["power_consumption_without_ignored"]
+        power_consumption_without_ignored_ev = values["power_consumption_without_ignored_ev"]
+        power_consumption_without_all_exclusion = values["power_consumption_without_all_exclusion"]
+        powerwall_charging_consumption = values["powerwall_charging_consumption"]
+        powerwall_discharging_consumption = values["powerwall_discharging_consumption"]
+        ev_used_consumption = values["ev_used_consumption"]
+        solar_production = values["solar_production"]
+        total_local_energy = solar_production + powerwall_discharging_consumption
+        
+        watts_available_from_local_energy = max(total_local_energy - power_consumption_without_all_exclusion, 0.0)
+        watts_available_from_local_energy_solar_only = max(solar_production - power_consumption_without_all_exclusion, 0.0)
+        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        
+        powerwall_force_power = 0.0
+        
+        if is_powerwall_configured():
             TASKS[task_names["discharge_above_needed"]] = task.create(get_powerwall_discharge_above_needed)
             TASKS[task_names["powerwall_battery_level"]] = task.create(get_powerwall_battery_level)
             TASKS[task_names["powerwall_reserved_battery_level"]] = task.create(get_ev_charge_after_powerwall_battery_level)
@@ -6889,27 +7241,21 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             powerwall_forced_stop_charging = False
             
             if current_hour in powerwall_charging_timestamps:
-                _LOGGER.error(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
+                _LOGGER.debug(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
                 
-                if not include_local_energy_distribution and powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
-                    watts_available_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
+                if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
+                    powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
                 if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
                     #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
-                    watts_available_from_local_energy += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
+                    powerwall_force_power += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
-                else:
-                    watts_available_from_local_energy -= powerwall_charging_consumption
-            
-            if not solar_only:
-                total_production += powerwall_discharging_available
-                
-                if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
-                    if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
-                        watts_available_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
-                    else:
-                        watts_available_from_local_energy += powerwall_discharging_available
+        
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level:
+                _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
+                if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
+                    powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
 
             if (powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
@@ -6917,135 +7263,76 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
                 POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
             elif powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER:
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall standset – opladning sker senere"
+                    POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
-            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
+            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level:
                 POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_available)}W"
             else:
                 POWERWALL_CHARGING_TEXT = ""
 
-        watts_available_from_local_energy = round(min(max(watts_available_from_local_energy, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
-        watts_available_from_local_energy_solar_only = round(min(max(watts_available_from_local_energy_solar_only, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
-
-        if update_entity:
-            set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_available_from_local_energy_solar_only)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
-            
-            if is_powerwall_configured():
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_available", powerwall_discharging_available)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_production", total_production)
-                
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
-
-
-        if include_local_energy_distribution:
-            solar_watts_of_local_energy = 0.0
-            powerwall_watts_of_local_energy = 0.0
-            
-            watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
-            
-            if watts_from_local_energy > 0.0:
-                solar_watts_of_local_energy = (solar_production / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
-                powerwall_watts_of_local_energy = (powerwall_discharging_available / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
-            
-            return watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
-    except Exception as e:
-        _LOGGER.error(f"Error calculating local energy available: {e}")
-        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_available")
-    finally:
-        task_cancel(task_names.values(), task_remove=True)
-            
-    return watts_available_from_local_energy
-
-def max_local_energy_available_remaining_period():
-    _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_period")
-    global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY
-    
-    if not is_solar_configured():
-        return 0.0
-    
-    time_to = getMinute()
-    
-    if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
-        time_to = CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
-        
-        if CONFIG['solar']['solarpower_use_before_minutes'] <= 60:
-            def map_minute(minute: int, usage_period: int) -> int:
-                if usage_period <= 0:
-                    return 0
-                return minute % usage_period
-            
-            time_to = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
-    
-    random_int = random.randint(0, 10000)
-    predicted_solar_power_task_name = f"max_local_energy_available_remaining_period_predicted_solar_power_{random_int}"
-    total_task_name = f"max_local_energy_available_remaining_period_total_{random_int}"
-    
-    watt_available = 0.0
-    
-    try:
-        TASKS[predicted_solar_power_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion=True)
-        TASKS[total_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=time_to, without_all_exclusion=False, update_entity=False, solar_only=True)
-        done, pending = task.wait({TASKS[predicted_solar_power_task_name], TASKS[total_task_name]})
-            
-        predicted_solar_power = max(TASKS[predicted_solar_power_task_name].result(), 0.0)
-        predicted_solar_power_period = f"0-{time_to}"
-        predicted_solar_power_period_watt = 0.0
-        
-        if time_to >= CONFIG['cron_interval']:
-            predicted_solar_power_period_watt = max(TASKS[total_task_name].result(), 0.0)
-        
-        solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
-        solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
-        allow_grid_charging_above_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predicted_solar_power >= solar_threadhold else 0.0
-        
         multiple = 1.0
         
         if CONFIG['solar']['max_to_current_hour']:
             multiple = 1 + (getMinute() / 60)
         elif CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
-            max_multiple = 2.0
-            #multiple = time_window_linear_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
-            #multiple = time_window_parabolic_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, curve_ratio=0.5) #Parabolic weighting
-            multiple = time_window_gaussian_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, sigma_ratio=0.3) #Gaussian weighting
+            max_multiple = 1 - (CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'])
+            #multiple = time_window_linear_weight(period, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
+            #multiple = time_window_parabolic_weight(period, CONFIG['solar']['solarpower_use_before_minutes'] / 2.0, max_multiple, curve_ratio=0.5) #Parabolic weighting
+            multiple = time_window_gaussian_weight(period, CONFIG['solar']['solarpower_use_before_minutes'] / 2.0, max_multiple, sigma_ratio=0.3) #Gaussian weighting
+            multiple += 1.0
         
-        multiple = round(multiple, 3)
-        extra_watt = round(max((predicted_solar_power_period_watt * multiple), 0.0), 2)
-        watt_available = max(predicted_solar_power + allow_grid_charging_above_solar_available + extra_watt, 0.0)
+        predicted_solar_power = round(predicted_solar_power, 2)
+        predicted_solar_power_period_watt = round(predicted_solar_power_period_watt, 2)
+        
+        multiple = round(max(multiple, 1.0), 3)
+        extra_watt = round(max((predicted_solar_power_period_watt + min(powerwall_force_power, 0.0)) * multiple, 0.0), 2)
+        total_available = max(sum(((predicted_solar_power + min(powerwall_force_power, 0.0)), allow_grid_charging_above_solar_available, extra_watt, max(powerwall_force_power, 0.0))), 0.0)
+        watt_available = min(total_available, CONFIG["solar"]["inverter_discharging_power_limit"])
         
         MAX_LOCAL_ENERGY_AVAILABLE_HISTORY[getTime().isoformat()] = {
             "1. predicted_solar_power": predicted_solar_power,
             "2. allow_grid_charging_above_solar_available": allow_grid_charging_above_solar_available,
             "3. predicted_solar_power_period": predicted_solar_power_period,
             "4. predicted_solar_power_period_watt": predicted_solar_power_period_watt,
-            "5. multiple": multiple,
-            "6. extra_watt (4. * 5.)": extra_watt,
-            "7. watt_available (1. + 2. + 6.)": watt_available
+            "5. powerwall_force_power": powerwall_force_power,
+            "6. multiple": multiple,
+            "7. extra_watt (4. + min(5., 0.0)) * 6.)": extra_watt,
+            "8. total_available (1. + min(5., 0.0) + 2. + max(5., 0.0) + 7.)": total_available,
+            f"9. watt_available (min(8., {CONFIG['solar']['inverter_discharging_power_limit']}))": watt_available
             }
         MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = limit_dict_size(MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, 10)
         
+        set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_available_from_local_energy_solar_only)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         
+        if is_powerwall_configured():
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_available", powerwall_discharging_available)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_local_energy", total_local_energy)
+            
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
+            
         _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except Exception as e:
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
-        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_period")
+        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("max_local_energy_available_remaining_period_", task_remove=True, startswith=True)
+        task_cancel(task_names.values(), task_remove=True, startswith=True)
             
     return watt_available
 
 def inverter_available(error = ""):
-    _LOGGER = globals()['_LOGGER'].getChild("inverter_available")
+    func_name = "inverter_available"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_solar_configured(): return False
     
@@ -7056,7 +7343,9 @@ def inverter_available(error = ""):
     return False
 
 def get_forecast_dict():
-    _LOGGER = globals()['_LOGGER'].getChild("get_forecast_dict")
+    func_name = "get_forecast_dict"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     hourly_forecast= {}
     daily_forecast= {}
     return_dict = {
@@ -7099,23 +7388,26 @@ def get_forecast_dict():
     return return_dict
 
 def get_forecast(forecast_dict = None, date = None):
-    _LOGGER = globals()['_LOGGER'].getChild("get_forecast")
+    func_name = "get_forecast"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if date is None:
         date = getTimeStartOfDay()
     
     forecast = None
     try:
-        for data in forecast_dict["hourly"]:
-            if data is None:
-                continue
-            
-            date = date.replace(minute=0, second=0, tzinfo=None)
-            forecastDate = toDateTime(data['datetime']).replace(minute=0, second=0, tzinfo=None)
-            if date == forecastDate:
-                forecast = data
-                break
+        if "hourly" in forecast_dict:
+            for data in forecast_dict["hourly"]:
+                if data is None:
+                    continue
                 
-        if forecast is None:
+                date = date.replace(minute=0, second=0, tzinfo=None)
+                forecastDate = toDateTime(data['datetime']).replace(minute=0, second=0, tzinfo=None)
+                if date == forecastDate:
+                    forecast = data
+                    break
+                
+        if forecast is None and "daily" in forecast_dict:
             for data in forecast_dict["daily"]:
                 if data is None:
                     continue
@@ -7132,7 +7424,9 @@ def get_forecast(forecast_dict = None, date = None):
     return forecast
     
 def forecast_score(data):
-    _LOGGER = globals()['_LOGGER'].getChild("forecast_score")
+    func_name = "forecast_score"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     try:
         if "cloud_coverage" not in data or "uv_index" not in data or "temperature" not in data:
             if "condition" in data and "datetime" in data:
@@ -7209,7 +7503,9 @@ def transform_database(database, step_size=20):
     return new_database
 
 def load_power_values_db():
-    _LOGGER = globals()['_LOGGER'].getChild("load_power_values_db")
+    func_name = "load_power_values_db"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWER_VALUES_DB
     
     if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
@@ -7218,9 +7514,9 @@ def load_power_values_db():
     
     try:
         filename = f"{__name__}_power_values_db"
-        TASKS['load_power_values_db_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_power_values_db_load_yaml']})
-        database = TASKS['load_power_values_db_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        database = TASKS[f'{func_prefix}load_yaml'].result()
         
         if "version" in database:
             version = float(database["version"])
@@ -7229,15 +7525,15 @@ def load_power_values_db():
         POWER_VALUES_DB = database.copy()
         
         if not POWER_VALUES_DB:
-            TASKS['load_power_values_db_create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
-            done, pending = task.wait({TASKS['load_power_values_db_create_yaml']})
+            TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
+            done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
         error_message = f"Cant load {__name__}_power_values_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_power_values_db()")
-        my_persistent_notification(f"Failed to load {__name__}_power_values_db", f"{TITLE} error", persistent_notification_id=f"{__name__}load_power_values_db")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(f"Failed to load {__name__}_power_values_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("load_power_values_db_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if POWER_VALUES_DB == {} or not POWER_VALUES_DB:
         POWER_VALUES_DB = {}
@@ -7249,7 +7545,8 @@ def load_power_values_db():
     save_power_values_db()
     
 def save_power_values_db():
-    _LOGGER = globals()['_LOGGER'].getChild("save_solar_available_db")
+    func_name = "save_power_values_db"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWER_VALUES_DB
     
     if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
@@ -7260,12 +7557,13 @@ def save_power_values_db():
         save_changes(f"{__name__}_power_values_db", db_to_file)
 
 def power_values_to_db(data):
-    _LOGGER = globals()['_LOGGER'].getChild("power_values_to_db")
+    func_name = "power_values_to_db"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWER_VALUES_DB
     
     if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
     
-    if not inverter_available(f"power_values_to_db({data})"):
+    if not inverter_available(f"{func_name}({data})"):
         return
     
     if len(POWER_VALUES_DB) == 0:
@@ -7286,7 +7584,9 @@ def power_values_to_db(data):
     save_power_values_db()
     
 def load_solar_available_db():
-    _LOGGER = globals()['_LOGGER'].getChild("load_solar_available_db")
+    func_name = "load_solar_available_db"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global SOLAR_PRODUCTION_AVAILABLE_DB
     
     if not is_solar_configured(): return
@@ -7295,9 +7595,9 @@ def load_solar_available_db():
     
     try:
         filename = f"{__name__}_solar_production_available_db"
-        TASKS['load_solar_available_db_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_solar_available_db_load_yaml']})
-        database = TASKS['load_solar_available_db_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        database = TASKS[f'{func_prefix}load_yaml'].result()
         
         if "version" in database:
             version = float(database["version"])
@@ -7306,15 +7606,15 @@ def load_solar_available_db():
         SOLAR_PRODUCTION_AVAILABLE_DB = database.copy()
         
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
-            TASKS['load_solar_available_db_create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
-            done, pending = task.wait({TASKS['load_solar_available_db_create_yaml']})
+            TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
+            done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
         error_message = f"Cant load {__name__}_solar_production_available_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_solar_available_db()")
-        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_solar_available_db")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("load_solar_available_db_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if SOLAR_PRODUCTION_AVAILABLE_DB == {} or not SOLAR_PRODUCTION_AVAILABLE_DB:
         SOLAR_PRODUCTION_AVAILABLE_DB = {}
@@ -7333,7 +7633,8 @@ def load_solar_available_db():
     save_solar_available_db()
     
 def save_solar_available_db():
-    _LOGGER = globals()['_LOGGER'].getChild("save_solar_available_db")
+    func_name = "save_solar_available_db"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global SOLAR_PRODUCTION_AVAILABLE_DB
     
     if not is_solar_configured(): return
@@ -7344,7 +7645,8 @@ def save_solar_available_db():
         save_changes(f"{__name__}_solar_production_available_db", db_to_file)
         
 def solar_available_append_to_db(power):
-    _LOGGER = globals()['_LOGGER'].getChild("solar_available_append_to_db")
+    func_name = "solar_available_append_to_db"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global SOLAR_PRODUCTION_AVAILABLE_DB
     
     if not is_solar_configured(): return
@@ -7385,14 +7687,16 @@ def solar_available_append_to_db(power):
     save_solar_available_db()
 
 def get_solar_kwh_forecast():
-    _LOGGER = globals()['_LOGGER'].getChild("get_solar_kwh_forecast")
+    func_name = "get_solar_kwh_forecast"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global POWER_VALUES_DB, LAST_SUCCESSFUL_GRID_PRICES
     
     if "forecast_entity_id" in CONFIG['solar']['entity_ids'] and not CONFIG['solar']['entity_ids']['forecast_entity_id']:
         return {}
     
     def forecast_task(base_entity_id, ending):
-        _LOGGER = globals()['_LOGGER'].getChild("get_solar_kwh_forecast.forecast_task")
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.forecast_task")
         nonlocal forecast
         
         try:
@@ -7444,22 +7748,32 @@ def get_solar_kwh_forecast():
         
         random_int = random.randint(0, 1000000)
         task_set = set()
-        for ending in endings:
-            TASKS[f"forecast_task_{ending}_{random_int}"] = task.create(forecast_task, base_entity_id=base_entity_id, ending=ending)
-            TASKS[f"forecast_task_{ending}_{random_int}"].set_name(f"forecast_task_{ending}_{random_int}")
-            task_set.add(TASKS[f"forecast_task_{ending}_{random_int}"])
-        done, pending = task.wait(task_set)
+        try:
+            for ending in endings:
+                task_name = f"{func_prefix}{ending}_{random_int}"
+                
+                TASKS[task_name] = task.create(forecast_task, base_entity_id=base_entity_id, ending=ending)
+                TASKS[task_name].set_name(task_name)
+                
+                task_set.add(TASKS[task_name])
         
-        task_cancel(task_set, task_remove=True)
+            done, pending = task.wait(task_set)
+        finally:
+            task_cancel(task_set, task_remove=True)
             
     return forecast
 
 def local_energy_prediction(powerwall_charging_timestamps = False):
-    _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction")
+    func_name = "local_energy_prediction"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS, SOLAR_PRODUCTION_AVAILABLE_DB, LOCAL_ENERGY_PREDICTION_DB
     
     def get_database_kwh(cloudiness: int | float, date: datetime.datetime) -> list:
-        _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction.get_power")
+        nonlocal func_name
+        sub_func_name = "get_database_kwh"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        
         hour = getHour(date)
         day_of_week = getDayOfWeek(date)
         
@@ -7495,8 +7809,11 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
 
     def process_forecast(day, loop_datetime, is_away, current_hour_factor, cloudiness, solar_forecast_from_integration,
                         total_db, total_db_sell, total_forecast, total_forecast_sell,
-                        total_avg, total_avg_sell, timestamps, powerwall_kwh_needed):
-        _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction.process_forecast")
+                        total_avg, total_avg_sell, powerwall_kwh_needed):
+        nonlocal func_name
+        sub_func_name = "process_forecast"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
+        nonlocal solar_prediction_timestamps_dict, powerwall_charging_timestamps_dict
         
         loop_kwh = []
         loop_sell = []
@@ -7531,26 +7848,34 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
                     now = reset_time_to_hour()
-                    if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
-                        timestamps.append(loop_datetime)
                         
                     diff = powerwall_kwh_needed - loop_kwh
                     charging_kwh = loop_kwh if diff >= 0.0 else powerwall_kwh_needed
                     powerwall_kwh_needed -= charging_kwh
                     
+                    if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
+                        powerwall_charging_timestamps_dict[loop_datetime] = charging_kwh
+                    
                     if diff < 0.0:
                         loop_kwh = loop_kwh - abs(diff)
                         
                 if powerwall_kwh_needed <= 0.0:
+                    if loop_datetime not in solar_prediction_timestamps_dict:
+                        solar_prediction_timestamps_dict[loop_datetime] = loop_kwh
+                    else:
+                        solar_prediction_timestamps_dict[loop_datetime] += loop_kwh
+                        
                     total_avg.append(loop_kwh)
                     total_avg_sell.append(loop_sell)
                     
         return powerwall_kwh_needed
                 
     def day_prediction_task(day, today, sunrise, sunset, stop_prediction_before, forecast_dict, solar_forecast_from_integration, end_trip, trip_last_charging, using_grid_price):
-        _LOGGER = globals()['_LOGGER'].getChild("local_energy_prediction.day_prediction_task")
+        nonlocal func_name
+        sub_func_name = "day_prediction_task"
+        _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         global LOCAL_ENERGY_PREDICTION_DB
-        nonlocal output, output_sell, powerwall_charging_timestamps_list
+        nonlocal output, output_sell, solar_prediction_timestamps_dict, powerwall_charging_timestamps_dict
         
         date = today + datetime.timedelta(days=day)
         output[date] = 0.0
@@ -7573,10 +7898,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         
         powerwall_kwh_needed = 0.0
             
-        expensive_hours = []
-        
-        for hour in get_expensive_hours(day=day).keys():
-            expensive_hours.append(hour.hour)
+        expensive_hours = [hour.hour for hour in get_expensive_hours(day=day)]
             
         current_hour = getHour()
         from_hour = sunrise if day > 0 else max(sunrise, current_hour)
@@ -7628,7 +7950,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                             total_away_database, total_away_database_sell,
                             total_away_forecast, total_away_forecast_sell,
                             total_away, total_away_sell,
-                            powerwall_charging_timestamps_list, powerwall_kwh_needed
+                            powerwall_kwh_needed
                         )
                     else:
                         home_hours.append(hour)
@@ -7648,7 +7970,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                         total_database, total_database_sell,
                         total_forecast, total_forecast_sell,
                         total, total_sell,
-                        powerwall_charging_timestamps_list, powerwall_kwh_needed
+                        powerwall_kwh_needed
                     )
                         
             total = sum(total)
@@ -7659,6 +7981,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             if not powerwall_charging_timestamps:
                 if day not in LOCAL_ENERGY_PREDICTION_DB["solar_prediction"]:
                     LOCAL_ENERGY_PREDICTION_DB["solar_prediction"][day] = {}
+                    
                 LOCAL_ENERGY_PREDICTION_DB["solar_prediction"][day]["home"] = {
                     "total_database": total_database,
                     "total_database_sell": total_database_sell,
@@ -7715,8 +8038,6 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         _LOGGER.error(f"Error: {e}")
         return output, output_sell
     
-    forecast_dict = get_forecast_dict()
-    solar_forecast_from_integration = get_solar_kwh_forecast()
     
     trip_planned = is_trip_planned()
     start_trip = get_trip_date_time() if get_trip_date_time() != resetDatetime() and trip_planned else None
@@ -7730,14 +8051,34 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         
     using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
     
-    powerwall_charging_timestamps_list = []
+    solar_prediction_timestamps_dict = {}
+    powerwall_charging_timestamps_dict = {}
     
     random_int = random.randint(0, 1000000)
+    task_set = set()
     day_prediction_task_set = set()
     
+    forecast_dict = {}
+    solar_forecast_from_integration = {}
+    
     try:
+        TASKS[f"{func_prefix}forecast_dict_{random_int}"] = task.create(get_forecast_dict)
+        TASKS[f"{func_prefix}forecast_dict_{random_int}"].set_name(f"{func_prefix}forecast_dict_{random_int}")
+        
+        TASKS[f"{func_prefix}solar_forecast_from_integration_{random_int}"] = task.create(get_solar_kwh_forecast)
+        TASKS[f"{func_prefix}solar_forecast_from_integration_{random_int}"].set_name(f"{func_prefix}solar_forecast_from_integration_{random_int}")
+        
+        task_set.add(TASKS[f"{func_prefix}forecast_dict_{random_int}"])
+        task_set.add(TASKS[f"{func_prefix}solar_forecast_from_integration_{random_int}"])
+        
+        done, pending = task.wait(task_set)
+        
+        forecast_dict = TASKS[f"{func_prefix}forecast_dict_{random_int}"].result()
+        solar_forecast_from_integration = TASKS[f"{func_prefix}solar_forecast_from_integration_{random_int}"].result()
+        
         for day in range(days + 1):
-            task_name = f"{__name__}_local_energy_prediction_day_prediction_task_{day}_{random_int}"
+            task_name = f"{func_prefix}day_prediction_task_{day}_{random_int}"
+            
             TASKS[task_name] = task.create(day_prediction_task, day, today, sunrise, sunset, stop_prediction_before, forecast_dict, solar_forecast_from_integration, end_trip, trip_last_charging, using_grid_price)
             TASKS[task_name].set_name(task_name)
             
@@ -7746,24 +8087,27 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         done, pending = task.wait(day_prediction_task_set)
     except Exception as e:
         _LOGGER.error(f"Error during day prediction tasks: {e}")
-        my_persistent_notification(f"Failed to run local energy prediction tasks", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_prediction_tasks")
+        my_persistent_notification(f"Failed to run local energy prediction tasks", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_tasks")
     finally:
+        task_cancel(task_set, task_remove=True)
         task_cancel(day_prediction_task_set, task_remove=True)
+    
+    if solar_prediction_timestamps_dict:
+        LOCAL_ENERGY_PREDICTION_DB["solar_prediction_timestamps"] = solar_prediction_timestamps_dict
     
     if powerwall_charging_timestamps:
         if get_powerwall_battery_level() < get_ev_charge_after_powerwall_battery_level() - 1.0:
             charging_planned_today = False
-            for timestamp in powerwall_charging_timestamps_list:
+            for timestamp in powerwall_charging_timestamps_dict.keys():
                 if daysBetween(timestamp, today) == 0:
                     charging_planned_today = True
                     break
             
             if not charging_planned_today:
-                powerwall_charging_timestamps_list.append(reset_time_to_hour())
+                powerwall_charging_timestamps_dict[reset_time_to_hour()] = percentage_to_kwh(get_ev_charge_after_powerwall_battery_level() - get_powerwall_battery_level())
         
-        powerwall_charging_timestamps_list = sorted(powerwall_charging_timestamps_list)
-        LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_list
-        return powerwall_charging_timestamps_list
+        LOCAL_ENERGY_PREDICTION_DB["powerwall_charging_timestamps"] = powerwall_charging_timestamps_dict
+        return powerwall_charging_timestamps_dict.keys()
     
     avg = []
     avg_sell = []
@@ -7797,7 +8141,9 @@ def trip_reset():
         set_state(f"input_boolean.{__name__}_trip_preheat", "off")
 
 def trip_charging():
-    _LOGGER = globals()['_LOGGER'].getChild("trip_charging")
+    func_name = "trip_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if get_trip_date_time() == resetDatetime(): return
     if get_trip_homecoming_date_time() == resetDatetime(): return
      
@@ -7806,7 +8152,8 @@ def trip_charging():
         return True
     
 def preheat_ev():#TODO Make it work on Tesla and Kia
-    _LOGGER = globals()['_LOGGER'].getChild("preheat_ev")
+    func_name = "preheat_ev"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     def stop_preheat_no_driving(next_drive, now, preheat_min_before):
         if minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 1) > (preheat_min_before * 3) and minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 11) <= (preheat_min_before * 3) + 10:
@@ -7956,7 +8303,8 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         _LOGGER.warning(f"Integration {integration} not supported")
 
 def ready_to_charge():
-    _LOGGER = globals()['_LOGGER'].getChild("ready_to_charge")
+    func_name = "ready_to_charge"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     def entity_unavailable(entity_id):
         if is_entity_configured(entity_id) and not is_entity_available(entity_id): return True
@@ -7983,7 +8331,7 @@ def ready_to_charge():
         return True
     else:
         if is_ev_configured():
-            if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+            """if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
                 currentLocation = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="home")
             else:
                 currentLocation = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
@@ -7993,15 +8341,16 @@ def ready_to_charge():
                     _LOGGER.info(f"currentLocation: {currentLocation}, setting to away")
                 else:
                     currentLocation = "home"
-                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")
+                    _LOGGER.info(f"currentLocation: {currentLocation}, setting to home")"""
 
             
-            charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
+            #charger_connector = get_state(CONFIG['charger']['entity_ids']['cable_connected_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) else "not_configured"
             ev_charger_connector = get_state(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'], float_type=False, error_state="on") if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']) else "not_configured"
             
             #_LOGGER.info(f"currentLocation: {currentLocation}, charger_connector: {charger_connector}, ev_charger_connector: {ev_charger_connector}")
-            if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
-                charger_status in CHARGER_READY_STATUS) and currentLocation != "home":
+            """if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
+                charger_status in CHARGER_READY_STATUS) and currentLocation != "home":"""
+            if (ev_charger_connector in EV_PLUGGED_STATES or charger_status in CHARGER_READY_STATUS) and not is_ev_home():
                 _LOGGER.info("To long away from home")
                 set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
                 return
@@ -8011,7 +8360,8 @@ def ready_to_charge():
                 return True #Test to charge anyway'''
 
             #TODO check charger_connector on monta
-            if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
+            #if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
+            if ev_charger_connector not in EV_PLUGGED_STATES:
                 _LOGGER.info("Charger cable is Disconnected")
                 set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen\nPrøver at vække bilen")
                 wake_up_ev()
@@ -8032,7 +8382,9 @@ def ready_to_charge():
     return True
 
 def start_charging(entities = None, force = False):
-    _LOGGER = globals()['_LOGGER'].getChild("start_charging")
+    func_name = "start_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if entities is None:
         entities = {
             CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger",
@@ -8070,7 +8422,9 @@ def start_charging(entities = None, force = False):
                 _LOGGER.warning(f"Entity {entity_id} not available")
 
 def stop_charging(entities = None, force = False):
-    _LOGGER = globals()['_LOGGER'].getChild("stop_charging")
+    func_name = "stop_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     if entities is None:
         entities = {
             CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger",
@@ -8108,7 +8462,8 @@ def stop_charging(entities = None, force = False):
                 _LOGGER.warning(f"Entity {entity_id} not available")
     
 def is_charging():
-    _LOGGER = globals()['_LOGGER'].getChild("is_charging")
+    func_name = "is_charging"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_IS_BEGINNING, RESTARTING_CHARGER, RESTARTING_CHARGER_COUNT, CURRENT_CHARGING_SESSION, CHARGING_HISTORY_DB
     
     def reset():
@@ -8249,7 +8604,8 @@ def is_charging():
     _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit}")
 
 def charging_without_rule():
-    _LOGGER = globals()['_LOGGER'].getChild("charging_without_rule")
+    func_name = "charging_without_rule"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_NO_RULE_COUNT
     
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
@@ -8286,12 +8642,12 @@ def charging_without_rule():
                     for entity in unavailable_entities:
                         unavailable_entities_list.append(f"\n- {entity}")
                         
-                    my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{''.join(unavailable_entities_list)}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_without_rule")
+                    my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{''.join(unavailable_entities_list)}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_{func_name}")
                 
             integration = get_integration(entity_id)
             
             if integration:
-                my_persistent_notification(message = f"⛔Entity \"{entity_id}\" lader uden grund\nGenstarter {integration.capitalize()}", title = f"{TITLE} Elbilen lader uden grund", persistent_notification_id = f"{__name__}_charging_without_rule_{entity_id}")
+                my_persistent_notification(message = f"⛔Entity \"{entity_id}\" lader uden grund\nGenstarter {integration.capitalize()}", title = f"{TITLE} Elbilen lader uden grund", persistent_notification_id = f"{__name__}_{func_name}_{entity_id}")
                 reload_entity_integration(entity_id)
             
             return True
@@ -8302,8 +8658,9 @@ def charging_without_rule():
     return False
 
 def charge_if_needed():
-    task.unique("charge_if_needed")
-    _LOGGER = globals()['_LOGGER'].getChild("charge_if_needed")
+    func_name = "charge_if_needed"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGE_HOURS
     
     def current_hour_in_charge_hours():
@@ -8488,12 +8845,12 @@ def charge_if_needed():
         
         error_message = f"Error running charge_if_needed(), setting charger and car to max: {e}"
         _LOGGER.error(error_message)
-        my_persistent_notification(f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_restart_count_error")
+        my_persistent_notification(f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_restart_count_error")
         
         if ERROR_COUNT == 3:
-            save_error_to_file(error_message, caller_function_name = "charge_if_needed()")
+            save_error_to_file(error_message, caller_function_name = f"{func_name}()")
             _LOGGER.error(f"Restarting script to maybe fix error!!!")
-            my_persistent_notification(f"Restarting script to maybe fix error!!!", f"{TITLE} error", persistent_notification_id=f"{__name__}_restart_script")
+            my_persistent_notification(f"Restarting script to maybe fix error!!!", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_restart_script")
             
             restart_script()
         else:
@@ -8511,7 +8868,8 @@ def charge_if_needed():
         set_charger_charging_amps(*amps)
 
 def set_charging_price(price):
-    _LOGGER = globals()['_LOGGER'].getChild("set_charging_price")
+    func_name = "set_charging_price"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if TESTING:
         _LOGGER.info(f"TESTING not setting easee charging cost")
@@ -8532,38 +8890,55 @@ def set_charging_price(price):
                 _LOGGER.info(f"Setting charging cost to {price} in Easee")
     except Exception as e:
         _LOGGER.error(f"Cant set charging cost for {integration.capitalize()}: {e}")
-        my_persistent_notification(f"Cant set charging cost for {integration.capitalize()}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_set_charging_price")
+        my_persistent_notification(f"Cant set charging cost for {integration.capitalize()}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
 
 def kwh_charged_by_solar():
-    _LOGGER = globals()['_LOGGER'].getChild("kwh_charged_by_solar")
+    func_name = "kwh_charged_by_solar"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_solar_configured(): return
-        
-    now = getTime()
-    past = now - datetime.timedelta(minutes=60)
     
-    ev_watt = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))), 3)
-    solar_watt = round(max(local_energy_available(period = 60, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0), 3)
-    
-    if not ev_watt:
-        return
-    
-    solar_watt = min(solar_watt, ev_watt)
-    
-    ev_solar_kwh = round(solar_watt / 1000, 3)
     try:
-        solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
-        if solar_kwh is not None:
-            solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
-            set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
-        else:
-            raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
+        now = getTime()
+        past = now - datetime.timedelta(minutes=60)
+        
+        TASKS[f"{func_prefix}ev_watt"] = task.create(get_average_value, CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+        TASKS[f"{func_prefix}solar_watt"] = task.create(local_energy_available, period = 60, without_all_exclusion = True, solar_only = True)
+        done, pending = task.wait({TASKS[f"{func_prefix}ev_watt"], TASKS[f"{func_prefix}solar_watt"]})
+        
+        ev_watt = round(abs(float(TASKS[f"{func_prefix}ev_watt"].result())), 3)
+        solar_watt = round(max(TASKS[f"{func_prefix}solar_watt"].result(), 0.0), 3)
+        
+        if not ev_watt:
+            return
+        
+        solar_watt = min(solar_watt, ev_watt)
+        
+        ev_solar_kwh = round(solar_watt / 1000, 3)
+        try:
+            solar_kwh = get_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", float_type=True, error_state=None)
+            if solar_kwh is not None:
+                solar_kwh = round(float(solar_kwh) + ev_solar_kwh, 2)
+                set_state(entity_id=f"input_number.{__name__}_kwh_charged_by_solar", new_state=solar_kwh)
+            else:
+                raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
+        except Exception as e:
+            _LOGGER.error(e)
+            my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_set_state_error")
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+        my_persistent_notification(f"Task was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
     except Exception as e:
-        _LOGGER.error(e)
-        my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_kwh_charged_by_solar")
+        _LOGGER.error(f"Error calculating kwh charged by solar: {e}")
+        my_persistent_notification(f"Error calculating kwh charged by solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
+        
     
 def solar_charged_percentage():
-    _LOGGER = globals()['_LOGGER'].getChild("solar_percentage")
+    func_name = "solar_charged_percentage"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_solar_configured(): return
     
@@ -8582,10 +8957,12 @@ def solar_charged_percentage():
         set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
-        my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_solar_charged_percentage")
+        my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     
 def calc_co2_emitted(period = None, added_kwh = None):
-    _LOGGER = globals()['_LOGGER'].getChild("calc_co2_emitted")
+    func_name = "calc_co2_emitted"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if added_kwh is None:
         return 0.0
@@ -8594,123 +8971,174 @@ def calc_co2_emitted(period = None, added_kwh = None):
     
     if CONFIG['charger']['entity_ids']['co2_entity_id'] not in state.names(domain="sensor"): return
     
-    minutes = getMinute() if period is None else period
-    
-    now = getTime()
-    past = now - datetime.timedelta(minutes=minutes)
-    
-    ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0))) / 1000.0, 3)
-    solar_kwh_available = round(max(local_energy_available(period = minutes, without_all_exclusion = True, update_entity = False, solar_only = True), 0.0) / 1000.0, 3)
-       
-    ev_solar_kwh = round(solar_kwh_available, 3)
-    ev_grid_kwh =  round(max(ev_kwh - (solar_kwh_available), 0.0), 3)
-    
-    grid_co2_emitted = 0.0
-    grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
     try:
-        solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
-        grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
-        grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
-    except:
-        pass
-    
-    co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
-    if co2_emitted is not None and grid_co2_emitted > 0.0:
-        co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
+        minutes = getMinute() if period is None else period
         
-        _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
-        set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
-        return co2_emitted
+        now = getTime()
+        past = now - datetime.timedelta(minutes=minutes)
+        
+        TASKS[f"{func_prefix}ev_kwh"] = task.create(get_average_value, CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
+        TASKS[f"{func_prefix}solar_kwh_available"] = task.create(local_energy_available, period = minutes, without_all_exclusion = True, solar_only = True)
+        done, pending = task.wait({TASKS[f"{func_prefix}ev_kwh"], TASKS[f"{func_prefix}solar_kwh_available"]})
+        
+        ev_kwh = round(abs(float(TASKS[f"{func_prefix}ev_kwh"].result())) / 1000.0, 3)
+        solar_kwh_available = round(max(TASKS[f"{func_prefix}solar_kwh_available"].result(), 0.0) / 1000.0, 3)
+        
+        ev_solar_kwh = round(solar_kwh_available, 3)
+        ev_grid_kwh =  round(max(ev_kwh - (solar_kwh_available), 0.0), 3)
+        
+        grid_co2_emitted = 0.0
+        grid_co2_kwh = float(get_state(entity_id=CONFIG['charger']['entity_ids']['co2_entity_id'], float_type=True, error_state=0.0))
+        try:
+            solar_co2_emitted = ((ev_solar_kwh / ev_kwh) * (10 / 1000.0)) #Solar co2 50g * 3years = 0.15 / 15years life = 0.01 = 10g/kWh
+            grid_co2_emitted = ((ev_grid_kwh / ev_kwh) * (grid_co2_kwh / 1000.0))
+            grid_co2_emitted = round((solar_co2_emitted + grid_co2_emitted) * added_kwh, 3)
+        except:
+            pass
+        
+        co2_emitted = get_state(entity_id=f"input_number.{__name__}_co2_emitted", float_type=True, error_state=None)
+        if co2_emitted is not None and grid_co2_emitted > 0.0:
+            co2_emitted = round(float(co2_emitted) + grid_co2_emitted, 3)
+            
+            _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
+            set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
+            return co2_emitted
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+        my_persistent_notification(f"Task was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating co2 emitted: {e}")
+        my_persistent_notification(f"Error calculating co2 emitted: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
+        
     return 0.0
 
 def calc_kwh_price(period = 60, update_entities = False, solar_period_current_hour = False):
-    _LOGGER = globals()['_LOGGER'].getChild("calc_kwh_price")
-    minutes = getMinute() if solar_period_current_hour else period
-    minutes = 60 if not in_between(getMinute(), 1, 58) else minutes
+    func_name = "calc_kwh_price"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global TASKS
     
-    now = getTime()
-    past = now - datetime.timedelta(minutes=minutes)
-
-    values = power_values(from_time_stamp = past, to_time_stamp = now)
-    ev_used_consumption = values['ev_used_consumption']
+    ev_total_price_kwh = 0.0
     
-    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
+    random_int = random.randint(0, 10000)
+    task_names = {
+        f"{func_prefix}values": f"{func_prefix}values_{random_int}",
+        f"{func_prefix}local_energy_available": f"{func_prefix}local_energy_available_{random_int}",
+        f"{func_prefix}get_refund": f"{func_prefix}get_refund_{random_int}",
+        f"{func_prefix}grid_kwh_price": f"{func_prefix}grid_kwh_price_{random_int}",
+        f"{func_prefix}solar_kwh_price": f"{func_prefix}solar_kwh_price_{random_int}",
+        f"{func_prefix}powerwall_kwh_price": f"{func_prefix}powerwall_kwh_price_{random_int}",
+    }
     
-    min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
-    
-    if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
-        _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
-        ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
-    else:
-        watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
-    
-    ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
-    
-    grid_kwh_price = float(get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)) - get_refund()
     try:
-        ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
-        ev_grid_cost = round(ev_grid_share * grid_kwh_price, 5)
-    except:
-        ev_grid_share = 0.0
-        ev_grid_cost = 0.0
-    _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
-    _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
-    
-    solar_kwh_price = get_solar_sell_price(set_entity_attr=update_entities)
-    try:
-        ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
-        ev_solar_cost = round(ev_solar_share * solar_kwh_price, 5)
-    except:
-        ev_solar_share = 0.0
-        ev_solar_cost = 0.0
-    _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
-    _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
-    
-    powerwall_kwh_price = get_powerwall_kwh_price()
-    try:
-        ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
-        ev_powerwall_cost = round(ev_powerwall_share * powerwall_kwh_price, 5)
-    except:
-        ev_powerwall_share = 0.0
-        ev_powerwall_cost = 0.0
-    _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
-    _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
-
-    ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
-
-    if update_entities:
-        _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
-        set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
-
-        if not is_solar_configured():
-            raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
-            refund = get_refund()
-            price = raw_price - refund
-            set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
-        else:
-            set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
-            
-            if is_powerwall_configured():
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
-
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
+        minutes = getMinute() if solar_period_current_hour else period
+        minutes = 60 if not in_between(getMinute(), 1, 58) else minutes
         
-        set_charging_price(ev_total_price_kwh)
+        now = getTime()
+        past = now - datetime.timedelta(minutes=minutes)
+        
+        TASKS[task_names[f"{func_prefix}values"]] = task.create(power_values, from_time_stamp = past, to_time_stamp = now)
+        TASKS[task_names[f"{func_prefix}local_energy_available"]] = task.create(local_energy_available, period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
+        done, pending = task.wait({TASKS[task_names[f"{func_prefix}values"]], TASKS[task_names[f"{func_prefix}local_energy_available"]]})
+        
+        values = TASKS[task_names[f"{func_prefix}values"]].result()
+        ev_used_consumption = values['ev_used_consumption']
+        
+        watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = TASKS[task_names[f"{func_prefix}local_energy_available"]].result()
+        
+        min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
+        
+        if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
+            _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
+            ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
+        else:
+            watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
+        
+        ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
+        
+        TASKS[task_names[f"{func_prefix}get_refund"]] = task.create(get_refund)
+        TASKS[task_names[f"{func_prefix}grid_kwh_price"]] = task.create(get_state, CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True, error_state=0.0)
+        TASKS[task_names[f"{func_prefix}solar_kwh_price"]] = task.create(get_solar_sell_price, set_entity_attr=update_entities)
+        TASKS[task_names[f"{func_prefix}powerwall_kwh_price"]] = task.create(get_powerwall_kwh_price)
+        done, pending = task.wait({TASKS[task_names[f"{func_prefix}get_refund"]], TASKS[task_names[f"{func_prefix}grid_kwh_price"]], TASKS[task_names[f"{func_prefix}solar_kwh_price"]], TASKS[task_names[f"{func_prefix}powerwall_kwh_price"]]})
+        
+        refund = TASKS[task_names[f"{func_prefix}get_refund"]].result()
+        grid_kwh_price = TASKS[task_names[f"{func_prefix}grid_kwh_price"]].result() - refund
+        solar_kwh_price = TASKS[task_names[f"{func_prefix}solar_kwh_price"]].result()
+        powerwall_kwh_price = TASKS[task_names[f"{func_prefix}powerwall_kwh_price"]].result()
+        
+        try:
+            ev_grid_share = min(round(ev_grid_watt/ev_used_consumption, 2), 100.0)
+            ev_grid_cost = round(ev_grid_share * grid_kwh_price, 5)
+        except:
+            ev_grid_share = 0.0
+            ev_grid_cost = 0.0
+        _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
+        _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
+        
+        try:
+            ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+            ev_solar_cost = round(ev_solar_share * solar_kwh_price, 5)
+        except:
+            ev_solar_share = 0.0
+            ev_solar_cost = 0.0
+        _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+        _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
+        
+        try:
+            ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
+            ev_powerwall_cost = round(ev_powerwall_share * powerwall_kwh_price, 5)
+        except:
+            ev_powerwall_share = 0.0
+            ev_powerwall_cost = 0.0
+        _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
+        _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
 
+        ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
+
+        if update_entities:
+            _LOGGER.info(f"Setting sensor.{__name__}_kwh_cost_price to {ev_total_price_kwh}")
+            set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
+
+            if not is_solar_configured():
+                raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
+                price = raw_price - refund
+                set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
+            else:
+                set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
+                
+                if is_powerwall_configured():
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
+
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
+            
+            set_charging_price(ev_total_price_kwh)
+    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e}")
+        my_persistent_notification(f"Task was cancelled or timed out while calculating kWh price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
+    except Exception as e:
+        _LOGGER.error(f"Error calculating kWh price: {e}")
+        my_persistent_notification(f"Error calculating kWh price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+    finally:
+        task_cancel(task_names.values(), task_remove=True, startswith=True)
+        
     return ev_total_price_kwh
 
 def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour = False):
-    _LOGGER = globals()['_LOGGER'].getChild("calc_solar_kwh")
+    func_name = "calc_local_energy_kwh"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     if not is_solar_configured(): return 0.0, 0.0, 0.0
     
@@ -8723,7 +9151,7 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
         ev_kwh = round(abs(float(get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="kW", error_state=0.0))), 3)
     ev_watt = ev_kwh * 1000.0
 
-    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True, update_entity = False)
+    watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
     
     _LOGGER.debug(f"ev_watt:{ev_watt} watts_from_local_energy:{watts_from_local_energy} solar_watts_of_local_energy:{solar_watts_of_local_energy} powerwall_watts_of_local_energy:{powerwall_watts_of_local_energy}")
     if watts_from_local_energy > ev_watt:
@@ -8740,14 +9168,10 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
     return round(min(solar_kwh_available, ev_kwh), 3), solar_kwh_of_local_energy, powerwall_kwh_of_local_energy
 
 def load_kwh_prices():
-    _LOGGER = globals()['_LOGGER'].getChild("load_kwh_prices")
+    func_name = "load_kwh_prices"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global KWH_AVG_PRICES_DB
-    
-    def convert_to_int_if_possible(key):
-        try:
-            return int(key)
-        except (ValueError, TypeError):
-            return key
         
     def set_default_values(name):
         global KWH_AVG_PRICES_DB
@@ -8770,9 +9194,9 @@ def load_kwh_prices():
     
     try:
         filename = f"{__name__}_kwh_avg_prices_db"
-        TASKS['load_kwh_prices_load_yaml'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS['load_kwh_prices_load_yaml']})
-        database = TASKS['load_kwh_prices_load_yaml'].result()
+        TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
+        done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+        database = TASKS[f'{func_prefix}load_yaml'].result()
         
         if "version" in database:
             version = float(database["version"])
@@ -8781,15 +9205,15 @@ def load_kwh_prices():
         KWH_AVG_PRICES_DB = database.copy()
 
         if not KWH_AVG_PRICES_DB:
-            TASKS['load_kwh_prices_create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
-            done, pending = task.wait({TASKS['load_kwh_prices_create_yaml']})
+            TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
+            done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
         error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e}"
         _LOGGER.error(error_message)
-        save_error_to_file(error_message, caller_function_name = "load_kwh_prices()")
-        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_load_kwh_prices")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}()")
+        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_load_error")
     finally:
-        task_cancel("load_kwh_prices_", task_remove=True, startswith=True)
+        task_cancel(func_prefix, task_remove=True, startswith=True)
     
     if KWH_AVG_PRICES_DB == {} or not KWH_AVG_PRICES_DB:
         KWH_AVG_PRICES_DB = {}
@@ -8835,7 +9259,8 @@ def save_kwh_prices():
         save_changes(f"{__name__}_kwh_avg_prices_db", db_to_file)
 
 def append_kwh_prices():
-    _LOGGER = globals()['_LOGGER'].getChild("append_kwh_prices")
+    func_name = "append_kwh_prices"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global KWH_AVG_PRICES_DB
     
     if len(KWH_AVG_PRICES_DB) == 0:
@@ -8843,22 +9268,23 @@ def append_kwh_prices():
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
         if "today" in get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id']):
-            today = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], "today")
-            
-            max_price = max(today) - get_refund()
-            mean_price = round(average(today), 3) - get_refund()
-            min_price = min(today) - get_refund()
-            
-            max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
-            
-            KWH_AVG_PRICES_DB['max'].insert(0, max_price)
-            KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
-            KWH_AVG_PRICES_DB['min'].insert(0, min_price)
-            KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
-            KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
-            KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
-
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+            
+            if "today" not in power_prices_attr:
+                today = power_prices_attr["today"]
+                
+                max_price = max(today) - get_refund()
+                mean_price = round(average(today), 3) - get_refund()
+                min_price = min(today) - get_refund()
+                
+                max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
+                
+                KWH_AVG_PRICES_DB['max'].insert(0, max_price)
+                KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
+                KWH_AVG_PRICES_DB['min'].insert(0, min_price)
+                KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
+                KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
+                KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
             
             transmissions_nettarif = 0.0
             systemtarif = 0.0
@@ -8939,7 +9365,9 @@ def notify_battery_under_daily_battery_level():
 if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("startup")
+        func_name = "startup"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
         
         log_lines = []
@@ -8956,50 +9384,50 @@ if INITIALIZATION_COMPLETE:
             set_charging_rule(f"📟Sætter entities op")
             log_lines.append(f"📟Sætter entities op")
             
-            TASKS["startup_set_entity_friendlynames"] = task.create(set_entity_friendlynames)
-            TASKS["startup_emoji_description"] = task.create(emoji_description)
-            TASKS["startup_set_default_entity_states"] = task.create(set_default_entity_states)
-            done, pending = task.wait({TASKS["startup_set_entity_friendlynames"], TASKS["startup_emoji_description"], TASKS["startup_set_default_entity_states"]})
+            TASKS[f"{func_prefix}set_entity_friendlynames"] = task.create(set_entity_friendlynames)
+            TASKS[f"{func_prefix}emoji_description"] = task.create(emoji_description)
+            TASKS[f"{func_prefix}set_default_entity_states"] = task.create(set_default_entity_states)
+            done, pending = task.wait({TASKS[f"{func_prefix}set_entity_friendlynames"], TASKS[f"{func_prefix}emoji_description"], TASKS[f"{func_prefix}set_default_entity_states"]})
             
             set_charging_rule(f"📟Indlæser databaserne")
             log_lines.append(f"📟Indlæser databaserne")
             
-            TASKS["startup_load_power_values_db"] = task.create(load_power_values_db)
-            TASKS["startup_load_solar_available_db"] = task.create(load_solar_available_db)
-            TASKS["startup_load_kwh_prices"] = task.create(load_kwh_prices)
-            TASKS["startup_load_drive_efficiency"] = task.create(load_drive_efficiency)
-            TASKS["startup_load_km_kwh_efficiency"] = task.create(load_km_kwh_efficiency)
-            done, pending = task.wait({TASKS["startup_load_power_values_db"], TASKS["startup_load_solar_available_db"], TASKS["startup_load_kwh_prices"], TASKS["startup_load_drive_efficiency"], TASKS["startup_load_km_kwh_efficiency"]})
+            TASKS[f"{func_prefix}load_power_values_db"] = task.create(load_power_values_db)
+            TASKS[f"{func_prefix}load_solar_available_db"] = task.create(load_solar_available_db)
+            TASKS[f"{func_prefix}load_kwh_prices"] = task.create(load_kwh_prices)
+            TASKS[f"{func_prefix}load_drive_efficiency"] = task.create(load_drive_efficiency)
+            TASKS[f"{func_prefix}load_km_kwh_efficiency"] = task.create(load_km_kwh_efficiency)
+            done, pending = task.wait({TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
             
             log_lines.append(f"📟Indlæser ladnings historik")
             
-            TASKS["startup_load_charging_history"] = task.create(load_charging_history)
-            done, pending = task.wait({TASKS["startup_load_charging_history"]})
+            TASKS[f"{func_prefix}load_charging_history"] = task.create(load_charging_history)
+            done, pending = task.wait({TASKS[f"{func_prefix}load_charging_history"]})
             
             log_lines.append(f"📟Sætter småting op")
             
-            TASKS["startup_solar_charged_percentage"] = task.create(solar_charged_percentage)
-            TASKS["startup_is_battery_fully_charged"] = task.create(is_battery_fully_charged)
-            TASKS["startup_set_estimated_range"] = task.create(set_estimated_range)
-            TASKS["startup_calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), update_entities = True)
-            done, pending = task.wait({TASKS["startup_solar_charged_percentage"], TASKS["startup_is_battery_fully_charged"], TASKS["startup_set_estimated_range"], TASKS["startup_calc_kwh_price"]})
+            TASKS[f"{func_prefix}solar_charged_percentage"] = task.create(solar_charged_percentage)
+            TASKS[f"{func_prefix}is_battery_fully_charged"] = task.create(is_battery_fully_charged)
+            TASKS[f"{func_prefix}set_estimated_range"] = task.create(set_estimated_range)
+            TASKS[f"{func_prefix}calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), update_entities = True)
+            done, pending = task.wait({TASKS[f"{func_prefix}solar_charged_percentage"], TASKS[f"{func_prefix}is_battery_fully_charged"], TASKS[f"{func_prefix}set_estimated_range"], TASKS[f"{func_prefix}calc_kwh_price"]})
             
             log_lines.append(f"")
             log_lines.append(f"🚗 Batteri rækkevidde: {battery_range():.2f} km")
             log_lines.append(f"🚗 Batteri niveau: {battery_level():.0f}%")
             
-            TASKS["startup_distance_per_percentage"] = task.create(distance_per_percentage)
-            done, pending = task.wait({TASKS["startup_distance_per_percentage"]})
+            TASKS[f"{func_prefix}distance_per_percentage"] = task.create(distance_per_percentage)
+            done, pending = task.wait({TASKS[f"{func_prefix}distance_per_percentage"]})
             
-            distance_per_percent = TASKS["startup_distance_per_percentage"].result()
+            distance_per_percent = TASKS[f"{func_prefix}distance_per_percentage"].result()
             log_lines.append(f"🚗 km/%: {distance_per_percent:.2f} km")
             log_lines.append(f"🚗 HA estimeret rækkevidde: {(battery_level() * distance_per_percent):.2f} km")
             log_lines.append(f"")
             
-            TASKS["startup_calc_charging_amps"] = task.create(calc_charging_amps, 0.0, report = True)
-            done, pending = task.wait({TASKS["startup_calc_charging_amps"]})
+            TASKS[f"{func_prefix}calc_charging_amps"] = task.create(calc_charging_amps, 0.0, report = True)
+            done, pending = task.wait({TASKS[f"{func_prefix}calc_charging_amps"]})
             
-            amps_report = TASKS["startup_calc_charging_amps"].result()
+            amps_report = TASKS[f"{func_prefix}calc_charging_amps"].result()
             for line in amps_report.splitlines():
                 log_lines.append(line)
             log_lines.append(f"")
@@ -9007,24 +9435,24 @@ if INITIALIZATION_COMPLETE:
             log_lines.append(f"📟Beregner ladeplan")
             set_charging_rule(f"📟Beregner ladeplan")
             
-            TASKS["startup_charge_if_needed"] = task.create(charge_if_needed)
-            TASKS["startup_preheat_ev"] = task.create(preheat_ev)
-            TASKS["startup_drive_efficiency_save_car_stats"] = task.create(drive_efficiency_save_car_stats, bootup=True)
-            done, pending = task.wait({TASKS["startup_charge_if_needed"], TASKS["startup_preheat_ev"], TASKS["startup_drive_efficiency_save_car_stats"]})
+            TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+            TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
+            TASKS[f"{func_prefix}drive_efficiency_save_car_stats"] = task.create(drive_efficiency_save_car_stats, bootup=True)
+            done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"], TASKS[f"{func_prefix}preheat_ev"], TASKS[f"{func_prefix}drive_efficiency_save_car_stats"]})
             
             if CONFIG['notification']['update_available']:
-                TASKS["startup_check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS["startup_check_master_updates"]})
+                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
+                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
             _LOGGER.error(f"Error during startup: {e}")
-            my_persistent_notification(f"Error during startup: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_startup_error")
+            my_persistent_notification(f"Error during startup: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
             for line in log_lines:
                 _LOGGER.info(line)
                 
-            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_startup")
+            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_{func_name}_notification")
             
-            task_cancel("startup_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
         
         append_overview_output(f"📟{BASENAME} started")
    
@@ -9032,21 +9460,23 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
     def charging_rule(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("charging_rule")
+        func_name = "charging_rule"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        
         if trigger_type == "startup":
             if fill_up_charging_enabled() and workplan_charging_enabled():
                 set_state(f"input_boolean.{__name__}_fill_up", "off")
-                my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
+                my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
         else:
             if value == "on":
                 if var_name == f"input_boolean.{__name__}_fill_up":
                     if workplan_charging_enabled():
                         set_state(f"input_boolean.{__name__}_workplan_charging", "off")
-                        my_persistent_notification(f"❗Deaktivere Arbejdsplan opladning\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
+                        my_persistent_notification(f"❗Deaktivere Arbejdsplan opladning\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
                 elif var_name == f"input_boolean.{__name__}_workplan_charging":
                     if fill_up_charging_enabled():
                         set_state(f"input_boolean.{__name__}_fill_up", "off")
-                        my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_charging_rule_conflict")
+                        my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
                 
     @time_trigger(f"cron(0/{CONFIG['cron_interval']} * * * *)")
     @state_trigger(f"input_button.{__name__}_enforce_planning")
@@ -9054,30 +9484,32 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"input_boolean.{__name__}_allow_manual_charging_solar")
     @state_trigger(f"input_boolean.{__name__}_calculate_charging_loss")
     def triggers_charge_if_needed(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("triggers_charge_if_needed")
+        func_name = "triggers_charge_if_needed"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
         try:
             if trigger_type == "time":
-                TASKS["triggers_charge_if_needed_calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), update_entities = True)
-                done, pending = task.wait({TASKS["triggers_charge_if_needed_calc_kwh_price"]})
+                TASKS[f"{func_prefix}calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), update_entities = True)
+                done, pending = task.wait({TASKS[f"{func_prefix}calc_kwh_price"]})
                 
             if is_charging():
-                TASKS["triggers_charge_if_needed_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["triggers_charge_if_needed_wake_up_ev"]})
+                TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
-            TASKS["triggers_charge_if_needed_charge_if_needed"] = task.create(charge_if_needed)
-            TASKS["triggers_charge_if_needed_is_battery_fully_charged"] = task.create(is_battery_fully_charged)
-            TASKS["triggers_charge_if_needed_set_estimated_range"] = task.create(set_estimated_range)
-            done, pending = task.wait({TASKS["triggers_charge_if_needed_charge_if_needed"], TASKS["triggers_charge_if_needed_is_battery_fully_charged"], TASKS["triggers_charge_if_needed_set_estimated_range"]})
+            TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+            TASKS[f"{func_prefix}is_battery_fully_charged"] = task.create(is_battery_fully_charged)
+            TASKS[f"{func_prefix}set_estimated_range"] = task.create(set_estimated_range)
+            done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"], TASKS[f"{func_prefix}is_battery_fully_charged"], TASKS[f"{func_prefix}set_estimated_range"]})
             
             if var_name == f"input_button.{__name__}_enforce_planning" and TESTING:
-                TASKS["triggers_charge_if_needed_debug_info"] = task.create(debug_info)
-                done, pending = task.wait({TASKS["triggers_charge_if_needed_debug_info"]})
+                TASKS[f"{func_prefix}debug_info"] = task.create(debug_info)
+                done, pending = task.wait({TASKS[f"{func_prefix}debug_info"]})
         except Exception as e:
-            _LOGGER.error(f"Error in triggers_charge_if_needed: {e}")
-            my_persistent_notification(f"Error in triggers_charge_if_needed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_triggers_charge_if_needed_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("triggers_charge_if_needed_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
 
     @state_trigger(f"input_number.{__name__}_trip_charge_procent")
     @state_trigger(f"input_number.{__name__}_trip_range_needed")
@@ -9085,7 +9517,8 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"input_datetime.{__name__}_trip_homecoming_date_time")
     @state_trigger(f"input_button.{__name__}_trip_reset")
     def state_trigger_ev_trips(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_trips")
+        func_name = "state_trigger_ev_trips"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global LAST_TRIP_CHANGE_DATETIME
         
         if var_name == f"input_number.{__name__}_trip_charge_procent":
@@ -9117,7 +9550,9 @@ if INITIALIZATION_COMPLETE:
             
     @state_trigger(f"{CONFIG['charger']['entity_ids']['power_consumtion_entity_id']}")
     def state_trigger_charger_power(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_power")
+        func_name = "state_trigger_charger_power"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global CURRENT_CHARGING_SESSION
         
         if not isinstance(value, (float, int)) or isinstance(old_value, (float, int)):
@@ -9126,67 +9561,19 @@ if INITIALIZATION_COMPLETE:
         try:
             if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['type'] == "no_rule":
                 if not charging_without_rule():
-                    TASKS["state_trigger_charger_power_stop_current_charging_session"] = task.create(stop_current_charging_session)
-                    done, pending = task.wait({TASKS["state_trigger_charger_power_stop_current_charging_session"]})
+                    TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
+                    done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
                     set_charging_rule(f"Lader ikke")
         except Exception as e:
-            _LOGGER.error(f"Error in state_trigger_charger_power: {e}")
-            my_persistent_notification(f"Error in state_trigger_charger_power: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_power_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("state_trigger_charger_power_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
     
-    @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
-    def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_port")
-        global CURRENT_CHARGING_SESSION, TASKS
-        try:
-            _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
-            if old_value in CHARGER_NOT_READY_STATUS:
-                
-                TASKS["state_trigger_charger_port_notify_set_battery_level"] = task.create(notify_set_battery_level)
-                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_notify_set_battery_level"], TASKS["state_trigger_charger_port_wake_up_ev"]})
-                
-                TASKS["state_trigger_charger_port_charge_if_needed"] = task.create(charge_if_needed)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_charge_if_needed"]})
-            elif value in CHARGER_NOT_READY_STATUS:
-                TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
-                TASKS["state_trigger_charger_port_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"], TASKS["state_trigger_charger_port_wake_up_ev"]})
-                
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
-                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
-            elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
-                if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
-                    TASKS["state_trigger_charger_port_stop_current_charging_session"] = task.create(stop_current_charging_session)
-                    done, pending = task.wait({TASKS["state_trigger_charger_port_stop_current_charging_session"]})
-                    
-                    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
-        except Exception as e:
-            _LOGGER.error(f"Error in state_trigger_charger_port: {e}")
-            my_persistent_notification(f"Error in state_trigger_charger_port: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_port_error")
-        finally:
-            task_cancel("state_trigger_charger_port_", task_remove=True, startswith=True)
-         
-    if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
-        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
-        def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
-            global TASKS
-            try:
-                if value == "home":
-                    TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
-                    done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
-            except Exception as e:
-                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
-                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
-            finally:
-                task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)
-    
-    def wait_until_odometer_stable():
-        task.unique("wait_until_odometer_stable")
-        _LOGGER = globals()['_LOGGER'].getChild("wait_until_odometer_stable")
+    def wait_until_odometer_stable(func_prefix=None):
+        func_name = "wait_until_odometer_stable"
+        task.unique(func_name)
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         if not is_ev_configured():
             return
         
@@ -9211,7 +9598,7 @@ if INITIALIZATION_COMPLETE:
                 _LOGGER.info(f"Odometer up to date {int(last_odometer)} {last_odometer_timestamp}, no need to wait")
                 return
             
-            while minutesBetween(now, getTime()) < max_wait_time_minutes and (not TASKS["wait_until_odometer_stable"].cancelling() or not TASKS["wait_until_odometer_stable"].cancelled()):
+            while minutesBetween(now, getTime()) < max_wait_time_minutes and (not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelling() or not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelled()):
                 to_datetime = getTime()
                 from_datetime = to_datetime - datetime.timedelta(hours=24)
                 values = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_datetime, to_datetime, float_type=True, convert_to=None, include_timestamps=True, error_state={})
@@ -9228,160 +9615,277 @@ if INITIALIZATION_COMPLETE:
                         _LOGGER.info(f"Odometer stable at {current_odometer} now, no need to wait anymore")
                         break
                 task.wait_until(timeout=60)
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+            pass
         except Exception as e:
             _LOGGER.error(f"Error in wait_until_odometer_stable: {e}")
             
     def power_connected_trigger(value):
-        task.unique("power_connected_trigger")
-        _LOGGER = globals()['_LOGGER'].getChild("power_connected_trigger")
-        global TASKS
-        
+        func_name = "power_connected_trigger"
+        func_prefix = f"{func_name}_"
+        task.unique(func_name)
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        global TASKS, LAST_DRIVE_EFFICIENCY_DATA
+                
         try:
-            if ready_to_charge():
-                if is_ev_configured():
-                    task_cancel("power_connected_trigger_wait_until_odometer_stable", task_remove=True)
-                    
-                    TASKS["power_connected_trigger_wait_until_odometer_stable"] = task.create(wait_until_odometer_stable)
-                    done, pending = task.wait({TASKS["power_connected_trigger_wait_until_odometer_stable"]})
-                    
-            TASKS["power_connected_trigger_drive_efficiency"] = task.create(drive_efficiency, str(value))
-            TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
-            done, pending = task.wait({TASKS["power_connected_trigger_drive_efficiency"], TASKS["power_connected_trigger_notify_battery_under_daily_battery_level"]})
+            task_cancel(func_prefix, task_remove=True, startswith=True)
+            
+            if is_ev_configured():
+                TASKS[f"{func_prefix}wait_until_odometer_stable"] = task.create(wait_until_odometer_stable, func_prefix=func_prefix)
+                done, pending = task.wait({TASKS[f"{func_prefix}wait_until_odometer_stable"]})
+            
+            TASKS[f"{func_prefix}drive_efficiency"] = task.create(drive_efficiency, str(value))
+            TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
+            done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
         except Exception as e:
-            _LOGGER.error(f"Error in power_connected_trigger: {e}")
-            my_persistent_notification(f"Error in power_connected_trigger: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_power_connected_trigger_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("power_connected_trigger_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
+    
+    @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
+    def state_trigger_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
+        func_name = "state_trigger_charger_port"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        global CURRENT_CHARGING_SESSION, TASKS
+        
+        if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+            return
+            
+        try:
+            _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
+            if value in CHARGER_READY_STATUS and old_value in CHARGER_NOT_READY_STATUS:
+                TASKS[f"{func_prefix}notify_set_battery_level"] = task.create(notify_set_battery_level)
+                TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS[f"{func_prefix}notify_set_battery_level"], TASKS[f"{func_prefix}wake_up_ev"]})
+                
+                TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+                done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
+                
+                if is_ev_configured():
+                    TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                    done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+            elif value in CHARGER_NOT_READY_STATUS:
+                TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
+                TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"], TASKS[f"{func_prefix}wake_up_ev"]})
+                
+                TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
+                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
+            elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
+                if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
+                    TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
+                    done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
+                    
+                    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
+        except Exception as e:
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+        finally:
+            task_cancel(func_prefix, task_remove=True, startswith=True)
+         
+    """if is_entity_configured(CONFIG['ev_car']['entity_ids']['location_entity_id']):
+        @state_trigger(f"{CONFIG['ev_car']['entity_ids']['location_entity_id']}")
+        def state_trigger_ev_location(trigger_type=None, var_name=None, value=None, old_value=None):
+            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_location")
+            global TASKS
+            try:
+                if value == "home":
+                    TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
+                    done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
+                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
+            finally:
+                task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)"""
 
-    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']):
+    if is_entity_configured(CONFIG['charger']['entity_ids']['cable_connected_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['status_entity_id']):
         @state_trigger(f"{CONFIG['charger']['entity_ids']['cable_connected_entity_id']}")
         def state_trigger_charger_cable_connected(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("state_trigger_charger_cable_connected")
+            func_name = "state_trigger_charger_cable_connected"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            
+            if not is_ev_configured() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                return
+            
+            _LOGGER.info(f"Charger cable connected changed from {old_value} to {value}")
             try:
-                TASKS["state_trigger_charger_cable_connected_wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS["state_trigger_charger_cable_connected_wake_up_ev"]})
+                TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
+                done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
                 if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
-                    power_connected_trigger(value)
+                    
+                    TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                    done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
             except Exception as e:
-                _LOGGER.error(f"Error in state_trigger_charger_cable_connected: {e}")
-                my_persistent_notification(f"Error in state_trigger_charger_cable_connected: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_charger_cable_connected_error")
+                _LOGGER.error(f"Error in {func_name}: {e}")
+                my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
             finally:
-                task_cancel("state_trigger_charger_cable_connected_", task_remove=True, startswith=True)
+                task_cancel(func_prefix, task_remove=True, startswith=True)
             
     if is_ev_configured():
         @time_trigger(f"cron(0/5 * * * *)")
         def cron_five_every_minute(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("cron_five_every_minute")
+            func_name = "cron_five_every_minute"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
             try:
-                TASKS["cron_five_every_minute_preheat_ev"] = task.create(preheat_ev)
-                done, pending = task.wait({TASKS["cron_five_every_minute_preheat_ev"]})
+                TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
+                done, pending = task.wait({TASKS[f"{func_prefix}preheat_ev"]})
             except Exception as e:
-                _LOGGER.error(f"Error in cron_five_every_minute: {e}")
-                my_persistent_notification(f"Error in cron_five_every_minute: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_five_every_minute_error")
+                _LOGGER.error(f"Error in {func_name}: {e}")
+                my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
             finally:
-                task_cancel("cron_five_every_minute_", task_remove=True, startswith=True)
+                task_cancel(func_prefix, task_remove=True, startswith=True)
         
         if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
                 def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
-                    _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_port")
-                    power_connected_trigger(value)
+                    func_name = "state_trigger_ev_charger_port"
+                    func_prefix = f"{func_name}_"
+                    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+                    
+                    if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                        return
+                    
+                    _LOGGER.info(f"Ev charge port changed from {old_value} to {value}")
+                    
+                    try:
+                        TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                    except Exception as e:
+                        _LOGGER.error(f"Error in {func_name}: {e}")
+                        my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                    finally:
+                        task_cancel(func_prefix, task_remove=True, startswith=True)
             else:
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']}")
                 def state_trigger_ev_charger_cable(trigger_type=None, var_name=None, value=None, old_value=None):
-                    _LOGGER = globals()['_LOGGER'].getChild("state_trigger_ev_charger_cable")
-                    power_connected_trigger(value)
+                    func_name = "state_trigger_ev_charger_cable"
+                    func_prefix = f"{func_name}_"
+                    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+                    
+                    if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                        return
+                    
+                    _LOGGER.info(f"Ev charge cable changed from {old_value} to {value}")
+                    
+                    try:
+                        TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                    except Exception as e:
+                        _LOGGER.error(f"Error in {func_name}: {e}")
+                        my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                    finally:
+                        task_cancel(func_prefix, task_remove=True, startswith=True)
     else:
         @state_trigger(f"input_number.{__name__}_battery_level")
         def emulated_battery_level_changed(trigger_type=None, var_name=None, value=None, old_value=None):
-            _LOGGER = globals()['_LOGGER'].getChild("emulated_battery_level_changed")
+            func_name = "emulated_battery_level_changed"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
             try:
                 old_value = float(old_value)
                 value = float(value)
             except:
                 return
             
-            try:
-                if old_value == 0.0 and value > 0.0:
-                    TASKS["emulated_battery_level_changed_drive_efficiency"] = task.create(drive_efficiency, "on")
-                    done, pending = task.wait({TASKS["emulated_battery_level_changed_drive_efficiency"]})
-            except Exception as e:
-                _LOGGER.error(f"Error in emulated_battery_level_changed: {e}")
-                my_persistent_notification(f"Error in emulated_battery_level_changed: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_emulated_battery_level_changed_error")
-            finally:
-                task_cancel("emulated_battery_level_changed_", task_remove=True, startswith=True)
+            if old_value == 0.0 and value > 0.0:
+                try:
+                    TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, "on")
+                    done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                except Exception as e:
+                    _LOGGER.error(f"Error in {func_name}: {e}")
+                    my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                finally:
+                    task_cancel(func_prefix, task_remove=True, startswith=True)
                 
     @time_trigger(f"cron(59 * * * *)")
     def cron_hour_end(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("cron_hour_end")
+        func_name = "cron_hour_end"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
+        
         try:
-            TASKS['cron_hour_end_local_energy_available'] = task.create(local_energy_available, period = 60, without_all_exclusion = True, solar_only = True)
-            TASKS['cron_hour_end_power_values'] = task.create(power_values, period = 60)
-            done, pending = task.wait({TASKS['cron_hour_end_local_energy_available'], TASKS['cron_hour_end_power_values']})
+            TASKS[f'{func_prefix}local_energy_available'] = task.create(local_energy_available, period = 60, without_all_exclusion = True, solar_only = True)
+            TASKS[f'{func_prefix}power_values'] = task.create(power_values, period = 60)
+            done, pending = task.wait({TASKS[f'{func_prefix}local_energy_available'], TASKS[f'{func_prefix}power_values']})
             
-            cron_local_energy_available = TASKS['cron_hour_end_local_energy_available'].result()
-            cron_power_values = TASKS['cron_hour_end_power_values'].result()
+            cron_local_energy_available = TASKS[f'{func_prefix}local_energy_available'].result()
+            cron_power_values = TASKS[f'{func_prefix}power_values'].result()
             
-            TASKS['cron_hour_end_solar_available_append_to_db'] = task.create(solar_available_append_to_db, cron_local_energy_available)
-            TASKS['cron_hour_end_power_values_to_db'] = task.create(power_values_to_db, cron_power_values)
-            TASKS['cron_hour_end_stop_current_charging_session'] = task.create(stop_current_charging_session)
-            TASKS['cron_hour_end_kwh_charged_by_solar'] = task.create(kwh_charged_by_solar)
-            TASKS['cron_hour_end_solar_charged_percentage'] = task.create(solar_charged_percentage)
-            TASKS['cron_hour_end_commands_history_clean_entity_integration'] = task.create(commands_history_clean_entity_integration)
-            done, pending = task.wait({TASKS['cron_hour_end_solar_available_append_to_db'], TASKS['cron_hour_end_power_values_to_db'],
-                                    TASKS['cron_hour_end_stop_current_charging_session'], TASKS['cron_hour_end_kwh_charged_by_solar'],
-                                    TASKS['cron_hour_end_solar_charged_percentage'], TASKS['cron_hour_end_commands_history_clean_entity_integration']})
+            TASKS[f'{func_prefix}solar_available_append_to_db'] = task.create(solar_available_append_to_db, cron_local_energy_available)
+            TASKS[f'{func_prefix}power_values_to_db'] = task.create(power_values_to_db, cron_power_values)
+            TASKS[f'{func_prefix}stop_current_charging_session'] = task.create(stop_current_charging_session)
+            TASKS[f'{func_prefix}kwh_charged_by_solar'] = task.create(kwh_charged_by_solar)
+            TASKS[f'{func_prefix}solar_charged_percentage'] = task.create(solar_charged_percentage)
+            TASKS[f'{func_prefix}commands_history_clean_entity_integration'] = task.create(commands_history_clean_entity_integration)
+            done, pending = task.wait({TASKS[f'{func_prefix}solar_available_append_to_db'], TASKS[f'{func_prefix}power_values_to_db'],
+                                    TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}kwh_charged_by_solar'],
+                                    TASKS[f'{func_prefix}solar_charged_percentage'], TASKS[f'{func_prefix}commands_history_clean_entity_integration']})
         except Exception as e:
-            _LOGGER.error(f"Error in cron_hour_end: {e}")
-            my_persistent_notification(f"Error in cron_hour_end: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_hour_end_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("cron_hour_end_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
         
     @time_trigger(f"cron(0 0 * * *)")
     def cron_new_day(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("cron_new_day")
+        func_name = "cron_new_day"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
+        
         try:
-            TASKS['cron_new_day_reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
-            done, pending = task.wait({TASKS['cron_new_day_reset_counter_entity_integration']})
+            TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
+            done, pending = task.wait({TASKS[f'{func_prefix}reset_counter_entity_integration']})
             
             if CONFIG['notification']['update_available']:
-                TASKS["cron_new_day_check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS["cron_new_day_check_master_updates"]})
+                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
+                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
-            _LOGGER.error(f"Error in cron_new_day: {e}")
-            my_persistent_notification(f"Error in cron_new_day: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_new_day_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("cron_new_day_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
         
     @time_trigger(f"cron(0 1 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("cron_append_kwh_prices")
+        func_name = "cron_append_kwh_prices"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
+        
         try:
-            TASKS["cron_append_kwh_prices_append_kwh_prices"] = task.create(append_kwh_prices)
-            done, pending = task.wait({TASKS["cron_append_kwh_prices_append_kwh_prices"]})
+            TASKS[f"{func_prefix}append_kwh_prices"] = task.create(append_kwh_prices)
+            done, pending = task.wait({TASKS[f"{func_prefix}append_kwh_prices"]})
         except Exception as e:
-            _LOGGER.error(f"Error in cron_append_kwh_prices: {e}")
-            my_persistent_notification(f"Error in cron_append_kwh_prices: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_cron_append_kwh_prices_error")
+            _LOGGER.error(f"Error in {func_name}: {e}")
+            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
         finally:
-            task_cancel("cron_append_kwh_prices_", task_remove=True, startswith=True)
+            task_cancel(func_prefix, task_remove=True, startswith=True)
     
     @state_trigger(f"input_boolean.{__name__}_calculate_charging_loss")#TODO Add phase and amp levels measurements
     @state_trigger(f"{CONFIG['charger']['entity_ids']['status_entity_id']}")
     @state_trigger(f"{CONFIG['charger']['entity_ids']['kwh_meter_entity_id']}")
     def calculate_charging_loss(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("calculate_charging_loss")
+        func_name = "calculate_charging_loss"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
         
         global CONFIG, CHARGING_LOSS_CAR_BEGIN_KWH, CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL, CHARGING_LOSS_CHARGER_BEGIN_KWH, CHARGING_LOSS_CHARGING_COMPLETED
 
         if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
-                my_notify(message = f"Entities ikke tilgængelig, stopper ladetab beregningen", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_charging_loss_not_available")
+                my_notify(message = f"Entities ikke tilgængelig, stopper ladetab beregningen", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_{func_name}_not_available")
                 set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
             return
         
@@ -9431,7 +9935,7 @@ if INITIALIZATION_COMPLETE:
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
                         my_notify(message = f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-                        my_persistent_notification(f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_charging_loss_calculated")
+                        my_persistent_notification(f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_{func_name}_calculated")
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
@@ -9441,7 +9945,7 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
             my_notify(message = f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
-            my_persistent_notification(f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_charging_loss_error")
+            my_persistent_notification(f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_{func_name}_error")
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
@@ -9461,11 +9965,14 @@ if INITIALIZATION_COMPLETE:
 
     @time_trigger("shutdown")
     def shutdown(trigger_type=None, var_name=None, value=None, old_value=None):
-        _LOGGER = globals()['_LOGGER'].getChild("shutdown")
+        func_name = "shutdown"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        
         global CONFIG, TASKS
         
-        TASKS['shutdown_stop_current_charging_session'] = task.create(stop_current_charging_session)
-        TASKS['shutdown_reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
+        TASKS[f'{func_prefix}stop_current_charging_session'] = task.create(stop_current_charging_session)
+        TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
         
         if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
             set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
@@ -9490,21 +9997,22 @@ if INITIALIZATION_COMPLETE:
                 if is_solar_configured():
                     CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
                 
-                TASKS['shutdown_save_changes'] = task.create(save_changes, f"{__name__}_config", CONFIG)
-                done, pending = task.wait({TASKS['shutdown_save_changes']})
+                TASKS[f'{func_prefix}save_changes'] = task.create(save_changes, f"{__name__}_config", CONFIG)
+                done, pending = task.wait({TASKS[f'{func_prefix}save_changes']})
             except Exception as e:
                 _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-                my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_shutdown_error")
+                my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_{func_name}_error")
         else:
             set_charging_rule(f"📟Lukker scriptet ned\nGemmer ikke konfigurations filen, da den er manuel redigeret")
             _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
             
-        done, pending = task.wait({TASKS['shutdown_stop_current_charging_session'], TASKS['shutdown_reset_counter_entity_integration']})
+        done, pending = task.wait({TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}reset_counter_entity_integration']})
         
         task.wait_until(timeout=1.0)
         task_shutdown()
             
 @state_trigger(f"input_button.{__name__}_restart_script")
 def restart(trigger_type=None, var_name=None, value=None, old_value=None):
-    _LOGGER = globals()['_LOGGER'].getChild("restart")
+    func_name = "restart"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     restart_script()
