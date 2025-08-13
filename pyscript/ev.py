@@ -122,7 +122,7 @@ ERROR_COUNT = 0
 
 POWERWALL_CHARGING_TEXT = ""
 
-SOLAR_PRODUCTION_TRIGGER = 100.0  # Minimum solar production in Watt to consider solar available
+SOLAR_PRODUCTION_TRIGGER = 500.0  # Minimum solar production in Watt to consider solar available
 POWERWALL_CHARGING_TRIGGER = 500.0  # Minimum Powerwall charging in Watt to consider Powerwall charging
 POWERWALL_DISCHARGING_TRIGGER = 500.0 # Minimum Powerwall discharging in Watt to consider Powerwall discharging
 
@@ -7089,21 +7089,12 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         if include_local_energy_distribution:
             return 0.0, 0.0, 0.0, 0.0
         return 0.0
-
-    random_int = random.randint(0, 10000)
-    task_names = {
-        "discharge_above_needed": f"discharge_above_needed_{random_int}",
-        "powerwall_battery_level": f"powerwall_battery_level_{random_int}",
-        "powerwall_reserved_battery_level": f"powerwall_reserved_battery_level_{random_int}",
-        "powerwall_charging_power": f"powerwall_charging_power_{random_int}",
-        "powerwall_charging_timestamps": f"powerwall_charging_timestamps_{random_int}"
-    }
     
     watts_available_from_local_energy = 0.0
+    watts_available_from_local_energy_solar_only = 0.0
     
     try:
         now = getTime()
-        current_hour = getTime().replace(minute=0, second=0, tzinfo=None)
         if timeTo is not None:
             # Range mode
             from_time_stamp = now - datetime.timedelta(minutes=timeFrom)
@@ -7128,19 +7119,109 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         powerwall_discharging_consumption = values["powerwall_discharging_consumption"]
         ev_used_consumption = values["ev_used_consumption"]
         solar_production = values["solar_production"]
-        total_production = solar_production
+        total_local_energy = solar_production + powerwall_discharging_consumption
         
-        if without_all_exclusion:
-            watts_available_from_local_energy = total_production - power_consumption_without_all_exclusion
-            power_needed_from_powerwall = max(power_consumption_without_all_exclusion - solar_production, 0.0)
-            powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
-        else:
-            watts_available_from_local_energy = total_production - power_consumption_without_ignored
-            power_needed_from_powerwall = max(power_consumption_without_ignored - solar_production, 0.0)
-            powerwall_discharging_available = max(powerwall_discharging_consumption - power_needed_from_powerwall, 0.0)
-            
-        watts_available_from_local_energy_solar_only = watts_available_from_local_energy
+        house_power_consumption = power_consumption_without_all_exclusion if without_all_exclusion else power_consumption_without_ignored
+        
+        watts_available_from_local_energy = max(total_local_energy - house_power_consumption, 0.0)
+        watts_available_from_local_energy_solar_only = max(solar_production - house_power_consumption, 0.0)
+        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        
+        watts_available_from_local_energy = round(min(watts_available_from_local_energy, CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
 
+        if include_local_energy_distribution:
+            solar_watts_of_local_energy = 0.0
+            powerwall_watts_of_local_energy = 0.0
+            _LOGGER.debug(f"values: {values} watts_available_from_local_energy: {watts_available_from_local_energy} ev_used_consumption: {ev_used_consumption} solar_production: {solar_production} total_local_energy: {total_local_energy} powerwall_discharging_available: {powerwall_discharging_available}")
+            watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
+            
+            if watts_from_local_energy > 0.0:
+                solar_watts_of_local_energy = (solar_production / total_local_energy) * watts_from_local_energy if total_local_energy > 0.0 else 0.0
+                powerwall_watts_of_local_energy = (powerwall_discharging_consumption / total_local_energy) * watts_from_local_energy if total_local_energy > 0.0 else 0.0
+            
+            return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
+    except Exception as e:
+        _LOGGER.error(f"Error calculating local energy available: {e}")
+        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        
+        if include_local_energy_distribution:
+            return watts_available_from_local_energy, 0.0, 0.0, 0.0
+    
+    return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy
+
+def max_local_energy_available_remaining_period():
+    func_name = "max_local_energy_available_remaining_period"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, POWERWALL_CHARGING_TEXT
+    
+    if not is_solar_configured():
+        return 0.0
+    
+    now = getTime()
+    current_hour = now.replace(minute=0, second=0, tzinfo=None)
+    period = getMinute()
+    
+    if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
+        period = CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
+        
+        if CONFIG['solar']['solarpower_use_before_minutes'] <= 60:
+            def map_minute(minute: int, usage_period: int) -> int:
+                if usage_period <= 0:
+                    return 0
+                return minute % usage_period
+            
+            period = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
+    
+    random_int = random.randint(0, 10000)
+    task_names = {
+        "power_values": f"{func_prefix}power_values_{random_int}",
+        "predicted_solar_power": f"{func_prefix}predicted_solar_power_{random_int}",
+        "predicted_solar_power_period_watt": f"{func_prefix}predicted_solar_power_period_watt_{random_int}",
+        "discharge_above_needed": f"{func_prefix}discharge_above_needed_{random_int}",
+        "powerwall_battery_level": f"{func_prefix}powerwall_battery_level_{random_int}",
+        "powerwall_reserved_battery_level": f"{func_prefix}powerwall_reserved_battery_level_{random_int}",
+        "powerwall_charging_power": f"{func_prefix}powerwall_charging_power_{random_int}",
+        "powerwall_charging_timestamps": f"{func_prefix}powerwall_charging_timestamps_{random_int}"
+    }
+    
+    watt_available = 0.0
+    
+    try:
+        TASKS[task_names["power_values"]] = task.create(power_values, period=period)
+        TASKS[task_names["predicted_solar_power"]] = task.create(local_energy_available, timeFrom=0, timeTo=max(period, CONFIG['cron_interval'], 10), without_all_exclusion=True)
+        TASKS[task_names["predicted_solar_power_period_watt"]] = task.create(local_energy_available, timeFrom=0, timeTo=period, without_all_exclusion=False, solar_only=True)
+        done, pending = task.wait({TASKS[task_names["predicted_solar_power"]], TASKS[task_names["predicted_solar_power_period_watt"]]})
+        
+        predicted_solar_power = max(TASKS[task_names["predicted_solar_power"]].result(), 0.0)
+        predicted_solar_power_period = f"0-{period}"
+        predicted_solar_power_period_watt = 0.0
+        
+        if period >= CONFIG['cron_interval']:
+            predicted_solar_power_period_watt = max(TASKS[task_names["predicted_solar_power_period_watt"]].result(), 0.0)
+        
+        solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
+        solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
+        allow_grid_charging_above_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predicted_solar_power >= solar_threadhold else 0.0
+
+        values = TASKS[task_names["power_values"]].result()
+        ignored_consumption = values["ignored_consumption"]
+        power_consumption = values["power_consumption"]
+        power_consumption_without_ignored = values["power_consumption_without_ignored"]
+        power_consumption_without_ignored_ev = values["power_consumption_without_ignored_ev"]
+        power_consumption_without_all_exclusion = values["power_consumption_without_all_exclusion"]
+        powerwall_charging_consumption = values["powerwall_charging_consumption"]
+        powerwall_discharging_consumption = values["powerwall_discharging_consumption"]
+        ev_used_consumption = values["ev_used_consumption"]
+        solar_production = values["solar_production"]
+        total_local_energy = solar_production + powerwall_discharging_consumption
+        
+        watts_available_from_local_energy = max(total_local_energy - power_consumption_without_all_exclusion, 0.0)
+        watts_available_from_local_energy_solar_only = max(solar_production - power_consumption_without_all_exclusion, 0.0)
+        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        
+        powerwall_force_power = 0.0
+        
         if is_powerwall_configured():
             TASKS[task_names["discharge_above_needed"]] = task.create(get_powerwall_discharge_above_needed)
             TASKS[task_names["powerwall_battery_level"]] = task.create(get_powerwall_battery_level)
@@ -7160,27 +7241,21 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             powerwall_forced_stop_charging = False
             
             if current_hour in powerwall_charging_timestamps:
-                _LOGGER.error(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
+                _LOGGER.debug(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
                 
-                if not include_local_energy_distribution and powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
-                    watts_available_from_local_energy -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
+                if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
+                    powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
                 if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
                     #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
-                    watts_available_from_local_energy += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
+                    powerwall_force_power += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
-                else:
-                    watts_available_from_local_energy -= powerwall_charging_consumption
-            
-            if not solar_only:
-                total_production += powerwall_discharging_available
-                
-                if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
-                    if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
-                        watts_available_from_local_energy += CONFIG["solar"]["powerwall_discharging_power"]
-                    else:
-                        watts_available_from_local_energy += powerwall_discharging_available
+        
+            if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level:
+                _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
+                if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
+                    powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
 
             if (powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
@@ -7188,130 +7263,70 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
                 POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
             elif powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER:
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall standset – opladning sker senere"
+                    POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
-            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level + 1.0:
+            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level:
                 POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_available)}W"
             else:
                 POWERWALL_CHARGING_TEXT = ""
 
-        watts_available_from_local_energy = round(min(max(watts_available_from_local_energy, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
-        watts_available_from_local_energy_solar_only = round(min(max(watts_available_from_local_energy_solar_only, 0.0), CONFIG["solar"]["inverter_discharging_power_limit"]), 2)
-
-        if update_entity:
-            set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_available_from_local_energy_solar_only)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
-            
-            if is_powerwall_configured():
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_available", powerwall_discharging_available)
-                set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_production", total_production)
-                
-            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
-
-
-        if include_local_energy_distribution:
-            solar_watts_of_local_energy = 0.0
-            powerwall_watts_of_local_energy = 0.0
-            
-            watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
-            
-            if watts_from_local_energy > 0.0:
-                solar_watts_of_local_energy = (solar_production / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
-                powerwall_watts_of_local_energy = (powerwall_discharging_available / total_production) * watts_from_local_energy if total_production > 0.0 else 0.0
-            
-            return watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
-    except Exception as e:
-        _LOGGER.error(f"Error calculating local energy available: {e}")
-        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_local_energy_available")
-    finally:
-        task_cancel(task_names.values(), task_remove=True)
-            
-    return watts_available_from_local_energy
-
-def max_local_energy_available_remaining_period():
-    _LOGGER = globals()['_LOGGER'].getChild("max_local_energy_available_remaining_period")
-    global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY
-    
-    if not is_solar_configured():
-        return 0.0
-    
-    time_to = getMinute()
-    
-    if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
-        time_to = CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval']
-        
-        if CONFIG['solar']['solarpower_use_before_minutes'] <= 60:
-            def map_minute(minute: int, usage_period: int) -> int:
-                if usage_period <= 0:
-                    return 0
-                return minute % usage_period
-            
-            time_to = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
-    
-    random_int = random.randint(0, 10000)
-    predicted_solar_power_task_name = f"max_local_energy_available_remaining_period_predicted_solar_power_{random_int}"
-    total_task_name = f"max_local_energy_available_remaining_period_total_{random_int}"
-    
-    watt_available = 0.0
-    
-    try:
-        TASKS[predicted_solar_power_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=max(time_to, CONFIG['cron_interval'], 10), without_all_exclusion=True)
-        TASKS[total_task_name] = task.create(local_energy_available, timeFrom=0, timeTo=time_to, without_all_exclusion=False, update_entity=False, solar_only=True)
-        done, pending = task.wait({TASKS[predicted_solar_power_task_name], TASKS[total_task_name]})
-            
-        predicted_solar_power = max(TASKS[predicted_solar_power_task_name].result(), 0.0)
-        predicted_solar_power_period = f"0-{time_to}"
-        predicted_solar_power_period_watt = 0.0
-        
-        if time_to >= CONFIG['cron_interval']:
-            predicted_solar_power_period_watt = max(TASKS[total_task_name].result(), 0.0)
-        
-        solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
-        solar_threadhold = CONFIG['charger']['power_voltage'] * solar_min_amp / 5
-        allow_grid_charging_above_solar_available = CONFIG['solar']['allow_grid_charging_above_solar_available'] if predicted_solar_power >= solar_threadhold else 0.0
-        
         multiple = 1.0
         
         if CONFIG['solar']['max_to_current_hour']:
             multiple = 1 + (getMinute() / 60)
         elif CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
-            max_multiple = 2.0
-            #multiple = time_window_linear_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
-            #multiple = time_window_parabolic_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, curve_ratio=0.5) #Parabolic weighting
-            multiple = time_window_gaussian_weight(time_to, CONFIG['solar']['solarpower_use_before_minutes'] - CONFIG['cron_interval'], max_multiple, sigma_ratio=0.3) #Gaussian weighting
+            max_multiple = 1 - (CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'])
+            #multiple = time_window_linear_weight(period, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
+            #multiple = time_window_parabolic_weight(period, CONFIG['solar']['solarpower_use_before_minutes'] / 2.0, max_multiple, curve_ratio=0.5) #Parabolic weighting
+            multiple = time_window_gaussian_weight(period, CONFIG['solar']['solarpower_use_before_minutes'] / 2.0, max_multiple, sigma_ratio=0.3) #Gaussian weighting
+            multiple += 1.0
         
-        multiple = round(multiple, 3)
-        extra_watt = round(max((predicted_solar_power_period_watt * multiple), 0.0), 2)
-        watt_available = max(predicted_solar_power + allow_grid_charging_above_solar_available + extra_watt, 0.0)
+        predicted_solar_power = round(predicted_solar_power, 2)
+        predicted_solar_power_period_watt = round(predicted_solar_power_period_watt, 2)
+        
+        multiple = round(max(multiple, 1.0), 3)
+        extra_watt = round(max((predicted_solar_power_period_watt + min(powerwall_force_power, 0.0)) * multiple, 0.0), 2)
+        total_available = max(sum(((predicted_solar_power + min(powerwall_force_power, 0.0)), allow_grid_charging_above_solar_available, extra_watt, max(powerwall_force_power, 0.0))), 0.0)
+        watt_available = min(total_available, CONFIG["solar"]["inverter_discharging_power_limit"])
         
         MAX_LOCAL_ENERGY_AVAILABLE_HISTORY[getTime().isoformat()] = {
             "1. predicted_solar_power": predicted_solar_power,
             "2. allow_grid_charging_above_solar_available": allow_grid_charging_above_solar_available,
             "3. predicted_solar_power_period": predicted_solar_power_period,
             "4. predicted_solar_power_period_watt": predicted_solar_power_period_watt,
-            "5. multiple": multiple,
-            "6. extra_watt (4. * 5.)": extra_watt,
-            "7. watt_available (1. + 2. + 6.)": watt_available
+            "5. powerwall_force_power": powerwall_force_power,
+            "6. multiple": multiple,
+            "7. extra_watt (4. + min(5., 0.0)) * 6.)": extra_watt,
+            "8. total_available (1. + min(5., 0.0) + 2. + max(5., 0.0) + 7.)": total_available,
+            f"9. watt_available (min(8., {CONFIG['solar']['inverter_discharging_power_limit']}))": watt_available
             }
         MAX_LOCAL_ENERGY_AVAILABLE_HISTORY = limit_dict_size(MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, 10)
         
+        set_state(f"sensor.{__name__}_solar_over_production_current_hour", watts_available_from_local_energy_solar_only)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.from_the_last", f"{period} minutes")
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ignored_consumption", ignored_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption", power_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored", power_consumption_without_ignored)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_ignored_ev", power_consumption_without_ignored_ev)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.power_consumption_without_all_exclusion", power_consumption_without_all_exclusion)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.ev_used_consumption", ev_used_consumption)
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.solar_production", solar_production)
         
+        if is_powerwall_configured():
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_charging_consumption", powerwall_charging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_consumption", powerwall_discharging_consumption)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.powerwall_discharging_available", powerwall_discharging_available)
+            set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_local_energy", total_local_energy)
+            
+        set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
+            
         _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except Exception as e:
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
-        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_max_local_energy_available_remaining_period")
+        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
     finally:
-        task_cancel("max_local_energy_available_remaining_period_", task_remove=True, startswith=True)
+        task_cancel(task_names.values(), task_remove=True, startswith=True)
             
     return watt_available
 
