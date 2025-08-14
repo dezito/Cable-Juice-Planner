@@ -5032,10 +5032,10 @@ def reset_current_battery_level_expenses():
 
 def current_battery_level_expenses():
     global BATTERY_LEVEL_EXPENSES
-    
-    current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
-    
+        
     try:
+        current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
+        
         if CHARGING_HISTORY_DB:
             for key in dict(sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)).keys():
                 if round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"]) < round(current_battery_level):
