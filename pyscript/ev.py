@@ -3846,18 +3846,20 @@ def drive_efficiency_save_car_stats(bootup=False):
             return
         
         if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
-            if TESTING:
-                LAST_DRIVE_EFFICIENCY_DATA = {
-                    "timestamp": getTime(),
-                    "distance": 100.0,
-                    "usedkWh": 20.0,
-                    "usedBattery": 30.0,
-                    "cost": 15.0,
-                    "efficiency": 90.0,
-                    "distancePerkWh": 5.0,
-                    "wh_km": 175.0
-                }
-            return
+            if not TESTING:
+                return
+            
+            LAST_DRIVE_EFFICIENCY_DATA = {
+                "timestamp": getTime(),
+                "distance": 100.0,
+                "usedkWh": 20.0,
+                "usedBattery": 30.0,
+                "cost": 15.0,
+                "efficiency": 90.0,
+                "distancePerkWh": 5.0,
+                "wh_km": 175.0
+            }
+            set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.last_drive_efficiency_data", LAST_DRIVE_EFFICIENCY_DATA)
         
         attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
         
