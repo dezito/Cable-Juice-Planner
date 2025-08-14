@@ -9286,45 +9286,45 @@ def append_kwh_prices():
                 KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
                 KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
             
-            transmissions_nettarif = 0.0
-            systemtarif = 0.0
-            elafgift = 0.0
-            
-            if "tariffs" in power_prices_attr:
-                attr = power_prices_attr["tariffs"]
-                transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-                systemtarif = attr["additional_tariffs"]["systemtarif"]
-                elafgift = attr["additional_tariffs"]["elafgift"]
+                transmissions_nettarif = 0.0
+                systemtarif = 0.0
+                elafgift = 0.0
                 
-            day_of_week = getDayOfWeek()
-            
-            for h in range(24):
-                KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
-                KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
-                
-                if is_solar_configured():
-                    tariffs = 0.0
+                if "tariffs" in power_prices_attr:
+                    attr = power_prices_attr["tariffs"]
+                    transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
+                    systemtarif = attr["additional_tariffs"]["systemtarif"]
+                    elafgift = attr["additional_tariffs"]["elafgift"]
                     
-                    if "tariffs" in power_prices_attr:
-                        tariffs = attr["tariffs"][str(h)]
+                day_of_week = getDayOfWeek()
+                
+                for h in range(24):
+                    KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
+                    KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
+                    
+                    if is_solar_configured():
+                        tariffs = 0.0
                         
-                    tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-                    raw_price = today[h] - tariff_sum
+                        if "tariffs" in power_prices_attr:
+                            tariffs = attr["tariffs"][str(h)]
+                            
+                        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+                        raw_price = today[h] - tariff_sum
 
-                    energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
-                    energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
-                    solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
-                    
-                    sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-                    sell_price = raw_price - sell_tariffs
+                        energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
+                        energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
+                        solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
                         
-                    sell_price = round(sell_price, 3)
-                    KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
-                    KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
+                        sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
+                        sell_price = raw_price - sell_tariffs
+                            
+                        sell_price = round(sell_price, 3)
+                        KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
+                        KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
                 
-            save_kwh_prices()
-            
-            set_low_mean_price()
+                save_kwh_prices()
+                
+                set_low_mean_price()
 
 def set_low_mean_price():
     average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
