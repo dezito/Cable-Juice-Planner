@@ -2527,9 +2527,16 @@ def init():
         
         set_charging_rule(f"📟Indlæser konfigurationen")
         
-        if is_ev_configured():
-            for key in [f"{__name__}_battery_level", f"{__name__}_completed_battery_level", f"{__name__}_estimated_total_range"]:
-                DEFAULT_ENTITIES['input_number'].pop(key, None)
+        if is_ev_configured(CONFIG):#TODO check when ev car is configured and still having virtual ev car entities
+            keys_to_remove = [
+                f"{__name__}_battery_level",
+                f"{__name__}_completed_battery_level",
+                f"{__name__}_estimated_total_range"
+            ]
+            
+            for key in keys_to_remove:
+                DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+                #DEFAULT_ENTITIES['input_number'].pop(key, None)
         else:
             for entity_type in ['input_boolean', 'input_number']:
                 DEFAULT_ENTITIES[entity_type] = {
@@ -2543,7 +2550,7 @@ def init():
             if f"{__name__}_km_per_kwh" in DEFAULT_ENTITIES['sensor'][0]['sensors']:
                 del DEFAULT_ENTITIES['sensor'][0]['sensors'][f'{__name__}_km_per_kwh']
         
-        if not is_solar_configured():
+        if not is_solar_configured(CONFIG):
             keys_to_remove = [
                 f"{__name__}_solar_charging",
                 f"{__name__}_kwh_charged_by_solar",
@@ -2559,7 +2566,7 @@ def init():
                     key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "solar" not in key
                 }
         
-        if not is_powerwall_configured() and not CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']:
+        if not is_powerwall_configured(CONFIG) and not CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']:
             keys_to_remove = [
                 f"{__name__}_powerwall_discharge_above_needed",
                 f"{__name__}_ev_charge_after_powerwall_battery_level"
@@ -2574,16 +2581,13 @@ def init():
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
         
-        if not is_charger_configured():
+        if not is_charger_configured(CONFIG):
             raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
         
         CONFIG['solar']['charging_single_phase_max_amp'] = min(CONFIG['solar']['charging_single_phase_max_amp'], CONFIG['charger']['charging_max_amp'])
         CONFIG['solar']['charging_single_phase_min_amp'] = min(CONFIG['solar']['charging_single_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
         CONFIG['solar']['charging_three_phase_min_amp'] = min(CONFIG['solar']['charging_three_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
         
-        is_powerwall_configured()
-        
-        create_integration_dict()
         
         INITIALIZATION_COMPLETE = True
     except Exception as e:
@@ -2646,19 +2650,13 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
 set_charging_rule(f"📟Starter scriptet op")
 init()
 
-if TESTING:
-    LAST_DRIVE_EFFICIENCY_DATA = {
-        "timestamp": getTime(),
-        "distance": 100.0,
-        "usedkWh": 20.0,
-        "usedBattery": 30.0,
-        "cost": 15.0,
-        "efficiency": 90.0,
-        "distancePerkWh": 5.0,
-        "wh_km": 175.0
-    }
-
 if INITIALIZATION_COMPLETE:
+    is_charger_configured()
+    is_solar_configured()
+    is_powerwall_configured()
+    is_ev_configured()
+    
+    create_integration_dict()
     solar_min_amp = CONFIG['solar']['charging_single_phase_min_amp'] if float(CONFIG['charger']['charging_phases']) > 1.0 else CONFIG['solar']['charging_three_phase_min_amp'] * 3.0
     SOLAR_CHARGING_TRIGGER_ON = abs(CONFIG['charger']['power_voltage'] * solar_min_amp)
     MAX_WATT_CHARGING = (CONFIG['charger']['power_voltage'] * CONFIG['charger']['charging_phases']) * CONFIG['charger']['charging_max_amp']
@@ -3848,6 +3846,17 @@ def drive_efficiency_save_car_stats(bootup=False):
             return
         
         if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
+            if TESTING:
+                LAST_DRIVE_EFFICIENCY_DATA = {
+                    "timestamp": getTime(),
+                    "distance": 100.0,
+                    "usedkWh": 20.0,
+                    "usedBattery": 30.0,
+                    "cost": 15.0,
+                    "efficiency": 90.0,
+                    "distancePerkWh": 5.0,
+                    "wh_km": 175.0
+                }
             return
         
         attributes = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level")["last_drive_efficiency_data"]
