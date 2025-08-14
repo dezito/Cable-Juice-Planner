@@ -4908,105 +4908,113 @@ async def _charging_history(charging_data = None, charging_type = ""):
                     if solar_ratio < 0.5:
                         CHARGING_HISTORY_DB[start]["emoji"] = join_unique_emojis(CHARGING_HISTORY_DB[start]["emoji"], emoji_parse({'grid_charging': True}))
         return [added_kwh, start]
-    #timestamp: 31/03 14:00 charging_data: {'Price': 2.13, 'ChargingAmps': 16.0, 'Cost': 9.59, 'kWh': 4.5, 'battery_level': 6.0, 'trip': True, 'ChargeLevel': 50.0} emoji: 🌍
-    update_entity = False
     
-    if len(CHARGING_HISTORY_DB) == 0:
-        load_charging_history()
-    
-    if CURRENT_CHARGING_SESSION['type'] is None and CURRENT_CHARGING_SESSION['start'] is None:
-        for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
-            if i > 10: break
-            
-            if CHARGING_HISTORY_DB[when]["ended"] == ">" or CHARGING_HISTORY_DB[when]["kWh"] == 0.0:
-                _LOGGER.warning(f"Removing unfinished string: {CHARGING_HISTORY_DB[when]}")
-                del CHARGING_HISTORY_DB[when]
-                update_entity = True
-                continue
-    
-    
-    if charging_type != CURRENT_CHARGING_SESSION['type']:
-        if CURRENT_CHARGING_SESSION['start']:
-            added_kwh, when = get_current_statistic(True)
-            charging_power_to_emulated_battery_level()
-            
-            #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
-            calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
-            
-            min_kwh = 0.1
-            
-            if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
-                _LOGGER.warning(f"Removing unfinished string added_kwh:{added_kwh} <= min_kwh:{min_kwh}: {CHARGING_HISTORY_DB[when]}")
-                del CHARGING_HISTORY_DB[when]
+    try:
+        update_entity = False
+        
+        if len(CHARGING_HISTORY_DB) == 0:
+            load_charging_history()
+        
+        if CURRENT_CHARGING_SESSION['type'] is None and CURRENT_CHARGING_SESSION['start'] is None:
+            for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
+                if i > 10: break
                 
-            update_entity = True
-            
-            reset_current_charging_session()
-    
-    if not CURRENT_CHARGING_SESSION['start'] and charging_data:
-        start = getTime()
-        CURRENT_CHARGING_SESSION['type'] = charging_type
-        CURRENT_CHARGING_SESSION['start'] = start
-        CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+                if CHARGING_HISTORY_DB[when]["ended"] == ">" or CHARGING_HISTORY_DB[when]["kWh"] == 0.0:
+                    _LOGGER.warning(f"Removing unfinished string: {CHARGING_HISTORY_DB[when]}")
+                    del CHARGING_HISTORY_DB[when]
+                    update_entity = True
+                    continue
         
-        if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
-            last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
-            if "end_charger_meter" in last_item[1]:
-                CURRENT_CHARGING_SESSION['start_charger_meter'] = last_item[1]["end_charger_meter"]
-                _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
-
-        CURRENT_CHARGING_SESSION['emoji'] = f"{emoji_parse(charging_data)}"
-        CURRENT_CHARGING_SESSION['data'] = charging_data
-        _LOGGER.debug(f"start:{start} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
-        CHARGING_HISTORY_DB[start] = {
-            "ended": ">",
-            "emoji": CURRENT_CHARGING_SESSION['emoji'],
-            "percentage": round(charging_data['battery_level'], 1),
-            "kWh": round(charging_data['kWh'], 3),
-            "cost": round(charging_data['Cost'], 3),
-            "unit": round(charging_data['Price'], 3),
-            "charging_session": CURRENT_CHARGING_SESSION,
-            "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-            "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-        }
-        if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
-            odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
-            if odometer:
-                CHARGING_HISTORY_DB[start]["odometer"] = int(odometer)
-        #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
         
-        charging_power_to_emulated_battery_level()
-        
-        update_entity = True
-    else:
-        for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
-            if i > 3: break
-            
-            if CHARGING_HISTORY_DB[when]["ended"] == ">" and (CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True, 'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True})}"):
-                added_kwh, when = get_current_statistic()
-                
+        if charging_type != CURRENT_CHARGING_SESSION['type']:
+            if CURRENT_CHARGING_SESSION['start']:
+                added_kwh, when = get_current_statistic(True)
                 charging_power_to_emulated_battery_level()
                 
+                #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
+                calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
+                
+                min_kwh = 0.1
+                
+                if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
+                    _LOGGER.warning(f"Removing unfinished string added_kwh:{added_kwh} <= min_kwh:{min_kwh}: {CHARGING_HISTORY_DB[when]}")
+                    del CHARGING_HISTORY_DB[when]
+                    
                 update_entity = True
-                _LOGGER.warning(f"UPDATING CURRENT STRING {when}")
-                break
-    
-    if getMinute() == 59:
-        if charging_history_recalc_price():
-            charging_power_to_emulated_battery_level()
-            update_entity = True
+                
+                reset_current_charging_session()
         
-    if update_entity:
-        charging_history_combine_and_set()
-    
-    return {
-        "added_kwh": added_kwh if "added_kwh" in locals() else 0.0,
-        "charging_type": charging_type,
-        "charging_data": charging_data,
-        "session_started": start if 'start' in locals() else False,
-        "session_ended": charging_type != CURRENT_CHARGING_SESSION['type'],
-        "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
-    }
+        if not CURRENT_CHARGING_SESSION['start'] and charging_data:
+            start = getTime()
+            CURRENT_CHARGING_SESSION['type'] = charging_type
+            CURRENT_CHARGING_SESSION['start'] = start
+            CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+            
+            if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
+                last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
+                if "end_charger_meter" in last_item[1]:
+                    CURRENT_CHARGING_SESSION['start_charger_meter'] = last_item[1]["end_charger_meter"]
+                    _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
+
+            CURRENT_CHARGING_SESSION['emoji'] = f"{emoji_parse(charging_data)}"
+            CURRENT_CHARGING_SESSION['data'] = charging_data
+            _LOGGER.debug(f"start:{start} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
+            CHARGING_HISTORY_DB[start] = {
+                "ended": ">",
+                "emoji": CURRENT_CHARGING_SESSION['emoji'],
+                "percentage": round(charging_data['battery_level'], 1),
+                "kWh": round(charging_data['kWh'], 3),
+                "cost": round(charging_data['Cost'], 3),
+                "unit": round(charging_data['Price'], 3),
+                "charging_session": CURRENT_CHARGING_SESSION,
+                "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
+                "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
+            }
+            if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
+                odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
+                if odometer:
+                    CHARGING_HISTORY_DB[start]["odometer"] = int(odometer)
+            #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
+            
+            charging_power_to_emulated_battery_level()
+            
+            update_entity = True
+        else:
+            for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
+                if i > 3: break
+                
+                if CHARGING_HISTORY_DB[when]["ended"] == ">" and (CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True, 'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True})}"):
+                    added_kwh, when = get_current_statistic()
+                    
+                    charging_power_to_emulated_battery_level()
+                    
+                    update_entity = True
+                    _LOGGER.warning(f"UPDATING CURRENT STRING {when}")
+                    break
+        
+        if getMinute() == 59:
+            if charging_history_recalc_price():
+                charging_power_to_emulated_battery_level()
+                update_entity = True
+            
+        if update_entity:
+            charging_history_combine_and_set()
+        
+        return {
+            "added_kwh": added_kwh if "added_kwh" in locals() else 0.0,
+            "charging_type": charging_type,
+            "charging_data": charging_data,
+            "session_started": start if 'start' in locals() else False,
+            "session_ended": charging_type != CURRENT_CHARGING_SESSION['type'],
+            "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
+        }
+    except Exception as e:
+        _LOGGER.exception(f"Fejl i {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
+        my_persistent_notification(
+            f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
+            f"{TITLE} fejl",
+            persistent_notification_id=f"{__name__}_{func_name}_failed"
+        )
 
 def stop_current_charging_session():
     charging_history(None, "")
