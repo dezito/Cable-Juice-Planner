@@ -4358,6 +4358,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
     
     history = []
     combined_db = {}
+    current_history_bytes_size = 0
     
     if CHARGING_HISTORY_DB:
         total = {
@@ -4378,7 +4379,6 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         sub_length = 50
         sub_details_count = 0
         
-        current_history_bytes_size = 0
         max_entity_attributes_bytes_size = 16384
         history_bytes_buffer = 0 if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else CHARGING_HISTORY_ENDING_BYTE_SIZE # Safe buffer bootup size
         
