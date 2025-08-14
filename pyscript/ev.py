@@ -4261,6 +4261,10 @@ def charging_history_recalc_price():
                         del CHARGING_HISTORY_DB[key]
                 
                 end_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+                
+                if end_charger_meter in ENTITY_UNAVAILABLE_STATES:
+                    raise Exception(f"Charger meter entity {CONFIG['charger']['entity_ids']['kwh_meter_entity_id']} is not available, cannot calculate charging history price")
+                
                 added_kwh = end_charger_meter - start_charger_meter
                 added_percentage = kwh_to_percentage(added_kwh, include_charging_loss = True)
                 
@@ -4756,7 +4760,12 @@ def charging_power_to_emulated_battery_level():
         _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION: {CURRENT_CHARGING_SESSION}, watt: {watt}")
         return
 
-    current_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=0.0))
+    current_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+    
+    if current_charger_meter in ENTITY_UNAVAILABLE_STATES:
+        _LOGGER.error(f"Charger meter entity {CONFIG['charger']['entity_ids']['kwh_meter_entity_id']} is not available, cannot update virtual battery level")
+        return
+    
     added_kwh = round(current_charger_meter - CURRENT_CHARGING_SESSION.get('start_charger_meter', 0.0), 1)
 
     if "last_charger_meter" in CURRENT_CHARGING_SESSION:
@@ -4827,6 +4836,10 @@ async def _charging_history(charging_data = None, charging_type = ""):
     def get_current_statistic(charging_ended = False):
         start = CURRENT_CHARGING_SESSION['start']
         charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+                
+        if charger_meter in ENTITY_UNAVAILABLE_STATES:
+            raise Exception(f"Charger meter entity {CONFIG['charger']['entity_ids']['kwh_meter_entity_id']} is not available, cannot update charging history")
+        
         added_kwh = round(charger_meter - CURRENT_CHARGING_SESSION['start_charger_meter'], 1)
         added_percentage = round(kwh_to_percentage(added_kwh, include_charging_loss = True), 1)
         
