@@ -2250,6 +2250,9 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
         return False
 
     try:
+        if integration not in ENTITY_INTEGRATION_DICT["commands_last_hour"]:
+            raise KeyError(f"Integration {integration} not found in ENTITY_INTEGRATION_DICT['commands_last_hour']")
+        
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [
             dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]
             if dt[0] >= now - datetime.timedelta(hours=1)
@@ -2276,7 +2279,7 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
     except Exception as e:
         _LOGGER.error(
             f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n"
-            f"{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}"
+            f"ENTITY_INTEGRATION_DICT:{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}:\nError:{e}"
         )
         allowed = True
 
