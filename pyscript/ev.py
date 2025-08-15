@@ -2133,7 +2133,7 @@ def create_integration_dict():
     def integration_lookup(entity_id):
         integration = get_integration(entity_id)
         
-        if integration is None or integration not in ENTITY_INTEGRATION_DICT["supported_integrations"]:
+        if integration is None:
             return entity_id, None
         
         return entity_id, integration
@@ -2142,11 +2142,13 @@ def create_integration_dict():
         return max(1, int(daily_limit / 24)) + 5
 
     def add_to_dict(integration):
-        ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [(getTime(), "Startup")]
         ENTITY_INTEGRATION_DICT["commands_history"][integration] = [(getTime(), "Startup")]
         ENTITY_INTEGRATION_DICT["last_reload"][integration] = getTime()
         ENTITY_INTEGRATION_DICT["counter"][integration] = 0
+        
+        if integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
+            ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"] = hourly_limit(ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"])
     
     local_task_names = []
     
@@ -2172,12 +2174,11 @@ def create_integration_dict():
         for task_name in local_task_names:
             if task_name in TASKS:
                 entity_id, integration = TASKS[task_name].result()
-                
-                if integration is None:
-                    continue
-                
+                                
                 ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
                 add_to_dict(integration)
+    except Exception as e:
+        _LOGGER.error(f"Error creating integration dict: {e}")
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -2187,6 +2188,7 @@ def create_integration_dict():
         for key, value in ENTITY_INTEGRATION_DICT["supported_integrations"].items()
         if "hourly_limit" in value
     }
+    
     _LOGGER.info(f"Entity integration daily limit buffer: {INTEGRATION_DAILY_LIMIT_BUFFER}")
     _LOGGER.info(f"Entity integration dict:\n{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}")
 
@@ -2292,10 +2294,10 @@ def set_charging_rule(text=""):
         
         for integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
             if integration in ENTITY_INTEGRATION_DICT["commands_last_hour"]:
-                if len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) >= ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"]:
+                if "hourly_limit" in ENTITY_INTEGRATION_DICT["supported_integrations"][integration] and len(ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]) >= ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["hourly_limit"]:
                     integration_limited_hourly.append(integration.capitalize())
                     
-                if ENTITY_INTEGRATION_DICT["counter"][integration] >= ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"]:
+                if "daily_limit" in ENTITY_INTEGRATION_DICT["supported_integrations"][integration] and ENTITY_INTEGRATION_DICT["counter"][integration] >= ENTITY_INTEGRATION_DICT["supported_integrations"][integration]["daily_limit"]:
                     integration_limited_daily.append(integration.capitalize())
         
         if integration_limited_hourly:
@@ -3504,7 +3506,7 @@ def ev_send_command(entity_id, command, force = False): #TODO Add start/stop ser
         if integration is None and entity_id.split(".")[0] in ("input_number", "input_select", "input_boolean", "input_text", "input_datetime"):
             integration = entity_id.split(".")[0]
         
-        if integration is not None and integration in ENTITY_INTEGRATION_DICT["supported_integrations"]:
+        if integration is not None:
             charging_limit_list = []
             for item in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]:
                 if CONFIG["ev_car"]["entity_ids"]["charging_limit_entity_id"] in item[1]:
