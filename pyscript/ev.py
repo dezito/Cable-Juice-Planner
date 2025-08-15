@@ -2174,6 +2174,10 @@ def create_integration_dict():
         for task_name in local_task_names:
             if task_name in TASKS:
                 entity_id, integration = TASKS[task_name].result()
+                
+                if integration is None:
+                    _LOGGER.warning(f"Integration for entity {entity_id} is None, skipping")
+                    continue
                                 
                 ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
                 add_to_dict(integration)
