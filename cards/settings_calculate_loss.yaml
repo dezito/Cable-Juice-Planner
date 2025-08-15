@@ -51,9 +51,9 @@ cards:
     chips:
       - type: action
         tap_action:
-          action: call-service
-          service: script.cable_juice_planner_opdatering
+          action: perform-action
           target: {}
+          perform_action: pyscript.ev_update_repo
         hold_action:
           action: more-info
         double_tap_action:
