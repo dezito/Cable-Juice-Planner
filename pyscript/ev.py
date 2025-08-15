@@ -7288,18 +7288,24 @@ def max_local_energy_available_remaining_period():
                 _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
                 if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
                     powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
-
-            if (powerwall_battery_level < powerwall_reserved_battery_level
+        
+            if (watts_available_from_local_energy_solar_only > SOLAR_PRODUCTION_TRIGGER
+                and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
                 and watts_available_from_local_energy > 0.0):
                 POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
-            elif powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER:
+                
+            elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
+                  and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
                     POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
-            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level:
+                    
+            elif (powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER
+                  and powerwall_battery_level > powerwall_reserved_battery_level):
                 POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_available)}W"
+                
             else:
                 POWERWALL_CHARGING_TEXT = ""
 
