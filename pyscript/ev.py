@@ -512,7 +512,7 @@ COMMENT_DB_YAML = {
     "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
     "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
     "charger.entity_ids.power_consumtion_entity_id": "**Required** Charging power in Watt",
-    "charger.entity_ids.kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
+    "charger.entity_ids.kwh_meter_entity_id": "**Required** Use Riemann-sum integral-sensor (Integral method: Left Riemann-sum), if charger kwh meter is slow, as with Easee else the chargers lifetime kwh meter",
     "charger.entity_ids.lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
     "charger.entity_ids.enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
     "charger.entity_ids.dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
@@ -555,12 +555,12 @@ COMMENT_DB_YAML = {
     "forecast.entity_ids.daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
     "forecast.entity_ids.outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
     "home.entity_ids.power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
-    "home.entity_ids.powerwall_watt_flow_entity_id": "Powerwall watt flow (Tip: Disable powerwall discharging when ev charging) (Entity setup plus value for discharging, negative for charging)",
+    "home.entity_ids.powerwall_watt_flow_entity_id": "Powerwall watt flow (Plus value for discharging, negative for charging, invert with home.invert_powerwall_watt_flow_entity_id) (Tip: Disable powerwall discharging when ev charging)",
     "home.entity_ids.powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar with ev_charge_after_powerwall_battery_level",
     "home.entity_ids.ignore_consumption_from_entity_ids": "List of power sensors to ignore",
     "home.power_consumption_entity_id_include_powerwall_charging": "Home power consumption include powerwall charging (Watt entity)",
     "home.power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity)",
-    "home.invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow entity_id (Entity setup plus value for charging, negative for discharging)",
+    "home.invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow of home.entity_ids.powerwall_watt_flow_entity_id to plus value for charging, negative for discharging",
     "notification.efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
     "notification.update_available": "Notification of new version available at midnight and on script start",
     "notification.preheating": "Notification of preheating start/stop",
@@ -7288,18 +7288,24 @@ def max_local_energy_available_remaining_period():
                 _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
                 if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
                     powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
-
-            if (powerwall_battery_level < powerwall_reserved_battery_level
+        
+            if (watts_available_from_local_energy_solar_only > SOLAR_PRODUCTION_TRIGGER
+                and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
                 and watts_available_from_local_energy > 0.0):
                 POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
-            elif powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER:
+                
+            elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
+                  and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
                     POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
-            elif powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER and powerwall_battery_level > powerwall_reserved_battery_level:
+                    
+            elif (powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER
+                  and powerwall_battery_level > powerwall_reserved_battery_level):
                 POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_available)}W"
+                
             else:
                 POWERWALL_CHARGING_TEXT = ""
 
@@ -8186,6 +8192,7 @@ def trip_charging():
 def preheat_ev():#TODO Make it work on Tesla and Kia
     func_name = "preheat_ev"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global PREHEATING
     
     def stop_preheat_no_driving(next_drive, now, preheat_min_before):
         if minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 1) > (preheat_min_before * 3) and minutesBetween(next_drive, now, error_value=(preheat_min_before * 3) + 11) <= (preheat_min_before * 3) + 10:
@@ -8270,9 +8277,10 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             forecast_temp = float(get_attr(CONFIG['forecast']['entity_ids']['daily_service_entity_id'], "temperature"))
     except Exception as e:
         _LOGGER.error(f"Cant get forecast temp from entity {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}['temperature']: {e}")
-                
-    climate_state = get_state(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"], error_state="unknown")
-    integration = get_integration(CONFIG['ev_car']['entity_ids']['climate_entity_id'])
+    
+    entity_id = CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]
+    climate_state = get_state(entity_id, error_state="unknown")
+    integration = get_integration(entity_id)
     
     if "tessie" == integration:
         if preheat and climate_state == "off" and service.has_service("climate", "turn_on"):
@@ -8282,10 +8290,10 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             _LOGGER.info("Preheating ev car")
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
-                service.call("climate", "set_preset_mode", preset_mode="Defrost", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
+                service.call("climate", "set_preset_mode", preset_mode="Defrost", blocking=True, entity_id=entity_id)
                 heating_type = "Optøer"
             else:
-                service.call("climate", "turn_on", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
+                service.call("climate", "turn_on", blocking=True, entity_id=entity_id)
                 
             drive_efficiency("preheat")
             
@@ -8298,13 +8306,13 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration)
                     
                     _LOGGER.info("Car not moved stopping preheating ev car")
-                    service.call("climate", "turn_off", blocking=True, entity_id=CONFIG['ev_car']['entity_ids']['climate_entity_id'])
+                    service.call("climate", "turn_off", blocking=True, entity_id=entity_id)
                     drive_efficiency("preheat_cancel")
                     
                     if CONFIG['notification']['preheating']:
                         my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_set_climatisation"):
-        vin = get_vin_cupra_born(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"])
+        vin = get_vin_cupra_born(entity_id=entity_id)
         if preheat and vin and climate_state == "off":
             
             if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration, check_only=True): return
@@ -8332,7 +8340,37 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
                     if CONFIG['notification']['preheating']:
                         my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     else:
-        _LOGGER.warning(f"Integration {integration} not supported")
+        button_domains = ["button", "input_button"]
+        switch_domains = ["switch", "input_boolean"]
+        domain = entity_id.split(".")[0]
+        
+        if domain not in button_domains + switch_domains:
+            _LOGGER.warning(f"Integration {integration} not supported")
+            return
+        
+        if not allow_command_entity_integration("Button Preheat", "preheat()", integration = integration, check_only=True): return
+            
+        if domain in button_domains:
+            if domain == "button":
+                button.press(entity_id=entity_id)
+            else:
+                input_button.press(entity_id=entity_id)
+        elif domain in switch_domains:
+            if climate_state == "off":
+                set_state(entity_id, "on")
+            else:
+                set_state(entity_id, "off")
+                
+        if PREHEATING:
+            drive_efficiency("preheat_cancel")
+            
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+        else:
+            drive_efficiency("preheat")
+            
+            if CONFIG['notification']['preheating']:
+                my_notify(message = f"Forvarmer bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
 
 def ready_to_charge():
     func_name = "ready_to_charge"
@@ -9299,64 +9337,71 @@ def append_kwh_prices():
         load_kwh_prices()
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
-        if "today" in get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id']):
-            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        
+        if "today" not in power_prices_attr:
+            _LOGGER.error(f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute")
+            my_persistent_notification(
+                f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute",
+                f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_no_today_attr"
+            )
+            return
+        
+        today = power_prices_attr["today"]
+        
+        max_price = max(today) - get_refund()
+        mean_price = round(average(today), 3) - get_refund()
+        min_price = min(today) - get_refund()
+        
+        max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
+        
+        KWH_AVG_PRICES_DB['max'].insert(0, max_price)
+        KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
+        KWH_AVG_PRICES_DB['min'].insert(0, min_price)
+        KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
+        KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
+        KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
+    
+        transmissions_nettarif = 0.0
+        systemtarif = 0.0
+        elafgift = 0.0
+        
+        if "tariffs" in power_prices_attr:
+            attr = power_prices_attr["tariffs"]
+            transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
+            systemtarif = attr["additional_tariffs"]["systemtarif"]
+            elafgift = attr["additional_tariffs"]["elafgift"]
             
-            if "today" not in power_prices_attr:
-                today = power_prices_attr["today"]
-                
-                max_price = max(today) - get_refund()
-                mean_price = round(average(today), 3) - get_refund()
-                min_price = min(today) - get_refund()
-                
-                max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
-                
-                KWH_AVG_PRICES_DB['max'].insert(0, max_price)
-                KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
-                KWH_AVG_PRICES_DB['min'].insert(0, min_price)
-                KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
-                KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
-                KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
+        day_of_week = getDayOfWeek()
+        
+        for h in range(24):
+            KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
+            KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
             
-                transmissions_nettarif = 0.0
-                systemtarif = 0.0
-                elafgift = 0.0
+            if is_solar_configured():
+                tariffs = 0.0
                 
                 if "tariffs" in power_prices_attr:
-                    attr = power_prices_attr["tariffs"]
-                    transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-                    systemtarif = attr["additional_tariffs"]["systemtarif"]
-                    elafgift = attr["additional_tariffs"]["elafgift"]
+                    tariffs = attr["tariffs"][str(h)]
                     
-                day_of_week = getDayOfWeek()
-                
-                for h in range(24):
-                    KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
-                    KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
-                    
-                    if is_solar_configured():
-                        tariffs = 0.0
-                        
-                        if "tariffs" in power_prices_attr:
-                            tariffs = attr["tariffs"][str(h)]
-                            
-                        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-                        raw_price = today[h] - tariff_sum
+                tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
+                raw_price = today[h] - tariff_sum
 
-                        energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
-                        energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
-                        solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
-                        
-                        sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-                        sell_price = raw_price - sell_tariffs
-                            
-                        sell_price = round(sell_price, 3)
-                        KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
-                        KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
+                energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
+                energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
+                solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
                 
-                save_kwh_prices()
-                
-                set_low_mean_price()
+                sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
+                sell_price = raw_price - sell_tariffs
+                    
+                sell_price = round(sell_price, 3)
+                KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
+                KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
+        
+        save_kwh_prices()
+        
+        set_low_mean_price()
 
 def set_low_mean_price():
     average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
