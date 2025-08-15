@@ -512,7 +512,7 @@ COMMENT_DB_YAML = {
     "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
     "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
     "charger.entity_ids.power_consumtion_entity_id": "**Required** Charging power in Watt",
-    "charger.entity_ids.kwh_meter_entity_id": "**Required** Maybe use Riemann-sum integral-sensor (charger kwh meter is slow, as with Easee) else the chargers lifetime kwh meter",
+    "charger.entity_ids.kwh_meter_entity_id": "**Required** Use Riemann-sum integral-sensor (Integral method: Left Riemann-sum), if charger kwh meter is slow, as with Easee else the chargers lifetime kwh meter",
     "charger.entity_ids.lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
     "charger.entity_ids.enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
     "charger.entity_ids.dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
