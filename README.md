@@ -85,6 +85,12 @@ Der understøttes nuværende & fremtidig prognose solcelle overproduktion, via h
     - Oplad elbil efter Powerwall minimum batteriniveau
   - **Kalkulering af lade tab**
 
+### :warning: <mark>**Home Assistant Standard database, SQLite understøttes ikke**</mark> :warning:
+  - Installere f.eks. MariaDB og evt. InfluxDB
+    - [Konvertere til MariaDB](https://theprivatesmarthome.com/how-to/use-mariadb-instead-of-sqlite-db-in-home-assistant/)
+    - [Installere InfluxDB](https://pimylifeup.com/home-assistant-influxdb/)
+    - [Optimimere Home Assistant Database](https://smarthomescene.com/guides/optimize-your-home-assistant-database/)
+  - pga. fejl i homeassistant.components.recorder.history bibliotek
 ### Påkrævet integrationer
 - [HACS](https://github.com/hacs/integration)
 - [PyScript](https://github.com/custom-components/pyscript)
