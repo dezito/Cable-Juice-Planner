@@ -226,7 +226,8 @@ ENTITY_INTEGRATION_DICT = {
         "kia_uvo": {"daily_limit": 200},
         "monta": {"daily_limit": 144000},
         "tesla": {"daily_limit": 200},
-        "tessie": {"daily_limit": 500}
+        "tessie": {"daily_limit": 500},
+        "volkswagencarnet": {"daily_limit": 450},
     },
     "entities": {},
     "commands_last_hour": {},
