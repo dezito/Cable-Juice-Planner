@@ -1621,7 +1621,7 @@ def get_debug_info_sections():
         },
     }
 
-def run_git_command_sync(cmd):
+def run_console_command_sync(cmd):
     try:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         if result.returncode != 0:
@@ -1635,14 +1635,14 @@ def run_git_command_sync(cmd):
     except Exception as e:
         raise RuntimeError(f"Unexpected error: {e}")
 
-async def run_git_command(cmd):
+async def run_console_command(cmd):
     """Run a git command synchronously and safely with timeout and error handling."""
     try:
         length = 8
         random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
         
-        task_name = f'run_git_command_{random_string}'
-        TASKS[task_name] = task.create(run_git_command_sync, cmd)
+        task_name = f'run_console_command_{random_string}'
+        TASKS[task_name] = task.create(run_console_command_sync, cmd)
         done, pending = task.wait({TASKS[task_name]})
         result = TASKS[task_name].result()
         
@@ -1672,11 +1672,11 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Checking for updates in {repo_path}")
 
-        run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
-        run_git_command(["git", "-C", repo_path, "fetch", "origin", branch])
+        run_console_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
+        run_console_command(["git", "-C", repo_path, "fetch", "origin", branch])
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
         local_head = TASKS[f'{func_prefix}local_head'].result()
@@ -1691,9 +1691,9 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
         
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
@@ -1753,10 +1753,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
 
-        run_git_command(["git", "-C", repo_path, "fetch", "--all"])
+        run_console_command(["git", "-C", repo_path, "fetch", "--all"])
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
         local_head = TASKS[f'{func_prefix}local_head'].result()
@@ -1771,8 +1771,8 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
         
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
@@ -1782,10 +1782,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        run_git_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
-        run_git_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
+        run_console_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
+        run_console_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
 
-        commit_log_lines = run_git_command(
+        commit_log_lines = run_console_command(
             ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
         ).split("\n")
 
