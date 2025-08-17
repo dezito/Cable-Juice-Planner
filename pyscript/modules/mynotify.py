@@ -29,7 +29,7 @@ def my_persistent_notification(message = None, title = "", persistent_notificati
                                     data={"notification_id": persistent_notification_id}
                                     )
         else:
-            _LOGGER.warning(f"Notify service dont have notify.{entity_id} Message:'{message}' not send")
+            _LOGGER.warning(f"Notify service dont have notify. Message:'{message}' not send")
     except Exception as e:
         _LOGGER.error(f"Error in service call notify.persistent_notification: {e}")
 

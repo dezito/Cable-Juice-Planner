@@ -4,6 +4,7 @@ import random
 import string
 import subprocess
 from collections.abc import Iterable
+from copy import deepcopy
 from itertools import chain
 from typing import Optional
 from pprint import pformat
@@ -18,6 +19,7 @@ except:
     benchmark_loaded = False
 
 from filesystem import (
+    CONFIG_FOLDER,
     get_config_folder,
     file_exists,
     get_file_modification_time,
@@ -226,7 +228,8 @@ ENTITY_INTEGRATION_DICT = {
         "kia_uvo": {"daily_limit": 200},
         "monta": {"daily_limit": 144000},
         "tesla": {"daily_limit": 200},
-        "tessie": {"daily_limit": 500}
+        "tessie": {"daily_limit": 500},
+        "volkswagencarnet": {"daily_limit": 450},
     },
     "entities": {},
     "commands_last_hour": {},
@@ -1618,7 +1621,7 @@ def get_debug_info_sections():
         },
     }
 
-def run_git_command_sync(cmd):
+def run_console_command_sync(cmd):
     try:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         if result.returncode != 0:
@@ -1632,14 +1635,14 @@ def run_git_command_sync(cmd):
     except Exception as e:
         raise RuntimeError(f"Unexpected error: {e}")
 
-async def run_git_command(cmd):
+async def run_console_command(cmd):
     """Run a git command synchronously and safely with timeout and error handling."""
     try:
         length = 8
         random_string = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
         
-        task_name = f'run_git_command_{random_string}'
-        TASKS[task_name] = task.create(run_git_command_sync, cmd)
+        task_name = f'run_console_command_{random_string}'
+        TASKS[task_name] = task.create(run_console_command_sync, cmd)
         done, pending = task.wait({TASKS[task_name]})
         result = TASKS[task_name].result()
         
@@ -1653,6 +1656,29 @@ async def run_git_command(cmd):
     except Exception as e:
         raise RuntimeError(e)
 
+@service(f"pyscript.{__name__}_recreate_hardlinks")
+def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
+    func_name = "recreate_hardlinks"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    output = run_console_command(["bash", f"{CONFIG_FOLDER}/Cable-Juice-Planner/scripts/recreate_hardlinks_cable_juice_planner.sh"])
+    if trigger_type != "service":
+        return output
+    
+    if output:
+        my_persistent_notification(
+            f"**Hardlinks recreated successfully:**\n\n{output}",
+            title=f"{TITLE} Hardlinks Recreated",
+            persistent_notification_id=f"{__name__}_recreate_hardlinks"
+        )
+    else:
+        my_persistent_notification(
+            "No output from hardlink recreation script.",
+            title=f"{TITLE} Hardlinks Recreate Error",
+            persistent_notification_id=f"{__name__}_recreate_hardlinks_error"
+        )
+    
 @service(f"pyscript.{__name__}_check_master_updates")
 def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     func_name = "check_master_updates"
@@ -1661,8 +1687,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
     
-    config_path = get_config_folder()
-    repo_path = f"{config_path}/Cable-Juice-Planner"
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
     
     result = {"has_updates": False, "commits_behind": 0}
@@ -1670,11 +1695,11 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     try:
         _LOGGER.info(f"Checking for updates in {repo_path}")
 
-        run_git_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
-        run_git_command(["git", "-C", repo_path, "fetch", "origin", branch])
+        run_console_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
+        run_console_command(["git", "-C", repo_path, "fetch", "origin", branch])
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
         local_head = TASKS[f'{func_prefix}local_head'].result()
@@ -1689,9 +1714,9 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
+        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
         
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
@@ -1737,7 +1762,6 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             persistent_notification_id=f"{__name__}_{func_name}"
         )
 
-
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     func_name = "update_repo"
@@ -1746,17 +1770,16 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
 
-    config_path = get_config_folder()
-    repo_path = f"{config_path}/Cable-Juice-Planner"
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
 
     try:
         _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
 
-        run_git_command(["git", "-C", repo_path, "fetch", "--all"])
+        run_console_command(["git", "-C", repo_path, "fetch", "--all"])
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
+        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
+        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
         
         local_head = TASKS[f'{func_prefix}local_head'].result()
@@ -1771,8 +1794,8 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_git_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
+        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
+        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
         
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
@@ -1782,12 +1805,16 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
-        run_git_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
-        run_git_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
+        run_console_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
+        run_console_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
 
-        commit_log_lines = run_git_command(
+        commit_log_lines = run_console_command(
             ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
         ).split("\n")
+        
+        if commit_log_lines:
+            recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
+            commit_log_lines += recreate_hardlinks_log_lines
 
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
@@ -2094,7 +2121,7 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global COMMENT_DB_YAML
     
-    db = db.copy() if isinstance(db, dict) else db
+    db = deepcopy(db) if isinstance(db, dict) else db
     
     if db == {} or db == [] or db is None:
         _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
@@ -2112,7 +2139,7 @@ def save_changes(file, db):
     if "version" in db_disk:
         del db_disk["version"]
     
-    comment_db = COMMENT_DB_YAML.copy() if f"{__name__}_config" in file else None
+    comment_db = deepcopy(COMMENT_DB_YAML) if f"{__name__}_config" in file else None
     if db != db_disk:
         try:
             _LOGGER.info(f"Saving {file} to disk")
@@ -2249,6 +2276,9 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
         return False
 
     try:
+        if integration not in ENTITY_INTEGRATION_DICT["commands_last_hour"]:
+            raise KeyError(f"Integration {integration} not found in ENTITY_INTEGRATION_DICT['commands_last_hour']")
+        
         ENTITY_INTEGRATION_DICT["commands_last_hour"][integration] = [
             dt for dt in ENTITY_INTEGRATION_DICT["commands_last_hour"][integration]
             if dt[0] >= now - datetime.timedelta(hours=1)
@@ -2275,7 +2305,7 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
     except Exception as e:
         _LOGGER.error(
             f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n"
-            f"{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}: {e}"
+            f"ENTITY_INTEGRATION_DICT:{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}:\nError:{e}"
         )
         allowed = True
 
@@ -2446,8 +2476,9 @@ def init():
             TASKS[f'{func_prefix}updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}updated_save_yaml_{file_path}']})
             
+        old_content = deepcopy(content)
+        
         if key_renaming:
-            old_content = content.copy()
             is_config_file = True if "config.yaml" in file_path else False
             
             keys_renamed = []
@@ -2526,7 +2557,7 @@ def init():
     
     _LOGGER.info(welcome())
     try:
-        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG.copy(), CONFIG_KEYS_RENAMING.copy(), COMMENT_DB_YAML.copy(), check_first_run=True, prompt_restart=False)
+        CONFIG = handle_yaml(f"{__name__}_config.yaml", deepcopy(DEFAULT_CONFIG), deepcopy(CONFIG_KEYS_RENAMING), deepcopy(COMMENT_DB_YAML), check_first_run=True, prompt_restart=False)
         CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
 
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
@@ -2582,7 +2613,7 @@ def init():
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES.copy(), ENTITIES_RENAMING.copy(), None, check_nested_keys=True, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", deepcopy(DEFAULT_ENTITIES), deepcopy(ENTITIES_RENAMING), None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
@@ -5905,7 +5936,7 @@ def cheap_grid_charge_hours():
                         battery_level_expenses_solar_kwh_loop = 0.0
                         reference_battery_level = get_min_daily_battery_level() if event_type in ("workday", "offday") else get_min_trip_battery_level()
                         
-                        for key in sorted([k for k in BATTERY_LEVEL_EXPENSES.copy().keys() if type(k) is datetime.datetime]):
+                        for key in sorted([k for k in deepcopy(BATTERY_LEVEL_EXPENSES).keys() if type(k) is datetime.datetime]):
                             
                             if ignored_reference_battery_level < reference_battery_level:
                                 ignored_reference_battery_level += BATTERY_LEVEL_EXPENSES[key]["percentage"]
@@ -5969,7 +6000,8 @@ def cheap_grid_charge_hours():
                             "time": event_time_start,
                             "data": {
                                 "emoji": emoji,
-                                "day": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
+                                "day": day,
+                                "day_string": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
                                 "date": f"*{date_to_string(date = event_time_start, format = "%d/%m")}*",
                                 "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
                                 "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
@@ -6464,7 +6496,7 @@ def cheap_grid_charge_hours():
     set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
     set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
     
-    old_charge_hours = CHARGE_HOURS.copy()
+    old_charge_hours = deepcopy(CHARGE_HOURS)
     
     CHARGING_PLAN = charging_plan
     CHARGE_HOURS = chargeHours
@@ -6616,6 +6648,8 @@ def cheap_grid_charge_hours():
             
             if work_overview and solar_over_production:
                 overview.append("**Nok i solcelle overproduktion**")
+                
+            planning_basis_markdown()
         
         overview.append("</center>\n")
     except Exception as e:
@@ -6636,31 +6670,49 @@ def cheap_grid_charge_hours():
             overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
             overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
+            day_loop = None
+            start_battery_level = battery_level()
             
             for k, d in work_overview.items():
                 work_overview_total_kwh.append(d['kwh_needed'])
                 work_overview_total_cost.append(d['cost'])
+                
+                if d['day'] != day_loop:
+                    day_loop = d['day']
+                    
+                    if d['day'] == 0:
+                        if CHARGING_PLAN[d['day']]['workday'] and now < CHARGING_PLAN[d['day']]['work_goto']:
+                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_before_work_sum']
+                        elif CHARGING_PLAN[d['day']]['trip'] and now < CHARGING_PLAN[d['day']]['trip_goto']:
+                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_after_work_sum']
+                        else:
+                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_at_midnight_sum']
+                    else:
+                        start_battery_level = CHARGING_PLAN[d['day'] - 1]['battery_level_at_midnight_sum']
                 
                 battery_usage = ""
                 
                 if k % 1 == 0:
                     if d["event_type"] == "trip":
                         total_trip_battery_level_needed = max((charging_plan[int(k)]['trip_battery_level_needed'] + charging_plan[int(k)]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0)
-                        battery_level_before_trip_sum = int(round(charging_plan[int(k)]['battery_level_after_work_sum'],0))
-                        battery_level_after_trip_sum = int(round(battery_level_before_trip_sum - total_trip_battery_level_needed,0))
-                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_trip_sum}-{battery_level_after_trip_sum}%"
+                        #battery_level_before_trip_sum = int(round(charging_plan[int(k)]['battery_level_after_work_sum'],0))
+                        battery_level_after_trip_sum = int(round(start_battery_level - total_trip_battery_level_needed,0))
+                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_trip_sum}%"
+                        start_battery_level -= total_trip_battery_level_needed
                     elif d["event_type"] == "work":
-                        battery_level_before_work_sum = int(round(charging_plan[int(k)]['battery_level_before_work_sum'],0))
-                        battery_level_after_work_sum = int(round(battery_level_before_work_sum - d['battery_needed'],0))
-                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_before_work_sum}-{battery_level_after_work_sum}%"
+                        #battery_level_before_work_sum = int(round(charging_plan[int(k)]['battery_level_before_work_sum'],0))
+                        battery_level_after_work_sum = int(round(start_battery_level - d['battery_needed'],0))
+                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_work_sum}%"
+                        start_battery_level -= d['battery_needed']
                     else:
-                        battery_level_at_midnight_sum = int(round(min(charging_plan[int(k)]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
-                        battery_level_after_offday_sum = int(round(battery_level_at_midnight_sum - d['battery_needed'],0))
-                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{battery_level_at_midnight_sum}-{battery_level_after_offday_sum}%"
+                        #battery_level_at_midnight_sum = int(round(min(charging_plan[int(k)]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
+                        battery_level_after_offday_sum = int(round(start_battery_level - d['battery_needed'],0))
+                        battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_offday_sum}%"
+                        start_battery_level -= d['battery_needed']
                     
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
+                d['day_string'] = f"**{d['day_string']}**" if d['day_string'] else ""
                 d['date'] = f"**{d['date']}**" if d['date'] else ""
                 d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
                 d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
@@ -6675,7 +6727,7 @@ def cheap_grid_charge_hours():
                 need_label = f"**{d['from_grid']}{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh{battery_usage}**" if d['battery_needed'] or d['kwh_needed'] else ""
                 solar_label = f"**{d['from_battery_solar']}{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
+                overview.append(f"| {d['emoji']} | {d['day_string']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
         else:
             overview.append(f"**Ingen kommende afgang planlagt**")
         
@@ -7284,7 +7336,7 @@ def max_local_energy_available_remaining_period():
                 if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
                     powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
-                if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
+                if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER and ready_to_charge():
                     #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
                     powerwall_force_power += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
@@ -7294,7 +7346,7 @@ def max_local_energy_available_remaining_period():
                 _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
                 if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
                     powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
-        
+            
             if (watts_available_from_local_energy_solar_only > SOLAR_PRODUCTION_TRIGGER
                 and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
@@ -7304,7 +7356,7 @@ def max_local_energy_available_remaining_period():
             elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
                   and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
+                    POWERWALL_CHARGING_TEXT = f"Powerwall standset x̄{int(powerwall_charging_consumption)}W - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
                     
@@ -7566,7 +7618,7 @@ def load_power_values_db():
             version = float(database["version"])
             del database["version"]
             
-        POWER_VALUES_DB = database.copy()
+        POWER_VALUES_DB = deepcopy(database)
         
         if not POWER_VALUES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
@@ -7596,7 +7648,7 @@ def save_power_values_db():
     if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
     
     if len(POWER_VALUES_DB) > 0:
-        db_to_file = POWER_VALUES_DB.copy()
+        db_to_file = deepcopy(POWER_VALUES_DB)
         db_to_file["version"] = POWER_VALUES_DB_VERSION
         save_changes(f"{__name__}_power_values_db", db_to_file)
 
@@ -7647,7 +7699,7 @@ def load_solar_available_db():
             version = float(database["version"])
             del database["version"]
             
-        SOLAR_PRODUCTION_AVAILABLE_DB = database.copy()
+        SOLAR_PRODUCTION_AVAILABLE_DB = deepcopy(database)
         
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
@@ -7684,7 +7736,7 @@ def save_solar_available_db():
     if not is_solar_configured(): return
     
     if len(SOLAR_PRODUCTION_AVAILABLE_DB) > 0:
-        db_to_file = SOLAR_PRODUCTION_AVAILABLE_DB.copy()
+        db_to_file = deepcopy(SOLAR_PRODUCTION_AVAILABLE_DB)
         db_to_file["version"] = SOLAR_PRODUCTION_AVAILABLE_DB_VERSION
         save_changes(f"{__name__}_solar_production_available_db", db_to_file)
         
@@ -8877,23 +8929,27 @@ def charge_if_needed():
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
                     charging_rule = f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
-            elif solar_charging_enabled() and inverter_amps[1] != 0.0 and battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
-                if current_hour_in_charge_hours():
-                    timestamp = current_hour_in_charge_hours()
-                    CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
-                    CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
-                    charging_history(CHARGE_HOURS[timestamp], "planned")
-                else:
-                    charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
-                amps = inverter_amps
-                
-                solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
-                powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
-                inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
+            elif solar_charging_enabled() and inverter_amps[1] != 0.0:
+                if battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
+                    if current_hour_in_charge_hours():
+                        timestamp = current_hour_in_charge_hours()
+                        CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
+                        CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
+                        charging_history(CHARGE_HOURS[timestamp], "planned")
+                    else:
+                        charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
+                    amps = inverter_amps
+                    
+                    solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
+                    powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
+                    inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
-                charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
-                
-                _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
+                    charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+                    
+                    _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
+                else:
+                    charging_rule = f"{emoji_parse({'solar': True})}Solcelle lader ikke, batteri over {get_max_recommended_charge_limit_battery_level()}%"
+                    _LOGGER.info(f"EV solar charging not needed, battery over {get_max_recommended_charge_limit_battery_level()}%")
             else:
                 if not charging_without_rule():
                     stop_current_charging_session()
@@ -9278,7 +9334,7 @@ def load_kwh_prices():
             version = float(database["version"])
             del database["version"]
         
-        KWH_AVG_PRICES_DB = database.copy()
+        KWH_AVG_PRICES_DB = deepcopy(database)
 
         if not KWH_AVG_PRICES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
@@ -9306,7 +9362,7 @@ def load_kwh_prices():
             
     if version <= 1.0:
         _LOGGER.info(f"Transforming database from version {version} to {KWH_AVG_PRICES_DB_VERSION}")
-        old_db = KWH_AVG_PRICES_DB.copy()
+        old_db = deepcopy(KWH_AVG_PRICES_DB)
                 
         for name in ("history", "history_sell"):
             KWH_AVG_PRICES_DB[name] = {}
@@ -9330,7 +9386,7 @@ def save_kwh_prices():
     global KWH_AVG_PRICES_DB
     
     if len(KWH_AVG_PRICES_DB) > 0:
-        db_to_file = KWH_AVG_PRICES_DB.copy()
+        db_to_file = deepcopy(KWH_AVG_PRICES_DB)
         db_to_file["version"] = KWH_AVG_PRICES_DB_VERSION
         save_changes(f"{__name__}_kwh_avg_prices_db", db_to_file)
 
@@ -10057,37 +10113,41 @@ if INITIALIZATION_COMPLETE:
         TASKS[f'{func_prefix}stop_current_charging_session'] = task.create(stop_current_charging_session)
         TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
         
-        if CONFIG_LAST_MODIFIED == get_file_modification_time(f"{__name__}_config.yaml"):
-            set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
-            try:
-                CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance(ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance(day_text="monday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance(day_text="tuesday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance(day_text="wednesday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance(day_text="thursday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance(day_text="friday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance(day_text="saturday", ignore_realistic_estimated_range=True)
-                CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance(day_text="sunday", ignore_realistic_estimated_range=True)
-                                
-                CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
-                CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
-                CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
-                CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
-                CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
-                CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
-                CONFIG['solar']['ev_charge_after_powerwall_battery_level'] = get_ev_charge_after_powerwall_battery_level()
-                
-                if is_solar_configured():
-                    CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
-                
-                TASKS[f'{func_prefix}save_changes'] = task.create(save_changes, f"{__name__}_config", CONFIG)
-                done, pending = task.wait({TASKS[f'{func_prefix}save_changes']})
-            except Exception as e:
-                _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-                my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_{func_name}_error")
-        else:
-            set_charging_rule(f"📟Lukker scriptet ned\nGemmer ikke konfigurations filen, da den er manuel redigeret")
-            _LOGGER.info(f"Config file has been modified, not saving entity states from Home Assistant to config")
+        if CONFIG_LAST_MODIFIED != get_file_modification_time(f"{__name__}_config.yaml"):
+            TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, f"{__name__}_config.yaml")
+            done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
+            cfg_temp = TASKS[f'{func_prefix}load_yaml'].result()
+            
+            if cfg_temp:
+                CONFIG = cfg_temp
+            
+        set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
+        try:
+            CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance(ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance(day_text="monday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_tuesday"] = get_entity_daily_distance(day_text="tuesday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_wednesday"] = get_entity_daily_distance(day_text="wednesday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_thursday"] = get_entity_daily_distance(day_text="thursday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_friday"] = get_entity_daily_distance(day_text="friday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_saturday"] = get_entity_daily_distance(day_text="saturday", ignore_realistic_estimated_range=True)
+            CONFIG['ev_car']["workday_distance_needed_sunday"] = get_entity_daily_distance(day_text="sunday", ignore_realistic_estimated_range=True)
+                            
+            CONFIG['ev_car']['min_daily_battery_level'] = get_min_daily_battery_level()
+            CONFIG['ev_car']['min_trip_battery_level'] = get_min_trip_battery_level()
+            CONFIG['ev_car']['min_charge_limit_battery_level'] = get_min_charge_limit_battery_level()
+            CONFIG['ev_car']['max_recommended_charge_limit_battery_level'] = get_max_recommended_charge_limit_battery_level()
+            CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level'] = get_very_cheap_grid_charging_max_battery_level()
+            CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level'] = get_ultra_cheap_grid_charging_max_battery_level()
+            CONFIG['solar']['ev_charge_after_powerwall_battery_level'] = get_ev_charge_after_powerwall_battery_level()
+            
+            if is_solar_configured():
+                CONFIG['solar']['production_price'] = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+            
+            TASKS[f'{func_prefix}save_changes'] = task.create(save_changes, f"{__name__}_config", CONFIG)
+            done, pending = task.wait({TASKS[f'{func_prefix}save_changes']})
+        except Exception as e:
+            _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
+            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_{func_name}_error")
             
         done, pending = task.wait({TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}reset_counter_entity_integration']})
         
