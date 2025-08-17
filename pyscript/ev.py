@@ -19,6 +19,7 @@ except:
     benchmark_loaded = False
 
 from filesystem import (
+    CONFIG_FOLDER,
     get_config_folder,
     file_exists,
     get_file_modification_time,
@@ -1663,8 +1664,7 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
     
-    config_path = get_config_folder()
-    repo_path = f"{config_path}/Cable-Juice-Planner"
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
     
     result = {"has_updates": False, "commits_behind": 0}
@@ -1739,7 +1739,6 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
             persistent_notification_id=f"{__name__}_{func_name}"
         )
 
-
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     func_name = "update_repo"
@@ -1748,8 +1747,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
 
-    config_path = get_config_folder()
-    repo_path = f"{config_path}/Cable-Juice-Planner"
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
     branch = kwargs.get("branch", "master")
 
     try:
