@@ -5973,7 +5973,8 @@ def cheap_grid_charge_hours():
                             "time": event_time_start,
                             "data": {
                                 "emoji": emoji,
-                                "day": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
+                                "day": day,
+                                "day_string": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
                                 "date": f"*{date_to_string(date = event_time_start, format = "%d/%m")}*",
                                 "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
                                 "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
@@ -6666,7 +6667,7 @@ def cheap_grid_charge_hours():
                     
                 
                 d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
+                d['day_string'] = f"**{d['day_string']}**" if d['day_string'] else ""
                 d['date'] = f"**{d['date']}**" if d['date'] else ""
                 d['goto'] = f"**{d['goto']}**" if d['goto'] else ""
                 d['goto'] = f"{d['goto']}**-{d['homecoming']}**" if d['goto'] and d['homecoming'] else d['goto']
@@ -6681,7 +6682,7 @@ def cheap_grid_charge_hours():
                 need_label = f"**{d['from_grid']}{d['from_battery']}{d['battery_needed']}% {d['kwh_needed']}kWh{battery_usage}**" if d['battery_needed'] or d['kwh_needed'] else ""
                 solar_label = f"**{d['from_battery_solar']}{d['solar']}**" if d['solar'] and is_solar_configured() else ""
                 
-                overview.append(f"| {d['emoji']} | {d['day']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
+                overview.append(f"| {d['emoji']} | {d['day_string']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
         else:
             overview.append(f"**Ingen kommende afgang planlagt**")
         
