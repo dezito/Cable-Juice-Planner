@@ -4,6 +4,7 @@ import random
 import string
 import subprocess
 from collections.abc import Iterable
+from copy import deepcopy
 from itertools import chain
 from typing import Optional
 from pprint import pformat
@@ -2095,7 +2096,7 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global COMMENT_DB_YAML
     
-    db = db.copy() if isinstance(db, dict) else db
+    db = deepcopy(db) if isinstance(db, dict) else db
     
     if db == {} or db == [] or db is None:
         _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
@@ -2113,7 +2114,7 @@ def save_changes(file, db):
     if "version" in db_disk:
         del db_disk["version"]
     
-    comment_db = COMMENT_DB_YAML.copy() if f"{__name__}_config" in file else None
+    comment_db = deepcopy(COMMENT_DB_YAML) if f"{__name__}_config" in file else None
     if db != db_disk:
         try:
             _LOGGER.info(f"Saving {file} to disk")
@@ -2450,8 +2451,9 @@ def init():
             TASKS[f'{func_prefix}updated_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}updated_save_yaml_{file_path}']})
             
+        old_content = deepcopy(content)
+        
         if key_renaming:
-            old_content = content.copy()
             is_config_file = True if "config.yaml" in file_path else False
             
             keys_renamed = []
@@ -2530,7 +2532,7 @@ def init():
     
     _LOGGER.info(welcome())
     try:
-        CONFIG = handle_yaml(f"{__name__}_config.yaml", DEFAULT_CONFIG.copy(), CONFIG_KEYS_RENAMING.copy(), COMMENT_DB_YAML.copy(), check_first_run=True, prompt_restart=False)
+        CONFIG = handle_yaml(f"{__name__}_config.yaml", deepcopy(DEFAULT_CONFIG), deepcopy(CONFIG_KEYS_RENAMING), deepcopy(COMMENT_DB_YAML), check_first_run=True, prompt_restart=False)
         CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
 
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
@@ -2586,7 +2588,7 @@ def init():
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
         
-        handle_yaml(f"packages/{__name__}.yaml", DEFAULT_ENTITIES.copy(), ENTITIES_RENAMING.copy(), None, check_nested_keys=True, prompt_restart=True)
+        handle_yaml(f"packages/{__name__}.yaml", deepcopy(DEFAULT_ENTITIES), deepcopy(ENTITIES_RENAMING), None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
             raise Exception("Edit config file and set first_run to false")
@@ -5909,7 +5911,7 @@ def cheap_grid_charge_hours():
                         battery_level_expenses_solar_kwh_loop = 0.0
                         reference_battery_level = get_min_daily_battery_level() if event_type in ("workday", "offday") else get_min_trip_battery_level()
                         
-                        for key in sorted([k for k in BATTERY_LEVEL_EXPENSES.copy().keys() if type(k) is datetime.datetime]):
+                        for key in sorted([k for k in deepcopy(BATTERY_LEVEL_EXPENSES).keys() if type(k) is datetime.datetime]):
                             
                             if ignored_reference_battery_level < reference_battery_level:
                                 ignored_reference_battery_level += BATTERY_LEVEL_EXPENSES[key]["percentage"]
@@ -6469,7 +6471,7 @@ def cheap_grid_charge_hours():
     set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
     set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
     
-    old_charge_hours = CHARGE_HOURS.copy()
+    old_charge_hours = deepcopy(CHARGE_HOURS)
     
     CHARGING_PLAN = charging_plan
     CHARGE_HOURS = chargeHours
@@ -7591,7 +7593,7 @@ def load_power_values_db():
             version = float(database["version"])
             del database["version"]
             
-        POWER_VALUES_DB = database.copy()
+        POWER_VALUES_DB = deepcopy(database)
         
         if not POWER_VALUES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
@@ -7621,7 +7623,7 @@ def save_power_values_db():
     if not is_solar_configured() or not CONFIG['solar']['entity_ids']['forecast_entity_id']: return
     
     if len(POWER_VALUES_DB) > 0:
-        db_to_file = POWER_VALUES_DB.copy()
+        db_to_file = deepcopy(POWER_VALUES_DB)
         db_to_file["version"] = POWER_VALUES_DB_VERSION
         save_changes(f"{__name__}_power_values_db", db_to_file)
 
@@ -7672,7 +7674,7 @@ def load_solar_available_db():
             version = float(database["version"])
             del database["version"]
             
-        SOLAR_PRODUCTION_AVAILABLE_DB = database.copy()
+        SOLAR_PRODUCTION_AVAILABLE_DB = deepcopy(database)
         
         if not SOLAR_PRODUCTION_AVAILABLE_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
@@ -7709,7 +7711,7 @@ def save_solar_available_db():
     if not is_solar_configured(): return
     
     if len(SOLAR_PRODUCTION_AVAILABLE_DB) > 0:
-        db_to_file = SOLAR_PRODUCTION_AVAILABLE_DB.copy()
+        db_to_file = deepcopy(SOLAR_PRODUCTION_AVAILABLE_DB)
         db_to_file["version"] = SOLAR_PRODUCTION_AVAILABLE_DB_VERSION
         save_changes(f"{__name__}_solar_production_available_db", db_to_file)
         
@@ -9307,7 +9309,7 @@ def load_kwh_prices():
             version = float(database["version"])
             del database["version"]
         
-        KWH_AVG_PRICES_DB = database.copy()
+        KWH_AVG_PRICES_DB = deepcopy(database)
 
         if not KWH_AVG_PRICES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
@@ -9335,7 +9337,7 @@ def load_kwh_prices():
             
     if version <= 1.0:
         _LOGGER.info(f"Transforming database from version {version} to {KWH_AVG_PRICES_DB_VERSION}")
-        old_db = KWH_AVG_PRICES_DB.copy()
+        old_db = deepcopy(KWH_AVG_PRICES_DB)
                 
         for name in ("history", "history_sell"):
             KWH_AVG_PRICES_DB[name] = {}
@@ -9359,7 +9361,7 @@ def save_kwh_prices():
     global KWH_AVG_PRICES_DB
     
     if len(KWH_AVG_PRICES_DB) > 0:
-        db_to_file = KWH_AVG_PRICES_DB.copy()
+        db_to_file = deepcopy(KWH_AVG_PRICES_DB)
         db_to_file["version"] = KWH_AVG_PRICES_DB_VERSION
         save_changes(f"{__name__}_kwh_avg_prices_db", db_to_file)
 
