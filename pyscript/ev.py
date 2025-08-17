@@ -7309,7 +7309,7 @@ def max_local_energy_available_remaining_period():
                 if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
                     powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
-                if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER:
+                if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER and ready_to_charge():
                     #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
                     powerwall_force_power += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
@@ -7319,7 +7319,7 @@ def max_local_energy_available_remaining_period():
                 _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
                 if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
                     powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
-        
+            
             if (watts_available_from_local_energy_solar_only > SOLAR_PRODUCTION_TRIGGER
                 and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
@@ -7329,7 +7329,7 @@ def max_local_energy_available_remaining_period():
             elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
                   and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall standset - opladning sker senere"
+                    POWERWALL_CHARGING_TEXT = f"Powerwall standset x̄{int(powerwall_charging_consumption)}W - opladning sker senere"
                 else:
                     POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
                     
