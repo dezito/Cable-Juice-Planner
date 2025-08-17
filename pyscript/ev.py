@@ -1656,6 +1656,29 @@ async def run_console_command(cmd):
     except Exception as e:
         raise RuntimeError(e)
 
+@service(f"pyscript.{__name__}_recreate_hardlinks")
+def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
+    func_name = "recreate_hardlinks"
+    task.unique(func_name)
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    output = run_console_command(["bash", f"{CONFIG_FOLDER}/Cable-Juice-Planner/scripts/recreate_hardlinks_cable_juice_planner.sh"])
+    if trigger_type != "service":
+        return output
+    
+    if output:
+        my_persistent_notification(
+            f"**Hardlinks recreated successfully:**\n\n{output}",
+            title=f"{TITLE} Hardlinks Recreated",
+            persistent_notification_id=f"{__name__}_recreate_hardlinks"
+        )
+    else:
+        my_persistent_notification(
+            "No output from hardlink recreation script.",
+            title=f"{TITLE} Hardlinks Recreate Error",
+            persistent_notification_id=f"{__name__}_recreate_hardlinks_error"
+        )
+    
 @service(f"pyscript.{__name__}_check_master_updates")
 def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     func_name = "check_master_updates"
