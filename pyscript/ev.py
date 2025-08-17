@@ -1811,6 +1811,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         commit_log_lines = run_console_command(
             ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
         ).split("\n")
+        
+        if commit_log_lines:
+            recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
+            commit_log_lines += recreate_hardlinks_log_lines
 
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
