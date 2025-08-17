@@ -6620,6 +6620,8 @@ def cheap_grid_charge_hours():
             
             if work_overview and solar_over_production:
                 overview.append("**Nok i solcelle overproduktion**")
+                
+            planning_basis_markdown()
         
         overview.append("</center>\n")
     except Exception as e:
