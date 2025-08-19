@@ -336,8 +336,13 @@ CHARGING_TYPES = {
         "emoji": "☀️",
         "description": "Solcelle ladning / overproduktion"
     },
-    "powerwall": {
+    "solar_corrected": {
         "priority": 11.1,
+        "emoji": "🌤️",
+        "description": "Maks. opladning nået - soloverskud"
+    },
+    "powerwall": {
+        "priority": 11.2,
         "emoji": "🛢️",
         "description": "Ladning fra Powerwall"
     },
@@ -5496,7 +5501,7 @@ def cheap_grid_charge_hours():
         nonlocal charging_plan
         
         if solar_percentage_prediction is None:
-            solar_percentage_prediction = charging_plan[day]['solar_prediction']
+            solar_percentage_prediction = sum(charging_plan[day]['solar_prediction'])
         
         if timestamp in LOCAL_ENERGY_PREDICTION_DB["solar_prediction_timestamps"]:
             solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
@@ -5504,12 +5509,14 @@ def cheap_grid_charge_hours():
             
             _LOGGER.info(f"Added {timestamp} charging, removing solar prediction {solar_kwh_added}kWh {solar_percentage_added}% from day {day}")
             
-            charging_plan[day]['solar_prediction'] = charging_plan[day]['solar_prediction'] - solar_percentage_added
-            charging_plan[day]['solar_kwh_prediction'] = charging_plan[day]['solar_kwh_prediction'] - solar_kwh_added
+            charging_plan[day]['solar_prediction'].append(-abs(solar_percentage_added))
+            charging_plan[day]['solar_kwh_prediction'].append(-abs(solar_kwh_added))
             
             if solar_percentage_prediction is not None:
-                charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
-                charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
+                for key in ("solar_prediction", "solar_kwh_prediction"):
+                    total = sum(charging_plan[day][key])
+                    if total < 0.0:
+                        charging_plan[day][key].append(-total)
                 
     
     def future_charging(totalCost, totalkWh):
@@ -5620,7 +5627,9 @@ def cheap_grid_charge_hours():
                 _LOGGER.warning(f"Starting battery level under 0% ({round(correction_percentage * -1, 1)}%) adding {round(correction_percentage, 1)}%")
             charging_plan[day]['battery_level_before_work'].append(starting_battery_level)
             charging_plan[day]['battery_level_after_work'].append(starting_battery_level)
-                
+            
+            trip_battery_needed = 0.0
+            
             if charging_plan[day]['trip']:
                 trip_battery_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
 
@@ -5637,7 +5646,18 @@ def cheap_grid_charge_hours():
                 charging_plan[day]['battery_level_after_work'].append(charging_plan[day]['work_battery_level_needed'] * -1)
             
             charging_plan[day]['battery_level_at_midnight'].append(sum(charging_plan[day]['battery_level_after_work']))
-            charging_plan[day]['battery_level_at_midnight'].append(charging_plan[day]['solar_prediction'])
+            
+            battery_level_at_midnight_with_solar = sum(charging_plan[day]['battery_level_at_midnight']) + sum(charging_plan[day]['solar_prediction'])
+            max_allowed_battery_level = max(get_max_recommended_charge_limit_battery_level(), trip_battery_needed)
+            
+            if battery_level_at_midnight_with_solar > max_allowed_battery_level:
+                charging_plan[day]['solar_prediction_corrected'] = True
+                correction_percentage = max_allowed_battery_level - battery_level_at_midnight_with_solar
+                charging_plan[day]['solar_prediction'].append(correction_percentage)
+                charging_plan[day]['solar_kwh_prediction'].append(percentage_to_kwh(correction_percentage, include_charging_loss=True))
+                _LOGGER.warning(f"Battery level on day {day} at midnight {battery_level_at_midnight_with_solar}% is above max allowed {max_allowed_battery_level}%, correcting solar prediction with {correction_percentage}%")
+            
+            charging_plan[day]['battery_level_at_midnight'].append(sum(charging_plan[day]['solar_prediction']))
             
             fill_up_days = {
                 1: 0.0,
@@ -5766,8 +5786,8 @@ def cheap_grid_charge_hours():
                 
             if solar_charging_enabled():
                 if day > 0:
-                    unused_solar_kwh[getTimePlusDays(day).date()] = charging_plan[day_before]['solar_kwh_prediction']
-                    unused_solar_cost[getTimePlusDays(day).date()] = charging_plan[day_before]['solar_cost_prediction']
+                    unused_solar_kwh[getTimePlusDays(day).date()] = sum(charging_plan[day_before]['solar_kwh_prediction'])
+                    unused_solar_cost[getTimePlusDays(day).date()] = sum(charging_plan[day_before]['solar_cost_prediction'])
             
             try:
                 days_need_between_recommended_full_charge = int(float(get_state(f"input_number.{__name__}_full_charge_recommended", error_state=0)))
@@ -5788,7 +5808,7 @@ def cheap_grid_charge_hours():
                             kwh_needed_to_fill_up_day = kwh_needed_for_charging(charging_plan[day]['offday_battery_level_needed'] + get_min_daily_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
                     
                     if need_recommended_full_charge:
-                        kwh_needed_to_fill_up_day = max(kwh_needed_for_charging(100.0, battery_level() + charging_plan[day]['solar_prediction']), kwh_needed_to_fill_up_day)
+                        kwh_needed_to_fill_up_day = max(kwh_needed_for_charging(100.0, battery_level() + sum(charging_plan[day]['solar_prediction'])), kwh_needed_to_fill_up_day)
                         _LOGGER.info(f"Needed for full charge: {round(kwh_needed_to_fill_up_day,1)}kWh")
                         rules.append("battery_health")
                     elif fill_up:
@@ -6057,11 +6077,11 @@ def cheap_grid_charge_hours():
                             used_battery_level_alternative += charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] + diff_min_alternative
                     
                     kwh_needed_today_alternative = kwh_needed_for_charging(used_battery_level_alternative, 0.0)
-                    kwh_solar_alternative = min(charging_plan[day_before]['solar_kwh_prediction'], kwh_needed_today_alternative) if day > 0 else 0.0
+                    kwh_solar_alternative = min(sum(charging_plan[day_before]['solar_kwh_prediction']), kwh_needed_today_alternative) if day > 0 else 0.0
                     kwh_needed_today_alternative -= kwh_solar_alternative
                     
                     if kwh_solar_alternative > 0.0:
-                        solar_price = charging_plan[day_before]['solar_cost_prediction'] / charging_plan[day_before]['solar_kwh_prediction']
+                        solar_price = sum(charging_plan[day_before]['solar_cost_prediction']) / sum(charging_plan[day_before]['solar_kwh_prediction'])
                         
                         location = sun.get_astral_location(hass)
                         sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
@@ -6105,7 +6125,7 @@ def cheap_grid_charge_hours():
                 _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e}")
             
             try:
-                if solar_charging_enabled() and charging_plan[day]['solar_prediction'] > 0.0:
+                if solar_charging_enabled() and sum(charging_plan[day]['solar_prediction']) > 0.0:
                     date = date_to_string(date = charging_plan[day]['start_of_day'], format = "%d/%m")
                     
                     location = sun.get_astral_location(hass)
@@ -6137,8 +6157,9 @@ def cheap_grid_charge_hours():
                         "date": date,
                         "when": " ".join(timeperiod),
                         "emoji": emoji_parse({'solar': True}),
-                        "percentage": charging_plan[day]['solar_prediction'],
-                        "kWh": charging_plan[day]['solar_kwh_prediction']
+                        "percentage": sum(charging_plan[day]['solar_prediction']),
+                        "kWh": sum(charging_plan[day]['solar_kwh_prediction']),
+                        "corrected": charging_plan[day]['solar_prediction_corrected'],
                     }
             except Exception as e:
                 _LOGGER.warning(f"Cant create solar over production prediction for day {day}: {e}")
@@ -6244,9 +6265,10 @@ def cheap_grid_charge_hours():
             "battery_level_after_work": [],
             "battery_level_at_midnight": [],
             "charging_sessions": {},
-            "solar_prediction": 0.0,
-            "solar_kwh_prediction": 0.0,
-            "solar_cost_prediction": 0.0,
+            "solar_prediction": [],
+            "solar_kwh_prediction": [],
+            "solar_cost_prediction": [],
+            "solar_prediction_corrected": False,
         }
         
         if workplan_charging_enabled() and get_state(f"input_boolean.{__name__}_workday_{day_text}") == "on":
@@ -6329,7 +6351,7 @@ def cheap_grid_charge_hours():
                         charging_plan[day]['trip_kwh_needed'] += kwh_added
                         charging_plan[day]["trip_total_cost"] += chargeHours[timestamp]["Cost"]
                         
-                        solar_percentage_prediction = kwh_to_percentage(solar_kwh_prediction[getTimeStartOfDay(timestamp)], include_charging_loss=True)
+                        solar_percentage_prediction = kwh_to_percentage(sum(solar_kwh_prediction[getTimeStartOfDay(timestamp)]), include_charging_loss=True)
                         remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction=solar_percentage_prediction)
                         
                         charging_sessions_id = "battery_level_before_work"
@@ -6377,13 +6399,13 @@ def cheap_grid_charge_hours():
                 total_solar_available += solar_kwh_prediction['avg']
                 total_solar_available_price.append(solar_price_prediction['avg'])
             
-        charging_plan[day]['solar_prediction'] += round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2)
-        charging_plan[day]['solar_kwh_prediction'] += round(total_solar_available, 2)
-        charging_plan[day]['solar_cost_prediction'] += round((total_solar_available * average(total_solar_available_price)), 2)
+        charging_plan[day]['solar_prediction'].append(round(kwh_to_percentage(total_solar_available, include_charging_loss = True), 2))
+        charging_plan[day]['solar_kwh_prediction'].append(round(total_solar_available, 2))
+        charging_plan[day]['solar_cost_prediction'].append(round((total_solar_available * average(total_solar_available_price)), 2))
         
-        charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
+        """charging_plan[day]['solar_prediction'] = max(charging_plan[day]['solar_prediction'], 0.0)
         charging_plan[day]['solar_kwh_prediction'] = max(charging_plan[day]['solar_kwh_prediction'], 0.0)
-        charging_plan[day]['solar_cost_prediction'] = max(charging_plan[day]['solar_cost_prediction'], 0.0)
+        charging_plan[day]['solar_cost_prediction'] = max(charging_plan[day]['solar_cost_prediction'], 0.0)"""
         
         if not charging_plan[day]['rules']:
             charging_plan[day]['rules'].append("no_rule")
@@ -6430,6 +6452,9 @@ def cheap_grid_charge_hours():
         charging_plan[day]['battery_level_before_work_sum'] = sum(charging_plan[day]['battery_level_before_work'])
         charging_plan[day]['battery_level_after_work_sum'] = sum(charging_plan[day]['battery_level_after_work'])
         charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
+        charging_plan[day]['solar_prediction_sum'] = sum(charging_plan[day]['solar_prediction'])
+        charging_plan[day]['solar_kwh_prediction_sum'] = sum(charging_plan[day]['solar_kwh_prediction'])
+        charging_plan[day]['solar_cost_prediction_sum'] = sum(charging_plan[day]['solar_cost_prediction'])
 
     _LOGGER.debug(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
@@ -6798,6 +6823,10 @@ def cheap_grid_charge_hours():
                     d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
                     d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
                     d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
+                    
+                    if d['corrected']:
+                        d['emoji'] = emoji_parse({'solar_corrected': True})
+                        
                     overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
             else:
                 overview.append(f"**Ingen kommende arbejdsdag**")
