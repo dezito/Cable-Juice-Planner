@@ -1,0 +1,28 @@
+# Required: HACS integration (https://hacs.xyz/)
+# Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
+# Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+
+type: custom:stack-in-card
+mode: vertical
+cards:
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: input_boolean.ev_deactivate_script
+        icon_color: red
+        double_tap_action:
+          action: none
+        hold_action:
+          action: more-info
+        tap_action:
+          action: toggle
+        secondary_info: none
+  - type: markdown
+    content: |-
+      # 📎 {{ states.input_boolean.ev_deactivate_script.name }}
+
+      <details>
+      <summary><b>Læs mere</b></summary>
+      Laderen og elbilen, bliver ikke styret af scriptet, og fungere normalt
+
+      </details>
