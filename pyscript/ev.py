@@ -2384,12 +2384,92 @@ def notify_critical_change(cfg = {}, filename = None):
                     break
         return missing_keys
     
-    def keys_description(keys):
-        description = []
-        
-        for key in keys:
-            description.append(f"**{key}**\n{COMMENT_DB_YAML.get(key, '')}\n\n")
-        return description
+    def flatten_default_entities_to_desc(default_entities: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Build {entity_id: description} from DEFAULT_ENTITIES.
+        - Includes input_* and sensor(template)
+        - Overlays homeassistant.customize (if it has 'description')
+        - Uses only the 'description' field (no friendly_name, no other fallbacks)
+        - Works whether input_*/sensor keys are object_ids or already full ids.
+        """
+        index: Dict[str, str] = {}
+
+        def _full_id(domain: str, key: str) -> str:
+            # If key already looks like 'domain.object_id', keep as-is; else prefix.
+            return key if "." in key else f"{domain}.{key}"
+
+        def add_input_like(domain: str, entities: Dict[str, Any]) -> None:
+            dt: Dict[str, str] = {}
+            
+            for key, attrs in entities.items():
+                eid = _full_id(domain, key)
+                desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
+                dt[eid] = desc
+            
+            return dt
+
+        def add_template_sensors(item: Dict[str, Any]) -> None:
+            dt: Dict[str, str] = {}
+            
+            sensors = item.get("sensors", {})
+            
+            if isinstance(sensors, dict):
+                for key, attrs in sensors.items():
+                    eid = _full_id("sensor", key)
+                    desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
+                    dt[eid] = desc
+                    
+            return dt
+
+        try:
+            # 1) input_* domains
+            for domain in ("input_boolean", "input_button", "input_number", "input_datetime"):
+                dom = default_entities.get(domain, {})
+                if isinstance(dom, dict):
+                    index.update(add_input_like(domain, dom))
+
+            # 2) sensor(template)
+            sensors_list = default_entities.get("sensor", [])
+            if isinstance(sensors_list, list):
+                for item in sensors_list:
+                    if isinstance(item, dict) and item.get("platform") == "template":
+                        index.update(add_template_sensors(item))
+
+            # 3) overlay homeassistant.customize (full ids expected)
+            ha = default_entities.get("homeassistant", {})
+            if isinstance(ha, dict):
+                customize = ha.get("customize", {})
+                if isinstance(customize, dict):
+                    for full_id, attrs in customize.items():
+                        if isinstance(attrs, dict) and isinstance(attrs.get("description"), str):
+                            index[full_id] = attrs["description"]
+
+        except Exception as e:
+            _LOGGER.error(f"Error flattening default entities to description: {e}")
+
+        return index
+
+
+    def keys_description(keys: List[str]) -> List[str]:
+        """
+        Return markdown blocks for each key:
+        "**<key>**\\n<description>\\n\\n"
+        Lookup order:
+        1) COMMENT_DB_YAML[key]
+        2) flatten(DEFAULT_ENTITIES)[key]
+        3) "" (empty if no description found)
+        """
+        blocks: List[str] = []
+        try:
+            entity_desc_index = flatten_default_entities_to_desc(DEFAULT_ENTITIES)
+
+            for key in keys:
+                desc = COMMENT_DB_YAML.get(key) or entity_desc_index.get(key, "")
+                blocks.append(f"**{key}**\n{desc}\n\n")
+        except Exception as e:
+            _LOGGER.error(f"Error generating keys description: {e}")
+        return blocks
+
     
     if filename == f"{__name__}_config.yaml":
         powerwall_update_new_keys = [
