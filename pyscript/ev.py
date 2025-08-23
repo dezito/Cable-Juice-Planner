@@ -77,6 +77,7 @@ from utils import (
     get_closest_key,
     get_dict_value_with_path,
     delete_dict_key_with_path,
+    dicts_equal,
     rename_dict_keys,
     compare_dicts_unique_to_dict1,
     update_dict_with_new_keys,
@@ -2572,11 +2573,18 @@ def init():
             
             if not content:
                 raise Exception(f"Failed to load {file_path}")
-
+        
+        updated = False
+        
         notify_critical_change(cfg = content, filename = file_path)
-
-        updated, content = update_dict_with_new_keys(content, default_content)
-            
+        
+        if "config.yaml" in file_path:
+            updated, content = update_dict_with_new_keys(content, default_content)
+        else:
+            if not dicts_equal(content, default_content):
+                updated = True
+                content = default_content
+        
         if content == {}:
             raise Exception(f"{file_path} is empty after updating keys, removing file")
         
