@@ -3,6 +3,7 @@ import datetime
 import functools
 import math
 from pprint import pformat
+from typing import Sequence, Mapping
 
 
 from logging import getLogger
@@ -345,6 +346,25 @@ def rename_dict_keys(d, keys_renaming, remove_old_keys=False):
                 d = delete_dict_key_with_path(d, old_path)
     return d
 
+def dicts_equal(a, b):
+    if isinstance(a, Mapping) and isinstance(b, Mapping):
+        if set(a.keys()) != set(b.keys()):
+            return False
+        for k in a:
+            if not dicts_equal(a[k], b[k]):
+                return False
+        return True
+
+    if isinstance(a, Sequence) and not isinstance(a, (str, bytes)) \
+       and isinstance(b, Sequence) and not isinstance(b, (str, bytes)):
+        if len(a) != len(b):
+            return False
+        for x, y in zip(a, b):
+            if not dicts_equal(x, y):
+                return False
+        return True
+
+    return a == b
 def update_keys_recursive(obj, key_mapping):
     """
     Recursively update keys in an object (dictionary or list) that may contain nested dictionaries and lists,
