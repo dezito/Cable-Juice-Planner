@@ -9123,22 +9123,28 @@ def charge_if_needed():
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
             elif solar_charging_enabled() and inverter_amps[1] != 0.0:
                 if battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
-                    if current_hour_in_charge_hours():
-                        timestamp = current_hour_in_charge_hours()
-                        CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
-                        CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
-                        charging_history(CHARGE_HOURS[timestamp], "planned")
+                    if CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(local_energy_available_period):
+                        charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr ({round(get_solar_sell_price(), 2)}kr.)"
+                        _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
+                        inverter_amps[1] = 0.0
+                        amps = inverter_amps
                     else:
-                        charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
-                    amps = inverter_amps
-                    
-                    solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
-                    powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
-                    inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
+                        if current_hour_in_charge_hours():
+                            timestamp = current_hour_in_charge_hours()
+                            CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(local_energy_available_period)
+                            CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
+                            charging_history(CHARGE_HOURS[timestamp], "planned")
+                        else:
+                            charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
+                        
+                        solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
+                        powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
+                        inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
-                    charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
-                    
-                    _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
+                        amps = inverter_amps
+                        charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+                        
+                        _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
                 else:
                     charging_rule = f"{emoji_parse({'solar': True})}Solcelle lader ikke, batteri over {get_max_recommended_charge_limit_battery_level()}%"
                     _LOGGER.info(f"EV solar charging not needed, battery over {get_max_recommended_charge_limit_battery_level()}%")
