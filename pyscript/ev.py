@@ -5222,9 +5222,10 @@ def get_hour_prices():
                         hour_prices[timestamp] = price
                         
                 if missing_hours:
+                    missing_hours = dict(sorted(missing_hours.items()))
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
                     
-                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours.copy()
+                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = deepcopy(missing_hours)
                     
             except Exception as e:
                 error_message = f"Cant get offline prices: {e}"
@@ -5233,9 +5234,6 @@ def get_hour_prices():
                 my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error")
                 raise Exception(f"Offline prices error: {e}")
             
-            missing_hours_list = [f"- {timestamp.strftime('%d/%m %H:%M')}: {price:.2f}kr" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
-            my_persistent_notification(f"Kan ikke hente alle online priser, bruger database priser:\n{'\n'.join(missing_hours_list)}\n\n{e}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_real_prices_error")
-    
     return hour_prices
 
 def get_expensive_hours(day=0):
@@ -6655,16 +6653,50 @@ def cheap_grid_charge_hours():
                 overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
                 
                 planning_basis_markdown()
-            
+                
             if USING_OFFLINE_PRICES:
-                overview.append(f"\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
-                overview.append("\n| Tidspunkt | &nbsp;&nbsp; | Pris |")
-                overview.append("|:---:|:---:|:---:|")
-                
-                missing_hours_list = [f"| ***{timestamp.strftime('%d/%m %H:%M')}*** |  | {price:.2f}kr |" for timestamp, price in LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items()]
-                overview.append("\n".join(missing_hours_list))
-                
-                overview.append("</details>\n\n")
+                def _build_header(n_pairs=4):
+                    # | Tid | Pris | Tid | Pris | ...
+                    heads, aligns = [], []
+                    for _ in range(n_pairs):
+                        heads += ["Tid", "Pris"]
+                        aligns += [":---:", "---:"]
+                    header = "| " + " | ".join(heads) + " |"
+                    align  = "| " + " | ".join(aligns) + " |"
+                    return header + "\n" + align
+
+                def _row_from_slice(slice_pairs, n_pairs=4):
+                    # slice_pairs: [(tid_str, pris_str), ...]  (længde 1..n_pairs)
+                    row_cells = []
+                    
+                    while len(slice_pairs) < n_pairs:
+                        slice_pairs.append(("&nbsp;", "&nbsp;"))
+                    for t, p in slice_pairs:
+                        row_cells += [f"**{t}**", f"*{p}*"]
+                    return "| " + " | ".join(row_cells) + " |"
+
+                overview.append("\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
+
+                by_day = defaultdict(list)  # key = date(), val = list[(tid, pris)]
+                for ts, price in sorted(LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items(), key=lambda kv: kv[0]):
+                    by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}kr"))
+                    
+                N_PAIRS = 4
+
+                for day in sorted(by_day.keys()):
+                    rows = by_day[day]
+                    overview.append(f"\n<b>{day.strftime('%d/%m')}</b>\n")
+
+                    header = _build_header(n_pairs=N_PAIRS)
+                    overview.append(header)
+                    
+                    for i in range(0, len(rows), N_PAIRS):
+                        slice_pairs = rows[i:i+N_PAIRS]
+                        md_row = _row_from_slice(slice_pairs[:], n_pairs=N_PAIRS)
+                        overview.append(md_row)
+                    overview.append("")
+
+                overview.append("\n</details>\n\n")
             
             if work_overview:
                 overview.append("***")
