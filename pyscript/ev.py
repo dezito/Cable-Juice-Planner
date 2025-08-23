@@ -6656,7 +6656,6 @@ def cheap_grid_charge_hours():
                 
             if USING_OFFLINE_PRICES:
                 def _build_header(n_pairs=4):
-                    # | Tid | Pris | Tid | Pris | ...
                     heads, aligns = [], []
                     for _ in range(n_pairs):
                         heads += ["Tid", "Pris"]
@@ -6666,7 +6665,6 @@ def cheap_grid_charge_hours():
                     return header + "\n" + align
 
                 def _row_from_slice(slice_pairs, n_pairs=4):
-                    # slice_pairs: [(tid_str, pris_str), ...]  (længde 1..n_pairs)
                     row_cells = []
                     
                     while len(slice_pairs) < n_pairs:
@@ -6677,7 +6675,7 @@ def cheap_grid_charge_hours():
 
                 overview.append("\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
 
-                by_day = defaultdict(list)  # key = date(), val = list[(tid, pris)]
+                by_day = defaultdict(list)
                 for ts, price in sorted(LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items(), key=lambda kv: kv[0]):
                     by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}kr"))
                     
