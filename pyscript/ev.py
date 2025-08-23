@@ -206,21 +206,21 @@ INTEGRATION_OFFLINE_TIMESTAMP = {}
 
 CURRENT_CHARGING_SESSION = {}
 WEATHER_CONDITION_DICT = {
-    "sunny": 100,                # Maksimal solproduktion, ideelle forhold
-    "windy": 80,                 # Minimal effekt på solproduktion
-    "windy-variant": 80,         # Ligner windy, mindre effekt på produktionen
-    "partlycloudy": 60,          # Moderat reduceret solproduktion
-    "cloudy": 40,                # Betydelig reduceret solproduktion
-    "rainy": 40,                 # Betydelig reduceret produktion på grund af regn og skyer
-    "pouring": 20,               # Kraftig regn, stor reduktion i produktion
-    "lightning": 20,             # Stor reduktion pga. skydække og storm
-    "lightning-rainy": 20,       # Kraftig storm og regn, signifikant reduceret produktion
-    "snowy": 20,                 # Sne, reducerer solproduktionen markant
-    "snowy-rainy": 20,           # Kombination af sne og regn, meget lav produktion
-    "clear-night": 0,            # Ingen produktion om natten
-    "fog": 20,                   # Tåge, meget lav produktion pga. nedsat sollys
-    "hail": 0,                   # Ingen produktion under hagl
-    "exceptional": 0             # Ekstreme forhold, ingen produktion
+    "sunny": 100,                # Maximum solar production; ideal conditions
+    "windy": 80,                 # Minimal impact on solar production
+    "windy-variant": 80,         # Similar to 'windy'; minor impact on production
+    "partlycloudy": 60,          # Moderately reduced solar production
+    "cloudy": 40,                # Significantly reduced solar production
+    "rainy": 40,                 # Significantly reduced production due to rain and clouds
+    "pouring": 20,               # Heavy rain; large reduction in production
+    "lightning": 20,             # Large reduction due to cloud cover and storm
+    "lightning-rainy": 20,       # Severe storm and rain; significantly reduced production
+    "snowy": 20,                 # Snow; markedly reduces solar production
+    "snowy-rainy": 20,           # Combination of snow and rain; very low production
+    "clear-night": 0,            # No production at night
+    "fog": 20,                   # Fog; very low production due to reduced sunlight
+    "hail": 0,                   # No production during hail
+    "exceptional": 0             # Extreme conditions; no production
 }
 
 INTEGRATION_DAILY_LIMIT_BUFFER = 50
