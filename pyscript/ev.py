@@ -7513,10 +7513,9 @@ def max_local_energy_available_remaining_period():
                 if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
                     powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
-                if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER and ready_to_charge():
-                    #TODO check if trigger false solar charging on forced powerwall charging
+                if powerwall_battery_level < powerwall_reserved_battery_level and powerwall_charging_power > POWERWALL_CHARGING_TRIGGER and ready_to_charge():
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
-                    powerwall_force_power += watts_available_from_local_energy_solar_only #powerwall_charging_consumption
+                    powerwall_force_power += min(watts_available_from_local_energy_solar_only, powerwall_charging_consumption) #powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
         
             if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level:
