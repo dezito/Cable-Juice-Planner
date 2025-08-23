@@ -1359,8 +1359,8 @@ def task_shutdown():
         _LOGGER.error(f"Some tasks were not killed:\n{pformat(TASKS, indent=4, width=200)} (INSTANCE_ID: {INSTANCE_ID})")
         _LOGGER.error("Please report this issue to the developer.")
         my_persistent_notification(
+            f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}\n\nPlease report this issue to the developer with the above information\nat https://github.com/dezito/Cable-Juice-Planner/issues",
             title=f"⚠️ {__name__} - Task Kill Error",
-            message=f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}\n\nPlease report this issue to the developer with the above information\nat https://github.com/dezito/Cable-Juice-Planner/issues",
             persistent_notification_id=f"{__name__}_{func_name}_error_{INSTANCE_ID}"
         )
         
@@ -1369,7 +1369,7 @@ def task_shutdown():
     TASKS = dict()  # Clear TASKS dictionary
 
 def calculate_price_levels(prices):
-    """ Beregner de forskellige prisniveauer baseret på lowest, mean og highest price. """
+    """ Calculates price levels based on the provided prices. """
     lowest_price = min(prices)
     highest_price = max(prices)
     mean_price = sum(prices) / len(prices)
@@ -1391,11 +1391,11 @@ def calculate_price_levels(prices):
     }
 
 def get_color(price, price_levels):
-    """ Finder den passende farve for en given pris. """
-    for key, color in reversed(COLOR_THRESHOLDS):  # Starter fra højeste pris
+    """ Gets the color based on the price and predefined thresholds. """
+    for key, color in reversed(COLOR_THRESHOLDS):
         if price >= price_levels[key]:
             return color
-    return "#FFFFFF"  # Default farve hvis ingen matcher
+    return "#FFFFFF"
 
 def get_hours_plan():
     output = []
@@ -1405,20 +1405,18 @@ def get_hours_plan():
         if not prices:
             return output
 
-        # Beregn prisniveauer én gang
         price_levels = calculate_price_levels(prices.values())
 
-        # Organiser data
         data = {}
         now = getTime().replace(minute=0, second=0, microsecond=0)
         date_objects = set()
         not_home_color = "#666666"
         
         for timestamp, price in prices.items():
-            date_obj = timestamp.date()  # Gem dato som et `datetime.date` objekt
-            date_objects.add(date_obj)  # Tilføj til sorteringssættet
-            date_str = f"{timestamp.strftime('%a')}<br>{timestamp.strftime('%-d/%-m')}"  # Format: 31/1/24
-            time_str = timestamp.strftime("%H:%M")  # Format: 06:00
+            date_obj = timestamp.date()
+            date_objects.add(date_obj)
+            date_str = f"{timestamp.strftime('%a')}<br>{timestamp.strftime('%-d/%-m')}"
+            time_str = timestamp.strftime("%H:%M")
             color = get_color(price, price_levels)
 
             if time_str not in data:
@@ -1469,18 +1467,15 @@ def get_hours_plan():
                 
             data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
 
-        # Sorter datoer som `datetime.date` og konverter tilbage til str
-        sorted_dates = [f"{d.strftime('%a')}<br>{d.strftime('%-d/%-m')}" for d in sorted(date_objects)]
-        sorted_hours = sorted({t.strftime("%H:%M") for t in prices})
+        sorted_dates = [f"{dt.strftime('%a')}<br>{dt.strftime('%-d/%-m')}" for dt in sorted(date_objects)]
+        sorted_hours = sorted({dt.strftime("%H:%M") for dt in prices})
 
         prices_output = []
         prices_output.append("### Strøm priser ###")
         
-        # Opret tabel-header
         prices_output.append("| " + " | ".join([""] + sorted_dates) + " |")
         prices_output.append("|" + "|".join([":---:"] * (len(sorted_dates) + 1)) + "|")
 
-        # Tilføj rækker med farvede priser
         for hour in sorted_hours:
             row = [f"**{hour}**"] + [data[hour].get(date, "") for date in sorted_dates]
             prices_output.append("| " + " | ".join(row) + " |")
@@ -1862,7 +1857,6 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     debug_info.append(f"#### Debug info runtime {getTime()} ####\n")
     debug_info.append(f"</center>\n")
 
-    # Generate debug info from structured data
     for section, content in get_debug_info_sections().items():
         debug_info.append(f"<center>\n\n### {section}\n</center>\n")
         if content["table"]:
@@ -1872,7 +1866,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
                 debug_info.append(f"| {key}: | {value} |")
                 
         if content["table"] and content["details"]:
-            debug_info.append("<br>\n") # Insert an extra line between the table and the dictionary
+            debug_info.append("<br>\n")
         
         if content["details"]:
             for detail_key, detail_value in content["details"].items():
@@ -1881,7 +1875,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
                 debug_info.append(f"```\n{pformat(detail_value)}\n```")
                 debug_info.append("</details>\n")
                 if len(content["details"]) > 1:
-                    debug_info.append("<br>\n") # Insert an extra line between the dictionaries
+                    debug_info.append("<br>\n")
         debug_info.append("---")
     
     if OVERVIEW_HISTORY:
@@ -1892,7 +1886,6 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
             debug_info.extend(overview)
             debug_info.append("</details>\n")
 
-    # Join the debug_info list into a single string
     debug_info_output = "\n".join(debug_info)
 
     #_LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
@@ -1902,7 +1895,7 @@ def save_error_to_file(error_message, caller_function_name = None):
     func_name = "save_error_to_file"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    # Convert get_debug_info_sections() to ensure compatibility with YAML
+    
     def convert_tuples_to_lists(obj):
         if isinstance(obj, tuple):
             return list(obj)
@@ -3295,7 +3288,7 @@ def get_tariffs(hour, day_of_week):
         }
         
     except Exception as e:
-        _LOGGER.error(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e}")
+        _LOGGER.debug(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e}")
         return {
                 "transmissions_nettarif": 0.0,
                 "systemtarif": 0.0,
@@ -3842,9 +3835,9 @@ def set_state_drive_efficiency():
 
         for i, item in enumerate(DRIVE_EFFICIENCY_DB):
             try:
-                set_attr(f"sensor.{__name__}_drive_efficiency.dato_{item[0]}", round(item[1], 2))
+                set_attr(f"sensor.{__name__}_drive_efficiency.date_{item[0]}", round(item[1], 2))
             except:
-                set_attr(f"sensor.{__name__}_drive_efficiency.dato_{i}", round(item, 2))
+                set_attr(f"sensor.{__name__}_drive_efficiency.date_{i}", round(item, 2))
     except Exception as e:
         _LOGGER.error(f"Cant set drive efficiency: {e}")
 
@@ -3919,11 +3912,11 @@ def set_state_km_kwh_efficiency():
             try:
                 km_kwh = round(item[1], 2)
                 wh_km = round(1000 / km_kwh, 2)
-                set_attr(f"sensor.{__name__}_km_per_kwh.dato_{item[0]}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
+                set_attr(f"sensor.{__name__}_km_per_kwh.date_{item[0]}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
             except (IndexError, TypeError):
                 km_kwh = round(item, 2)
                 wh_km = round(1000 / km_kwh, 2)
-                set_attr(f"sensor.{__name__}_km_per_kwh.dato_{i}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
+                set_attr(f"sensor.{__name__}_km_per_kwh.date_{i}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
 
         set_estimated_range()
 
@@ -4152,10 +4145,10 @@ def drive_efficiency(state=None):
                 cars_distance_per_percentage = round(battery_range() / battery_level(), 2)
                 efficiency = abs(round((distancePerPercentage / cars_distance_per_percentage) * 100.0, 2))
 
-                _LOGGER.info(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
-                _LOGGER.info(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
-                _LOGGER.info(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
-                _LOGGER.info(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
+                _LOGGER.debug(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
+                _LOGGER.debug(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
+                _LOGGER.debug(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
+                _LOGGER.debug(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
 
                 _LOGGER.debug(
                     f"battery_range(): {battery_range()} battery_level(): {battery_level()} "
@@ -4957,7 +4950,7 @@ def charging_power_to_emulated_battery_level():
     completed_battery_level = get_completed_battery_level()
     new_battery_level = min(round(current_battery_level + added_percentage, 0), completed_battery_level)
 
-    _LOGGER.info(f"Adding {added_percentage}% to virtual battery level: {current_battery_level}% → {new_battery_level}%")
+    _LOGGER.debug(f"Adding {added_percentage}% to virtual battery level: {current_battery_level}% → {new_battery_level}%")
 
     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=new_battery_level)
 
@@ -4967,17 +4960,16 @@ async def charging_history(charging_data=None, charging_type=""):
     
     try:
         await CHARGING_HISTORY_QUEUE.put((charging_data, charging_type))
-        _LOGGER.debug(f"Tilføjet charging_data:{charging_data}, charging_type:\"{charging_type}\" til kø. Aktuel størrelse: {CHARGING_HISTORY_QUEUE.qsize()}")
-
+        
         task_running = TASKS.get(func_name)
 
         if not task_running or task_running.done():
             TASKS[func_name] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.exception(f"Fejl ved tilføjelse til charging_history kø: {e}")
+        _LOGGER.exception(f"Failed to add to charging history queue: {e}")
         my_persistent_notification(
             f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
-            f"{TITLE} fejl",
+            f"{TITLE} failed",
             persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
         
@@ -4998,10 +4990,10 @@ async def charging_history_worker():
         except (TypeError, AttributeError) as e:
             _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e}")
         except Exception as e:
-            _LOGGER.exception(f"Fejl i charging_history_worker: {e}")
+            _LOGGER.exception(f"Exception in charging_history_worker: {e}")
             my_persistent_notification(
                 f"Charging history queue failed: {e}",
-                f"{TITLE} fejl",
+                f"{TITLE} Failed",
                 persistent_notification_id=f"{__name__}_{func_name}_failed"
             )
     return last_result
@@ -5038,14 +5030,14 @@ async def _charging_history(charging_data = None, charging_type = ""):
             _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
             my_persistent_notification(
                 f"Charging history task for calculating local energy kWh or price was cancelled or timed out: {e}",
-                f"{TITLE} fejl",
+                f"{TITLE} failed",
                 persistent_notification_id=f"{__name__}_{func_name}_task_cancelled_or_timed_out"
             )
         except Exception as e:
             _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
             my_persistent_notification(
                 f"Charging history failed to calculate local energy kWh or price: {e}",
-                f"{TITLE} fejl",
+                f"{TITLE} failed",
                 persistent_notification_id=f"{__name__}_{func_name}_calc_local_energy_kwh_or_price_failed"
             )
         finally:
