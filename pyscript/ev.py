@@ -9265,7 +9265,6 @@ def kwh_charged_by_solar():
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
         
-    
 def solar_charged_percentage():
     func_name = "solar_charged_percentage"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
