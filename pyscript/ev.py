@@ -605,6 +605,7 @@ DEFAULT_ENTITIES = {
             f"input_boolean.{__name__}_solar_charging": {"description": "Aktiveres ved solcelleoverproduktion. Oplader med overskudsenergi tilpasset husets forbrug. Planlægger optimal opladning ud fra estimeret ugentlig overproduktion."},
             f"input_boolean.{__name__}_fill_up": {"description": "Kan aktiveres ved ferie og ignorerer arbejdsplan. Fordeler opladning over ugen baseret på behov. Planlægger efter laveste priser og maks. anbefalet batteriniveau."},
             f"input_boolean.{__name__}_workplan_charging": {"description": "Aktiveres ved arbejde indenfor en uge. Planlægger daglig opladning baseret på arbejdsdage, afgangstid og afstand. Oplader økonomisk og sikrer tilstrækkeligt niveau ved hjemkomst."},
+            f"input_boolean.{__name__}_deactivate_script": {"description": "Deaktiver scriptet, laderen og bilen styres ikke mere"},
             f"input_boolean.{__name__}_trip_preheat": {"description": "Aktiveres ved tur ladning. Forvarmer bilen før afgang, hvis forvarmning er nødvendig."},
             f"input_boolean.{__name__}_workday_monday": {"description": "Sætter om mandag er arbejdsdag"},
             f"input_boolean.{__name__}_workday_tuesday": {"description": "Sætter om tirsdag er arbejdsdag"},
@@ -706,6 +707,10 @@ DEFAULT_ENTITIES = {
         f"{__name__}_workplan_charging":{
             "name":"Arbejdsplan opladning",
             "icon": "mdi:brain"
+        },
+        f"{__name__}_deactivate_script":{
+            "name": "Deaktiver scriptet",
+            "icon": "mdi:cancel"
         },
         f"{__name__}_trip_preheat":{
             "name":"Tur ladning forvarm bilen",
@@ -2419,14 +2424,31 @@ def notify_critical_change(cfg = {}, filename = None):
             _LOGGER.warning(f"Powerwall entities update required: {powerwall_update_missing_entities}")
             
             my_persistent_notification(
-                message = f"## Vigtigt\n\n"
-                        f"Nye entiteter er blevet tilføjet\n"
-                        f"Læs mere om dem i entitiens beskrivelse.\n\n"
-                        f"### Nye entiteter:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
-                        f"**Handling:**\n"
-                        f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
+                f"## Vigtig ændring\n\n"
+                f"Nye entiteter er blevet tilføjet.\n"
+                f"Læs mere om dem i entitiens beskrivelse.\n\n"
+                f"### Nye entiteter:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
+                f"**Handling:**\n"
+                f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
                 title = f"{TITLE} Kritisk ændring i entiteter",
                 persistent_notification_id = f"{__name__}_{func_name}_powerwall_entities_update_required"
+            )
+            
+        deactivate_script_entity = [f"input_boolean.{__name__}_deactivate_script"]
+        deactivate_script_missing = check_nested_keys_exist(cfg, deactivate_script_entity)
+        
+        if deactivate_script_missing:
+            _LOGGER.warning(f"Deactivate script entity update required: {deactivate_script_missing}")
+            
+            my_persistent_notification(
+                f"## Vigtig ændring\n\n"
+                f"Nye entiteter er blevet tilføjet.\n"
+                f"Læs mere om dem i entitiens beskrivelse.\n\n"
+                f"### Nye entiteter:\n - {'- '.join(keys_description(deactivate_script_missing))}\n\n"
+                f"**Handling:**\n"
+                f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
+                title = f"{TITLE} Kritisk ændring i entiteter",
+                persistent_notification_id= f"{__name__}_{func_name}_deactivate_script_entity_update_required"
             )
 
 def init():
@@ -3139,6 +3161,21 @@ def manual_charging_enabled():
 def manual_charging_solar_enabled():
     if get_state(f"input_boolean.{__name__}_allow_manual_charging_solar") == "on":
         return True
+
+def deactivate_script_enabled():
+    if get_state(f"input_boolean.{__name__}_deactivate_script") == "on":
+        return True
+    
+def no_charging_modes_active():
+    return not (
+        is_trip_planned()
+        or solar_charging_enabled()
+        or workplan_charging_enabled()
+        or fill_up_charging_enabled()
+        or is_calculating_charging_loss()
+        or manual_charging_enabled()
+        or manual_charging_solar_enabled()
+    )
     
 def get_tariffs(hour, day_of_week):
     func_name = "get_tariffs"
@@ -8499,6 +8536,9 @@ def ready_to_charge():
     if entity_unavailable(CONFIG['charger']['entity_ids']['status_entity_id']) or entity_unavailable(CONFIG['charger']['entity_ids']['enabled_entity_id']):
         return
     
+    if deactivate_script_enabled():
+        return
+    
     charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="connected")
     charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off") if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']) else "on"
     
@@ -8666,6 +8706,9 @@ def is_charging():
     if TESTING:
         _LOGGER.warning(f"Not checking if is charging TESTMODE")
         return
+    
+    if deactivate_script_enabled():
+        return
         
     charger_enabled = get_state(CONFIG['charger']['entity_ids']['enabled_entity_id'], float_type=False, error_state="off")
     charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
@@ -8795,6 +8838,9 @@ def charging_without_rule():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGING_NO_RULE_COUNT
     
+    if deactivate_script_enabled():
+        return
+    
     minutes = max(5, int(round_up(CONFIG['cron_interval'] / 2)))
     
     if getMinute() < minutes or TESTING: return False
@@ -8859,6 +8905,11 @@ def charge_if_needed():
         return False
     
     try:
+        if deactivate_script_enabled():
+            _LOGGER.info("Script deactivated")
+            set_charging_rule("⛔Deaktiveret")
+            return
+        
         charging_rule = None
         
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
@@ -8920,13 +8971,14 @@ def charge_if_needed():
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[timestamp]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
-            elif CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(local_energy_available_period):
-                charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr ({round(get_solar_sell_price(), 2)}kr.)"
-                _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
-                inverter_amps[1] = 0.0
-                
         
-        if is_calculating_charging_loss():
+        if no_charging_modes_active():
+            _LOGGER.info("No charging modes active, setting amps to max")
+            charging_limit = get_max_recommended_charge_limit_battery_level()
+            amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
+            charging_rule = f"⛔Ingen laderegler aktiv\n Lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+            charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(local_energy_available_period)}, "deactivate")
+        elif is_calculating_charging_loss():
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) else get_completed_battery_level()
             _LOGGER.info(f"Calculating charging loss {completed_battery_level}%")
             
@@ -9657,9 +9709,12 @@ if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
+    @state_trigger(f"input_boolean.{__name__}_deactivate_script")
     def charging_rule(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "charging_rule"
+        func_prefix = f"{func_name}_"
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        global TASKS
         
         if trigger_type == "startup":
             if fill_up_charging_enabled() and workplan_charging_enabled():
@@ -9675,6 +9730,31 @@ if INITIALIZATION_COMPLETE:
                     if fill_up_charging_enabled():
                         set_state(f"input_boolean.{__name__}_fill_up", "off")
                         my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
+            
+            if var_name == f"input_boolean.{__name__}_deactivate_script":
+                try:
+                    if value == "on":
+                        TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
+                        done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
+                        
+                        
+                        amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
+                        set_charger_charging_amps(*amps)
+                        start_charging()
+                    elif value == "off":
+                        pass
+                    else:
+                        raise ValueError(f"Invalid value for {var_name}: {value}")
+                    TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+                    done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
+                except Exception as e:
+                    _LOGGER.error(f"Error in {func_name} for {var_name}: {e}")
+                except ValueError as ve:
+                    pass
+                finally:
+                    task_cancel(func_prefix, task_remove=True, startswith=True)
+                
+                    
                 
     @time_trigger(f"cron(0/{CONFIG['cron_interval']} * * * *)")
     @state_trigger(f"input_button.{__name__}_enforce_planning")
@@ -9690,7 +9770,10 @@ if INITIALIZATION_COMPLETE:
             if trigger_type == "time":
                 TASKS[f"{func_prefix}calc_kwh_price"] = task.create(calc_kwh_price, getMinute(), update_entities = True)
                 done, pending = task.wait({TASKS[f"{func_prefix}calc_kwh_price"]})
-                
+            
+            if deactivate_script_enabled():
+                return
+            
             if is_charging():
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
@@ -9754,6 +9837,9 @@ if INITIALIZATION_COMPLETE:
         global CURRENT_CHARGING_SESSION
         
         if not isinstance(value, (float, int)) or isinstance(old_value, (float, int)):
+            return
+        
+        if deactivate_script_enabled():
             return
         
         try:
@@ -9850,6 +9936,9 @@ if INITIALIZATION_COMPLETE:
         
         if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
             return
+        
+        if deactivate_script_enabled():
+            return
             
         try:
             _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
@@ -9912,6 +10001,9 @@ if INITIALIZATION_COMPLETE:
             if not is_ev_configured() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
                 return
             
+            if deactivate_script_enabled():
+                return
+            
             _LOGGER.info(f"Charger cable connected changed from {old_value} to {value}")
             try:
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
@@ -9933,6 +10025,10 @@ if INITIALIZATION_COMPLETE:
             func_name = "cron_five_every_minute"
             func_prefix = f"{func_name}_"
             _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            
+            if deactivate_script_enabled():
+                return
+            
             try:
                 TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}preheat_ev"]})
@@ -9951,6 +10047,9 @@ if INITIALIZATION_COMPLETE:
                     _LOGGER = globals()['_LOGGER'].getChild(func_name)
                     
                     if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                        return
+                    
+                    if deactivate_script_enabled():
                         return
                     
                     _LOGGER.info(f"Ev charge port changed from {old_value} to {value}")
@@ -9973,6 +10072,9 @@ if INITIALIZATION_COMPLETE:
                     if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
                         return
                     
+                    if deactivate_script_enabled():
+                        return
+                    
                     _LOGGER.info(f"Ev charge cable changed from {old_value} to {value}")
                     
                     try:
@@ -9989,6 +10091,10 @@ if INITIALIZATION_COMPLETE:
             func_name = "emulated_battery_level_changed"
             func_prefix = f"{func_name}_"
             _LOGGER = globals()['_LOGGER'].getChild(func_name)
+                    
+            if deactivate_script_enabled():
+                return
+            
             try:
                 old_value = float(old_value)
                 value = float(value)
@@ -10046,7 +10152,7 @@ if INITIALIZATION_COMPLETE:
             TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
             done, pending = task.wait({TASKS[f'{func_prefix}reset_counter_entity_integration']})
             
-            if CONFIG['notification']['update_available']:
+            if CONFIG['notification']['update_available'] and not deactivate_script_enabled():
                 TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
@@ -10079,7 +10185,10 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         
         global CONFIG, CHARGING_LOSS_CAR_BEGIN_KWH, CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL, CHARGING_LOSS_CHARGER_BEGIN_KWH, CHARGING_LOSS_CHARGING_COMPLETED
-
+        
+        if deactivate_script_enabled():
+            return
+        
         if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
