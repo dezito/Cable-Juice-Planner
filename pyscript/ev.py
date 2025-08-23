@@ -6470,7 +6470,7 @@ def cheap_grid_charge_hours():
                     if "_sum" in k or k == "total_needed_battery_level" and v:
                         charging_plan_attr[title][str(k).capitalize().replace("_", " ").replace("sum", "")] = f"{v:.2f}%"
                     
-                    if "solar_" in k and v:
+                    if "solar_" in k and "_sum" in k and v:
                         if "kwh" in k:
                             charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} kWh"
                         elif "cost" in k:
