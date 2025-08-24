@@ -5269,17 +5269,35 @@ def get_hour_prices():
             
             if "raw_today" in power_prices_attr:
                 for raw in power_prices_attr['raw_today']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
-                        hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                    if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
+                        if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) == 0:
+                            hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                            if hour not in hour_prices:
+                                hour_prices[hour] = []
+                            hour_prices[hour].append(raw['price'])
+                        else:
+                            all_prices_loaded = False
                     else:
-                        all_prices_loaded = False
+                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
+                            hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                        else:
+                            all_prices_loaded = False
                         
             if "forecast" in power_prices_attr:
                 for raw in power_prices_attr['forecast']:
-                    if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
-                        hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
+                    if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
+                        if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) > 0:
+                            hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                            if hour not in hour_prices:
+                                hour_prices[hour] = []
+                            hour_prices[hour].append(raw['price'] + (daysBetween(current_hour, raw['time']) / price_adder_day_between_divider))
+                        else:
+                            all_prices_loaded = False
                     else:
-                        all_prices_loaded = False
+                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
+                            hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
+                        else:
+                            all_prices_loaded = False
 
             if "tomorrow_valid" in power_prices_attr:
                 if power_prices_attr['tomorrow_valid']:
@@ -5287,10 +5305,24 @@ def get_hour_prices():
                         _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
                     else:
                         for raw in power_prices_attr['raw_tomorrow']:
-                            if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
-                                hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                            if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
+                                if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) == 1:
+                                    hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                                    if hour not in hour_prices:
+                                        hour_prices[hour] = []
+                                    hour_prices[hour].append(raw['price'])
+                                else:
+                                    all_prices_loaded = False
                             else:
-                                all_prices_loaded = False
+                                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
+                                    hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
+                                else:
+                                    all_prices_loaded = False
+                                    
+            for hour in hour_prices:
+                if isinstance(hour_prices[hour], list):
+                    _LOGGER.info(f"Averaging {hour} prices: {hour_prices[hour]} = {average(hour_prices[hour])} - {get_refund()} refund")
+                    hour_prices[hour] = round(average(hour_prices[hour]) - get_refund(), 2)
             
             if "raw_today" not in power_prices_attr:
                 raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
