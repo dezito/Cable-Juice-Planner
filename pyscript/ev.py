@@ -4468,6 +4468,7 @@ def charging_history_recalc_price():
                 emoji = emoji_sorting(emoji_update_local_energy(emojis=emoji, kwh_from_local_energy=kwh_from_local_energy, solar_kwh_of_local_energy=solar_kwh_of_local_energy, powerwall_kwh_of_local_energy=powerwall_kwh_of_local_energy))
                 
                 CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
+                CHARGING_HISTORY_DB[start]["kWh_from_grid"] = max(round(added_kwh - kwh_from_local_energy, 3), 0.0)
                 CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
                 CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
                 CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
@@ -4618,6 +4619,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 emoji = data['emoji']
                 percentage = data['percentage']
                 kWh = data["kWh"]
+                kWh_from_grid = data.get("kWh_from_grid", 0.0)
                 kWh_from_local_energy = data.get("kWh_from_local_energy", 0.0)
                 solar_kwh_of_local_energy = data.get("solar_kwh_of_local_energy", 0.0)
                 powerwall_kwh_of_local_energy = data.get("powerwall_kwh_of_local_energy", 0.0)
@@ -4664,6 +4666,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             started = next_when
                             percentage += next_data['percentage']
                             kWh += next_data["kWh"]
+                            kWh_from_grid += next_data.get("kWh_from_grid", 0.0)
                             kWh_from_local_energy += next_data.get("kWh_from_local_energy", 0.0)
                             solar_kwh_of_local_energy += next_data.get("solar_kwh_of_local_energy", 0.0)
                             powerwall_kwh_of_local_energy += next_data.get("powerwall_kwh_of_local_energy", 0.0)
@@ -4689,6 +4692,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     "emoji": emoji,
                     "ended": ended,
                     "kWh": round(kWh, 3),
+                    "kWh_from_grid": round(kWh_from_grid, 3),
                     "kWh_from_local_energy": round(kWh_from_local_energy, 3),
                     "solar_kwh_of_local_energy": round(solar_kwh_of_local_energy, 3),
                     "powerwall_kwh_of_local_energy": round(powerwall_kwh_of_local_energy, 3),
@@ -5047,6 +5051,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
         
         CHARGING_HISTORY_DB[start]["percentage"] = round(added_percentage, 1)
         CHARGING_HISTORY_DB[start]["kWh"] = round(added_kwh, 3)
+        CHARGING_HISTORY_DB[start]["kWh_from_grid"] = round(max(added_kwh - kwh_from_local_energy, 0.0), 3)
         CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] = round(kwh_from_local_energy, 3)
         CHARGING_HISTORY_DB[start]["solar_kwh_of_local_energy"] = solar_kwh_of_local_energy
         CHARGING_HISTORY_DB[start]["powerwall_kwh_of_local_energy"] = powerwall_kwh_of_local_energy
@@ -8111,7 +8116,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             _LOGGER.warning(f"Cant get cloudiness: {cloudiness}, hour: {hour}, day_of_week: {day_of_week}. {e}")
         return [0.0, 0.0]
 
-    def process_forecast(day, loop_datetime, is_away, current_hour_factor, cloudiness, solar_forecast_from_integration,
+    def process_forecast(loop_datetime, is_away, current_hour_factor, cloudiness, solar_forecast_from_integration,
                         total_db, total_db_sell, total_forecast, total_forecast_sell,
                         total_avg, total_avg_sell, powerwall_kwh_needed):
         nonlocal func_name
@@ -8143,8 +8148,8 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             loop_sell.append(solar_forecast_from_integration[loop_datetime][1] * power_factor)
             total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
             total_forecast_sell.append(solar_forecast_from_integration[loop_datetime][1])
-
-        # Logging & Aggregation
+            
+        # Average forecast
         if loop_kwh:
             loop_kwh = average(loop_kwh)
             loop_sell = average(loop_sell)
@@ -8249,7 +8254,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     
                     if is_away:
                         powerwall_kwh_needed = process_forecast(
-                            day, loop_datetime, is_away, current_hour_factor,
+                            loop_datetime, is_away, current_hour_factor,
                             cloudiness, solar_forecast_from_integration,
                             total_away_database, total_away_database_sell,
                             total_away_forecast, total_away_forecast_sell,
@@ -8269,7 +8274,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     is_away = False
                     
                     powerwall_kwh_needed = process_forecast(
-                        day, loop_datetime, is_away, current_hour_factor,
+                        loop_datetime, is_away, current_hour_factor,
                         cloudiness, solar_forecast_from_integration,
                         total_database, total_database_sell,
                         total_forecast, total_forecast_sell,
