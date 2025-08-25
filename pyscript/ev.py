@@ -4069,7 +4069,7 @@ def drive_efficiency(state=None):
     
     state = str(state).lower()
     
-    heating_states = ("preheat", "preheat_cancel")
+    heating_states = ("preheat_start", "preheat_cancel")
     states = tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, EV_PLUGGED_STATES, EV_UNPLUGGED_STATES, heating_states))
     
     if state not in states:
@@ -4077,7 +4077,7 @@ def drive_efficiency(state=None):
         return
         
     try:
-        if state == "preheat":
+        if state == "preheat_start":
             drive_efficiency_save_car_stats()
             PREHEATING = True
             return
@@ -8478,6 +8478,9 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     
     if not is_entity_available(CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]): return
     
+    if not ready_to_charge():
+        return
+    
     try:
         preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before"))
         if preheat_min_before <= 0.0:
@@ -8553,10 +8556,12 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     climate_state = get_state(entity_id, error_state="unknown")
     integration = get_integration(entity_id)
     
+    notify_type = None
+    
     if "tessie" == integration:
         if preheat and climate_state == "off" and service.has_service("climate", "turn_on"):
-            if not allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration, check_only=True): return
-            allow_command_entity_integration("Tesla Climate service Preheat", "preheat()", integration = integration)
+            if not allow_command_entity_integration("Tesla Climate service Preheat", "preheat_ev()", integration = integration, check_only=True): return
+            allow_command_entity_integration("Tesla Climate service Preheat", "preheat_ev()", integration = integration)
             
             _LOGGER.info("Preheating ev car")
             
@@ -8566,50 +8571,44 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             else:
                 service.call("climate", "turn_on", blocking=True, entity_id=entity_id)
                 
-            drive_efficiency("preheat")
-            
-            if CONFIG['notification']['preheating']:
-                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            drive_efficiency("preheat_start")
+            notify_type = "preheat_start"
         elif climate_state == "heat_cool" and service.has_service("climate", "turn_off"):
-            if ready_to_charge():
-                if stop_preheat_no_driving(next_drive, now, preheat_min_before):
-                    if not allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration, check_only=True): return
-                    allow_command_entity_integration("Tesla Climate service Turn off", "preheat()", integration = integration)
+            if stop_preheat_no_driving(next_drive, now, preheat_min_before):
+                if not allow_command_entity_integration("Tesla Climate service Turn off", "preheat_ev()", integration = integration, check_only=True): return
+                allow_command_entity_integration("Tesla Climate service Turn off", "preheat_ev()", integration = integration)
+                
+                _LOGGER.info("Car not moved stopping preheating ev car")
+                service.call("climate", "turn_off", blocking=True, entity_id=entity_id)
+                
+                drive_efficiency("preheat_cancel")
+                notify_type = "preheat_cancel"
                     
-                    _LOGGER.info("Car not moved stopping preheating ev car")
-                    service.call("climate", "turn_off", blocking=True, entity_id=entity_id)
-                    drive_efficiency("preheat_cancel")
-                    
-                    if CONFIG['notification']['preheating']:
-                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
     elif integration == "cupra_we_connect" and service.has_service(integration, "volkswagen_id_set_climatisation"):
         vin = get_vin_cupra_born(entity_id=entity_id)
         if preheat and vin and climate_state == "off":
             
-            if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration, check_only=True): return
-            allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat()", integration = integration)
+            if not allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat_ev()", integration = integration, check_only=True): return
+            allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat_ev()", integration = integration)
+            
+            if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
+                heating_type = t('ui.preheat_ev.thawing')
             
             _LOGGER.info("Preheating ev car")
             service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="start", blocking=True)
-            drive_efficiency("preheat")
             
-            if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
-                heating_type = "Optøer"
-                
-            if CONFIG['notification']['preheating']:
-                my_notify(message = f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            drive_efficiency("preheat_start")
+            notify_type = "preheat_start"
         elif climate_state == "heating":
-            if ready_to_charge():
-                if stop_preheat_no_driving(next_drive, now, preheat_min_before):
-                    if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration, check_only=True): return
-                    allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat()", integration = integration)
-                    
-                    _LOGGER.info("Car not moved stopping preheating ev car")
-                    service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
-                    drive_efficiency("preheat_cancel")
-                    
-                    if CONFIG['notification']['preheating']:
-                        my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            if stop_preheat_no_driving(next_drive, now, preheat_min_before):
+                if not allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat_ev()", integration = integration, check_only=True): return
+                allow_command_entity_integration("Cupra We Connect Climate service Turn off", "preheat_ev()", integration = integration)
+                
+                _LOGGER.info("Car not moved stopping preheating ev car")
+                service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="stop", blocking=True)
+                
+                drive_efficiency("preheat_cancel")
+                notify_type = "preheat_cancel"
     else:
         button_domains = ["button", "input_button"]
         switch_domains = ["switch", "input_boolean"]
@@ -8619,30 +8618,46 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             _LOGGER.warning(f"Integration {integration} not supported")
             return
         
-        if not allow_command_entity_integration("Button Preheat", "preheat()", integration = integration, check_only=True): return
+        if not allow_command_entity_integration("Button Preheat", "preheat_ev()", integration = integration, check_only=True): return
             
-        if domain in button_domains:
+        if (preheat or (PREHEATING and stop_preheat_no_driving(next_drive, now, preheat_min_before))) and domain in button_domains:
             if domain == "button":
                 button.press(entity_id=entity_id)
             else:
                 input_button.press(entity_id=entity_id)
         elif domain in switch_domains:
-            if climate_state == "off":
+            if preheat and climate_state == "off":
                 set_state(entity_id, "on")
-            else:
-                set_state(entity_id, "off")
+            elif PREHEATING and climate_state == "on":
+                if stop_preheat_no_driving(next_drive, now, preheat_min_before):
+                    set_state(entity_id, "off")
                 
         if PREHEATING:
-            drive_efficiency("preheat_cancel")
-            
-            if CONFIG['notification']['preheating']:
-                my_notify(message = f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            if stop_preheat_no_driving(next_drive, now, preheat_min_before):
+                drive_efficiency("preheat_cancel")
+                notify_type = "preheat_cancel"
         else:
-            drive_efficiency("preheat")
-            
-            if CONFIG['notification']['preheating']:
-                my_notify(message = f"Forvarmer bilen til kl. {next_drive.strftime('%H:%M')}", title = TITLE, notify_list = CONFIG['notify_list'], admin_only = False, always = False)
+            drive_efficiency("preheat_start")
+            notify_type = "preheat_start"
 
+    if CONFIG['notification']['preheating']:
+        if notify_type == "preheat_start":
+            my_notify(
+                f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}",
+                title = TITLE,
+                notify_list = CONFIG['notify_list'],
+                admin_only = False,
+                always = False
+            )
+        elif notify_type == "preheat_cancel":
+            my_notify(
+                 f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}",
+                 title = TITLE,
+                 notify_list = CONFIG['notify_list'],
+                 admin_only = False,
+                 always = False
+            )
+            
 def ready_to_charge():
     func_name = "ready_to_charge"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
