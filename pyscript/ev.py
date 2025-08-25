@@ -2145,7 +2145,7 @@ def save_changes(file, db):
         del db_disk["version"]
     
     comment_db = deepcopy(COMMENT_DB_YAML) if f"{__name__}_config" in file else None
-    if db != db_disk:
+    if not dicts_equal(db, db_disk):
         try:
             _LOGGER.info(f"Saving {file} to disk")
             TASKS[f'{func_prefix}save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
