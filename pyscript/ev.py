@@ -8636,7 +8636,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             if stop_preheat_no_driving(next_drive, now, preheat_min_before):
                 drive_efficiency("preheat_cancel")
                 notify_type = "preheat_cancel"
-        else:
+        elif preheat:
             drive_efficiency("preheat_start")
             notify_type = "preheat_start"
 
