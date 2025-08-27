@@ -4933,7 +4933,6 @@ def charging_power_to_emulated_battery_level():
     watt = get_average_value(CONFIG['charger']['entity_ids']['power_consumtion_entity_id'], past, now, convert_to="W", error_state=0.0)
 
     if watt == 0.0:
-        _LOGGER.warning(f"DEBUG CURRENT_CHARGING_SESSION: {CURRENT_CHARGING_SESSION}, watt: {watt}")
         return
 
     current_charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
