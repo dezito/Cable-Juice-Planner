@@ -5477,10 +5477,10 @@ def cheap_grid_charge_hours():
         
         try:
             if charging_plan[day]['workday']:
-                working = in_between(timestamp.hour, charging_plan[day]['work_goto'].hour, charging_plan[day]['work_homecoming'].hour)
+                working = in_between(timestamp, charging_plan[day]['work_goto'], charging_plan[day]['work_homecoming'])
 
             if trip_datetime:
-                on_trip = in_between(timestamp.hour, trip_datetime.hour, trip_homecoming_datetime.hour)
+                on_trip = in_between(timestamp, trip_datetime, trip_homecoming_datetime)
         except Exception as e:
             _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e}")
         
@@ -5691,7 +5691,8 @@ def cheap_grid_charge_hours():
                 return return_fail_list
             
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
-            if charging_plan[day]["trip"] and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
+            
+            if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
                 max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
             
             what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
@@ -5865,10 +5866,10 @@ def cheap_grid_charge_hours():
                                 last_charging = charging_plan[day]['trip_last_charging']
                                 _LOGGER.info(f"Enought battery level for work, planning for trip {sum(charging_plan[day]['battery_level_before_work'])} >= ({charging_plan[day]['work_battery_level_needed']} + {get_min_trip_battery_level()})")
                                 break
-                            
+                        
                         if not in_between(timestamp, current_hour, last_charging):
                             continue
-                            
+                        
                         timestamp = change_timestamp_with_minutes(timestamp)
                         
                         hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
@@ -5884,7 +5885,7 @@ def cheap_grid_charge_hours():
                         if battery_level_full_on_next_departure(what_day):
                             _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
                             continue
-
+                        
                         working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
                         if working or on_trip:
                             continue
@@ -6504,7 +6505,7 @@ def cheap_grid_charge_hours():
                         charging_plan[day]['trip_kwh_needed'] += kwh_added
                         charging_plan[day]["trip_total_cost"] += chargeHours[timestamp]["Cost"]
                         
-                        solar_percentage_prediction = kwh_to_percentage(sum(solar_kwh_prediction[getTimeStartOfDay(timestamp)]), include_charging_loss=True)
+                        solar_percentage_prediction = kwh_to_percentage(solar_kwh_prediction[getTimeStartOfDay(timestamp)], include_charging_loss=True)
                         remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added, solar_percentage_prediction=solar_percentage_prediction)
                         
                         charging_sessions_id = "battery_level_before_work"
