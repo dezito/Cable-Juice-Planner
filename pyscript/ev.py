@@ -5866,11 +5866,11 @@ def cheap_grid_charge_hours():
                                 last_charging = charging_plan[day]['trip_last_charging']
                                 _LOGGER.info(f"Enought battery level for work, planning for trip {sum(charging_plan[day]['battery_level_before_work'])} >= ({charging_plan[day]['work_battery_level_needed']} + {get_min_trip_battery_level()})")
                                 break
+                            
+                        timestamp = change_timestamp_with_minutes(timestamp)
                         
                         if not in_between(timestamp, current_hour, last_charging):
                             continue
-                        
-                        timestamp = change_timestamp_with_minutes(timestamp)
                         
                         hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
                         if hour_in_chargeHours and not kwh_available:
