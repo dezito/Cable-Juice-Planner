@@ -8241,7 +8241,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                 for hour in range(from_hour, to_hour + 1):
                     loop_datetime = date.replace(hour = hour)
                     
-                    if hour in expensive_hours and using_grid_price:
+                    if CONFIG["solar"]["enable_selling_during_expensive_hours"] and hour in expensive_hours and using_grid_price:
                         continue
                     
                     forecast = get_forecast(forecast_dict, loop_datetime)
