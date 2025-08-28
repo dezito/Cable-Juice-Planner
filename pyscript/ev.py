@@ -4499,13 +4499,13 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
     efficiency_adjustment = 1.15
     
     efficiency_factors = {
-        1: 0.85,  # Januar
-        2: 0.87,  # Februar
-        3: 0.90,  # Marts
+        1: 0.85,  # January
+        2: 0.87,  # February
+        3: 0.90,  # March
         4: 0.95,  # April
-        5: 1.00,  # Maj
-        6: 1.02,  # Juni
-        7: 1.03,  # Juli
+        5: 1.00,  # May
+        6: 1.02,  # June
+        7: 1.03,  # July
         8: 1.02,  # August
         9: 1.00,  # September
         10: 0.95, # Oktober
