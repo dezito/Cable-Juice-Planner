@@ -5691,7 +5691,7 @@ def cheap_grid_charge_hours():
             
             total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
             
-            if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
+            if charging_plan[day]["trip"] and in_between(day - what_day, 0, 2) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
                 max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
             
             what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
@@ -6880,42 +6880,38 @@ def cheap_grid_charge_hours():
             overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
             overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
-            day_loop = None
             start_battery_level = battery_level()
             
             for k, d in work_overview.items():
                 work_overview_total_kwh.append(d['kwh_needed'])
                 work_overview_total_cost.append(d['cost'])
                 
-                if d['day'] != day_loop:
-                    day_loop = d['day']
-                    
-                    if d['day'] == 0:
-                        if CHARGING_PLAN[d['day']]['workday'] and now < CHARGING_PLAN[d['day']]['work_goto']:
-                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_before_work_sum']
-                        elif CHARGING_PLAN[d['day']]['trip'] and now < CHARGING_PLAN[d['day']]['trip_goto']:
-                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_after_work_sum']
-                        else:
-                            start_battery_level = CHARGING_PLAN[d['day']]['battery_level_at_midnight_sum']
+                if charging_plan[d['day']]['workday'] and now < charging_plan[d['day']]['work_goto']:
+                    start_battery_level = charging_plan[d['day']]['battery_level_before_work_sum']
+                elif charging_plan[d['day']]['trip'] and now < charging_plan[d['day']]['trip_goto']:
+                    if charging_plan[d['day']]['workday'] and charging_plan[d['day']]['trip_goto'] < charging_plan[d['day']]['work_goto']:
+                        start_battery_level = charging_plan[d['day']]['battery_level_before_work_sum']
                     else:
-                        start_battery_level = CHARGING_PLAN[d['day'] - 1]['battery_level_at_midnight_sum']
+                        start_battery_level = charging_plan[d['day']]['battery_level_after_work_sum']
+                else:
+                    start_battery_level = charging_plan[max(d['day'] - 1, 0)]['battery_level_at_midnight_sum']
                 
                 battery_usage = ""
                 
                 if k % 1 == 0:
                     if d["event_type"] == "trip":
-                        total_trip_battery_level_needed = max((charging_plan[int(k)]['trip_battery_level_needed'] + charging_plan[int(k)]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0)
-                        #battery_level_before_trip_sum = int(round(charging_plan[int(k)]['battery_level_after_work_sum'],0))
+                        total_trip_battery_level_needed = max((charging_plan[d['day']]['trip_battery_level_needed'] + charging_plan[d['day']]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0)
+                        #battery_level_before_trip_sum = int(round(charging_plan[d['day']]['battery_level_after_work_sum'],0))
                         battery_level_after_trip_sum = int(round(start_battery_level - total_trip_battery_level_needed,0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_trip_sum}%"
                         start_battery_level -= total_trip_battery_level_needed
                     elif d["event_type"] == "work":
-                        #battery_level_before_work_sum = int(round(charging_plan[int(k)]['battery_level_before_work_sum'],0))
+                        #battery_level_before_work_sum = int(round(charging_plan[d['day']]['battery_level_before_work_sum'],0))
                         battery_level_after_work_sum = int(round(start_battery_level - d['battery_needed'],0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_work_sum}%"
                         start_battery_level -= d['battery_needed']
                     else:
-                        #battery_level_at_midnight_sum = int(round(min(charging_plan[int(k)]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
+                        #battery_level_at_midnight_sum = int(round(min(charging_plan[d['day']]['battery_level_at_midnight_sum'] + d['battery_needed'], 100.0),0))
                         battery_level_after_offday_sum = int(round(start_battery_level - d['battery_needed'],0))
                         battery_usage = f"<br>{emoji_parse({'battery_usage': True})}{int(round(start_battery_level,0))}-{battery_level_after_offday_sum}%"
                         start_battery_level -= d['battery_needed']
