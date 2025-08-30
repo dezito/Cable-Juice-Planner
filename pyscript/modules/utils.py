@@ -493,6 +493,22 @@ def contains_any(first, second):
 
     return bool(first_set & second_set)
 
+def flatten_dict(d, parent_key="", sep="."):
+    """
+    Flattens a nested dict into dot-notation keys.
+    Example:
+        {"a": {"b": {"c": 1}}, "x": 2}
+        -> {"a.b.c": 1, "x": 2}
+    """
+    items = {}
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else str(k)
+        if isinstance(v, dict):
+            items.update(flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
 def check_next_24_hours_diff(dict1, dict2):
     now = datetime.datetime.now()
     end_time = now + datetime.timedelta(hours=24)
