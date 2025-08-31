@@ -1,0 +1,770 @@
+_meta:
+  lang: en-GB
+  project: Cable Juice Planner
+  version: seed-1
+
+app:
+  title: Cable Juice Planner
+
+# ---- charging_type ----
+charging_type:
+  error:
+    description: "Critical error, emergency charging"
+  no_rule:
+    description: Charging without a defined rule
+  manual:
+    description: Manual charging
+  low_battery:
+    description: Forced charging below daily battery target
+  battery_health:
+    description: Recommended full charge (battery health)
+  trip:
+    description: Trip charging / departure
+  public_charging:
+    description: Public charging
+  first_workday_preparation:
+    description: First workday preparation
+  second_workday_preparation:
+    description: Second workday preparation
+  third_workday_preparation:
+    description: Third workday preparation
+  fourth_workday_preparation:
+    description: Fourth workday preparation
+  fifth_workday_preparation:
+    description: Fifth workday preparation
+  sixth_workday_preparation:
+    description: Sixth workday preparation
+  seventh_workday_preparation:
+    description: Seventh workday preparation
+  eighth_workday_preparation:
+    description: Eighth workday preparation
+  fill_up:
+    description: "Weekly top-up (1st, 4th & 7th day)"
+  under_min_avg_price:
+    description: Below 14-day average price
+  half_min_avg_price:
+    description: "25% below 14-day average price"
+  grid_charging:
+    description: Charging from the electricity grid
+  solar:
+    description: Solar charging / surplus production
+  solar_corrected:
+    description: Maximum charging reached – solar surplus
+  powerwall:
+    description: Charging from home battery
+  powerwall_avg_symbol:
+    description: Average home battery charging
+  battery_stored:
+    description: Consumption from home battery
+  charging_loss:
+    description: Charging loss calculation
+  sunrise:
+    description: Sunrise
+  sunset:
+    description: Sunset
+  goto:
+    description: Departure
+  homecoming:
+    description: Return home
+  battery_usage:
+    description: "Departure & return battery level"
+  charging_problem:
+    description: Charging issues
+  charging_error:
+    description: Charging failed completely
+
+# ---- config ----
+config:
+  first_run: "**Required** After editing this file, set to false"
+  cron_interval: "**Required** Interval between state checks and function runs"
+  testing_mode: "In testing mode, no commands or service calls are sent to the charger or EV"
+
+  charger:
+    entity_ids:
+      status_entity_id: "**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      power_consumtion_entity_id: "**Required** Charging power (watts)"
+      kwh_meter_entity_id: "**Required** Use Riemann-sum integration sensor (method: Left Riemann-sum) if charger’s kWh meter is slow (e.g. Easee); otherwise use the charger’s lifetime kWh meter"
+      lifetime_kwh_meter_entity_id: "**Required** Alternative to kwh_meter_entity_id, if not using the charger’s lifetime kWh meter"
+      enabled_entity_id: "Enable/disable charger entity; not used for start/stop"
+      dynamic_circuit_limit: "If unset, charger.entity_ids.start_stop_charging_entity_id must be set"
+      co2_entity_id: "Energi Data Service CO₂ entity_id"
+      cable_connected_entity_id: "If the EV has no ‘cable connected’ entity, use this to detect connection (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      start_stop_charging_entity_id: "If using another integration than Easee for start/stop (e.g. Monta)"
+    power_voltage: "**Required** Mains voltage"
+    charging_phases: "**Required** Available charging phases"
+    charging_max_amp: "**Required** Maximum charging current (A)"
+    charging_loss: "**Required** Can be calculated automatically via WebGUI with input_boolean.{name}_calculate_charging_loss"
+
+  database:
+    power_values_db_data_to_save: "Number of days of power values to retain"
+    solar_available_db_data_to_save: "Amount stored per cloud coverage category"
+    kwh_avg_prices_db_data_to_save: "Amount stored"
+    drive_efficiency_db_data_to_save: "Amount stored"
+    km_kwh_efficiency_db_data_to_save: "Amount stored"
+    charging_history_db_data_to_save: "Keep X months of charging history"
+
+  ev_car:
+    entity_ids:
+      wake_up_entity_id: "Force wake-up (leave blank if using Hyundai-Kia-Connect, which has its own wake-up service)"
+      climate_entity_id: "Used for preheating"
+      odometer_entity_id: "**Required**"
+      estimated_battery_range_entity_id: "**Required** Must be accurate range"
+      usable_battery_level_entity_id: "**Required** Must be accurate battery percentage"
+      charge_port_door_entity_id: "Indicates port open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_cable_entity_id: "Indicates if vehicle is connected (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_switch_entity_id: "Start/stop charging in vehicle (expects switch entity on/off or service call)"
+      charging_limit_entity_id: "Set charging limit (%)"
+      charging_amps_entity_id: "Set charging current (A)"
+      location_entity_id: "If not set, falls back to charger.entity_ids.status_entity_id for home/away"
+      last_update_entity_id: "Determines when to send wake-up"
+    battery_size: "**Required** Usable battery capacity; verify via OBD2"
+    min_daily_battery_level: "**Required** Adjustable via WebGUI"
+    min_trip_battery_level: "**Required** Adjustable via WebGUI"
+    min_charge_limit_battery_level: "**Required** Adjustable via WebGUI"
+    max_recommended_charge_limit_battery_level: "**Required** Adjustable via WebGUI"
+    very_cheap_grid_charging_max_battery_level: "**Required** Adjustable via WebGUI"
+    ultra_cheap_grid_charging_max_battery_level: "**Required** Adjustable via WebGUI"
+    typical_daily_distance_non_working_day: "**Required** Adjustable via WebGUI"
+
+  forecast:
+    entity_ids:
+      hourly_service_entity_id: "**Required with solar** Hourly forecast entity"
+      daily_service_entity_id: "**Required with solar** Daily forecast entity"
+      outdoor_temp_entity_id: "Used for preheat/defrost with more accurate temp than forecast"
+
+  home:
+    entity_ids:
+      power_consumption_entity_id: "Home load (watts), not grid consumption"
+      powerwall_watt_flow_entity_id: "Home battery watt flow (positive = discharging, negative = charging; invert with home.invert_powerwall_watt_flow_entity_id). Tip: disable Powerwall discharging while EV charging"
+      powerwall_battery_level_entity_id: "Used with solar.ev_charge_after_powerwall_battery_level"
+      ignore_consumption_from_entity_ids: "List of sensors to ignore"
+    power_consumption_entity_id_include_powerwall_charging: "Home load incl. battery charging"
+    power_consumption_entity_id_include_powerwall_discharging: "Home load incl. battery discharging"
+    invert_powerwall_watt_flow_entity_id: "Invert sign for home.entity_ids.powerwall_watt_flow_entity_id (charging positive, discharging negative)"
+
+  language: "Language of the UI (Supported: en-GB, en-US, da-DK, de-DE, pl-PL, uk-UA)"
+
+  notification:
+    efficiency_on_cable_plug_in: "Notify last drive efficiency on cable plug-in"
+    update_available: "Notify at midnight/startup if update available"
+    preheating: "Notify on preheating start/stop"
+  notify_list: "List of users to notify"
+
+  prices:
+    entity_ids:
+      power_prices_entity_id: "**Required** Energi Data Service price entity"
+    refund: "Refund amount from state/provider"
+
+  solar:
+    entity_ids:
+      production_entity_id: "Solar production (watts)"
+      forecast_entity_id: "Solar forecast (watts) (Supported: Solcast PV Forecast)"
+    solarpower_use_before_minutes: "Minutes you can ‘borrow’ ahead of surplus"
+    max_to_current_hour: "Require surplus use within current hour"
+    allow_grid_charging_above_solar_available: "Allowed difference (watts) above(+)/below(-) surplus"
+    charging_single_phase_min_amp: "Minimum current 1-phase; set 0 to disable"
+    charging_single_phase_max_amp: "Maximum current 1-phase; set 0 to disable"
+    charging_three_phase_min_amp: "Minimum current 3-phase; uses charger.charging_phases"
+    charging_three_phase_max_amp: "Maximum current 3-phase; set 0 to disable"
+    production_price: "Set -1.0 to use raw hourly sell price; adjustable via WebGUI"
+    ev_charge_after_powerwall_battery_level: "Charge EV after home battery level (threshold %). Adjustable via input_number.{name}_ev_charge_after_powerwall_battery_level. 0.0 disables. **Requires** powerwall_battery_level_entity_id"
+    powerwall_battery_size: "Home battery size (kWh)"
+    inverter_discharging_power_limit: "Inverter discharging power limit (watts)"
+    powerwall_charging_power_limit: "Home battery charging power limit (watts)"
+    powerwall_discharging_power: "Home battery discharging power (watts) used for EV when above threshold and input_boolean.{name}_powerwall_discharge_above_needed is enabled"
+    enable_selling_during_expensive_hours: "Enable selling during expensive hours; if disabled, solar used for EV. input_number.{name}_solar_sell_fixed_price must be -1.0 to use spot price"
+
+# ---- entity ----
+entity:
+  # ---- input_button ----
+  input_button:
+    trip_reset:
+      name: "Reset trip charging"
+      description: "Reset trip charging"
+    enforce_planning:
+      name: "Force planning"
+      description: "Recalculate charging plan"
+    restart_script:
+      name: "Restart script"
+      description: "Restart script"
+
+  # ---- input_boolean ----
+  input_boolean:
+    debug_log:
+      name: "{name}.py debug log"
+      description: "{name}.py debug log"
+    forced_charging_daily_battery_level:
+      name: "Forced charging below daily target"
+      description: "Force charging when below daily minimum"
+    allow_manual_charging_now:
+      name: "Allow manual charging now"
+      description: "Allow manual grid/solar charging now"
+    allow_manual_charging_solar:
+      name: "Allow manual charging solar only"
+      description: "Restrict manual charging to solar surplus only"
+    solar_charging:
+      name: "Solar surplus charging"
+      description: "Use surplus production; plan weekly from forecast"
+    fill_up:
+      name: "Optimal weekly charging (no work plan)"
+      description: "Distributes charging by need; prioritises cheap prices"
+    workplan_charging:
+      name: "Work plan charging"
+      description: "Plan daily by workdays, departure and distance"
+    deactivate_script:
+      name: "Deactivate script"
+      description: "Deactivate script, charger and EV no longer controlled"
+    trip_preheat:
+      name: "Trip preheat"
+      description: "Preheat car before departure if needed"
+
+    workday_monday:
+      name: "Monday workday"
+      description: "Mark Monday as workday"
+    workday_tuesday:
+      name: "Tuesday workday"
+      description: "Mark Tuesday as workday"
+    workday_wednesday:
+      name: "Wednesday workday"
+      description: "Mark Wednesday as workday"
+    workday_thursday:
+      name: "Thursday workday"
+      description: "Mark Thursday as workday"
+    workday_friday:
+      name: "Friday workday"
+      description: "Mark Friday as workday"
+    workday_saturday:
+      name: "Saturday workday"
+      description: "Mark Saturday as workday"
+    workday_sunday:
+      name: "Sunday workday"
+      description: "Mark Sunday as workday"
+
+    preheat_monday:
+      name: "Preheat Monday"
+      description: "Preheat car on Mondays"
+    preheat_tuesday:
+      name: "Preheat Tuesday"
+      description: "Preheat car on Tuesdays"
+    preheat_wednesday:
+      name: "Preheat Wednesday"
+      description: "Preheat car on Wednesdays"
+    preheat_thursday:
+      name: "Preheat Thursday"
+      description: "Preheat car on Thursdays"
+    preheat_friday:
+      name: "Preheat Friday"
+      description: "Preheat car on Fridays"
+    preheat_saturday:
+      name: "Preheat Saturday"
+      description: "Preheat car on Saturdays"
+    preheat_sunday:
+      name: "Preheat Sunday"
+      description: "Preheat car on Sundays"
+
+    calculate_charging_loss:
+      name: "Calculate charging loss"
+      description: "Automate full cycle to measure loss; save and notify"
+    powerwall_discharge_above_needed:
+      name: "Home battery discharge surplus to EV"
+      description: "Discharge above home need into EV (requires solar_charging)"
+
+  # ---- input_number ----
+  input_number:
+    co2_emitted:
+      name: "CO₂ emitted"
+      description: CO₂ emitted in kg, based on Energi Data Service CO₂ factor
+      unit_of_measurement: kg
+    kwh_charged_by_solar:
+      name: "kWh charged from solar"
+      description: kWh charged from solar
+    solar_sell_fixed_price:
+      name: "Solar fixed sell price"
+      description: "Fixed solar sell price, used for surplus calculations; set -1.0 to use spot price"
+      unit_of_measurement: £/kWh
+    preheat_minutes_before:
+      name: "Preheat X minutes before"
+      description: "Preheat car X minutes before departure if enabled"
+    typical_daily_distance:
+      name: "Typical daily distance (non-working day)"
+      description: "Daily distance in km, used for planning; requires input_boolean.ev_fill_up enabled"
+      unit_of_measurement: km
+    workday_distance_needed_monday:
+      name: "Monday distance"
+      description: "Distance required Monday workday"
+      unit_of_measurement: km
+    workday_distance_needed_tuesday:
+      name: "Tuesday distance"
+      description: "Distance required Tuesday workday"
+      unit_of_measurement: km
+    workday_distance_needed_wednesday:
+      name: "Wednesday distance"
+      description: "Distance required Wednesday workday"
+      unit_of_measurement: km
+    workday_distance_needed_thursday:
+      name: "Thursday distance"
+      description: "Distance required Thursday workday"
+      unit_of_measurement: km
+    workday_distance_needed_friday:
+      name: "Friday distance"
+      description: "Distance required Friday workday"
+      unit_of_measurement: km
+    workday_distance_needed_saturday:
+      name: "Saturday distance"
+      description: "Distance required Saturday workday"
+      unit_of_measurement: km
+    workday_distance_needed_sunday:
+      name: "Sunday distance"
+      description: "Distance required Sunday workday"
+      unit_of_measurement: km
+    min_daily_battery_level:
+      name: "Daily return battery level"
+      description: "Minimum daily return battery level (%)"
+    min_trip_battery_level:
+      name: "Trip return battery level"
+      description: "Minimum trip return battery level (%)"
+    min_charge_limit_battery_level:
+      name: "EV minimum charging limit"
+      description: "Minimum charging limit (%) the EV can be set to"
+    max_recommended_charge_limit_battery_level:
+      name: "EV max recommended charging limit"
+      description: "Maximum recommended daily charging limit (%)"
+    very_cheap_grid_charging_max_battery_level:
+      name: "Charging limit very cheap electricity"
+      description: "With very cheap electricity, charge to this level (%)"
+    ultra_cheap_grid_charging_max_battery_level:
+      name: "Charging limit ultra cheap electricity"
+      description: "With ultra cheap electricity, charge to this level (%)"
+    battery_level:
+      name: "Virtual EV battery level"
+    completed_battery_level:
+      name: "Completed charging level"
+      description: "If no EV integration, set this to reported 100% when charging completes; input_number.ev_battery_level updates automatically"
+    estimated_total_range:
+      name: "Virtual EV max range"
+      description: "If no EV integration, estimated full range (km)"
+      unit_of_measurement: km
+    trip_charge_procent:
+      name: "Trip charging to"
+      description: "Target level for trip charging (%) plus min_trip_battery_level"
+    trip_range_needed:
+      name: "Trip distance needed"
+      description: "Target trip range in km, auto-converted to battery level + min_trip_battery_level"
+      unit_of_measurement: km
+    full_charge_recommended:
+      name: "Recommended full charge every"
+      description: "Full charge recommended at least every X days to avoid damage; set 0 to disable"
+      unit_of_measurement: day(s)
+    ev_charge_after_powerwall_battery_level:
+      name: "Charge EV after home battery threshold"
+      description: "Charge EV from home battery if above this level (%); 0 disables; requires input_boolean.ev_solar_charging enabled"
+    public_charging_session_cost:
+      name: "Cost of public charging"
+      description: "The cost of the last public charging session (not £/kWh)"
+      unit_of_measurement: £
+
+  # ---- input_datetime ----
+  input_datetime:
+    workday_departure_monday:
+      name: "Monday departure"
+      description: "Departure time Monday workday, used for planning"
+    workday_departure_tuesday:
+      name: "Tuesday departure"
+      description: "Departure time Tuesday workday, used for planning"
+    workday_departure_wednesday:
+      name: "Wednesday departure"
+      description: "Departure time Wednesday workday, used for planning"
+    workday_departure_thursday:
+      name: "Thursday departure"
+      description: "Departure time Thursday workday, used for planning"
+    workday_departure_friday:
+      name: "Friday departure"
+      description: "Departure time Friday workday, used for planning"
+    workday_departure_saturday:
+      name: "Saturday departure"
+      description: "Departure time Saturday workday, used for planning"
+    workday_departure_sunday:
+      name: "Sunday departure"
+      description: "Departure time Sunday workday, used for planning"
+
+    workday_homecoming_monday:
+      name: "Monday return"
+      description: "Return time Monday workday, used for planning"
+    workday_homecoming_tuesday:
+      name: "Tuesday return"
+      description: "Return time Tuesday workday, used for planning"
+    workday_homecoming_wednesday:
+      name: "Wednesday return"
+      description: "Return time Wednesday workday, used for planning"
+    workday_homecoming_thursday:
+      name: "Thursday return"
+      description: "Return time Thursday workday, used for planning"
+    workday_homecoming_friday:
+      name: "Friday return"
+      description: "Return time Friday workday, used for planning"
+    workday_homecoming_saturday:
+      name: "Saturday return"
+      description: "Return time Saturday workday, used for planning"
+    workday_homecoming_sunday:
+      name: "Sunday return"
+      description: "Return time Sunday workday, used for planning"
+
+    trip_date_time:
+      name: "EV trip departure"
+      description: "Trip departure date/time, used for planning"
+    trip_homecoming_date_time:
+      name: "EV trip return"
+      description: "Trip return date/time, used for planning"
+    last_full_charge:
+      name: "Last full charge"
+      description: "Date/time of last full charge"
+
+  # ---- binary_sensor ----
+  binary_sensor:
+    public_charging_session_done:
+      friendly_name: "Public charging completed"
+      description: "Mark that the public charging session has ended and the cost must be entered"
+
+  # ---- sensor ----
+  sensor:
+    solar_over_production_current_hour:
+      friendly_name: "Solar production available this hour"
+      description: "Solar production available in the current hour (watts)"
+    solar_charged_percentage:
+      friendly_name: "Percentage charged from solar"
+      description: "Share of charging provided by solar energy"
+    drive_efficiency:
+      friendly_name: "Driving efficiency"
+      description: "Efficiency based on preheating, distance driven and energy use"
+    km_per_kwh:
+      friendly_name: "km/kWh"
+      description: "Kilometres per kWh"
+      unit_of_measurement: km/kWh
+    estimated_range:
+      friendly_name: "Estimated range"
+      description: "Estimated range based on current battery level and Exponential Moving Average (EMA)"
+      unit_of_measurement: km
+    drive_efficiency_last_battery_level:
+      friendly_name: "Battery level at last charge"
+      description: "Battery level at last charging (%)"
+    drive_efficiency_last_odometer:
+      friendly_name: "Odometer at last charge"
+      description: "Odometer reading at last charging (km)"
+      unit_of_measurement: km
+    charge_very_cheap_battery_level:
+      friendly_name: "Target at very cheap electricity"
+      description: "Target when price is below the cheapest of the last 14 days"
+    charge_ultra_cheap_battery_level:
+      friendly_name: "Target at ultra cheap electricity"
+      description: "Target when price is 25% below the cheapest of the last 14 days"
+    kwh_cost_price:
+      friendly_name: "kWh electricity price"
+      description: "Electricity price per kWh incl. refund and solar sell-back"
+      unit_of_measurement: £/kWh
+    current_charging_rule:
+      friendly_name: "Current charging rule"
+    emoji_description:
+      friendly_name: "Emoji explanation"
+    overview:
+      friendly_name: "Overview"
+    charging_history:
+      friendly_name: "Charging history"
+
+
+# ---- ui ----
+ui:
+  common:
+    distance_type: "km"
+    distance_kwh: "Km/kWh"
+    distance_percentage: "Km/%"
+    wh_distance: "Wh/km"
+    valuta: "£"
+    valuta_distance: "£/km"
+    valuta_kwh: "£/kWh"
+    valuta_percentage: "£/%"
+    time: "Time"
+    price: "Price"
+    total: "Total"
+    expense: "Cost"
+    drive_efficiency: "Drive efficiency"
+
+  calendar:
+    month_names:
+      jan: "Jan"
+      feb: "Feb"
+      mar: "Mar"
+      apr: "Apr"
+      may: "May"
+      jun: "Jun"
+      jul: "Jul"
+      aug: "Aug"
+      sep: "Sep"
+      oct: "Oct"
+      nov: "Nov"
+      dec: "Dec"
+      january: "January"
+      february: "February"
+      march: "March"
+      april: "April"
+      may_full: "May"
+      june: "June"
+      july: "July"
+      august: "August"
+      september: "September"
+      october: "October"
+      november: "November"
+      december: "December"
+    weekday_names:
+      mon: "Mon"
+      tue: "Tue"
+      wed: "Wed"
+      thu: "Thu"
+      fri: "Fri"
+      sat: "Sat"
+      sun: "Sun"
+      monday: "Monday"
+      tuesday: "Tuesday"
+      wednesday: "Wednesday"
+      thursday: "Thursday"
+      friday: "Friday"
+      saturday: "Saturday"
+      sunday: "Sunday"
+
+  tasks:
+    closing_progress: "Closing threads"
+    closed_done: "Threads closed – done"
+    not_all_closed: "Not all threads were closed"
+
+  # ---- prices ----
+  get_hours_plan:
+    header: "Electricity prices"
+
+  recreate_hardlinks:
+    success: "Hardlinks recreated successfully"
+    error: "Error recreating hardlinks"
+
+  repo:
+    no_updates_available_title: "Update check"
+    no_updates_available: "No updates available"
+    new_update_available_title: "New update available"
+    new_update_available_changes: "Changes"
+    new_update_available_changes_behind: "behind"
+    update_error_check: "Error during update check"
+    updated_success: "Update completed successfully"
+    update_error: "Error during update"
+
+  entity_unavailable:
+    title: "Entity unavailable"
+    message: "Entity '{entity}' unavailable since {timestamp}"
+    restart_integration: "Restarting integration"
+
+  set_charging_rule:
+    hour_limit: "Hourly limit reached"
+    day_limit: "Daily limit reached"
+
+  restart_script:
+    message: "Restarting script"
+
+  notify_critical_change:
+    title: "Critical configuration change"
+    important_header: "Important change"
+    critical_change_message: "A critical change requires updating your {name}_config.yaml"
+    new_config_keys: "New configuration keys"
+    action: "Action"
+    update_config_file: "Please update {name}_config.yaml"
+    new_entities_added: "New entities added"
+    entity_description: "Read more in the entity descriptions"
+    new_entities: "New entities"
+    add_new_entities: "Please add new entities to your dashboards"
+    critical_entities_change: "Critical entity change"
+
+  init:
+    script_starting: "Script starting"
+    file_created_message: "Configuration file created: {file_path}"
+    add_entities: "Please add new entities to your dashboards"
+    yaml_file_created: "YAML file created: {file_path}"
+    restart_required: "Restart Home Assistant to load changes"
+    error_loading: "Reloading {file_path} in 5 seconds, error occurred"
+    created: "Created"
+    renamed_to: "renamed to"
+    config_renamed_keys: "Configuration keys renamed in {file_path}"
+    entities_renamed: "Entities renamed in {file_path}"
+    deprecated_keys_title: "Deprecated keys"
+    deprecated_keys_in: "Deprecated keys in {file_path}"
+    remove_these_keys: "Remove these keys"
+    config_updated: "Config file {file_path} updated"
+    entities_package_updated: "Entity package {file_path} updated"
+    first_run_warning: "Set {file_path} first_run to false"
+    loading_config: "Loading configuration"
+    charger_not_configured: "Charger not configured; use EV entities if no charger integration"
+    script_stopped: "Script stopped"
+    check_log: "Check logs for more info"
+
+  get_all_entities:
+    all_entities: "All entities"
+    sensors: "Sensors"
+
+  emoji_description:
+    header: "Emoji description"
+    markdown_hint: "Use Markdown card with: {{{{ states.sensor.{name}_emoji_description.attributes.description }}}}"
+
+  set_default_entity_states:
+    markdown_guide: "Use Markdown card with: {{{{ states.sensor.{name}_overview.attributes.overview }}}}"
+    no_overview: "No overview yet"
+
+  drive_efficiency:
+    title: "Last drive efficiency"
+    distance: "Distance"
+    used: "Used"
+
+  load_charging_history:
+    default_state: "Use Markdown card with: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}"
+
+  charging_history_combine_and_set:
+    too_big_warning: "Home Assistant cannot display more history"
+    more_history: "See more history"
+    month: "Month"
+    estimated_distance: "Estimated km based on usage/efficiency"
+    charging_allocation: "Charging allocation"
+    day_kwh: "Day kWh"
+    night_kwh: "Night kWh"
+    public_charging_total: "Total public charging"
+
+  cheap_grid_charge_hours:
+    entity_not_in_domain: "Cannot fetch electricity prices; {entity} not under sensor domain"
+    work_goto_equals_work_homecoming: "{day} departure and return identical"
+    work_distance_zero: "{day} workday distance = 0 km"
+    workplan_settings_error: "Work plan charging misconfigured"
+    last_drive_efficiency:
+      title: "Last drive efficiency"
+      drive_date: "Drive date"
+      last_distance: "Distance"
+      used_battery: "Battery used"
+      distance_per_kwh: "Distance per kWh"
+    battery_level_expenses:
+      title: "Battery level cost"
+      current_battery_level: "Current battery level"
+      solar_share: "Solar share"
+      unit_price: "Unit price"
+    planning_basis: "View planning basis"
+    charging_overview_title: "Charging overview"
+    offline_prices: "Using offline prices for some hours"
+    no_upcoming_charging_planned: "No upcoming charging planned"
+    enough_solar_production: "Enough solar production available"
+    departure_plan:
+      title: "Departure plan"
+      day: "Day"
+      need: "Need"
+      sun: "Sun"
+      no_departure_planned: "No departures planned"
+      solar: "solar"
+      plan_include_estimations: "Plan includes estimated grid costs, {work_overview_solar_text}battery levels"
+      estimated_daily_charging: "Daily estimate {alternative_cost}£ {alternative_per_kwh}£/kWh<br>for {total_kwh}kWh difference {difference_cost}£"
+      estimated_daily_charging_plan: "Charging overview (**Daily charging estimate**)"
+    solar_production_title: "Solar overproduction"
+    last_scheduled: "Last scheduled"
+
+  max_local_energy_available_remaining_period:
+    powerwall_not_charging_but_should: "Home battery {powerwall_battery_level}% not charging though below {powerwall_reserved_battery_level}%"
+    powerwall_force_stop: "Home battery stopped x̄{powerwall_charging_consumption}W – charging later"
+    powerwall_charging: "Home battery charging x̄{powerwall_charging_consumption}W"
+    powerwall_discharging: "Home battery discharging x̄{powerwall_discharging_available}W"
+
+  preheat_ev:
+    preheating: "Preheating"
+    thawing: "Defrosting"
+    preheat_start: "{heating_type} car until {time}"
+    preheat_cancel: "Preheating cancelled, no drive at {time}"
+
+  ready_to_charge:
+    cable_disconnected: "Charging cable disconnected"
+    cable_connected_ev_not_home: "Cable connected, EV not home"
+    cable_connected_ev_not_updated: "Cable connected, EV not updated"
+    cable_connected_not_to_ev: "Cable not connected to EV\nAttempting wake-up"
+    charge_port_closed: "EV port not open\nAttempting wake-up"
+    ev_unavailable: "EV port/cable unavailable\nAttempting wake-up"
+
+  is_charging:
+    charging_again: "EV charging again"
+    charging_failed: "Charging failed"
+    fail_title: "EV charging failure"
+    charger_unavailable: "Charger unavailable"
+    charger_error: "Critical charger error, check integration/app"
+    charger_dynamic_failed: "Dynamic current limit failed"
+    charger_restart: "Restarting charger"
+    charger_restart_count: "Restarting charger attempt {count}"
+    charger_control_restart_count: "Restarting operator, attempt {count}"
+    ev_not_charging: "EV not charging correctly"
+    ev_restart_count: "Restarting EV charging attempt {count}"
+
+  charging_without_rule:
+    charging_no_rule: "Charging without rule {watt}W"
+    entities_not_available: "Entities unavailable"
+    check_options: "Check:\n- Restart integrations\n- Restart Home Assistant"
+    ev_charging_no_rule: "EV charging without rule"
+    restart_integration: "Entity \"{entity_id}\" charging without rule\nRestarting {integration}"
+
+  charge_if_needed:
+    script_deactivated: "Deactivated"
+    no_charging_modes_active: "No rules active\nCharging {watt}W"
+    charging_loss: "Measuring charging loss, charging to {percentage}%"
+    manual_charging: "Manual charging allowed {watt}W"
+    manual_charging_solar: "Manual charging allowed (solar only) {watt}W"
+    planned_charging: "Charging to {emoji}"
+    low_battery_but_expensive: "Not charging – electricity expensive"
+    low_battery: "Charging, battery below {percentage}%"
+    solar_production_but_expensive: "Selling solar surplus, grid price expensive ({price}£)"
+    solar: "Solar"
+    powerwall: "Home battery"
+    local_energy_charging: "{local_energy} charging {watt}W"
+    local_energy_charging_not_needed: "Not charging, battery above {percentage}%"
+    not_charging: "Not charging"
+
+  notify_set_battery_level:
+    action: "Set battery level"
+    title: "EV battery level"
+    message: "Remember to set EV battery level in Home Assistant"
+
+  notify_battery_under_daily_battery_level:
+    action: "Activate forced charging"
+    title: "EV battery under daily level"
+    message: "Battery under daily target, forced charging available"
+    no_charge_expensive_hours: "Not charging during 3 most expensive hours"
+
+  startup:
+    configuration:
+      header: "Configuration"
+      charger: "Charger configured"
+      ev: "EV configured"
+      solar: "Solar configured"
+      powerwall: "Home battery configured"
+      configured: "Yes"
+      not_configured: "No"
+    setting_entities: "Setting up entities"
+    loading_db: "Loading databases"
+    loading_history: "Loading charging history"
+    almost_ready: "Almost ready"
+    ev:
+      range: "Range"
+      battery_level: "Battery level"
+      estimated_range: "Estimated range"
+    calc_charging_plan: "Calculating charging plan"
+    call_all_entities: "Call the pyscript.ev_all_entities service to view all entities"
+
+  charging_rule_changed:
+    charging_rule_conflict: "Charging rule conflict"
+    deactivate_optimal_rule: "Deactivate optimal weekly charging"
+    deactivate_workplan_rule: "Deactivate work plan charging"
+    reason: "Work plan charging & optimal weekly charging cannot both be active"
+
+  public_charging_session:
+    title: "Public charging completed"
+    message: "Please enter the cost of the public charging session"
+    action: "Enter cost"
+
+  calculate_charging_loss:
+    title: "Charging loss calculation"
+    calculated: "Charging loss calculated at {percentage}%"
+
+  shutdown: "Shutting down the script\nSaving configuration file"
+

@@ -41,6 +41,8 @@ from history import (
     get_average_value,
     get_max_value,
     get_min_value)
+from i18n import (
+    I18nCatalog)
 from mynotify import (
     my_notify,
     my_persistent_notification)
@@ -244,27 +246,22 @@ CHARGING_TYPES = {
     "error": {
         "priority": 1,
         "emoji": "☠️",
-        "description": "Kritisk fejl, nødladning"
     },
     "no_rule": {
         "priority": 2,
         "emoji": "⚠️",
-        "description": "Lading uden grund"
     },
     "manual": {
         "priority": 3,
         "emoji": "🔌",
-        "description": "Manuel ladning"
     },
     "low_battery": {
         "priority": 4,
         "emoji": "⛽",
-        "description": "Tvangsladning under daglig batteri niveau"
     },
     "battery_health": {
         "priority": 5,
         "emoji": "📈",
-        "description": "Anbefalet fuld ladning"
     },
     "trip": {
         "priority": 6,
@@ -274,129 +271,104 @@ CHARGING_TYPES = {
     "first_workday_preparation": {
         "priority": 7.0,
         "emoji": "1️⃣",
-        "description": "Første arbejdsdag"
     },
     "second_workday_preparation": {
         "priority": 7.1,
         "emoji": "2️⃣",
-        "description": "Anden arbejdsdag"
     },
     "third_workday_preparation": {
         "priority": 7.2,
         "emoji": "3️⃣",
-        "description": "Tredje arbejdsdag"
     },
     "fourth_workday_preparation": {
         "priority": 7.3,
         "emoji": "4️⃣",
-        "description": "Fjerde arbejdsdag"
     },
     "fifth_workday_preparation": {
         "priority": 7.4,
         "emoji": "5️⃣",
-        "description": "Femte arbejdsdag"
     },
     "sixth_workday_preparation": {
         "priority": 7.5,
         "emoji": "6️⃣",
-        "description": "Sjette arbejdsdag"
     },
     "seventh_workday_preparation": {
         "priority": 7.6,
         "emoji": "7️⃣",
-        "description": "Syvende arbejdsdag"
     },
     "eighth_workday_preparation": {
         "priority": 7.7,
         "emoji": "8️⃣",
-        "description": "Ottende arbejdsdag"
     },
     "fill_up": {
         "priority": 8,
         "emoji": "📈",
-        "description": "1., 4. & 7. dag opfyldning"
     },
     "under_min_avg_price": {
         "priority": 9.0,
         "emoji": "💵",
-        "description": f"Under gennemsnit pris sidste 14 dage",
         "entity_name": f"{__name__}_charge_very_cheap_battery_level"
     },
     "half_min_avg_price": {
         "priority": 9.1,
         "emoji": "💶",
-        "description": f"25% under gennemsnit pris sidste 14 dage",
         "entity_name": f"{__name__}_charge_ultra_cheap_battery_level"
     },
     "grid_charging": {
         "priority": 10,
         "emoji": "⚡",
-        "description": "Ladning fra elnettet"
     },
     "solar": {
         "priority": 11,
         "emoji": "☀️",
-        "description": "Solcelle ladning / overproduktion"
     },
     "solar_corrected": {
         "priority": 11.1,
         "emoji": "🌤️",
-        "description": "Maks. opladning nået - soloverskud"
     },
     "powerwall": {
         "priority": 11.2,
         "emoji": "🛢️",
-        "description": "Ladning fra Powerwall"
     },
     "powerwall_avg_symbol": {
         "priority": 11.2,
         "emoji": "x̄",
-        "description": "Gennemsnitlig ladning af Powerwall"
     },
     "battery_stored": {
         "priority": 12,
         "emoji": "🔋",
-        "description": "Forbrug fra batteri"
     },
     "charging_loss": {
         "priority": 95,
         "emoji": "🤖",
-        "description": "Ladetab beregning"
     },
     "sunrise": {
         "priority": 96,
         "emoji": "🌅",
-        "description": "Solopgang"
     },
     "sunset": {
         "priority": 97,
         "emoji": "🌇",
-        "description": "Solnedgang"
     },
     "goto": {
         "priority": 98,
         "emoji": "🚗",
-        "description": "Afgang"
     },
     "homecoming": {
         "priority": 99,
         "emoji": "🏠",
-        "description": "Hjemkomst"
     },
     "battery_usage": {
         "priority": 100,
         "emoji": "📉",
-        "description": "Afgang & hjemkomst batteri niveau"
     },
     "charging_problem": {
         "priority": 999,
         "emoji": "❗",
-        "description": "Ladning problemer"
     },
     "charging_error": {
         "priority": 1000,
         "emoji": "❌",
-        "description": "Ladning fejlede helt"
     }
 }
 
@@ -477,6 +449,7 @@ DEFAULT_CONFIG = {
         "power_consumption_entity_id_include_powerwall_discharging": False,
         "invert_powerwall_watt_flow_entity_id": False
     },
+    "language": "da-DK", #Set default language to en-GB in later update
     "notification": {
         "update_available": True,
         "efficiency_on_cable_plug_in": True,
@@ -516,278 +489,174 @@ CONFIG_KEYS_RENAMING = {# Old path: New path (seperated by ".")
     "ev_car.daily_drive_distance": "ev_car.typical_daily_distance_non_working_day"
 }
 
-COMMENT_DB_YAML = {
-    "first_run": "**Required** After editing the file set this to false",
-    "cron_interval": "**Required** Interval between state check and function runs",
-    "testing_mode": "In testing mode, no commands/service calls are sent to charger or ev",
-    "charger.entity_ids.status_entity_id": f"**Required** Charger status (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
-    "charger.entity_ids.power_consumtion_entity_id": "**Required** Charging power in Watt",
-    "charger.entity_ids.kwh_meter_entity_id": "**Required** Use Riemann-sum integral-sensor (Integral method: Left Riemann-sum), if charger kwh meter is slow, as with Easee else the chargers lifetime kwh meter",
-    "charger.entity_ids.lifetime_kwh_meter_entity_id": "**Required** Same as kwh_meter_entity_id, if you dont want the chargers lifetime kwh meter",
-    "charger.entity_ids.enabled_entity_id": "Turn Charger unit ON/OFF, NOT for start/stop charging",
-    "charger.entity_ids.dynamic_circuit_limit": "If not set, charger.entity_ids.start_stop_charging_entity_id must be set",
-    "charger.entity_ids.co2_entity_id": "Energi Data Service CO2 entity_id",
-    "charger.entity_ids.cable_connected_entity_id": f"If EV dont have cable connected entity, use this instead to determine, if ev is connected to charger (Supported states: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})",
-    "charger.entity_ids.start_stop_charging_entity_id": "If using other integration than Easee to start stop charging, like Monta",
-    "charger.power_voltage": "**Required** Grid power voltage",
-    "charger.charging_phases": "**Required** Phases available for the ev",
-    "charger.charging_max_amp": "**Required** Maximum amps for the ev",
-    "charger.charging_loss": f"**Required** Can be auto calculated via WebGUI with input_boolean.{__name__}_calculate_charging_loss",
-    "database.power_values_db_data_to_save": "Days back to save power values",
-    "database.solar_available_db_data_to_save": "Amount to save, per cloud coverage density",
-    "database.kwh_avg_prices_db_data_to_save": "Amount to save",
-    "database.drive_efficiency_db_data_to_save": "Amount to save",
-    "database.km_kwh_efficiency_db_data_to_save": "Amount to save",
-    "database.charging_history_db_data_to_save": "Save X month back",
-    "ev_car": "EV car configuration",
-    "ev_car.entity_ids": "Entity IDs used by the EV car",
-    "ev_car.entity_ids.wake_up_entity_id": "Force wake up (Leave blank if using Hyundai-Kia-Connect, using wake up serive instead)",
-    "ev_car.entity_ids.climate_entity_id": "Used to preheat ev",
-    "ev_car.entity_ids.odometer_entity_id": "**Required**",
-    "ev_car.entity_ids.estimated_battery_range_entity_id": "**Required** Must precise battery range",
-    "ev_car.entity_ids.usable_battery_level_entity_id": "**Required** Must precise battery level",
-    "ev_car.entity_ids.charge_port_door_entity_id": f"Used to determine if ev charge port is open/closed (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "ev_car.entity_ids.charge_cable_entity_id": f"Used to determine if ev is connected to charger (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "ev_car.entity_ids.charge_switch_entity_id": f"Start/stop charging on EV (Supported states: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})",
-    "ev_car.entity_ids.charging_limit_entity_id": "Setting charging battery limit on EV",
-    "ev_car.entity_ids.charging_amps_entity_id": "Setting charging amps on EV",
-    "ev_car.entity_ids.location_entity_id": "If not configured, uses charger.entity_ids.status_entity_id status to determine if ev is home or away",
-    "ev_car.entity_ids.last_update_entity_id": "Used to determine sending wake up call",
-    "ev_car.battery_size": "**Required** Actual usable battery capacity, check with OBD2 unit for precise value",
-    "ev_car.min_daily_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.min_trip_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.min_charge_limit_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.max_recommended_charge_limit_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.very_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.ultra_cheap_grid_charging_max_battery_level": "**Required** Also editable via WebGUI",
-    "ev_car.typical_daily_distance_non_working_day": "**Required** Also editable via WebGUI",
-    "forecast.entity_ids.hourly_service_entity_id": "**Required if using solar** hourly forecast entity_id",
-    "forecast.entity_ids.daily_service_entity_id": "**Required if using solar** daily forecast entity_id",
-    "forecast.entity_ids.outdoor_temp_entity_id": "Used to determine preheat or defrost when preheating the ev, for more precise temp than forecast",
-    "home.entity_ids.power_consumption_entity_id": "Home power consumption (Watt entity), not grid power consumption",
-    "home.entity_ids.powerwall_watt_flow_entity_id": "Powerwall watt flow (Plus value for discharging, negative for charging, invert with home.invert_powerwall_watt_flow_entity_id) (Tip: Disable powerwall discharging when ev charging)",
-    "home.entity_ids.powerwall_battery_level_entity_id": "Used to determine when to charge ev on solar with ev_charge_after_powerwall_battery_level",
-    "home.entity_ids.ignore_consumption_from_entity_ids": "List of power sensors to ignore",
-    "home.power_consumption_entity_id_include_powerwall_charging": "Home power consumption include powerwall charging (Watt entity)",
-    "home.power_consumption_entity_id_include_powerwall_discharging": "Home power consumption include powerwall discharging (Watt entity)",
-    "home.invert_powerwall_watt_flow_entity_id": "Invert powerwall watt flow of home.entity_ids.powerwall_watt_flow_entity_id to plus value for charging, negative for discharging",
-    "notification.efficiency_on_cable_plug_in": "Notification of last drive efficiency on cable plug in",
-    "notification.update_available": "Notification of new version available at midnight and on script start",
-    "notification.preheating": "Notification of preheating start/stop",
-    "notify_list": "List of users to send notifications",
-    "prices.entity_ids.power_prices_entity_id": "**Required** Energi Data Service price entity_id",
-    "prices.refund": "Refund amount given by the state/country/nation/energy-provider",
-    "solar.entity_ids.production_entity_id": "Solar power production Watt",
-    "solar.entity_ids.forecast_entity_id": "Solar power forecast Watt (Supported integration: Solcast PV Forecast)",
-    "solar.solarpower_use_before_minutes": "Minutes back you can use solar overproduction available (Solar charging can exceed available power to use all excess energy)",
-    "solar.max_to_current_hour": "Must use solar overproduction available in current hour (Solar charging can exceed available power to use all excess energy)",
-    "solar.allow_grid_charging_above_solar_available": "Watt above(+)/under(-) overproduction available",
-    "solar.charging_single_phase_min_amp": "Minimum allowed amps the car can charge, to disable single phase charging set to 0",
-    "solar.charging_single_phase_max_amp": "Maximum allowed amps the car can charge, to disable single phase charging set to 0",
-    "solar.charging_three_phase_min_amp": "Minimum allowed amps the car can charge, uses charger.charging_phases config for max",
-    "solar.production_price": "Set to -1.0 if using raw hour sell price, also editable via WebGUI",
-    "solar.ev_charge_after_powerwall_battery_level": f"Solar charge ev after powerwall battery level, editable via input_number.{__name__}_ev_charge_after_powerwall_battery_level entity also. Set to 0.0 to disable. **Requires** powerwall_battery_level_entity_id",
-    "solar.powerwall_battery_size": "Powerwall battery size (kWh)",
-    "solar.inverter_discharging_power_limit": "Inverter discharging power limit (Watt)",
-    "solar.powerwall_charging_power_limit": "Powerwall charging power limit (Watt)",
-    "solar.powerwall_discharging_power": f"Powerwall discharging power (Watt), used to charge ev from powerwall, when powerwall battery level is above ev_charge_after_powerwall_battery_level and input_boolean.{__name__}_powerwall_discharge_above_needed is on",
-    "solar.enable_selling_during_expensive_hours": f"Enable selling solar power during expensive hours, if not enabled, solar power will be used for charging the ev. input_number.{__name__}_solar_sell_fixed_price must be set to -1.0, to use the hourly sell price.",
-}
+COMMENT_DB_YAML = {}
 
 DEFAULT_ENTITIES = {
     "homeassistant": {
         "customize": {
-            f"input_button.{__name__}_trip_reset": {"description": "Nulstil tur ladning"},
-            f"input_button.{__name__}_enforce_planning": {"description": "Udregn planlægning igen"},
-            f"input_button.{__name__}_restart_script": {"description": "Genstart scriptet"},
-            f"input_boolean.{__name__}_debug_log": {"description": f"{__name__}.py debug log"},
-            f"input_boolean.{__name__}_forced_charging_daily_battery_level": {"description": "Tvangsladning til under daglig batteri niveau"},
-            f"input_boolean.{__name__}_allow_manual_charging_now": {"description": "Tillad manuel ladning nu"},
-            f"input_boolean.{__name__}_allow_manual_charging_solar": {"description": "Tillad manuel ladning kun på sol"},
-            f"input_boolean.{__name__}_solar_charging": {"description": "Aktiveres ved solcelleoverproduktion. Oplader med overskudsenergi tilpasset husets forbrug. Planlægger optimal opladning ud fra estimeret ugentlig overproduktion."},
-            f"input_boolean.{__name__}_fill_up": {"description": "Kan aktiveres ved ferie og ignorerer arbejdsplan. Fordeler opladning over ugen baseret på behov. Planlægger efter laveste priser og maks. anbefalet batteriniveau."},
-            f"input_boolean.{__name__}_workplan_charging": {"description": "Aktiveres ved arbejde indenfor en uge. Planlægger daglig opladning baseret på arbejdsdage, afgangstid og afstand. Oplader økonomisk og sikrer tilstrækkeligt niveau ved hjemkomst."},
-            f"input_boolean.{__name__}_deactivate_script": {"description": "Deaktiver scriptet, laderen og bilen styres ikke mere"},
-            f"input_boolean.{__name__}_trip_preheat": {"description": "Aktiveres ved tur ladning. Forvarmer bilen før afgang, hvis forvarmning er nødvendig."},
-            f"input_boolean.{__name__}_workday_monday": {"description": "Sætter om mandag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_tuesday": {"description": "Sætter om tirsdag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_wednesday": {"description": "Sætter om onsdag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_thursday": {"description": "Sætter om torsdag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_friday": {"description": "Sætter om fredag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_saturday": {"description": "Sætter om lørdag er arbejdsdag"},
-            f"input_boolean.{__name__}_workday_sunday": {"description": "Sætter om søndag er arbejdsdag"},
-            f"input_boolean.{__name__}_preheat_monday": {"description": "Forvarm bilen om mandagen"},
-            f"input_boolean.{__name__}_preheat_tuesday": {"description": "Forvarm bilen om tirsdagen"},
-            f"input_boolean.{__name__}_preheat_wednesday": {"description": "Forvarm bilen om onsdagen"},
-            f"input_boolean.{__name__}_preheat_thursday": {"description": "Forvarm bilen om torsdagen"},
-            f"input_boolean.{__name__}_preheat_friday": {"description": "Forvarm bilen om fredagen"},
-            f"input_boolean.{__name__}_preheat_saturday": {"description": "Forvarm bilen om lørdagen"},
-            f"input_boolean.{__name__}_preheat_sunday": {"description": "Forvarm bilen om søndagen"},
-            f"input_boolean.{__name__}_calculate_charging_loss": {"description": "For præcis ladetabsberegning: Aflad bilen, indstil ønsket maks. ladegrænse, og aktiver beregning. Resultat gemmes automatisk, og notifikation sendes ved fuld opladning."},
-            f"input_boolean.{__name__}_powerwall_discharge_above_needed": {"description": f"Aflader Powerwall over det nødvendige niveau for at oplade elbilen, når den er tilsluttet. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
-            f"input_number.{__name__}_co2_emitted": {"description": "CO₂ udledt i kg, baseret på Energi Data Service CO₂ faktor"},
-            f"input_number.{__name__}_kwh_charged_by_solar": {"description": "kWh opladet af solcellerne"},
-            f"input_number.{__name__}_solar_sell_fixed_price": {"description": "Fast salgspris for solceller, bruges til at beregne solcelleoverskud, sæt til -1.0 for at bruge timepris"},
-            f"input_number.{__name__}_preheat_minutes_before": {"description": "Forvarm bilen X minutter før afgang, hvis forvarmning er aktiveret"},
-            f"input_number.{__name__}_typical_daily_distance": {"description": f"Typisk daglig afstand i km, bruges til at planlægge opladning. Kræver aktivering af input_boolean.{__name__}_fill_up."},
-            f"input_number.{__name__}_workday_distance_needed_monday": {"description": "Afstand i km, der skal oplades for mandag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_tuesday": {"description": "Afstand i km, der skal oplades for tirsdag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_wednesday": {"description": "Afstand i km, der skal oplades for onsdag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_thursday": {"description": "Afstand i km, der skal oplades for torsdag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_friday": {"description": "Afstand i km, der skal oplades for fredag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_saturday": {"description": "Afstand i km, der skal oplades for lørdag arbejdsdag"},
-            f"input_number.{__name__}_workday_distance_needed_sunday": {"description": "Afstand i km, der skal oplades for søndag arbejdsdag"},
-            f"input_number.{__name__}_min_daily_battery_level": {"description": "Minimum daglig batteriniveau i procent, ved hjemkomst"},
-            f"input_number.{__name__}_min_trip_battery_level": {"description": "Minimum tur batteriniveau i procent, ved hjemkomst"},
-            f"input_number.{__name__}_min_charge_limit_battery_level": {"description": "Minimum batteriniveau i procent, bilen kan sættes til i opladningstilstand"},
-            f"input_number.{__name__}_max_recommended_charge_limit_battery_level": {"description": "Maks. anbefalet batteriniveau i procent, bilen lades til dagligt"},
-            f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": {"description": f"Ved meget billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
-            f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": {"description": f"Ved ekstremt billig strøm, lades bilen til dette niveau i procent. Kræver aktivering af input_boolean.{__name__}_fill_up."},
-            f"input_number.{__name__}_battery_level": {"description": "Ved ingen bilintegration, bruges denne til at sætte batteriniveauet i procent"},
-            f"input_number.{__name__}_completed_battery_level": {"description": f"Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau bilen viser, når den melder opladning færdig. input_number.{__name__}_battery_level opdateres automatisk til dette."},
-            f"input_number.{__name__}_estimated_total_range": {"description": "Ved ingen bilintegration, bruges denne til at sætte det estimerede totale rækkevidde i km"},
-            f"input_number.{__name__}_trip_charge_procent": {"description": f"Bruges ved turladning til at angive ønsket batteriniveau ved afgang, bilen lades til denne værdi + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
-            f"input_number.{__name__}_trip_range_needed": {"description": f"Bruges ved turladning til at angive det ønskede rækkevidde i km, der skal oplades til ved afgang, km omregnes automatisk til batteriniveau og bilen lades til dette niveau + input_number.{__name__}_min_trip_battery_level (f.eks. 50% + 30% = 80%)"},
-            f"input_number.{__name__}_full_charge_recommended": {"description": "Anbefalet fuld opladning minimum hver X dage, for at undgå batteri skader. Bilen lades til 100%. Sæt til 0 for at deaktivere."},
-            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": {"description": f"Oplader elbilen fra Powerwall, når Powerwall batteriniveau er over dette niveau i procent. Sæt til 0.0 for at deaktivere. Kræver aktivering af input_boolean.{__name__}_solar_charging."},
-            f"input_datetime.{__name__}_workday_departure_monday": {"description": "Afgangstidspunkt for mandag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_tuesday": {"description": "Afgangstidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_wednesday": {"description": "Afgangstidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_thursday": {"description": "Afgangstidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_friday": {"description": "Afgangstidspunkt for fredag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_saturday": {"description": "Afgangstidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_departure_sunday": {"description": "Afgangstidspunkt for søndag arbejdsdag, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_workday_homecoming_monday": {"description": "Hjemkomsttidspunkt for mandag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_tuesday": {"description": "Hjemkomsttidspunkt for tirsdag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_wednesday": {"description": "Hjemkomsttidspunkt for onsdag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_thursday": {"description": "Hjemkomsttidspunkt for torsdag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_friday": {"description": "Hjemkomsttidspunkt for fredag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_saturday": {"description": "Hjemkomsttidspunkt for lørdag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_workday_homecoming_sunday": {"description": "Hjemkomsttidspunkt for søndag arbejdsdag, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_trip_date_time": {"description": "Dato og tidspunkt for tur afgang, bruges til at planlægge opladning og forvarmning"},
-            f"input_datetime.{__name__}_trip_homecoming_date_time": {"description": "Dato og tidspunkt for tur hjemkomst, bruges til at planlægge opladning"},
-            f"input_datetime.{__name__}_last_full_charge": {"description": "Dato og tidspunkt for sidste fuld opladning"},
+            f"input_button.{__name__}_trip_reset": {},
+            f"input_button.{__name__}_enforce_planning": {},
+            f"input_button.{__name__}_restart_script": {},
+            f"input_boolean.{__name__}_debug_log": {},
+            f"input_boolean.{__name__}_forced_charging_daily_battery_level": {},
+            f"input_boolean.{__name__}_allow_manual_charging_now": {},
+            f"input_boolean.{__name__}_allow_manual_charging_solar": {},
+            f"input_boolean.{__name__}_solar_charging": {},
+            f"input_boolean.{__name__}_fill_up": {},
+            f"input_boolean.{__name__}_workplan_charging": {},
+            f"input_boolean.{__name__}_deactivate_script": {},
+            f"input_boolean.{__name__}_trip_preheat": {},
+            f"input_boolean.{__name__}_workday_monday": {},
+            f"input_boolean.{__name__}_workday_tuesday": {},
+            f"input_boolean.{__name__}_workday_wednesday": {},
+            f"input_boolean.{__name__}_workday_thursday": {},
+            f"input_boolean.{__name__}_workday_friday": {},
+            f"input_boolean.{__name__}_workday_saturday": {},
+            f"input_boolean.{__name__}_workday_sunday": {},
+            f"input_boolean.{__name__}_preheat_monday": {},
+            f"input_boolean.{__name__}_preheat_tuesday": {},
+            f"input_boolean.{__name__}_preheat_wednesday": {},
+            f"input_boolean.{__name__}_preheat_thursday": {},
+            f"input_boolean.{__name__}_preheat_friday": {},
+            f"input_boolean.{__name__}_preheat_saturday": {},
+            f"input_boolean.{__name__}_preheat_sunday": {},
+            f"input_boolean.{__name__}_calculate_charging_loss": {},
+            f"input_boolean.{__name__}_powerwall_discharge_above_needed": {},
+            f"input_number.{__name__}_co2_emitted": {},
+            f"input_number.{__name__}_kwh_charged_by_solar": {},
+            f"input_number.{__name__}_solar_sell_fixed_price": {},
+            f"input_number.{__name__}_preheat_minutes_before": {},
+            f"input_number.{__name__}_typical_daily_distance": {},
+            f"input_number.{__name__}_workday_distance_needed_monday": {},
+            f"input_number.{__name__}_workday_distance_needed_tuesday": {},
+            f"input_number.{__name__}_workday_distance_needed_wednesday": {},
+            f"input_number.{__name__}_workday_distance_needed_thursday": {},
+            f"input_number.{__name__}_workday_distance_needed_friday": {},
+            f"input_number.{__name__}_workday_distance_needed_saturday": {},
+            f"input_number.{__name__}_workday_distance_needed_sunday": {},
+            f"input_number.{__name__}_min_daily_battery_level": {},
+            f"input_number.{__name__}_min_trip_battery_level": {},
+            f"input_number.{__name__}_min_charge_limit_battery_level": {},
+            f"input_number.{__name__}_max_recommended_charge_limit_battery_level": {},
+            f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level": {},
+            f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level": {},
+            f"input_number.{__name__}_battery_level": {},
+            f"input_number.{__name__}_completed_battery_level": {},
+            f"input_number.{__name__}_estimated_total_range": {},
+            f"input_number.{__name__}_trip_charge_procent": {},
+            f"input_number.{__name__}_trip_range_needed": {},
+            f"input_number.{__name__}_full_charge_recommended": {},
+            f"input_number.{__name__}_ev_charge_after_powerwall_battery_level": {},
+            f"input_number.{__name__}_public_charging_session_cost": {},
+            f"input_datetime.{__name__}_workday_departure_monday": {},
+            f"input_datetime.{__name__}_workday_departure_tuesday": {},
+            f"input_datetime.{__name__}_workday_departure_wednesday": {},
+            f"input_datetime.{__name__}_workday_departure_thursday": {},
+            f"input_datetime.{__name__}_workday_departure_friday": {},
+            f"input_datetime.{__name__}_workday_departure_saturday": {},
+            f"input_datetime.{__name__}_workday_departure_sunday": {},
+            f"input_datetime.{__name__}_workday_homecoming_monday": {},
+            f"input_datetime.{__name__}_workday_homecoming_tuesday": {},
+            f"input_datetime.{__name__}_workday_homecoming_wednesday": {},
+            f"input_datetime.{__name__}_workday_homecoming_thursday": {},
+            f"input_datetime.{__name__}_workday_homecoming_friday": {},
+            f"input_datetime.{__name__}_workday_homecoming_saturday": {},
+            f"input_datetime.{__name__}_workday_homecoming_sunday": {},
+            f"input_datetime.{__name__}_trip_date_time": {},
+            f"input_datetime.{__name__}_trip_homecoming_date_time": {},
+            f"input_datetime.{__name__}_last_full_charge": {},
+            f"binary_sensor.{__name__}_public_charging_session_done": {},
+            f"sensor.{__name__}_solar_over_production_current_hour": {},
+            f"sensor.{__name__}_solar_charged_percentage": {},
+            f"sensor.{__name__}_drive_efficiency": {},
+            f"sensor.{__name__}_km_per_kwh": {},
+            f"sensor.{__name__}_estimated_range": {},
+            f"sensor.{__name__}_drive_efficiency_last_battery_level": {},
+            f"sensor.{__name__}_drive_efficiency_last_odometer": {},
+            f"sensor.{__name__}_charge_very_cheap_battery_level": {},
+            f"sensor.{__name__}_charge_ultra_cheap_battery_level": {},
+            f"sensor.{__name__}_kwh_cost_price": {},
         },
     },
     "input_button":{
         f"{__name__}_trip_reset":{
-            "name":"Nulstil tur ladning",
             "icon":"mdi:restore"
         },
         f"{__name__}_enforce_planning":{
-            "name":"Gennemtving planlægning",
             "icon":"mdi:calendar-refresh"
         },
         f"{__name__}_restart_script":{
-            "name":"Genstart scriptet",
             "icon":"mdi:restart"
         }
     },
     "input_boolean":{
         f"{__name__}_debug_log":{
-            "name":f"{__name__}.py debug log",
             "icon":"mdi:math-log"
         },
         f"{__name__}_forced_charging_daily_battery_level":{
-            "name":"Tvangsladning under daglig batteri niveau",
             "icon":"mdi:battery-charging-low"
         },
-        f"{__name__}_allow_manual_charging_now":{
-            "name":"Tillad manuel ladning nu"
-        },
-        f"{__name__}_allow_manual_charging_solar":{
-            "name":"Tillad manuel ladning kun på sol"
-        },
+        f"{__name__}_allow_manual_charging_now":{},
+        f"{__name__}_allow_manual_charging_solar":{},
         f"{__name__}_solar_charging":{
-            "name":"Solcelleoverskud til opladning",
             "icon": "mdi:brain"
         },
         f"{__name__}_fill_up":{
-            "name":"Optimal ugeopladning (uden Arbejdsplan)",
             "icon": "mdi:brain"
         },
         f"{__name__}_workplan_charging":{
-            "name":"Arbejdsplan opladning",
             "icon": "mdi:brain"
         },
         f"{__name__}_deactivate_script":{
-            "name": "Deaktiver scriptet",
             "icon": "mdi:cancel"
         },
         f"{__name__}_trip_preheat":{
-            "name":"Tur ladning forvarm bilen",
             "icon": "mdi:heat-wave"
         },
-        f"{__name__}_workday_monday":{
-            "name":"Mandag arbejdsdag"
-        },
-        f"{__name__}_workday_tuesday":{
-            "name":"Tirsdag arbejdsdag"
-        },
-        f"{__name__}_workday_wednesday":{
-            "name":"Onsdag arbejdsdag"
-        },
-        f"{__name__}_workday_thursday":{
-            "name":"Torsdag arbejdsdag"
-        },
-        f"{__name__}_workday_friday":{
-            "name":"Fredag arbejdsdag"
-        },
-        f"{__name__}_workday_saturday":{
-            "name":"Lørdag arbejdsdag"
-        },
-        f"{__name__}_workday_sunday":{
-            "name":"Søndag arbejdsdag"
-        },
+        f"{__name__}_workday_monday":{},
+        f"{__name__}_workday_tuesday":{},
+        f"{__name__}_workday_wednesday":{},
+        f"{__name__}_workday_thursday":{},
+        f"{__name__}_workday_friday":{},
+        f"{__name__}_workday_saturday":{},
+        f"{__name__}_workday_sunday":{},
         f"{__name__}_preheat_monday":{
-            "name":"Mandag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_tuesday":{
-            "name":"Tirsdag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_wednesday":{
-            "name":"Onsdag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_thursday":{
-            "name":"Torsdag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_friday":{
-            "name":"Fredag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_saturday":{
-            "name":"Lørdag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_preheat_sunday":{
-            "name":"Søndag forvarm bilen",
             "icon": "mdi:heat-wave"
         },
         f"{__name__}_calculate_charging_loss":{
-            "name":"Beregn ladetab",
             "icon": "mdi:battery-sync"
         },
         f"{__name__}_powerwall_discharge_above_needed":{
-            "name":"Powerwall afladning over behov til elbil",
             "icon": "mdi:power-plug-battery"
         },
     },
     "input_number":{
         f"{__name__}_co2_emitted":{
-            "name":"CO₂ udledt",
             "min":0,
             "max":999999,
             "step":0.001,
             "icon":"mdi:molecule-co2",
-            "unit_of_measurement":"kg",
             "mode": "box"
         },
         f"{__name__}_kwh_charged_by_solar":{
-            "name":"kWh ladet af solcellerne",
             "min":0,
             "max":999999,
             "step":0.01,
@@ -796,94 +665,74 @@ DEFAULT_ENTITIES = {
             "mode": "box"
         },
         f"{__name__}_solar_sell_fixed_price":{
-            "name":"Solcelle fast salgspris",
             "min":-1,
             "max":2,
             "step":0.01,
-            "icon":"mdi:cash-multiple",
-            "unit_of_measurement":"kr/kWh"
+            "icon":"mdi:cash-multiple"
         },
         f"{__name__}_preheat_minutes_before":{
-            "name":"Forvarm bilen X min før",
             "min":0,
             "max":60,
             "step":5,
             "unit_of_measurement":"min"
         },
         f"{__name__}_typical_daily_distance":{
-            "name":"Typisk daglig afstand (Fridag)",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_monday":{
-            "name":"Mandagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_tuesday":{
-            "name":"Tirsdagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_wednesday":{
-            "name":"Onsdagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_thursday":{
-            "name":"Torsdagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_friday":{
-            "name":"Fredagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_saturday":{
-            "name":"Lørdagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_workday_distance_needed_sunday":{
-            "name":"Søndagsafstand i alt",
             "min":0,
             "max":500,
             "step":5,
             "mode":"box",
-            "icon":"mdi:transit-connection-variant",
-            "unit_of_measurement":"km"
+            "icon":"mdi:transit-connection-variant"
         },
         f"{__name__}_min_daily_battery_level":{
-            "name":"Daglig hjemkomst batteri niveau",
             "min":10,
             "max":100,
             "step":5,
@@ -892,7 +741,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:percent-outline"
         },
         f"{__name__}_min_trip_battery_level":{
-            "name":"Tur hjemkomst batteri niveau",
             "min":10,
             "max":100,
             "step":5,
@@ -901,7 +749,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:percent-outline"
         },
         f"{__name__}_min_charge_limit_battery_level":{
-            "name":"Elbilens minimum ladingsprocent",
             "min":10,
             "max":100,
             "step":5,
@@ -910,7 +757,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:percent-outline"
         },
         f"{__name__}_max_recommended_charge_limit_battery_level":{
-            "name":"Elbilens maks anbefalet ladingsprocent",
             "min":10,
             "max":100,
             "step":5,
@@ -919,7 +765,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:percent-outline"
         },
         f"{__name__}_very_cheap_grid_charging_max_battery_level":{
-            "name":"Ladingsprocent ved billig strøm",
             "min":10,
             "max":100,
             "step":5,
@@ -928,7 +773,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:sale"
         },
         f"{__name__}_ultra_cheap_grid_charging_max_battery_level":{
-            "name":"Ladingsprocent ved meget billig strøm",
             "min":10,
             "max":100,
             "step":5,
@@ -937,7 +781,6 @@ DEFAULT_ENTITIES = {
             "icon":"mdi:sale-outline"
         },
         f"{__name__}_battery_level":{
-            "name": "Virtuel elbil batteri niveau",
             "min": 0,
             "max": 100,
             "step": 1,
@@ -946,7 +789,6 @@ DEFAULT_ENTITIES = {
             "mode": "box"
         },
         f"{__name__}_completed_battery_level":{
-            "name": "Elbil lading færdig batteri niveau",
             "min": 0,
             "max": 100,
             "step": 1,
@@ -955,7 +797,6 @@ DEFAULT_ENTITIES = {
             "mode": "box"
         },
         f"{__name__}_estimated_total_range":{
-            "name": "Virtuel elbil max rækkevidde",
             "min": 0,
             "max": 1000,
             "step": 1,
@@ -964,7 +805,6 @@ DEFAULT_ENTITIES = {
             "mode": "box"
         },
         f"{__name__}_trip_charge_procent":{
-            "name": "Tur ladning til",
             "min": 0,
             "max": 100,
             "step": 5,
@@ -972,7 +812,6 @@ DEFAULT_ENTITIES = {
             "icon": "mdi:percent-outline"
         },
         f"{__name__}_trip_range_needed":{
-            "name": "Tur km forbrug",
             "min": 0,
             "max": 1000,
             "step": 5,
@@ -980,15 +819,12 @@ DEFAULT_ENTITIES = {
             "icon": "mdi:map-marker-distance"
         },
         f"{__name__}_full_charge_recommended":{
-            "name":"Anbefalet fuld ladning hver",
             "min": 0,
             "max": 60,
             "step": 1,
-            "unit_of_measurement": "dag(e)",
             "icon": "mdi:battery-heart"
         },
         f"{__name__}_ev_charge_after_powerwall_battery_level":{
-            "name":"Oplad elbil efter Powerwall minimum batteriniveau",
             "min": 0,
             "max": 100,
             "step": 1,
@@ -998,101 +834,84 @@ DEFAULT_ENTITIES = {
     },
     "input_datetime":{
         f"{__name__}_workday_departure_monday":{
-            "name":"Mandag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_tuesday":{
-            "name":"Tirsdag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_wednesday":{
-            "name":"Onsdag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_thursday":{
-            "name":"Torsdag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_friday":{
-            "name":"Fredag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_saturday":{
-            "name":"Lørdag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_departure_sunday":{
-            "name":"Søndag afgang",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-start"
         },
         f"{__name__}_workday_homecoming_monday":{
-            "name":"Mandag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_tuesday":{
-            "name":"Tirsdag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_wednesday":{
-            "name":"Onsdag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_thursday":{
-            "name":"Torsdag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_friday":{
-            "name":"Fredag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_saturday":{
-            "name":"Lørdag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_workday_homecoming_sunday":{
-            "name":"Søndag hjemkomst",
             "has_date":False,
             "has_time":True,
             "icon": "mdi:clock-end"
         },
         f"{__name__}_trip_date_time":{
-            "name":"Elbil Tur afgang",
             "has_date":True,
             "has_time":True
         },
         f"{__name__}_trip_homecoming_date_time":{
-            "name":"Elbil Tur hjemkomst",
             "has_date":True,
             "has_time":True
         },
         f"{__name__}_last_full_charge":{
-            "name":"Sidste fulde opladning",
             "has_date":True,
             "has_time":True
         },
@@ -1101,71 +920,53 @@ DEFAULT_ENTITIES = {
         "platform":"template",
         "sensors":{
             f"{__name__}_solar_over_production_current_hour":{
-                "friendly_name":"Solcelle produktion tilrådighed i nuværende time",
                 "unit_of_measurement":"W",
                 "value_template":"unavailable"
             },
             f"{__name__}_solar_charged_percentage":{
-                "friendly_name":"Solcelle ladning",
                 "unit_of_measurement":"%",
                 "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency":{
-                "friendly_name":"Kørsel effektivitet",
                 "unit_of_measurement":"%",
                 "value_template":"unavailable"
             },
             f"{__name__}_km_per_kwh":{
-                "friendly_name":"km/kWh",
-                "unit_of_measurement":"km/kWh",
                 "value_template":"unavailable",
                 "icon_template":"mdi:map-marker-distance"
             },
             f"{__name__}_estimated_range":{
-                "friendly_name":"Estimerede rækkevidde",
-                "unit_of_measurement":"km",
                 "value_template":"unavailable",
                 "icon_template":"mdi:map-marker-path"
             },
             f"{__name__}_drive_efficiency_last_battery_level":{
-                "friendly_name":"Batteriniveau ved sidste ladning",
                 "unit_of_measurement":"%",
                 "value_template":"unavailable"
             },
             f"{__name__}_drive_efficiency_last_odometer":{
-                "friendly_name":"Kilometerstand ved sidste ladning",
-                "unit_of_measurement":"km",
                 "value_template":"unavailable"
             },
             f"{__name__}_charge_very_cheap_battery_level":{
-                "friendly_name":"",
                 "value_template":"unavailable",
                 "unit_of_measurement":"%"
             },
             f"{__name__}_charge_ultra_cheap_battery_level":{
-                "friendly_name":"",
                 "value_template":"unavailable",
                 "unit_of_measurement":"%"
             },
             f"{__name__}_kwh_cost_price":{
-                "friendly_name":"",
-                "value_template":"unavailable",
-                "unit_of_measurement":"kr/kWh"
+                "value_template":"unavailable"
             },
             f"{__name__}_current_charging_rule":{
-                "friendly_name":"Nuværende lade regel",
                 "value_template":""
             },
             f"{__name__}_emoji_description":{
-                "friendly_name":"Emoji forklaring",
                 "value_template":"",
             },
             f"{__name__}_overview":{
-                "friendly_name":"Oversigt",
                 "value_template":""
             },
             f"{__name__}_charging_history":{
-                "friendly_name":"Lade historik",
                 "value_template":""
             }
         }
@@ -1190,6 +991,8 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
     f"input_datetime.{__name__}_saturday_homecoming": f"input_datetime.{__name__}_workday_homecoming_saturday",
     f"input_datetime.{__name__}_sunday_homecoming": f"input_datetime.{__name__}_workday_homecoming_sunday",
 }
+
+i18n = I18nCatalog(base_lang="en-GB")
 
 def welcome():
     func_name = "welcome"
@@ -1336,9 +1139,8 @@ def task_shutdown():
     
     tasks_done_list = []
     tasks_length = len(TASKS) + 1
-    
     for i, task_name in enumerate(list(TASKS.keys())):
-        set_charging_rule(f"📟Lukket tråde ned {i}/{tasks_length}")
+        set_charging_rule(f"📟{i18n.t('ui.tasks.closing_progress')} {i}/{tasks_length}")
         
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
@@ -1346,7 +1148,7 @@ def task_shutdown():
         i += 1
         task.wait_until(timeout=0.2)
     
-    set_charging_rule("📟Lukket tråde ned - Færdig")
+    set_charging_rule(f"📟{i18n.t('ui.tasks.closed_done')}")
     for task_name in tasks_done_list:
         try:
             if task_name in TASKS:
@@ -1355,7 +1157,7 @@ def task_shutdown():
             _LOGGER.error(f"Error deleting task {task_name} from TASKS (INSTANCE_ID: {INSTANCE_ID})")
     
     if len(TASKS) > 0:
-        set_charging_rule("📟 Ikke alle tråde blev lukket ned")
+        set_charging_rule(f"📟{i18n.t('ui.tasks.not_all_closed')}")
         _LOGGER.error(f"Some tasks were not killed:\n{pformat(TASKS, indent=4, width=200)} (INSTANCE_ID: {INSTANCE_ID})")
         _LOGGER.error("Please report this issue to the developer.")
         my_persistent_notification(
@@ -1366,7 +1168,7 @@ def task_shutdown():
         
     task.wait_until(timeout=1.0)
         
-    TASKS = dict()  # Clear TASKS dictionary
+    TASKS = dict()
 
 def calculate_price_levels(prices):
     """ Calculates price levels based on the provided prices. """
@@ -1415,7 +1217,7 @@ def get_hours_plan():
         for timestamp, price in prices.items():
             date_obj = timestamp.date()
             date_objects.add(date_obj)
-            date_str = f"{timestamp.strftime('%a')}<br>{timestamp.strftime('%-d/%-m')}"
+            date_str = f"{i18n.t(f'ui.calendar.weekday_names.{timestamp.strftime('%a').lower()}')}<br>{timestamp.strftime('%-d/%-m')}"
             time_str = timestamp.strftime("%H:%M")
             color = get_color(price, price_levels)
 
@@ -1467,11 +1269,11 @@ def get_hours_plan():
                 
             data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
 
-        sorted_dates = [f"{dt.strftime('%a')}<br>{dt.strftime('%-d/%-m')}" for dt in sorted(date_objects)]
+        sorted_dates = [f"{i18n.t(f'ui.calendar.weekday_names.{dt.strftime('%a').lower()}')}<br>{dt.strftime('%-d/%-m')}" for dt in sorted(date_objects)]
         sorted_hours = sorted({dt.strftime("%H:%M") for dt in prices})
 
         prices_output = []
-        prices_output.append("### Strøm priser ###")
+        prices_output.append(f"### {i18n.t('ui.get_hours_plan.header')} ###")
         
         prices_output.append("| " + " | ".join([""] + sorted_dates) + " |")
         prices_output.append("|" + "|".join([":---:"] * (len(sorted_dates) + 1)) + "|")
@@ -1675,14 +1477,14 @@ def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
     
     if output:
         my_persistent_notification(
-            f"**Hardlinks recreated successfully:**\n\n{output}",
-            title=f"{TITLE} Hardlinks Recreated",
+            f"**{i18n.t('ui.recreate_hardlinks.success')}:**\n\n{output}",
+            title=f"{TITLE} Hardlinks",
             persistent_notification_id=f"{__name__}_recreate_hardlinks"
         )
     else:
         my_persistent_notification(
-            "No output from hardlink recreation script.",
-            title=f"{TITLE} Hardlinks Recreate Error",
+            f"**{i18n.t('ui.recreate_hardlinks.error', error=str(output))}:**\n\n{output}",
+            title=f"{TITLE} Hardlinks Error",
             persistent_notification_id=f"{__name__}_recreate_hardlinks_error"
         )
     
@@ -1715,8 +1517,8 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
             my_persistent_notification(
-                "✅ Ingen opdateringer tilgængelige",
-                title=f"{TITLE} Opdateringstjek",
+                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
@@ -1748,24 +1550,23 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
     if result["has_updates"]:
         _LOGGER.info(f"New version available: {result['commits_behind']} commits behind")
         my_persistent_notification(
-            f"**Ny version tilgængelig**\n\n"
-            f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} bagud**\n\n"
-            f"**Ændringer:**\n{result['commit_log']}",
-            title=f"{TITLE} Opdatering tilgængelig",
+            f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
+            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{result['commit_log']}",
+            title=f"{TITLE} {i18n.t('ui.repo.new_update_available_title')}",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
     elif "error" in result:
         _LOGGER.error(f"Could not check for updates: {result['error']}")
         my_persistent_notification(
-            f"⚠️ Kan ikke tjekke efter opdateringer: {result['error']}",
+            f"⚠️ {i18n.t('ui.repo.update_error_check')}: {result['error']}",
             title=f"{TITLE} Fejl",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
     elif trigger_type == "service":
         _LOGGER.info("No updates available")
         my_persistent_notification(
-            "✅ Ingen opdateringer tilgængelige",
-            title=f"{TITLE} Opdateringstjek",
+            f"✅ {i18n.t('ui.repo.no_updates_available')}",
+            title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
 
@@ -1795,8 +1596,8 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         if local_head == remote_head:
             _LOGGER.info("No updates available.")
             my_persistent_notification(
-                "✅ Ingen opdateringer tilgængelige",
-                title=f"{TITLE} Opdateringstjek",
+                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
@@ -1827,9 +1628,9 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
         _LOGGER.info("Repository updated successfully.")
         my_persistent_notification(
-            f"🚀 Opdatering gennemført!\n\n📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} bagud**\n\n"
-            f"**Ændringer hentet fra GitHub:**\n{commit_log_md}",
-            title=f"{TITLE} Opdatering fuldført",
+            f"📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
+            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{commit_log_md}",
+            title=f"{TITLE} {i18n.t('ui.repo.updated_success')}",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
 
@@ -1839,8 +1640,8 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     except Exception as e:
         _LOGGER.error(f"Update failed: {str(e)}")
         my_persistent_notification(
-            f"⚠️ Opdateringsfejl: {str(e)}",
-            title=f"{TITLE} Fejl under opdatering",
+            f"⚠️ {str(e)}",
+            title=f"{TITLE} {i18n.t('ui.repo.update_error')}",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
     finally:
@@ -1889,7 +1690,11 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
     debug_info_output = "\n".join(debug_info)
 
     #_LOGGER.info(f"Debug Info: \n{get_debug_info_sections()}")
-    my_persistent_notification(debug_info_output, title = f"{TITLE} debug info", persistent_notification_id = f"{__name__}_{func_name}")
+    my_persistent_notification(
+        debug_info_output,
+        title=f"{TITLE} debug info",
+        persistent_notification_id=f"{__name__}_{func_name}"
+    )
 
 def save_error_to_file(error_message, caller_function_name = None):
     func_name = "save_error_to_file"
@@ -2067,7 +1872,16 @@ def is_entity_available(entity):
                 
             if minutesBetween(INTEGRATION_OFFLINE_TIMESTAMP[integration], getTime()) > 30:
                 _LOGGER.warning(f"Reloading {integration} integration")
-                my_persistent_notification(message = f"⛔Entity \"{entity}\" ikke tilgængelig siden {INTEGRATION_OFFLINE_TIMESTAMP[integration]}\nGenstarter {integration}", title = f"{TITLE} Entity ikke tilgængelig", persistent_notification_id = f"{__name__}_{func_name}_{entity}")
+                fmt = {
+                    "entity": entity,
+                    "timestamp": INTEGRATION_OFFLINE_TIMESTAMP[integration]
+                }
+                my_persistent_notification(
+                    f"⛔{i18n.t('ui.entity_unavailable.message', **fmt)}\n\n"
+                    f"{i18n.t('ui.entity_unavailable.restart_integration')}",
+                    title=f"{TITLE} {i18n.t('ui.entity_unavailable.title')}",
+                    persistent_notification_id=f"{__name__}_{func_name}_{entity}"
+                )
                 reload_entity_integration(entity)
 
 def is_powerwall_charging(charge_watt = 0.0):
@@ -2152,7 +1966,13 @@ def save_changes(file, db):
             done, pending = task.wait({TASKS[f'{func_prefix}save_yaml_{file}']})
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e}")
-            my_persistent_notification(f"Kan ikke gemme {file} til disk", f"{TITLE} notification", persistent_notification_id = f"{__name__}_{file}_{func_name}_error")
+            fmt = {"file": file, "error": str(e)}
+            my_persistent_notification(
+                f"Error saving data to file: {file}\n\n"
+                f"Error: {e}",
+                f"{TITLE} Error",
+                persistent_notification_id=f"{__name__}_{file}_{func_name}_error"
+            )
         finally:
             task_cancel(f'{func_prefix}save_yaml_{file}', task_remove=True, timeout=5.0)
         
@@ -2340,10 +2160,10 @@ def set_charging_rule(text=""):
                     integration_limited_daily.append(integration.capitalize())
         
         if integration_limited_hourly:
-            limit_string += f"\n🚧Timegrænse nået {' & '.join(integration_limited_hourly)}"
+            limit_string += f"\n🚧{i18n.t('ui.set_charging_rule.hour_limit')} {' & '.join(integration_limited_hourly)}"
         
         if integration_limited_daily:
-            limit_string += f"\n🚧Dagliggrænse nået {' & '.join(integration_limited_daily)}"
+            limit_string += f"\n🚧{i18n.t('ui.set_charging_rule.day_limit')} {' & '.join(integration_limited_daily)}"
         
         powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
         
@@ -2358,7 +2178,7 @@ def restart_script():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     _LOGGER.info("Restarting script")
-    set_charging_rule(f"📟Genstarter scriptet")
+    set_charging_rule(f"📟{i18n.t('ui.restart_script.message')}")
     if service.has_service("pyscript", "reload"):
         service.call("pyscript", "reload", blocking=True, global_ctx=f"file.{__name__}")
 
@@ -2477,15 +2297,33 @@ def notify_critical_change(cfg = {}, filename = None):
         
         if is_powerwall_configured(cfg) and powerwall_update_missing_keys:
             _LOGGER.warning(f"Powerwall configuration update required: {powerwall_update_missing_keys}")
-                
+            
+            fmt = {"name":__name__}
             my_persistent_notification(
-                message = f"## Vigtigt\n\n"
-                        f"Der er sket en kritisk ændring i konfigurationen, som kræver opdatering af din {__name__}_config.yaml fil.\n\n"
-                        f"### Nye konfigurations nøgler:\n - {'- '.join(keys_description(powerwall_update_missing_keys))}\n\n"
-                        f"**Handling:**\n"
-                        f"Opdater venligst din konfiguration i {__name__}_config.yaml filen.\n",
-                title = f"{TITLE} Kritisk ændring i konfiguration",
-                persistent_notification_id = f"{__name__}_{func_name}_powerwall_update_required"
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.critical_change_message', **fmt)}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_config_keys')}:\n - {'- '.join(keys_description(powerwall_update_missing_keys))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_powerwall_update_required"
+            )
+            
+        language_new_key = ["language"]
+        language_missing_key = check_nested_keys_exist(cfg, language_new_key)
+        
+        if language_missing_key:
+            _LOGGER.warning(f"Language configuration added and set to default: {language_missing_key}")
+            
+            fmt = {"name":__name__}
+            my_persistent_notification(
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.critical_change_message', **fmt)}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_config_keys')}:\n - {'- '.join(keys_description(language_missing_key))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_powerwall_update_required"
             )
             
     if filename == f"packages/{__name__}.yaml":
@@ -2499,14 +2337,14 @@ def notify_critical_change(cfg = {}, filename = None):
             _LOGGER.warning(f"Powerwall entities update required: {powerwall_update_missing_entities}")
             
             my_persistent_notification(
-                f"## Vigtig ændring\n\n"
-                f"Nye entiteter er blevet tilføjet.\n"
-                f"Læs mere om dem i entitiens beskrivelse.\n\n"
-                f"### Nye entiteter:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
-                f"**Handling:**\n"
-                f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
-                title = f"{TITLE} Kritisk ændring i entiteter",
-                persistent_notification_id = f"{__name__}_{func_name}_powerwall_entities_update_required"
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.new_entities_added')}\n"
+                f"{i18n.t('ui.notify_critical_change.entity_description')}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_entities')}:\n - {'- '.join(keys_description(powerwall_update_missing_entities))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.add_new_entities')}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
+                persistent_notification_id=f"{__name__}_{func_name}_powerwall_entities_update_required"
             )
             
         deactivate_script_entity = [f"input_boolean.{__name__}_deactivate_script"]
@@ -2516,15 +2354,139 @@ def notify_critical_change(cfg = {}, filename = None):
             _LOGGER.warning(f"Deactivate script entity update required: {deactivate_script_missing}")
             
             my_persistent_notification(
-                f"## Vigtig ændring\n\n"
-                f"Nye entiteter er blevet tilføjet.\n"
-                f"Læs mere om dem i entitiens beskrivelse.\n\n"
-                f"### Nye entiteter:\n - {'- '.join(keys_description(deactivate_script_missing))}\n\n"
-                f"**Handling:**\n"
-                f"Tilføj venligst de nye entiteter til dine Betjeningspaneler sider.\n",
-                title = f"{TITLE} Kritisk ændring i entiteter",
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.new_entities_added')}\n"
+                f"{i18n.t('ui.notify_critical_change.entity_description')}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_entities')}:\n - {'- '.join(keys_description(deactivate_script_missing))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.add_new_entities')}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
                 persistent_notification_id= f"{__name__}_{func_name}_deactivate_script_entity_update_required"
             )
+
+def build_comment_db_yaml() -> dict:
+    _LOGGER = globals()['_LOGGER'].getChild("build_comment_db_yaml")
+    global COMMENT_DB_YAML
+    
+    supported_states_charger = tuple(chain(
+        CHARGER_READY_STATUS,
+        CHARGER_NOT_READY_STATUS,
+        CHARGER_CHARGING_STATUS,
+        CHARGER_COMPLETED_STATUS,
+    ))
+    supported_states_ev = tuple(chain(
+        EV_PLUGGED_STATES,
+        EV_UNPLUGGED_STATES,
+    ))
+
+    charger_supported_str = str(supported_states_charger)
+    ev_supported_str = str(supported_states_ev)
+    
+    for cfg_key, i18n_key in i18n.get_catalog().items():
+        if not cfg_key.startswith("config."):
+            continue
+        
+        cfg_key = cfg_key.removeprefix("config.")
+        
+        COMMENT_DB_YAML[cfg_key] = i18n.t(
+            i18n_key,
+            charger_supported_states=charger_supported_str,
+            ev_supported_states=ev_supported_str,
+            modname=__name__,
+        )
+    
+    return COMMENT_DB_YAML
+
+def localize_default_entities():
+    global DEFAULT_ENTITIES
+
+    domains = ("input_button", "input_boolean", "input_number", "input_datetime")
+    common_fields = ("friendly_name", "name", "description", "unit_of_measurement")
+    fmt = {"name": __name__}
+
+    def _domain_and_suffix(domain_hint: str, key: str):
+        if "." in key:
+            dom, tail = key.split(".", 1)
+        else:
+            dom, tail = domain_hint, key
+        prefix = f"{__name__}_"
+        if tail.startswith(prefix):
+            tail = tail[len(prefix):]
+        return dom, tail
+
+    def _localize_attrs(dom: str, key: str, attrs: dict, fields: tuple = common_fields, ignore_fields: tuple = ()):
+        _, suf = _domain_and_suffix(dom, key)
+        base = f"entity.{dom}.{suf}"
+        
+        if isinstance(fields, str):
+            fields = (fields,)
+        if isinstance(ignore_fields, str):
+            ignore_fields = (ignore_fields,)
+                
+        for field in fields:
+            if (field not in attrs and field not in ignore_fields):
+                val = i18n.t(f"{base}.{field}", default="", **fmt)
+                if val:
+                    attrs[field] = val
+
+        for field, current in list(attrs.items()):
+            if isinstance(current, str):
+                val = i18n.t(f"{base}.{field}", default=current, **fmt)
+                if val and val != current:
+                    attrs[field] = val
+
+
+    def _visit_entities(domain: str, entities, fn):
+        if domain == "homeassistant":
+            for full_eid, attrs in entities["customize"].items():
+                eff_dom, _ = _domain_and_suffix("unknown", full_eid)
+                fn(eff_dom, full_eid, attrs, common_fields, ignore_fields=("friendly_name", "name", "unit_of_measurement"))
+                
+        if domain == "binary_sensor":
+            for block in entities:
+                binary_sensors = block["sensors"]
+                for key, attrs in binary_sensors.items():
+                    fn("binary_sensor", key, attrs, common_fields, ignore_fields=("description",))
+                    
+        if domain == "sensor":
+            for block in entities:
+                sensors = block["sensors"]
+                for key, attrs in sensors.items():
+                    fn("sensor", key, attrs, common_fields, ignore_fields=("description",))
+                    
+        if domain in domains:
+            for key, attrs in entities.items():
+                fn(domain, key, attrs, common_fields, ignore_fields=("description",))
+
+    for domain, entities in DEFAULT_ENTITIES.items():
+        _visit_entities(domain, entities, _localize_attrs)
+        
+
+def load_language():
+    func_name = "load_language"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    try:
+        TASKS[f"{func_prefix}load_catalog"] = task.create(i18n.load_catalog, "pyscript/modules/cjp_translations/")
+        done, pending = task.wait({TASKS[f"{func_prefix}load_catalog"]})
+        
+        TASKS[f"{func_prefix}set_lang"] = task.create(i18n.set_lang, "en-GB")
+        done, pending = task.wait({TASKS[f"{func_prefix}set_lang"]})
+        
+        _LOGGER.info(f"{BASENAME} i18n set language to: {i18n.get_lang()}")
+        _LOGGER.info(f"{BASENAME} i18n get_available_langs: {i18n.get_available_langs()}")
+        #_LOGGER.info(f"{BASENAME} loaded i18n catalog: {pformat(i18n.get_catalog(), width=200, compact=True)}")
+        
+    except Exception as e:
+        _LOGGER.error(f"Error in {func_name}: {e}")
+        my_persistent_notification(
+            f"Error in {func_name}: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
 
 def init():
     func_name = "init"
@@ -2536,15 +2498,27 @@ def init():
         """
         Handles the loading, updating, and saving of YAML configurations, and optionally prompts for a restart.
         """
+        fmt = {"file_path": file_path}
+        
         if not file_exists(file_path):
             TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}']})
     
-            _LOGGER.error(f"File has been created: {file_path}")
+            _LOGGER.info(f"File has been created: {file_path}")
             if "config.yaml" in file_path:
-                my_persistent_notification(message = f"Oprettet konfigurations fil: {file_path}\nTilføj entities efter behov & genstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_created")
+                my_persistent_notification(
+                    f"{i18n.t('ui.init.file_created_message', **fmt)}\n\n"
+                    f"{i18n.t('ui.init.add_entities')}",
+                    title=f"{TITLE} ",
+                    persistent_notification_id=f"{__name__}_{func_name}_{file_path}_created"
+                )
             else:
-                my_persistent_notification(message = f"Oprettet yaml fil: {file_path}\nGenstart Home Assistant", title = f"{TITLE} ", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_created")
+                my_persistent_notification(
+                    f"{i18n.t('ui.init.yaml_file_created', **fmt)}\n\n"
+                    f"{i18n.t('ui.init.restart_required')}",
+                    title=f"{TITLE}",
+                    persistent_notification_id=f"{__name__}_{func_name}_{file_path}_created"
+                )
             
             raise Exception(f"Edit it as needed. Please restart Home Assistant after making necessary changes.")
         
@@ -2555,7 +2529,7 @@ def init():
         _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content, width=200, compact=True)}")
 
         if not content:
-            set_charging_rule(f"📟Indlæser {file_path} igen om 5 sekunder, da der skete en fejl")
+            set_charging_rule(f"📟{i18n.t('ui.init.error_loading', **fmt)}")
             _LOGGER.warning(f"Content of {file_path} is empty, reloading it")
             
             task.wait_until(timeout=5.0)
@@ -2572,6 +2546,8 @@ def init():
         notify_critical_change(cfg = content, filename = file_path)
         
         if "config.yaml" in file_path:
+            i18n.set_lang(content.get("language", 'en-GB'))
+            comment_db = build_comment_db_yaml()
             updated, content = update_dict_with_new_keys(content, default_content)
         else:
             if not dicts_equal(content, default_content):
@@ -2618,13 +2594,13 @@ def init():
                             new_entity_id_state = get_state(new_entity_id)
                             if old_entity_id_state == new_entity_id_state or (is_entity_available(new_entity_id) and "restored" in old_entity_id_attr and old_entity_id_attr["restored"] == True):
                                 content = delete_dict_key_with_path(content, old_path)
-                                keys_renamed.append(f"{old_path} ({old_entity_id_state}) (Slettet) -> {new_path} ({new_entity_id_state})")
-                                keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) (Removed) to {new_path} ({new_entity_id_state})")
+                                keys_renamed.append(f"{old_path} ({old_entity_id_state}) ({i18n.t('ui.init.renamed_to')}) {new_path} ({new_entity_id_state})")
+                                keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) (renamed) to {new_path} ({new_entity_id_state})")
                             else:
                                 keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} ({new_entity_id_state})")
                                 keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) to {new_path} ({new_entity_id_state})")
                         else:
-                            keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} (Oprettet)")
+                            keys_renamed.append(f"{old_path} ({old_entity_id_state}) -> {new_path} ({i18n.t('ui.init.created')})")
                             keys_renamed_log.append(f"Renamed {old_path} ({old_entity_id_state}) to {new_path} (Created)")
                             
             if content == {}:
@@ -2634,36 +2610,59 @@ def init():
                 for log_string in keys_renamed_log:
                     _LOGGER.info(log_string)
                 
-                config_entity_title = f"nøgler i {__name__}_config.yaml" if "config.yaml" in file_path else "entitetsnavne"
-                my_persistent_notification(message = f"{'\n'.join(keys_renamed)}", title = f"{TITLE} Kritisk ændring af {config_entity_title}", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_renaming_keys")
+                config_entity_title = i18n.t('ui.init.config_renamed_keys', file_path=file_path) if "config.yaml" in file_path else i18n.t('ui.init.config_entities_renamed', file_path=file_path)
+                my_persistent_notification(
+                    message = f"{'\n'.join(keys_renamed)}",
+                    title=f"{TITLE} {config_entity_title}",
+                    persistent_notification_id=f"{__name__}_{func_name}_{file_path}_renaming_keys"
+                )
                 
                 TASKS[f'{func_prefix}key_moved_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
                 done, pending = task.wait({TASKS[f'{func_prefix}key_moved_save_yaml_{file_path}']})
         
         deprecated_keys = compare_dicts_unique_to_dict1(content, default_content)
+        
+        deprecated_keys = {
+            k: v
+            for k, v in deprecated_keys.items()
+            if "homeassistant.customize" not in k
+        }
+        
         if deprecated_keys:
             _LOGGER.warning(f"{file_path} contains deprecated settings:")
             for key, value in deprecated_keys.items():
                 _LOGGER.warning(f"\t{key}: {value}")
             _LOGGER.warning("Please remove them.")
-            my_persistent_notification(message = f"Forældet nøgler i {file_path}\n Fjern disse nøgler:\n{'\n'.join(deprecated_keys.keys())}", title = f"{TITLE} Forældet nøgler", persistent_notification_id = f"{__name__}_{func_name}_{file_path}_deprecated_keys")
+            my_persistent_notification(
+                f"{i18n.t('ui.init.deprecated_keys_in', file_path=file_path)}\n"
+                f"{i18n.t('ui.init.remove_these_keys')}:\n"
+                f"{'\n'.join(deprecated_keys.keys())}",
+                title=f"{TITLE} {i18n.t('ui.init.deprecated_keys_title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_{file_path}_deprecated_keys"
+            )
             
-                
+        if default_content != content and "packages" in file_path and not updated:
+            content = default_content
+            TASKS[f'{func_prefix}packages_changed_save_yaml_{file_path}'] = task.create(save_yaml, file_path, content, comment_db)
+            done, pending = task.wait({TASKS[f'{func_prefix}packages_changed_save_yaml_{file_path}']})
+            raise Exception(i18n.t('ui.init.restart_required'))
+            
         if updated:
-            msg = f"{'Config' if "config.yaml" in file_path else 'Entities package'} updated."
+            msg = i18n.t('ui.init.config_updated', file_path=file_path) if "config.yaml" in file_path else i18n.t('ui.init.entities_package_updated', file_path=file_path)
             
             if check_first_run:
-                msg += " Set first_run to false and reload."
-            msg += " Please restart Home Assistant to apply changes."
+                msg += f"\n{i18n.t('ui.init.first_run_warning', file_path=file_path)}"
+            msg += f"\n{i18n.t('ui.init.restart_required')}"
             
             if ("first_run" in content and content['first_run']) or "config.yaml" not in file_path:
                 raise Exception(msg)
 
         if prompt_restart and updated:
-            raise Exception(f"Please restart Home Assistant to apply changes to {file_path}.")
+            raise Exception(i18n.t('ui.init.restart_required'))
 
         return content
     
+    set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
     _LOGGER.info(welcome())
     try:
         CONFIG = handle_yaml(f"{__name__}_config.yaml", deepcopy(DEFAULT_CONFIG), deepcopy(CONFIG_KEYS_RENAMING), deepcopy(COMMENT_DB_YAML), check_first_run=True, prompt_restart=False)
@@ -2671,7 +2670,7 @@ def init():
 
         TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
         
-        set_charging_rule(f"📟Indlæser konfigurationen")
+        set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
         
         if is_ev_configured(CONFIG):#TODO check when ev car is configured and still having virtual ev car entities
             keys_to_remove = [
@@ -2722,13 +2721,15 @@ def init():
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
         
+        localize_default_entities()
+        
         handle_yaml(f"packages/{__name__}.yaml", deepcopy(DEFAULT_ENTITIES), deepcopy(ENTITIES_RENAMING), None, check_nested_keys=True, prompt_restart=True)
 
         if CONFIG['first_run']:
-            raise Exception("Edit config file and set first_run to false")
+            raise Exception(i18n.t('ui.init.first_run_warning', file_path=f"{__name__}_config.yaml"))
         
         if not is_charger_configured(CONFIG):
-            raise Exception("Required charger entities not configured, if no charger integration, use similar ev car entities")
+            raise Exception(i18n.t('ui.init.charger_not_configured'))
         
         CONFIG['solar']['charging_single_phase_max_amp'] = min(CONFIG['solar']['charging_single_phase_max_amp'], CONFIG['charger']['charging_max_amp'])
         CONFIG['solar']['charging_single_phase_min_amp'] = min(CONFIG['solar']['charging_single_phase_min_amp'], CONFIG['charger']['charging_max_amp'])
@@ -2739,8 +2740,14 @@ def init():
     except Exception as e:
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
-        set_charging_rule(f"⛔Lad script stoppet.\nTjek log for mere info:\n{e}")
-        my_persistent_notification(message = f"Lad script stoppet.\nTjek log for mere info:\n{e}", title = f"{TITLE} Stop", persistent_notification_id = f"{__name__}_{func_name}_error")
+        set_charging_rule(f"⛔{i18n.t('ui.init.script_stopped')}.\n{i18n.t('ui.init.check_log')}:\n{e}")
+        my_persistent_notification(
+            f"{i18n.t('ui.init.script_stopped')}\n"
+            f"{i18n.t('ui.init.check_log')}:\n"
+            f"{e}",
+            title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
 
@@ -2756,12 +2763,20 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
         if "homeassistant" in domain_name:
             continue
         
-        if domain_name == "sensor":
-            yaml_card.append(f"  - type: entities\n    title: 📊 Sensorer\n    state_color: true\n    entities:\n")
+        if domain_name == "binary_sensor":
+            yaml_card.append(f"  - type: entities\n    title: 🎚️ {i18n.t('ui.get_all_entities.binary_sensors')}\n    state_color: true\n    entities:\n")
             for sensor_dict in sub_dict:
                 for entity_name in sensor_dict["sensors"].keys():
                     yaml_card.append(f"    - {domain_name}.{entity_name}\n")
                     entities.append(f"{domain_name}.{entity_name}")
+        
+        elif domain_name == "sensor":
+            yaml_card.append(f"  - type: entities\n    title: 📊 {i18n.t('ui.get_all_entities.sensors')}\n    state_color: true\n    entities:\n")
+            for sensor_dict in sub_dict:
+                for entity_name in sensor_dict["sensors"].keys():
+                    yaml_card.append(f"    - {domain_name}.{entity_name}\n")
+                    entities.append(f"{domain_name}.{entity_name}")
+        
         else:
             yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:\n")
             for entity_name in sub_dict.keys():
@@ -2774,7 +2789,7 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
         description = f"<br>{description}<br><br>" if description else ""
         yaml_card.append(f"      - <b>`{entity}`</b>{description}\n")
         
-    notify_message = [f"## Alle entities:\n\n"]
+    notify_message = [f"## {i18n.t('ui.get_all_entities.all_entities')}:\n\n"]
     for entity in entities:
         description = DEFAULT_ENTITIES.get("homeassistant", {}).get('customize', {}).get(entity, {}).get('description', '')
         description = f"\n{description}\n" if description else ""
@@ -2782,8 +2797,8 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
         
     my_persistent_notification(
         message = "\n".join(notify_message),
-        title = f"{TITLE} Alle entities",
-        persistent_notification_id = f"{__name__}_{func_name}"
+        title=f"{TITLE} {i18n.t('ui.get_all_entities.all_entities')}",
+        persistent_notification_id=f"{__name__}_{func_name}"
     )
         
     if trigger_type == "service":
@@ -2792,8 +2807,9 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER.info(f"Entities:\n{"".join(yaml_card)}")
     
     return entities
+    
 
-set_charging_rule(f"📟Starter scriptet op")
+load_language()
 init()
 
 if INITIALIZATION_COMPLETE:
@@ -2811,28 +2827,31 @@ if INITIALIZATION_COMPLETE:
 def set_entity_friendlynames():
     func_name = "set_entity_friendlynames"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    for key, nested_dict in CHARGING_TYPES.items():
-        if "entity_name" in nested_dict:
-            _LOGGER.info(f"Setting sensor.{nested_dict['entity_name']}.friendly_name: {nested_dict['emoji']} {nested_dict['description']}")
-            set_attr(f"sensor.{nested_dict['entity_name']}.friendly_name", f"{nested_dict['emoji']} {nested_dict['description']}")
+
+    for key, entry in CHARGING_TYPES.items():
+        if "entity_name" in entry:
+            friendly_name = f"{entry['emoji']} {i18n.t(f'charging_type.{key}.description', default='No description')}"
+            _LOGGER.info(f"Setting sensor.{entry['entity_name']}.friendly_name: {friendly_name}")
+            set_attr(f"sensor.{entry['entity_name']}.friendly_name", friendly_name)
 
 def emoji_description():
     func_name = "emoji_description"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
-    emoji_sorted = sorted(CHARGING_TYPES.values(), key=lambda x: float(x.get('priority', 0)))
+    items_sorted = sorted(CHARGING_TYPES.items(), key=lambda kv: float(kv[1].get('priority', 0)))
 
-    descriptions = ["## Emoji forklaring: ##"] + [
-        f"* **{entry.get('emoji', '❓')} {entry.get('description', 'Ingen beskrivelse')}**"
-        for entry in emoji_sorted
+    lines = [
+        f"* **{entry.get('emoji', '❓')} "
+        f"{i18n.t(f'charging_type.{key}.description', default='No description')}**"
+        for key, entry in items_sorted
     ]
+    descriptions = [f"## {i18n.t('ui.emoji_description.header')} ##"] + lines
 
     _LOGGER.info(f"Setting sensor.{__name__}_emoji_description")
 
-    set_state(
-        f"sensor.{__name__}_emoji_description",
-        f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_emoji_description.attributes.description }}}}"
-    )
+    md_hint = i18n.t('ui.emoji_description.markdown_hint', name=__name__)
+
+    set_state(f"sensor.{__name__}_emoji_description", md_hint)
     set_attr(f"sensor.{__name__}_emoji_description.description", "\n".join(descriptions))
 
 def emoji_sorting(text):
@@ -2888,8 +2907,8 @@ def set_default_entity_states():
     func_name = "set_default_entity_states"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
-    set_state(f"sensor.{__name__}_overview", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_overview.attributes.overview }}}}")
-    set_attr(f"sensor.{__name__}_overview.overview", "<center>\n\n**Ingen oversigt endnu**\n\n</center>")
+    set_state(f"sensor.{__name__}_overview", i18n.t('ui.set_default_entity_states.markdown_guide', name=__name__))
+    set_attr(f"sensor.{__name__}_overview.overview", f"<center>\n\n**{i18n.t('ui.set_default_entity_states.no_overview')}**\n\n</center>")
     
     entity_dict = {
         f"input_number.{__name__}_typical_daily_distance": CONFIG['ev_car']['typical_daily_distance_non_working_day'],
@@ -3353,21 +3372,21 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
                 if item in entity_attr:
                     state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
                 
-            set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif", f"{transmissions_nettarif:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif", f"{systemtarif:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.elafgift", f"{elafgift:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.tariffs", f"{tariffs:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.tariff_sum", f"{tariff_sum:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.3f} kr/kWh")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif", f"{transmissions_nettarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif", f"{systemtarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.elafgift", f"{elafgift:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.tariffs", f"{tariffs:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.tariff_sum", f"{tariff_sum:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs_overview", "")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif_", f"{transmissions_nettarif:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif_", f"{systemtarif:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_network_tariff_", f"{energinets_network_tariff:.4f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_balance_tariff_", f"{energinets_balance_tariff:.4f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_production_seller_cut_", f"{solar_production_seller_cut:.4f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs", f"{sell_tariffs:.3f} kr/kWh")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_sell_price", f"{solar_sell_price:.3f} kr/kWh")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif_", f"{transmissions_nettarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif_", f"{systemtarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_network_tariff_", f"{energinets_network_tariff:.4f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_balance_tariff_", f"{energinets_balance_tariff:.4f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_production_seller_cut_", f"{solar_production_seller_cut:.4f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs", f"{sell_tariffs:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_sell_price", f"{solar_sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
             LOCAL_ENERGY_PRICES['solar_kwh_price'] = {
                 "price": price,
                 "transmissions_nettarif": transmissions_nettarif,
@@ -3386,7 +3405,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
                 "solar_sell_price": solar_sell_price,
             }
             if entity_price >= 0.0:
-                set_attr(f"sensor.{__name__}_kwh_cost_price.fixed_sell_price", f"{sell_price:.3f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.fixed_sell_price", f"{sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
                 LOCAL_ENERGY_PRICES['solar_kwh_price']['fixed_sell_price'] = sell_price
     except Exception as e:
         sell_price = None
@@ -3897,11 +3916,11 @@ def set_state_km_kwh_efficiency():
         if km_kwh_efficiency:
             km_kwh_ema = round(float(calculate_ema(reverse_list(km_kwh_efficiency))), 2)
             wh_km_ema = round(1000 / km_kwh_ema, 2)
-            set_attr(f"sensor.{__name__}_km_per_kwh.ema", f"{km_kwh_ema:.2f} km/kWh - {wh_km_ema:.2f} Wh/km")
+            set_attr(f"sensor.{__name__}_km_per_kwh.ema", f"{km_kwh_ema:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_ema:.2f} {i18n.t('ui.common.wh_distance')}")
             
             km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
-            set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} km/kWh - {wh_km_mean:.2f} Wh/km")
+            set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_mean:.2f} {i18n.t('ui.common.wh_distance')}")
 
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
         for item in existing_attributes:
@@ -3912,16 +3931,16 @@ def set_state_km_kwh_efficiency():
             try:
                 km_kwh = round(item[1], 2)
                 wh_km = round(1000 / km_kwh, 2)
-                set_attr(f"sensor.{__name__}_km_per_kwh.date_{item[0]}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
+                set_attr(f"sensor.{__name__}_km_per_kwh.date_{item[0]}", f"{km_kwh:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km:.2f} {i18n.t('ui.common.wh_distance')}")
             except (IndexError, TypeError):
                 km_kwh = round(item, 2)
                 wh_km = round(1000 / km_kwh, 2)
-                set_attr(f"sensor.{__name__}_km_per_kwh.date_{i}", f"{km_kwh:.2f} km/kWh - {wh_km:.2f} Wh/km")
+                set_attr(f"sensor.{__name__}_km_per_kwh.date_{i}", f"{km_kwh:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km:.2f} {i18n.t('ui.common.wh_distance')}")
 
         set_estimated_range()
 
     except Exception as e:
-        _LOGGER.error(f"Cant set km/kwh efficiency: {e}", exc_info=True)
+        _LOGGER.error(f"Cant set {i18n.t('ui.common.distance_kwh')} efficiency: {e}", exc_info=True)
         my_persistent_notification(
             f"Cant set km/kwh efficiency: {e}",
             f"{TITLE} warning",
@@ -3972,10 +3991,10 @@ def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost
     sensor_list = ["_drive_efficiency", "_km_per_kwh", "_estimated_range"]
     for sensor in sensor_list:
         try:
-            set_attr(f"sensor.{__name__}{sensor}.last_drive_distance", f"{round(kilometers, 1)}km")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_distance", f"{round(kilometers, 1)}{i18n.t('ui.common.distance_type')}")
             set_attr(f"sensor.{__name__}{sensor}.last_drive_used", f"{round(usedkWh, 2)}kWh ({round(used_battery,1)}%)")
             set_attr(f"sensor.{__name__}{sensor}.last_drive_cost", f"{round(cost, 2)}kr")
-            set_attr(f"sensor.{__name__}{sensor}.last_drive_efficiency", f"{round(efficiency, 1)}% {round(distance_per_kWh, 2)} km/kWh ({wh_km} Wh/km)")
+            set_attr(f"sensor.{__name__}{sensor}.last_drive_efficiency", f"{round(efficiency, 1)}% {round(distance_per_kWh, 2)} {i18n.t('ui.common.distance_kwh')} ({wh_km} {i18n.t('ui.common.wh_distance')})")
         except Exception as e:
             _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e}")
 
@@ -3993,6 +4012,9 @@ def drive_efficiency_save_car_stats(bootup=False):
         
         attr_list = get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level") or {}
         for item in attr_list:
+            if item == "description":
+                continue
+            
             state.delete(f"sensor.{__name__}_drive_efficiency_last_battery_level.{item}")
                 
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_cost", BATTERY_LEVEL_EXPENSES['battery_level_expenses_cost'])
@@ -4176,14 +4198,13 @@ def drive_efficiency(state=None):
                 KM_KWH_EFFICIENCY_DB = KM_KWH_EFFICIENCY_DB[:CONFIG['database']['km_kwh_efficiency_db_data_to_save']]
                 save_km_kwh_efficiency()
             
-            cost_str = ""
             cost = 0.0
+            kr_km = 0.0
             
             if "battery_level_expenses_unit" in BATTERY_LEVEL_EXPENSES and BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None:
                 unit = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit']
                 cost = round(unit * usedkWh, 2)
                 kr_km = round(cost / kilometers, 2) if kilometers > 0 else 0.0
-                cost_str = f"Pris: {cost:.2f}kr ({kr_km:.2f} kr/km)\n"
             
             wh_km = round(1000 / distancePerkWh, 2)
             
@@ -4203,12 +4224,17 @@ def drive_efficiency(state=None):
             
             if CONFIG['notification']['efficiency_on_cable_plug_in']:
                 my_notify(message = f"""
-                        Kilometer: {round(kilometers, 1)}km
-                        Brugt: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)
-                        {cost_str}
-                        Kørsel effektivitet: {round(efficiency, 1)}%
-                        {round(distancePerkWh, 2)} km/kWh ({wh_km} Wh/km)
-                        """, title = f"{TITLE} Sidste kørsel effektivitet", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+                        {i18n.t('ui.drive_efficiency.distance')}: {round(kilometers, 1)}{i18n.t('ui.common.distance_type')}
+                        {i18n.t('ui.drive_efficiency.used')}: {round(usedkWh, 2)}kWh ({round(usedBattery,1)}%)
+                        {i18n.t('ui.common.price')}: {cost:.2f}kr ({kr_km:.2f} kr/{i18n.t('ui.common.distance_type')})
+                        {i18n.t('ui.common.drive_efficiency')}: {round(efficiency, 1)}%
+                        {round(distancePerkWh, 2)} {i18n.t('ui.common.distance_type')}/kWh ({wh_km} Wh/{i18n.t('ui.common.distance_type')})
+                        """,
+                        title=f"{TITLE} {i18n.t('ui.drive_efficiency.title')}",
+                        notify_list=CONFIG['notify_list'],
+                        admin_only=False,
+                        always=True
+                        )
                 
                 
             set_last_drive_efficiency_attributes(kilometers, usedkWh, usedBattery, cost, efficiency, distancePerkWh, wh_km)
@@ -4359,12 +4385,12 @@ def load_charging_history():
                 history_odometer = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_time_stamp, to_time_stamp, float_type=True, error_state=None)
                 if history_odometer:
                     added_odometer = True
-                    _LOGGER.info(f"Adding odometer to history key {key}: {int(min(history_odometer))} km")
+                    _LOGGER.info(f"Adding odometer to history key {key}: {int(min(history_odometer))}")
                     CHARGING_HISTORY_DB[key]["odometer"] = int(min(history_odometer))
         if added_odometer:
             save_charging_history()
     
-    set_state(f"sensor.{__name__}_charging_history", f"Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}")
+    set_state(f"sensor.{__name__}_charging_history", i18n.t('ui.load_charging_history.default_state'))
     
     charging_history_combine_and_set(get_ending_byte_size=True if CHARGING_HISTORY_ENDING_BYTE_SIZE is None else False)
     charging_history_combine_and_set()
@@ -4530,7 +4556,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             adjusted_km_per_kwh = km_per_kwh * efficiency_factor
             return round(kwh * adjusted_km_per_kwh, 1), True
         except Exception as e:
-            _LOGGER.error(f"Error calculating estimated km: {e}")
+            _LOGGER.error(f"Error calculating estimated range: {e}")
             return 0.0, False
     
     history = []
@@ -4542,7 +4568,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             "cost": {"total": 0.0},
             "kwh": {"total": 0.0},
             "percentage": {"total": 0.0},
-            "solar_kwh": {"total": 0.0},
+            "kWh_from_local_energy": {"total": 0.0},
+            "kWh_from_public": {"total": 0.0},
+            "kWh_from_grid": {"total": 0.0},
             "charging_kwh_day": {"total": 0.0},
             "charging_kwh_night": {"total": 0.0},
             "km": {"total": 0.0},
@@ -4568,12 +4596,13 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         skip_counter = 0
         solar_in_months = False
+        public_charging_in_months = False
         sorted_db = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)
         sorted_db_length = len(sorted_db)
         
         now = getTime()
         
-        header = "| Tid |  | % | kWh | Pris |"
+        header = f"| {i18n.t('ui.common.time')} |  | % | kWh | {i18n.t('ui.common.price')} |"
         align = "|:---:|:---|:---:|:---:|:---:|"
         add_header = False
         
@@ -4596,19 +4625,19 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 if not history_to_big_anounced:
                     if current_history_bytes_size >= max_history_bytes_size:
                         history_to_big_anounced = True
-                        history_loop_append("##### Home Assistant tillader ikke at vise mere historik")
+                        history_loop_append(f"##### {i18n.t('ui.charging_history_combine_and_set.too_big_warning')}\n")
                     elif current_history_counter == length and not details:
                         details = True
                         history_loop_append([
                             "<details>",
-                            "<summary><b>Se mere historik</b></summary>\n"
+                            f"<summary><b>{i18n.t('ui.charging_history_combine_and_set.more_history')}</b></summary>\n"
                         ])
                         add_header = True
                     elif current_history_bytes_size < max_history_bytes_size - 1 and current_history_counter > length and current_history_counter >= sub_length and current_history_counter % sub_length == 0 and (len(CHARGING_HISTORY_DB) - i) >= sub_length: # and current_history_counter <= max_history_length:
                         history_loop_append([
                             "\n",
                             "<details>",
-                            "<summary><b>Se mere historik</b></summary>\n"
+                            f"<summary><b>{i18n.t('ui.charging_history_combine_and_set.more_history')}</b></summary>\n"
                         ])
                         sub_details_count += 1
                         add_header = True
@@ -4692,6 +4721,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     "emoji": emoji,
                     "ended": ended,
                     "kWh": round(kWh, 3),
+                    "kWh_from_public": round(kWh_from_public, 3),
                     "kWh_from_grid": round(kWh_from_grid, 3),
                     "kWh_from_local_energy": round(kWh_from_local_energy, 3),
                     "solar_kwh_of_local_energy": round(solar_kwh_of_local_energy, 3),
@@ -4746,7 +4776,8 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total['cost'][month] = 0.0
                 total['kwh'][month] = 0.0
                 total['percentage'][month] = 0.0
-                total['solar_kwh'][month] = 0.0
+                total['kWh_from_public'][month] = 0.0
+                total['kWh_from_local_energy'][month] = 0.0
                 total['charging_kwh_day'][month] = 0.0
                 total['charging_kwh_night'][month] = 0.0
                 total['km'][month] = 0.0
@@ -4763,9 +4794,14 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total['charging_kwh_night']["total"] += data["kWh"]
             
             if "kWh_from_local_energy" in data and data['kWh_from_local_energy'] > 0.0:
-                total['solar_kwh'][month] += data['kWh_from_local_energy']
-                total['solar_kwh']["total"] += data['kWh_from_local_energy']
+                total['kWh_from_local_energy'][month] += data['kWh_from_local_energy']
+                total['kWh_from_local_energy']["total"] += data['kWh_from_local_energy']
                 solar_in_months = True
+                
+            if "kWh_from_public" in data and data['kWh_from_public'] > 0.0:
+                total['kWh_from_public'][month] += data['kWh_from_public']
+                total['kWh_from_public']["total"] += data['kWh_from_public']
+                public_charging_in_months = True
 
             total['cost']["total"] += data['cost']
             total['kwh']["total"] += data["kWh"]
@@ -4829,33 +4865,33 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         if total['kwh']["total"] > 0.0:
             solar_string = ""
-            if total['solar_kwh']["total"] > 0.0:
-                total_solar_percentage = round(total['solar_kwh']["total"] / total['kwh']["total"] * 100.0, 1)
-                solar_string = f" ({emoji_parse({'solar': True})}{total['solar_kwh']['total']:.1f}/{total_solar_percentage}%)"
+            if total['kWh_from_local_energy']["total"] > 0.0:
+                total_local_energy_percentage = round(total['kWh_from_local_energy']["total"] / total['kwh']["total"] * 100.0, 1)
+                solar_string = f" ({emoji_parse({'solar': True})}{total['kWh_from_local_energy']['total']:.1f}/{total_local_energy_percentage}%)"
                 
             history.append("---")
             history.append("<details>")
-            history.append(f"\n<summary><b>Ialt {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f} kr ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
+            history.append(f"\n<summary><b>{i18n.t('ui.common.total')} {round(total['kwh']["total"],1)}kWh {solar_string} {round(total['cost']["total"],2):.2f}{i18n.t('ui.common.valuta')} ({round(total['cost']["total"] / total['kwh']["total"],2):.2f})</b></summary>\n")
             
             solar_header = f"<br>({emoji_parse({'solar': True})})" if solar_in_months else ""
-            km_header = "Km" if total['km']['total'] > 0.0 else ""
-            km_kwh_header = "Km/kWh<br>(Wh/km)" if total['km']['total'] > 0.0 else ""
+            km_header = i18n.t('ui.common.distance_type').capitalize() if total['km']['total'] > 0.0 else ""
+            km_kwh_header = f"{i18n.t('ui.common.distance_kwh')}<br>({i18n.t('ui.common.wh_distance')})" if total['km']['total'] > 0.0 else ""
             history.extend([
-                f"| Måned | {km_header} | {km_kwh_header} | kWh{solar_header} | Pris | Kr/kWh<br>(Kr/Km) |",
+                f"| {i18n.t('ui.charging_history_combine_and_set.month')} | {km_header} | {km_kwh_header} | kWh{solar_header} | {i18n.t('ui.common.price')} | {i18n.t('ui.common.valuta_kwh')}<br>({i18n.t('ui.common.valuta_distance')}) |",
                 "|:---:|:---:|:---:|:---:|:---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
             i = 0
             for month in sorted(datetime_keys):
-                solar_kwh = ""
+                kWh_from_local_energy = ""
                 solar_percentage = ""
                 
-                if total['solar_kwh'][month] > 0.0 and total['kwh'][month] > 0.0:
-                    total_solar_percentage = round(total['solar_kwh'][month] / total['kwh'][month] * 100.0, 1)
+                if total['kWh_from_local_energy'][month] > 0.0 and total['kwh'][month] > 0.0:
+                    total_local_energy_percentage = round(total['kWh_from_local_energy'][month] / total['kwh'][month] * 100.0, 1)
                     
-                    solar_kwh = f"<br>({round(total['solar_kwh'][month], 1)})"
-                    solar_percentage = f"<br>({round(total_solar_percentage, 1)}%)"
+                    kWh_from_local_energy = f"<br>({round(total['kWh_from_local_energy'][month], 1)})"
+                    solar_percentage = f"<br>({round(total_local_energy_percentage, 1)}%)"
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
                 unit_string = f"{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
@@ -4863,13 +4899,14 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 background_color_start = "<font color=grey>" if i % 2 == 0 else ""
                 background_color_end = "</font>" if i % 2 == 0 else ""
                 
-                history.append(f"| {background_color_start}{month.strftime('%B')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{solar_kwh}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{background_color_end} | {background_color_start}{unit_string}{background_color_end} |")
+                month_string = month.strftime("%B").lower()
+                history.append(f"| {background_color_start}{i18n.t(f'ui.calendar.month_names.{month_string}')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{kWh_from_local_energy}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{background_color_end} | {background_color_start}{unit_string}{background_color_end} |")
                 i += 1
             
-            total_solar = ""
-            if total['solar_kwh']['total'] > 0.0 and total['kwh']['total'] > 0.0:
-                total_solar_percentage = round(total['solar_kwh']['total'] / total['kwh']['total'] * 100.0, 1)
-                total_solar = f"<br>**({round(total['solar_kwh']['total'], 1)})**<br>**({round(total_solar_percentage, 1)}%)**"
+            total_local_energy = ""
+            if total['kWh_from_local_energy']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                total_local_energy_percentage = round(total['kWh_from_local_energy']['total'] / total['kwh']['total'] * 100.0, 1)
+                total_local_energy = f"<br>**({round(total['kWh_from_local_energy']['total'], 1)})**<br>**({round(total_local_energy_percentage, 1)}%)**"
                 
             km_kwh = 0.0
             wh_km = 0.0
@@ -4883,25 +4920,35 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']['total'],2):.2f})" if total['km']['total'] > 0.0 else f"{unit_price:.2f}"
             
-            history.append(f"| **Ialt** | {total_km} | {efficiency_label} | **{round(total['kwh']['total'], 1)}**{total_solar} | **{round(total['cost']['total'], 2):.2f}** | **{unit_string}** |")
+            history.append(f"| **{i18n.t('ui.common.total')}** | {total_km} | {efficiency_label} | **{round(total['kwh']['total'], 1)}**{total_local_energy} | **{round(total['cost']['total'], 2):.2f}** | **{unit_string}** |")
             
             if estimated_values_used:
-                history.append("\n##### ~ = Estimeret km udfra forbrug og effektivitet")
+                history.append(f"\n##### ~ = {i18n.t('ui.charging_history_combine_and_set.estimated_distance')}\n")
                 
             history.append("---")
-            history.append("\n**Ladnings fordeling**")
-            history.append("| Måned | Dag kWh | Nat kWh |")
+            history.append(f"\n**{i18n.t('ui.charging_history_combine_and_set.charging_allocation')}**")
+            history.append(f"| {i18n.t('ui.charging_history_combine_and_set.month')} | {i18n.t('ui.charging_history_combine_and_set.day_kwh')} | {i18n.t('ui.charging_history_combine_and_set.night_kwh')} |")
             history.append("|:---|:---:|:---:|")
             
             datetime_keys = [key for key in total['charging_kwh_day'].keys() if isinstance(key, datetime.datetime)]
+            
             for month in sorted(datetime_keys):
                 procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
                 procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
-                
-                history.append(f"| {month.strftime('%B')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
+                month_string = month.strftime("%B").lower()
+                history.append(f"| {i18n.t(f'ui.calendar.month_names.{month_string}')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
+            
             procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
             procent_night = round(total['charging_kwh_night']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
-            history.append(f"| **Ialt** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
+            
+            history.append(f"| **{i18n.t('ui.common.total')}** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
+            
+            if total['kWh_from_public']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                total_public_charging_percentage = round(total['kWh_from_public']['total'] / total['kwh']['total'] * 100.0, 1)
+                total_public_charging = f"{round(total['kWh_from_public']['total'], 1)}kWh ({round(total_public_charging_percentage, 1)}%)"
+                history.append("---")
+                history.append(f"\n**{emoji_parse({'public_charging': True})} {i18n.t('ui.charging_history_combine_and_set.public_charing_total')} {total_public_charging}**")
+            
             history.append("\n</details>\n")
             
         history.append("</center>")
@@ -4914,7 +4961,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
         
         CHARGING_HISTORY_DB = combined_db
         save_charging_history()
-    
+        
 def charging_power_to_emulated_battery_level():
     func_name = "charging_power_to_emulated_battery_level"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -5413,7 +5460,11 @@ def cheap_grid_charge_hours():
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
         _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
-        my_persistent_notification(f"Kan ikke hente strøm priser, {CONFIG['prices']['entity_ids']['power_prices_entity_id']} findes ikke under domain sensor:", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_real_prices_not_found")
+        my_persistent_notification(
+            i18n.t("ui.cheap_grid_charge_hours.entity_not_in_domain", entity=CONFIG['prices']['entity_ids']['power_prices_entity_id']),
+            title=f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_{func_name}_real_prices_not_found"
+        )
         return
 
     today = getTimeStartOfDay()
@@ -5616,7 +5667,7 @@ def cheap_grid_charge_hours():
                 if rule not in chargeHours[hour]:
                     chargeHours[hour][rule] = True
                     
-            _LOGGER.info(f"Adding {hour} {price} kr/kWh {chargeHours[hour]['battery_level']}% {chargeHours[hour]['kWh']}kWh with keys {rules}")
+            _LOGGER.info(f"Adding {hour} {price} valuta/kWh {chargeHours[hour]['battery_level']}% {chargeHours[hour]['kWh']}kWh with keys {rules}")
 
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
 
@@ -5878,11 +5929,11 @@ def cheap_grid_charge_hours():
                         what_day = daysBetween(getTime(), timestamp)
                         battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                         if not battery_level_id:
-                            _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                            _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}. continue to next cheapest timestamp/price")
                             continue
                         
                         if battery_level_full_on_next_departure(what_day):
-                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}kr. continue to next cheapest timestamp/price")
+                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {timestamp} {price}. continue to next cheapest timestamp/price")
                             continue
                         
                         working, on_trip = available_for_charging_prediction(timestamp, trip_date_time, trip_homecoming_date_time)
@@ -6174,7 +6225,7 @@ def cheap_grid_charge_hours():
                             "data": {
                                 "emoji": emoji,
                                 "day": day,
-                                "day_string": f"*{getDayOfWeekText(event_time_start, translate=True).capitalize()}*",
+                                "day_string": f"*{i18n.t(f'ui.calendar.weekday_names.{getDayOfWeekText(event_time_start)}')}*",
                                 "date": f"*{date_to_string(date = event_time_start, format = "%d/%m")}*",
                                 "goto": f"*{date_to_string(date = event_time_start, format = "%H:%M")}*",
                                 "homecoming": f"*{date_to_string(date = event_time_end, format = "%H:%M")}*",
@@ -6306,7 +6357,7 @@ def cheap_grid_charge_hours():
                         timeperiod.append(f"{sunrise_text}-{sunset_text}")
                         
                     solar_over_production[day] = {
-                        "day": f"{getDayOfWeekText(charging_plan[day]['start_of_day'], translate = True).capitalize()}",
+                        "day": f"{i18n.t(f'ui.calendar.weekday_names.{getDayOfWeekText(charging_plan[day]['start_of_day'])}')}",
                         "date": date,
                         "when": " ".join(timeperiod),
                         "emoji": emoji_parse({'solar': True}),
@@ -6342,16 +6393,16 @@ def cheap_grid_charge_hours():
     
     if solar_charging_enabled():
         attr_dict = {
-            today.date(): f"{round(total_kwh_from_solar_available, 2)}% {round((total_kwh_from_solar_available * average(total_solar_price)), 2)}kr"
+            today.date(): f"{round(total_kwh_from_solar_available, 2)}% {round((total_kwh_from_solar_available * average(total_solar_price)), 2)}{i18n.t('ui.common.valuta')}"
             }
         
         for date in [today + datetime.timedelta(days=1), today + datetime.timedelta(days=2), today + datetime.timedelta(days=3), today + datetime.timedelta(days=4)]:
             if date.date() in solar_kwh_prediction:
-                attr_dict[date.date()] = f"{round(kwh_to_percentage(solar_kwh_prediction[date], include_charging_loss = True), 2)}% {round((solar_kwh_prediction[date] * solar_price_prediction[date]), 2)}kr"
+                attr_dict[date.date()] = f"{round(kwh_to_percentage(solar_kwh_prediction[date], include_charging_loss = True), 2)}% {round((solar_kwh_prediction[date] * solar_price_prediction[date]), 2)}{i18n.t('ui.common.valuta')}"
                 total_kwh_from_solar_available += solar_kwh_prediction[date]
                 total_solar_price.append(solar_price_prediction[date])
     
-        attr_dict['Total'] = f"{round(kwh_to_percentage(total_kwh_from_solar_available, include_charging_loss = True), 2)}% {round(total_kwh_from_solar_available * average(total_solar_price), 2)}kr"
+        attr_dict['Total'] = f"{round(kwh_to_percentage(total_kwh_from_solar_available, include_charging_loss = True), 2)}% {round(total_kwh_from_solar_available * average(total_solar_price), 2)}{i18n.t('ui.common.valuta')}"
         set_attr(f"sensor.{__name__}_charge_very_cheap_battery_level.unused_solar_production_availability_prediction", attr_dict)
         set_attr(f"sensor.{__name__}_charge_ultra_cheap_battery_level.unused_solar_production_availability_prediction", attr_dict)
     
@@ -6451,10 +6502,10 @@ def cheap_grid_charge_hours():
                     charging_plan[day]['rules'].append(workday_rules.pop(0))
             
                 if charging_plan[day]['work_goto'] == charging_plan[day]['work_homecoming']:
-                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()} afgang og hjemkomst er ens")
+                    charging_plan_warnings_add("work", i18n.t('ui.cheap_grid_charge_hours.work_goto_equals_work_homecoming', day=i18n.t(f'ui.calendar.weekday_names.{getDayOfWeekText(end_of_day_datetime)}')))
                     
                 if charging_plan[day]['work_range_needed'] == 0.0:
-                    charging_plan_warnings_add("work", f"{getDayOfWeekText(end_of_day_datetime, translate = True).capitalize()}safstand i alt er 0 km")
+                    charging_plan_warnings_add("work", i18n.t('ui.cheap_grid_charge_hours.work_distance_zero', day=i18n.t(f'ui.calendar.weekday_names.{getDayOfWeekText(end_of_day_datetime)}')))
         
         if is_trip_planned() and trip_date_time and day == daysBetween(getTime(), trip_date_time):
             charging_plan[day]['trip'] = True
@@ -6564,12 +6615,15 @@ def cheap_grid_charge_hours():
             charging_plan[day]['rules'].append("no_rule")
     
     if charging_plan_warnings:
-        warning_message = ""
+        warning_message = []
         for plan in charging_plan_warnings.keys():
-            warning_message += f"### Fejl i opsætningen af Arbejdsplan opladning\n"
             for warning in charging_plan_warnings[plan]:
-                warning_message += f"- **{warning}**\n"
-        my_persistent_notification(warning_message, f"{TITLE} Fejl i opladningsstrategier", persistent_notification_id=f"{__name__}_{func_name}_charging_plan_warnings")
+                warning_message.append(f"- **{warning}**\n")
+        my_persistent_notification(
+            "".join(warning_message),
+            title=f"{TITLE} {i18n.t('ui.cheap_grid_charge_hours.workplan_settings_error')}",
+            persistent_notification_id=f"{__name__}_{func_name}_charging_plan_warnings"
+        )
     
     totalCost, totalkWh = future_charging(totalCost, totalkWh)
     
@@ -6582,7 +6636,7 @@ def cheap_grid_charge_hours():
     
     for timestamp, price in get_expensive_hours().items():
         expensiveList.append(timestamp)
-        expensiveDict[str(timestamp)] = f"{price:.2f} kr"
+        expensiveDict[str(timestamp)] = f"{price:.2f} {i18n.t('ui.common.valuta')}"
         
     set_attr(f"input_boolean.{__name__}_forced_charging_daily_battery_level.expensive_hours", dict(sorted(expensiveDict.items())))
     chargeHours['expensive_hours'] = expensiveList
@@ -6627,7 +6681,7 @@ def cheap_grid_charge_hours():
                         if "kwh" in k:
                             charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} kWh"
                         elif "cost" in k:
-                            charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} kr"
+                            charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f} {i18n.t('ui.common.valuta')}"
                         else :
                             charging_plan_attr[title][str(k).capitalize().replace("_", " ")] = f"{v:.2f}%"
                         
@@ -6636,15 +6690,15 @@ def cheap_grid_charge_hours():
                             charging_plan_attr[title]["Work goto"] = f"{value["work_goto"]}"
                             charging_plan_attr[title]["Work homecoming"] = f"{value["work_homecoming"]}"
                             charging_plan_attr[title]["Work last_charging"] = f"{value["work_last_charging"]}"
-                            charging_plan_attr[title]["Work range_needed"] = f"{value["work_range_needed"]} km"
-                            charging_plan_attr[title]["Work total_cost"] = f"{value["work_total_cost"]:.2f} kr"
+                            charging_plan_attr[title]["Work range_needed"] = f"{value["work_range_needed"]} {i18n.t('ui.common.distance_type')}"
+                            charging_plan_attr[title]["Work total_cost"] = f"{value["work_total_cost"]:.2f} {i18n.t('ui.common.valuta')}"
                             charging_plan_attr[title]["Work battery level needed"] = f"{value["work_battery_level_needed"]:.2f}%"
                             charging_plan_attr[title]["Work kwh_needed"] = f"{value["work_kwh_needed"]:.2f} kWh"
                         if k == "trip":
                             charging_plan_attr[title]["Trip goto"] = f"{value["trip_goto"]}"
                             charging_plan_attr[title]["Trip homecoming"] = f"{value["trip_homecoming"]}"
                             charging_plan_attr[title]["Trip last charging"] = f"{value["trip_last_charging"]}"
-                            charging_plan_attr[title]["Trip total cost"] = f"{value["trip_total_cost"]:.2f} kr"
+                            charging_plan_attr[title]["Trip total cost"] = f"{value["trip_total_cost"]:.2f} {i18n.t('ui.common.valuta')}"
                             charging_plan_attr[title]["Trip battery level needed"] = f"{value["trip_battery_level_needed"]:.2f}%"
                             charging_plan_attr[title]["Trip battery level above max"] = f"{value["trip_battery_level_above_max"]:.2f}%"
                             charging_plan_attr[title]["Trip kWh needed"] = f"{value["trip_kwh_needed"]:.2f} kWh"
@@ -6664,9 +6718,9 @@ def cheap_grid_charge_hours():
             elif key == "total_kwh":
                 charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f} kWh"
             elif key == "total_cost":
-                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f} kr"
+                charging_hours_attr[str(key).capitalize().replace("_", " ")] = f"{value:.2f} {i18n.t('ui.common.valuta')}"
             else:
-                charging_hours_attr[str(key)] = [f"{value['battery_level']:.2f}%", f"{value['kWh']:.2f} kWh", f"{value['Cost']:.2f} kr"]
+                charging_hours_attr[str(key)] = [f"{value['battery_level']:.2f}%", f"{value['kWh']:.2f} kWh", f"{value['Cost']:.2f}{i18n.t('ui.common.valuta')}"]
     except Exception as e:
         _LOGGER.error(f"Failed to create charging plan charging_hours attributes: {e}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
@@ -6689,15 +6743,15 @@ def cheap_grid_charge_hours():
             kr_km = round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2) if LAST_DRIVE_EFFICIENCY_DATA['distance'] > 0 else 0.0
             
             overview.append("<center>\n")
-            overview.append("## 🛣️ Sidste kørsel effektivitet ##")
+            overview.append(f"## 🛣️ {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.title')} ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
-            overview.append(f"| **📅 Kørselsdato** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
-            overview.append(f"| **🚗 Sidste kørsel afstand** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distance'], 1):.1f} km** |")
-            overview.append(f"| **🔋 Brugt batteri** | **{round(LAST_DRIVE_EFFICIENCY_DATA['usedBattery'], 1):.1f}% ({round(LAST_DRIVE_EFFICIENCY_DATA['usedkWh'], 2):.2f} kWh)** |")
-            overview.append(f"| **💰 Udgift** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} kr ({kr_km:.2f} kr/km)**")
-            overview.append(f"| **📊 Kørsel effektivitet** | **{round(LAST_DRIVE_EFFICIENCY_DATA['efficiency'], 1):.1f}%** |")
-            overview.append(f"| **📏 Afstand pr. kWh** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distancePerkWh'], 2):.2f} km/kWh ({LAST_DRIVE_EFFICIENCY_DATA['wh_km']} Wh/km)** |")
+            overview.append(f"| **📅 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.drive_date')}** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
+            overview.append(f"| **🚗 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.last_distance')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distance'], 1):.1f} {i18n.t('ui.common.distance_type')}** |")
+            overview.append(f"| **🔋 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.used_battery')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['usedBattery'], 1):.1f}% ({round(LAST_DRIVE_EFFICIENCY_DATA['usedkWh'], 2):.2f} kWh)** |")
+            overview.append(f"| **💰 {i18n.t('ui.common.expense')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} {i18n.t('ui.common.valuta')} ({kr_km:.2f} {i18n.t('ui.common.valuta_distance')})**")
+            overview.append(f"| **📊 {i18n.t('ui.common.drive_efficiency')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['efficiency'], 1):.1f}%** |")
+            overview.append(f"| **📏 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.distance_per_kwh')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distancePerkWh'], 2):.2f} {i18n.t('ui.common.distance_kwh')} ({LAST_DRIVE_EFFICIENCY_DATA['wh_km']} {i18n.t('ui.common.wh_distance')})** |")
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
@@ -6711,16 +6765,16 @@ def cheap_grid_charge_hours():
         
         if battery_level_expenses_kwh_report > 0.0:
             overview.append("<center>\n")
-            overview.append("## 🔎 Batteri niveau udgifter ##")
+            overview.append(f"## 🔎 {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.title')} ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
-            overview.append(f"| **🔋 Nuværende batteri niveau** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
+            overview.append(f"| **🔋 {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.current_battery_level')}** | **{round(battery_level(), 0):.0f}% {round(battery_level_expenses_kwh_report, 1):.1f} kWh** |")
             
             if battery_level_expenses_solar_percentage_report > 0.0:
-                overview.append(f"| **☀️ Solcelle andel** | **{round(battery_level_expenses_solar_percentage_report,0):.0f}% {round(percentage_to_kwh(battery_level_expenses_solar_percentage_report), 1)} kWh** |")
+                overview.append(f"| **☀️ {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.solar_share')}** | **{round(battery_level_expenses_solar_percentage_report,0):.0f}% {round(percentage_to_kwh(battery_level_expenses_solar_percentage_report), 1)} kWh** |")
                 
-            overview.append(f"| **💰 Udgift** | **{round(battery_level_expenses_report, 2):.2f} kr** |")
-            overview.append(f"| **🧮 Enhedspris** | {round(percentage_to_kwh(battery_level_expenses_unit_report, include_charging_loss=True), 2):.2f} kr/% **{round(battery_level_expenses_unit_report, 2):.2f} kr/kWh** |")
+            overview.append(f"| **💰 {i18n.t('ui.common.expense')}** | **{round(battery_level_expenses_report, 2):.2f} {i18n.t('ui.common.valuta')}** |")
+            overview.append(f"| **🧮 {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.unit_price')}** | {round(percentage_to_kwh(battery_level_expenses_unit_report, include_charging_loss=True), 2):.2f} {i18n.t('ui.common.valuta_percentage')} **{round(battery_level_expenses_unit_report, 2):.2f} {i18n.t('ui.common.valuta_kwh')}** |")
             overview.append("</center>\n")
             overview.append("***")
     except Exception as e:
@@ -6731,7 +6785,7 @@ def cheap_grid_charge_hours():
             nonlocal overview
             
             if "last_update" in LAST_SUCCESSFUL_GRID_PRICES:
-                overview.append(f"\n\n<details><summary>Se planlægningsgrundlag</summary>\n")
+                overview.append(f"\n\n<details><summary>{i18n.t('ui.cheap_grid_charge_hours.planning_basis')}</summary>\n")
                 overview.extend(get_hours_plan())
                 overview.append("</details>\n")
         
@@ -6779,10 +6833,10 @@ def cheap_grid_charge_hours():
             merged_intervals.append(current_interval)
         
         overview.append("<center>\n")
-        overview.append("## 📖 Lade oversigt ##")
+        overview.append(f"## 📖 {i18n.t('ui.cheap_grid_charge_hours.charging_overview_title')} ##")
         
         if merged_intervals:
-            overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
+            overview.append(f"|  | {i18n.t('ui.common.time')} | % | kWh | {i18n.t('ui.common.valuta_kwh')} | {i18n.t('ui.common.price')} |")
             overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
             for d in merged_intervals:
@@ -6794,8 +6848,8 @@ def cheap_grid_charge_hours():
                 overview.append(f"| {emoji_text_format(d['type'], group_size=3)} | **{time_range}** | **{int(round(d['percentage'], 0))}** | **{d['kWh']:.2f}** | **{d['unit']:.2f}** | **{d['cost']:.2f}** |")
             
             if has_combined:
-                overview.append(f"\n<details><summary><b>Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)</b></summary>")
-                overview.append("\n|  | Tid | % | kWh | Kr/kWh | Pris |")
+                overview.append(f"\n<details><summary><b>{i18n.t('ui.common.total')} {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f}{i18n.t('ui.common.valuta')} ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} {i18n.t('ui.common.valuta_kwh')})</b></summary>")
+                overview.append(f"\n|  | {i18n.t('ui.common.time')} | % | kWh | {i18n.t('ui.common.valuta_kwh')} | {i18n.t('ui.common.price')} |")
                 overview.append("|---:|:---:|---:|---:|:---:|---:|")
                 
                 for timestamp, value in sorted_charge_hours:
@@ -6805,7 +6859,7 @@ def cheap_grid_charge_hours():
                     
                 overview.append("</details>\n")
             else:
-                overview.append(f"\n**Ialt {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f} kr ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} kr/kWh)**")
+                overview.append(f"\n**{i18n.t('ui.common.total')} {int(round(chargeHours['total_procent'],0))}% {chargeHours['total_kwh']} kWh {chargeHours['total_cost']:.2f}{i18n.t('ui.common.valuta')} ({round(chargeHours['total_cost'] / chargeHours['total_kwh'],2)} {i18n.t('ui.common.valuta_kwh')})**")
                 
                 planning_basis_markdown()
                 
@@ -6813,7 +6867,7 @@ def cheap_grid_charge_hours():
                 def _build_header(n_pairs=4):
                     heads, aligns = [], []
                     for _ in range(n_pairs):
-                        heads += ["Tid", "Pris"]
+                        heads += [i18n.t('ui.common.time'), i18n.t('ui.common.price')]
                         aligns += [":---:", "---:"]
                     header = "| " + " | ".join(heads) + " |"
                     align  = "| " + " | ".join(aligns) + " |"
@@ -6828,11 +6882,11 @@ def cheap_grid_charge_hours():
                         row_cells += [f"**{t}**", f"*{p}*"]
                     return "| " + " | ".join(row_cells) + " |"
 
-                overview.append("\n\n<details><summary><b>Bruger offline priser til nogle timepriser!!!</b></summary>\n")
+                overview.append(f"\n\n<details><summary><b>{i18n.t('ui.cheap_grid_charge_hours.offline_prices')}!!!</b></summary>\n")
 
                 by_day = defaultdict(list)
                 for ts, price in sorted(LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items(), key=lambda kv: kv[0]):
-                    by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}kr"))
+                    by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}{i18n.t('ui.common.valuta')}"))
                     
                 N_PAIRS = 4
 
@@ -6854,10 +6908,10 @@ def cheap_grid_charge_hours():
             if work_overview:
                 overview.append("***")
         else:
-            overview.append(f"**Ingen kommende ladning planlagt**")
+            overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.no_upcoming_charging_planned')}**")
             
             if work_overview and solar_over_production:
-                overview.append("**Nok i solcelle overproduktion**")
+                overview.append("**{i18n.t('ui.cheap_grid_charge_hours.enough_solar_production')}**")
                 
             planning_basis_markdown()
         
@@ -6873,11 +6927,11 @@ def cheap_grid_charge_hours():
         work_overview_total_cost = []
         
         overview.append("<center>\n")
-        overview.append("## 🗓️ Afgangsplan ##")
+        overview.append(f"## 🗓️ {i18n.t('ui.cheap_grid_charge_hours.departure_plan.title')} ##")
         
         if work_overview:
-            solar_header = f"{emoji_parse({'solar': True})}Sol" if is_solar_configured() else ""
-            overview.append(f"|  | Dag | Behov | {solar_header} | Pris |")
+            solar_header = f"{emoji_parse({'solar': True})}{i18n.t('ui.cheap_grid_charge_hours.departure_plan.sun')}" if is_solar_configured() else ""
+            overview.append(f"|  | {i18n.t('ui.cheap_grid_charge_hours.departure_plan.day')} | {i18n.t('ui.cheap_grid_charge_hours.departure_plan.need')} | {solar_header} | {i18n.t('ui.common.price')} |")
             overview.append(f"|:---|:---:|:---:|:---:|:---:|")
             
             start_battery_level = battery_level()
@@ -6935,17 +6989,17 @@ def cheap_grid_charge_hours():
                 
                 overview.append(f"| {d['emoji']} | {d['day_string']}<br>{d['date']}<br>{d['goto']} | {need_label} | {solar_label} | {d['cost']} |")
         else:
-            overview.append(f"**Ingen kommende afgang planlagt**")
+            overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.departure_plan.no_departure_planned')}**")
         
         work_overview_total_kwh_sum = sum(work_overview_total_kwh)
         work_overview_total_cost_sum = sum(work_overview_total_cost)
         work_overview_per_kwh = work_overview_total_cost_sum / work_overview_total_kwh_sum if work_overview_total_kwh_sum > 0.0 else 0.0
         
         if work_overview_total_kwh_sum > 0.0:
-            overview.append(f"\n**Ialt {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}kr ({round(work_overview_per_kwh, 2):.2f} kr/kWh)**")
+            overview.append(f"\n**{i18n.t('ui.common.total')} {round(work_overview_total_kwh_sum, 1):.1f}kWh {round(work_overview_total_cost_sum, 2):.2f}{i18n.t('ui.common.valuta')} ({round(work_overview_per_kwh, 2):.2f} {i18n.t('ui.common.valuta_kwh')})**")
             
-            work_overview_solar_text = "solcelle & " if is_solar_configured() else ""
-            overview.append(f"##### 📎Afgangsplan inkludere estimeret udgifter fra nettet, {work_overview_solar_text}batteri niveau #####")
+            work_overview_solar_text = f"{i18n.t('ui.cheap_grid_charge_hours.departure_plan.solar')} & " if is_solar_configured() else ""
+            overview.append(f"##### 📎{i18n.t('ui.cheap_grid_charge_hours.departure_plan.plan_include_estimations', work_overview_solar_text=work_overview_solar_text)} #####")
         
         overview_alternative = []
         total_kwh_charge_hours_alternative = []
@@ -6966,16 +7020,22 @@ def cheap_grid_charge_hours():
         
         
         if work_overview_total_kwh_sum > 0.0 and total_kwh_charge_hours_alternative_sum > 0.0:
+            fmt = {
+                "alternative_cost": f"{round(total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum, 2):.2f}",
+                "alternative_per_kwh": f"{round(total_charge_hours_per_kwh_alternative, 2):.2f}",
+                "total_kwh": f"{round(work_overview_total_kwh_sum, 1):.1f}",
+                "difference_cost": f"{round((total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum) - work_overview_total_cost_sum, 2):.2f}",
+            }
             overview.append("<details>")
-            overview.append(f"<summary>Skøn ved daglig opladning {round(total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh<br>ved {round(work_overview_total_kwh_sum, 1):.1f}kWh forskel {round((total_charge_hours_per_kwh_alternative * work_overview_total_kwh_sum) - work_overview_total_cost_sum, 2):.2f}kr</summary>\n")
+            overview.append(f"<summary>{i18n.t('ui.cheap_grid_charge_hours.departure_plan.estimated_daily_charging', **fmt)}</summary>\n")
                         
-            overview.append("### Lade oversigt (**Dagligt opladningsskøn**) ###")
-            overview.append("|  | Tid | % | kWh | Kr/kWh | Pris |")
+            overview.append(f"### {i18n.t('ui.cheap_grid_charge_hours.departure_plan.estimated_daily_charging_plan')} ###")
+            overview.append(f"|  | {i18n.t('ui.common.time')} | % | kWh | {i18n.t('ui.common.valuta_kwh')} | {i18n.t('ui.common.price')} |")
             overview.append("|---:|:---:|---:|---:|:---:|---:|")
             
             overview.extend(overview_alternative)
             
-            overview.append(f"\n**Ialt {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}kr {round(total_charge_hours_per_kwh_alternative, 2):.2f}kr/kWh**")
+            overview.append(f"\n**{i18n.t('ui.common.total')} {round(total_kwh_charge_hours_alternative_sum, 1):.1f}kWh {round(total_cost_charge_hours_alternative_sum, 2):.2f}{i18n.t('ui.common.valuta')} {round(total_charge_hours_per_kwh_alternative, 2):.2f}{i18n.t('ui.common.valuta_kwh')}**")
 
             overview.append("</details>\n")
             
@@ -6991,27 +7051,24 @@ def cheap_grid_charge_hours():
     try:
         if solar_over_production:
             overview.append("<center>\n")
-            overview.append("## 🌞 Solcelle over produktion ##")
+            overview.append(f"## 🌞 {i18n.t('ui.cheap_grid_charge_hours.solar_production_title')} ##")
             
-            if solar_over_production:
-                overview.append("| Tid |  |  |  | % |  | kWh |")
-                overview.append("|---|---:|:---|---:|---:|---|---:|")
+            overview.append(f"| {i18n.t('ui.common.time')} |  |  |  | % |  | kWh |")
+            overview.append("|---|---:|:---|---:|---:|---|---:|")
+            
+            for d in solar_over_production.values():
+                d['day'] = f"**{d['day']}**" if d['day'] else ""
+                d['date'] = f"**{d['date']}**" if d['date'] else ""
+                d['when'] = f"**{d['when']}**" if d['when'] else ""
+                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
+                d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
                 
-                for d in solar_over_production.values():
-                    d['day'] = f"**{d['day']}**" if d['day'] else ""
-                    d['date'] = f"**{d['date']}**" if d['date'] else ""
-                    d['when'] = f"**{d['when']}**" if d['when'] else ""
-                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                    d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
-                    d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
+                if d['corrected']:
+                    d['emoji'] = emoji_parse({'solar_corrected': True})
                     
-                    if d['corrected']:
-                        d['emoji'] = emoji_parse({'solar_corrected': True})
-                        
-                    overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
-            else:
-                overview.append(f"**Ingen kommende arbejdsdag**")
-                
+                overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
+
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e}")
@@ -7021,7 +7078,7 @@ def cheap_grid_charge_hours():
     
     if overview:
         overview.append("<center>\n")
-        overview.append(f"##### Sidst planlagt {getTime()} #####")
+        overview.append(f"##### {i18n.t('ui.cheap_grid_charge_hours.last_scheduled')} {getTime()} #####")
         overview.append("</center>\n")
         
         set_attr(f"sensor.{__name__}_overview.overview", "\n".join(overview))
@@ -7160,7 +7217,11 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
     except Exception as e:
         _LOGGER.warning(f"Cant set dynamic amps on charger: {e}")
         _LOGGER.warning(f"Setting ev cars charging amps to {amps}")
-        my_persistent_notification(f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}", f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_dynamic")
+        my_persistent_notification(
+            f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}",
+            title=f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_{func_name}_dynamic"
+        )
         try:
             if not is_ev_configured():
                 raise Exception(f"{e}")
@@ -7182,7 +7243,11 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             error_message = f"Cant set dynamic amps on charger: {e}\nCant set ev charging amps: {e_second}"
             _LOGGER.error(error_message)
             save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
-            my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+            my_persistent_notification(
+                error_message,
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}"
+            )
     
     try:
         if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
@@ -7198,9 +7263,12 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
         _LOGGER.warning(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
-        my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}_ev")
-            
-            
+        my_persistent_notification(
+            error_message,
+            title=f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_{func_name}_ev"
+        )
+        
     if successful:
         CURRENT_CHARGING_AMPS = [phase_1, phase_2, phase_3]
     else:
@@ -7364,7 +7432,11 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     except Exception as e:
         _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}")
-        my_persistent_notification(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
     finally:
         task_cancel(task_names.values(), task_remove=True, timeout=3.0, wait_period=0.2)
             
@@ -7442,7 +7514,11 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
     except Exception as e:
         _LOGGER.error(f"Error calculating local energy available: {e}")
-        my_persistent_notification(f"Error calculating local energy available: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Error calculating local energy available: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
         
         if include_local_energy_distribution:
             return watts_available_from_local_energy, 0.0, 0.0, 0.0
@@ -7560,18 +7636,18 @@ def max_local_energy_available_remaining_period():
                 and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
                 and watts_available_from_local_energy > 0.0):
-                POWERWALL_CHARGING_TEXT = f"Powerwall {powerwall_battery_level}% lader ikke, selvom batteri niveau er <{powerwall_reserved_battery_level}%"
+                POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_not_charging_but_should', powerwall_battery_level=powerwall_battery_level, powerwall_reserved_battery_level=powerwall_reserved_battery_level)
                 
             elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
                   and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall standset x̄{int(powerwall_charging_consumption)}W - opladning sker senere"
+                    POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_not_charging_but_should', powerwall_charging_consumption=int(powerwall_charging_consumption))
                 else:
-                    POWERWALL_CHARGING_TEXT = f"Powerwall lader: x̄{int(powerwall_charging_consumption)}W"
+                    POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_charging', powerwall_charging_consumption=int(powerwall_charging_consumption))
                     
             elif (powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER
                   and powerwall_battery_level > powerwall_reserved_battery_level):
-                POWERWALL_CHARGING_TEXT = f"Powerwall aflader: x̄{int(powerwall_discharging_available)}W"
+                POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_charging', powerwall_discharging_available=int(powerwall_discharging_available))
                 
             else:
                 POWERWALL_CHARGING_TEXT = ""
@@ -7629,7 +7705,11 @@ def max_local_energy_available_remaining_period():
         _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except Exception as e:
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
-        my_persistent_notification(f"Error calculating max local energy available remaining hour: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Error calculating max local energy available remaining hour: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
     finally:
         task_cancel(task_names.values(), task_remove=True, startswith=True)
             
@@ -7836,7 +7916,11 @@ def load_power_values_db():
         error_message = f"Cant load {__name__}_power_values_db: {e}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
-        my_persistent_notification(f"Failed to load {__name__}_power_values_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Failed to load {__name__}_power_values_db",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -7917,7 +8001,11 @@ def load_solar_available_db():
         error_message = f"Cant load {__name__}_solar_production_available_db: {e}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
-        my_persistent_notification(f"Failed to load {__name__}_solar_production_available_db", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Failed to load {__name__}_solar_production_available_db",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -8392,7 +8480,11 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         done, pending = task.wait(day_prediction_task_set)
     except Exception as e:
         _LOGGER.error(f"Error during day prediction tasks: {e}")
-        my_persistent_notification(f"Failed to run local energy prediction tasks", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_tasks")
+        my_persistent_notification(
+            f"Failed to run local energy prediction tasks",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_tasks"
+        )
     finally:
         task_cancel(task_set, task_remove=True)
         task_cancel(day_prediction_task_set, task_remove=True)
@@ -8532,7 +8624,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
 
     outdoor_temp = 0.0
     forecast_temp = 0.0
-    heating_type = "Forvarmer"
+    heating_type = i18n.t('ui.preheat_ev.preheating')
     
     try:
         if CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']:
@@ -8563,7 +8655,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
                 service.call("climate", "set_preset_mode", preset_mode="Defrost", blocking=True, entity_id=entity_id)
-                heating_type = "Optøer"
+                heating_type = i18n.t('ui.preheat_ev.thawing')
             else:
                 service.call("climate", "turn_on", blocking=True, entity_id=entity_id)
                 
@@ -8588,7 +8680,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             allow_command_entity_integration("Cupra We Connect Climate service Defrost", "preheat_ev()", integration = integration)
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
-                heating_type = t('ui.preheat_ev.thawing')
+                heating_type = i18n.t('ui.preheat_ev.thawing')
             
             _LOGGER.info("Preheating ev car")
             service.call(integration, "volkswagen_id_set_climatisation", vin=vin, start_stop="start", blocking=True)
@@ -8639,19 +8731,19 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     if CONFIG['notification']['preheating']:
         if notify_type == "preheat_start":
             my_notify(
-                f"{heating_type} bilen til kl. {next_drive.strftime('%H:%M')}",
-                title = TITLE,
-                notify_list = CONFIG['notify_list'],
-                admin_only = False,
-                always = False
+                i18n.t('ui.preheat_ev.preheat_start', heating_type=heating_type, time=next_drive.strftime('%H:%M')),
+                title=TITLE,
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=False
             )
         elif notify_type == "preheat_cancel":
             my_notify(
-                 f"Forvarmning af bilen stoppet, pga ingen kørsel kl. {next_drive.strftime('%H:%M')}",
-                 title = TITLE,
-                 notify_list = CONFIG['notify_list'],
-                 admin_only = False,
-                 always = False
+                i18n.t('ui.preheat_ev.preheat_cancel', time=next_drive.strftime('%H:%M')),
+                title=TITLE,
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=False
             )
             
 def ready_to_charge():
@@ -8676,7 +8768,7 @@ def ready_to_charge():
         
     if charger_status in CHARGER_NOT_READY_STATUS:
         _LOGGER.info("Charger cable disconnected")
-        set_charging_rule(f"Lader kabel frakoblet")
+        set_charging_rule(i18n.t('ui.ready_to_charge.cable_disconnected'))
         
         if not is_ev_configured() and float(get_state(f"input_number.{__name__}_battery_level", float_type=True, error_state=0.0)) != 0.0:
             _LOGGER.info("Reseting battery level to 0.0")
@@ -8707,30 +8799,30 @@ def ready_to_charge():
                 charger_status in CHARGER_READY_STATUS) and currentLocation != "home":"""
             if (ev_charger_connector in EV_PLUGGED_STATES or charger_status in CHARGER_READY_STATUS) and not is_ev_home():
                 _LOGGER.info("To long away from home")
-                set_charging_rule(f"⛔Ladekabel forbundet, men bilen ikke hjemme")
+                set_charging_rule(f"⛔{i18n.t('ui.ready_to_charge.cable_connected_ev_not_home')}")
                 return
             '''elif charger_status in CHARGER_READY_STATUS and not ev_power_connected():
                 _LOGGER.info("Charger cable connected, but car not updated")
-                set_charging_rule(f"⚠️Ladekabel forbundet, men bilen ikke opdateret")
+                set_charging_rule(f"⚠️{i18n.t('ui.ready_to_charge.cable_connected_ev_not_updated')}")
                 return True #Test to charge anyway'''
 
             #TODO check charger_connector on monta
             #if charger_connector != "on" and ev_charger_connector not in EV_PLUGGED_STATES:
             if ev_charger_connector not in EV_PLUGGED_STATES:
                 _LOGGER.info("Charger cable is Disconnected")
-                set_charging_rule(f"⚠️Ladekabel ikke forbundet til bilen\nPrøver at vække bilen")
+                set_charging_rule(f"⚠️{i18n.t('ui.ready_to_charge.cable_connected_not_to_ev')}")
                 wake_up_ev()
                 return True #Test to charge anyway
             
             if not ev_power_connected():
                 _LOGGER.info("Chargeport not open")
-                set_charging_rule(f"⚠️Elbilens ladeport er ikke åben\nPrøver at vække bilen")
+                set_charging_rule(f"⚠️{i18n.t('ui.ready_to_charge.charge_port_closed')}")
                 wake_up_ev()
                 return True #Test to charge anyway
             
             if entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or entity_unavailable(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
                 _LOGGER.info("Chargeport or charge cable entity not available")
-                set_charging_rule(f"⛔Elbilens ladeport eller ladekabel er ikke tilgængelig\nPrøver at vække bilen")
+                set_charging_rule(f"⛔{i18n.t('ui.ready_to_charge.ev_unavailable')}")
                 wake_up_ev()
                 return
             
@@ -8862,7 +8954,15 @@ def is_charging():
                         CHARGING_HISTORY_DB[when]["emoji"] = CHARGING_HISTORY_DB[when]["emoji"].replace(emoji_charging_error, emoji_charging_problem)
                         charging_history_combine_and_set()
             
-            my_notify(message = f"Elbilen lader, som den skal igen", title = f"{TITLE} Elbilen lader", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_notify(
+                i18n.t('ui.is_charging.charging_again'),
+                title=f"{TITLE} Elbilen lader",
+                data=data,
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=True,
+                persistent_notification=True
+            )
         reset()
         
         if charger_status in CHARGER_CHARGING_STATUS:
@@ -8896,32 +8996,40 @@ def is_charging():
     
     try:
         if RESTARTING_CHARGER:
-            set_charging_rule(f"⛔Fejl i ladning af elbilen\nStarter ladningen op igen {RESTARTING_CHARGER_COUNT}. forsøg")
+            set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_restart_count', count=RESTARTING_CHARGER_COUNT)}")
             _LOGGER.warning(f"Starting charging (attempts {RESTARTING_CHARGER_COUNT}): Starting charging again")
-            my_notify(message = f"Starter ladningen igen, {RESTARTING_CHARGER_COUNT} forsøg", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+            my_notify(
+                f"{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_restart_count', count=RESTARTING_CHARGER_COUNT)}",
+                title=f"{TITLE} {i18n.t('ui.is_charging.fail_title')}",
+                data=data,
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=True,
+                persistent_notification=True
+            )
             
             start_charging(force = True)
             RESTARTING_CHARGER = False
         elif charger_status in ENTITY_UNAVAILABLE_STATES:
-            set_charging_rule(f"⛔Fejl i ladning af elbilen\nLader ikke tilgængelig")
+            set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_unavailable')}")
             raise Exception(f"Charger is unavailable, entity id: {CONFIG['charger']['entity_ids']['status_entity_id']}")
         elif charger_status == "error":
-            set_charging_rule(f"⛔Fejl i ladning af elbilen\nKritisk fejl på lader, tjek integration eller Easee app")
-            raise Exception(f"Charger critical error, check Easee app or Home Assistant")
+            set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_error')}")
+            raise Exception(f"Charger critical error, check mobile app or Home Assistant")
         elif charger_status in CHARGER_READY_STATUS:
             if current_charging_amps == 0:
                 if CHARGING_IS_BEGINNING or RESTARTING_CHARGER or RESTARTING_CHARGER_COUNT or charger_enabled != "on":
                     reset()
             elif RESTARTING_CHARGER_COUNT == 3:
-                set_charging_rule(f"⛔Fejl i ladning af elbilen")
+                set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}")
                 raise Exception(f"Charging has not started even after restarting multiple times")
             elif RESTARTING_CHARGER_COUNT < 3:
                 if current_charging_amps != dynamic_circuit_limit:
-                    set_charging_rule(f"⛔Fejl i ladning af elbilen\nDynamisk begrænsning ikke sat")
+                    set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_dynamic_failed')}")
                     raise Exception(f"Chargers dynamic circuit limit not set")
                 else:
                     if CHARGING_IS_BEGINNING:
-                        set_charging_rule(f"⛔Fejl i ladning af elbilen\nGenstarter lader")
+                        set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_restart')}")
                         raise Exception("Ev is not charging, restarting charger")
                     CHARGING_IS_BEGINNING = True
     except Exception as e:
@@ -8944,19 +9052,27 @@ def is_charging():
             
             if RESTARTING_CHARGER_COUNT == 1 and is_entity_configured(CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']):
                 _LOGGER.warning(f"Restarting charger control integration (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger control integration for now")
-                restarting = f"\nGenstarter ladeoperatør, {RESTARTING_CHARGER_COUNT} forsøg"
+                restarting = f"\n{i18n.t('ui.is_charging.charger_control_restart_count', count=RESTARTING_CHARGER_COUNT)}"
                 stop_charging({CONFIG['charger']['entity_ids']['start_stop_charging_entity_id']: "charger"}, force = True)
             else:
                 if is_entity_configured(CONFIG['charger']['entity_ids']['enabled_entity_id']):
                     _LOGGER.warning(f"Restarting charger (attempts {RESTARTING_CHARGER_COUNT}): Stopping charger for now")
-                    restarting = f"\nGenstarter laderen, {RESTARTING_CHARGER_COUNT} forsøg"
+                    restarting = f"\n{i18n.t('ui.is_charging.charger_restart_count', count=RESTARTING_CHARGER_COUNT)}"
                     stop_charging({CONFIG['charger']['entity_ids']['enabled_entity_id']: "charger"}, force = True)
                 else:
                     _LOGGER.warning(f"Restarting ev charging (attempts {RESTARTING_CHARGER_COUNT}): Stopping ev charging for now")
-                    restarting = f"\nGenstarter elbil ladningen, {RESTARTING_CHARGER_COUNT} forsøg"
+                    restarting = f"\n{i18n.t('ui.is_charging.ev_restart_count', count=RESTARTING_CHARGER_COUNT)}"
                     stop_charging({CONFIG['ev_car']['entity_ids']['charge_switch_entity_id']: "ev_car"}, force = True)
                 
-        my_notify(message = f"Elbilen lader ikke som den skal:\n{e}{restarting}", title = f"{TITLE} Elbilen lader ikke", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
+        my_notify(
+            f"{i18n.t('ui.is_charging.ev_not_charging')}:\n{e}{restarting}",
+            title=f"{TITLE} {i18n.t('ui.is_charging.fail_title')}",
+            data=data,
+            notify_list=CONFIG['notify_list'],
+            admin_only=False,
+            always=True,
+            persistent_notification=True
+        )
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
     _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit}")
@@ -8991,24 +9107,36 @@ def charging_without_rule():
             if not CURRENT_CHARGING_SESSION['start']:
                 charging_history({'Price': get_current_hour_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'no_rule': True}, "no_rule")
                 
-            set_charging_rule(f"{emoji_parse({'no_rule': True})}Lader uden grund {int(power_avg)}W")
+            set_charging_rule(f"{emoji_parse({'no_rule': True})}{i18n.t('ui.charging_without_rule.charging_no_rule', watt=int(power_avg))}")
             _LOGGER.warning(f"Charging without rule for {entity_id} power: {power}W, power_avg: {power_avg}W {CHARGING_NO_RULE_COUNT} times")
             
             if CHARGING_NO_RULE_COUNT == trigger_count + 1:
                 unavailable_entities = get_all_unavailable_entities()
                 
                 if unavailable_entities:
-                    unavailable_entities_list = ["\n\nFølgende enheder er ikke tilgængelige:"]
+                    unavailable_entities_list = [f"\n\n{i18n.t('ui.charging_without_rule.entities_not_available')}:"]
                 
                     for entity in unavailable_entities:
                         unavailable_entities_list.append(f"\n- {entity}")
                         
-                    my_notify(message = f"Tjek evt. følgende:\n- Genstart afhænginge integrationer der er offline\n- Genstart Home Assistant{''.join(unavailable_entities_list)}", title = f"{TITLE} Elbilen lader uden grund", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_{func_name}")
+                    my_notify(
+                        f"{i18n.t('ui.charging_without_rule.check_options')}{''.join(unavailable_entities_list)}",
+                        title=f"{TITLE} {i18n.t('ui.charging_without_rule.ev_charging_no_rule')}",
+                        notify_list=CONFIG['notify_list'],
+                        admin_only=False,
+                        always=True,
+                        persistent_notification=True,
+                        persistent_notification_id=f"{__name__}_{func_name}"
+                    )
                 
             integration = get_integration(entity_id)
             
             if integration:
-                my_persistent_notification(message = f"⛔Entity \"{entity_id}\" lader uden grund\nGenstarter {integration.capitalize()}", title = f"{TITLE} Elbilen lader uden grund", persistent_notification_id = f"{__name__}_{func_name}_{entity_id}")
+                my_persistent_notification(
+                    f"⛔{i18n.t('ui.charging_without_rule.restart_integration', entity_id=entity_id, integration=integration.capitalize())}",
+                    title=f"{TITLE} {i18n.t('ui.charging_without_rule.ev_charging_no_rule')}",
+                    persistent_notification_id=f"{__name__}_{func_name}_{entity_id}"
+                )
                 reload_entity_integration(entity_id)
             
             return True
@@ -9035,7 +9163,7 @@ def charge_if_needed():
     try:
         if deactivate_script_enabled():
             _LOGGER.info("Script deactivated")
-            set_charging_rule("⛔Deaktiveret")
+            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.script_deactivated')}")
             return
         
         charging_rule = None
@@ -9104,7 +9232,7 @@ def charge_if_needed():
             _LOGGER.info("No charging modes active, setting amps to max")
             charging_limit = get_max_recommended_charge_limit_battery_level()
             amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-            charging_rule = f"⛔Ingen laderegler aktiv\n Lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+            charging_rule = f"⛔{i18n.t('ui.charge_if_needed.no_charging_modes_active', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
             charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(local_energy_available_period)}, "deactivate")
         elif is_calculating_charging_loss():
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) else get_completed_battery_level()
@@ -9114,7 +9242,7 @@ def charge_if_needed():
                 completed_battery_level = get_max_recommended_charge_limit_battery_level()
                 charging_limit = get_max_recommended_charge_limit_battery_level()
                 
-            charging_rule = f"{emoji_parse({'charging_loss': True})}Beregner ladetab, lader til {completed_battery_level}%"
+            charging_rule = f"{emoji_parse({'charging_loss': True})}{i18n.t('ui.charge_if_needed.charging_loss', percentage=completed_battery_level)}"
             amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
             
             battery = round(completed_battery_level - battery_level(), 1)
@@ -9126,12 +9254,11 @@ def charge_if_needed():
             if not manual_charging_solar_enabled():
                 _LOGGER.info("Manual charging")
                 amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-                charging_rule = f"{emoji_parse({'manual': True})}Manuel ladning tilladt {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+                charging_rule = f"{emoji_parse({'manual': True})}{i18n.t('ui.charge_if_needed.manual_charging', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
             else:
                 _LOGGER.info(f"Manual charging solar only")
                 amps = inverter_amps
-                solar_charging = f" {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W" if inverter_amps[1] != 0.0 else ""
-                charging_rule = f"{emoji_parse({'manual': True, "solar": True})}Manuel ladning tilladt, kun sol {solar_charging}"
+                charging_rule = f"{emoji_parse({'manual': True, "solar": True})}{i18n.t('ui.charge_if_needed.manual_charging_solar', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
                 
             if amps[1] > 0.0:
                 charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(local_energy_available_period)}, "manual")
@@ -9153,11 +9280,11 @@ def charge_if_needed():
                 _LOGGER.error(f"range_to_battery_level():{range_to_battery_level()}")
                 _LOGGER.error(f"charging_limit:{charging_limit}")'''
                 emoji = emoji_parse(CHARGE_HOURS[timestamp])
-                charging_rule = f"Lader op til {emoji}"
-                _LOGGER.info(f"Charging because of {emoji} {CHARGE_HOURS[timestamp]['Price']}kr. {int(CONFIG['charger']['charging_phases'])}x{CHARGE_HOURS[timestamp]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
+                charging_rule = i18n.t('ui.charge_if_needed.planned_charging', emoji=emoji)
+                _LOGGER.info(f"Charging because of {emoji} {CHARGE_HOURS[timestamp]['Price']}{i18n.t('ui.common.valuta')}. {int(CONFIG['charger']['charging_phases'])}x{CHARGE_HOURS[timestamp]['ChargingAmps']}amps ({MAX_KWH_CHARGING}kWh)")
             elif get_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", error_state="on") == "on" and battery_level() < get_min_daily_battery_level():
                 if currentHour in CHARGE_HOURS['expensive_hours']:
-                    charging_rule = f"{emoji_parse({'low_battery': True})}Lader ikke, pga. for dyr strøm"
+                    charging_rule = f"{emoji_parse({'low_battery': True})}{i18n.t('ui.charge_if_needed.low_battery_but_expensive')}"
                     _LOGGER.info(f"Battery under <{get_min_daily_battery_level()}%, but power is expensive: {date_to_string(CHARGE_HOURS['expensive_hours'], format = '%H:%M')}")
                 else:
                     battery = round(get_min_daily_battery_level() - battery_level(), 1)
@@ -9166,12 +9293,12 @@ def charge_if_needed():
                     charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "low_battery")
                     charging_limit = get_min_daily_battery_level()
                     amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
-                    charging_rule = f"{emoji_parse({'low_battery': True})}Lader pga. batteriniveauet <{get_min_daily_battery_level()}%"
+                    charging_rule = f"{emoji_parse({'low_battery': True})}{i18n.t('ui.charge_if_needed.low_battery', percentage=get_min_daily_battery_level())}"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
             elif solar_charging_enabled() and inverter_amps[1] != 0.0:
                 if battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
                     if CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(local_energy_available_period):
-                        charging_rule = f"Sælger solcelle overproduktion, da rå strøm prisen er dyr ({round(get_solar_sell_price(), 2)}kr.)"
+                        charging_rule = i18n.t('ui.charge_if_needed.solar_production_but_expensive', price=round(get_solar_sell_price(), 2))
                         _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
                         inverter_amps[1] = 0.0
                         amps = inverter_amps
@@ -9184,22 +9311,22 @@ def charge_if_needed():
                         else:
                             charging_history({'Price': get_solar_sell_price(), 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'solar': is_solar_production_available(local_energy_available_period), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "local_energy")
                         
-                        solar_string = f"{emoji_parse({'solar': True})}Solcelle" if is_solar_production_available(local_energy_available_period) else ""
-                        powerwall_string = f"{emoji_parse({'powerwall': True})}Powerwall" if is_powerwall_discharging(powerwall_discharge_watt) else ""
-                        inverter_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
+                        solar_string = f"{emoji_parse({'solar': True})}{i18n.t('ui.charge_if_needed.solar')}" if is_solar_production_available(local_energy_available_period) else ""
+                        powerwall_string = f"{emoji_parse({'powerwall': True})}{i18n.t('ui.charge_if_needed.powerwall')}" if is_powerwall_discharging(powerwall_discharge_watt) else ""
+                        local_energy_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(local_energy_available_period) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
                         amps = inverter_amps
-                        charging_rule = f"{inverter_string} lader {int(amps[0] * amps[1] * CONFIG['charger']['power_voltage'])}W"
+                        charging_rule = i18n.t('ui.charge_if_needed.local_energy_charging', local_energy=local_energy_string, watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))
                         
                         _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
                 else:
-                    charging_rule = f"{emoji_parse({'solar': True})}Solcelle lader ikke, batteri over {get_max_recommended_charge_limit_battery_level()}%"
+                    charging_rule = f"{emoji_parse({'solar': True})}{i18n.t('ui.charge_if_needed.local_energy_charging_not_needed', percentage=get_max_recommended_charge_limit_battery_level())}"
                     _LOGGER.info(f"EV solar charging not needed, battery over {get_max_recommended_charge_limit_battery_level()}%")
             else:
                 if not charging_without_rule():
                     stop_current_charging_session()
                     _LOGGER.info("No rules for charging")
-                    charging_rule = f"Lader ikke"
+                    charging_rule = i18n.t('ui.charge_if_needed.not_charging')
         else:
             if not charging_without_rule():
                 stop_current_charging_session()
@@ -9222,12 +9349,20 @@ def charge_if_needed():
         
         error_message = f"Error running charge_if_needed(), setting charger and car to max: {e}"
         _LOGGER.error(error_message)
-        my_persistent_notification(f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_restart_count_error")
+        my_persistent_notification(
+            f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_restart_count_error"
+        )
         
         if ERROR_COUNT == 3:
             save_error_to_file(error_message, caller_function_name = f"{func_name}()")
             _LOGGER.error(f"Restarting script to maybe fix error!!!")
-            my_persistent_notification(f"Restarting script to maybe fix error!!!", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_restart_script")
+            my_persistent_notification(
+                f"Restarting script to maybe fix error!!!",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_restart_script"
+            )
             
             restart_script()
         else:
@@ -9267,7 +9402,11 @@ def set_charging_price(price):
                 _LOGGER.info(f"Setting charging cost to {price} in Easee")
     except Exception as e:
         _LOGGER.error(f"Cant set charging cost for {integration.capitalize()}: {e}")
-        my_persistent_notification(f"Cant set charging cost for {integration.capitalize()}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Cant set charging cost for {integration.capitalize()}: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
 
 def kwh_charged_by_solar():
     func_name = "kwh_charged_by_solar"
@@ -9302,13 +9441,25 @@ def kwh_charged_by_solar():
                 raise Exception(f"Cant get state for input_number.{__name__}_kwh_charged_by_solar")
         except Exception as e:
             _LOGGER.error(e)
-            my_persistent_notification(f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_set_state_error")
+            my_persistent_notification(
+                f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_set_state_error"
+            )
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
         _LOGGER.error(f"Task was cancelled or timed out: {e}")
-        my_persistent_notification(f"Task was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
+        my_persistent_notification(
+            f"Task was cancelled or timed out: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_task_error"
+        )
     except Exception as e:
         _LOGGER.error(f"Error calculating kwh charged by solar: {e}")
-        my_persistent_notification(f"Error calculating kwh charged by solar: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+        my_persistent_notification(
+            f"Error calculating kwh charged by solar: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -9333,7 +9484,11 @@ def solar_charged_percentage():
         set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
         _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
-        my_persistent_notification(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
+        my_persistent_notification(
+            f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
     
 def calc_co2_emitted(period = None, added_kwh = None):
     func_name = "calc_co2_emitted"
@@ -9381,10 +9536,18 @@ def calc_co2_emitted(period = None, added_kwh = None):
             return co2_emitted
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
         _LOGGER.error(f"Task was cancelled or timed out: {e}")
-        my_persistent_notification(f"Task was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
+        my_persistent_notification(
+            f"Task was cancelled or timed out: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_task_error"
+        )
     except Exception as e:
         _LOGGER.error(f"Error calculating co2 emitted: {e}")
-        my_persistent_notification(f"Error calculating co2 emitted: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+        my_persistent_notification(
+            f"Error calculating co2 emitted: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -9451,7 +9614,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_grid_share = 0.0
             ev_grid_cost = 0.0
-        _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}kr")
+        _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}")
         _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
         
         try:
@@ -9460,7 +9623,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_solar_share = 0.0
             ev_solar_cost = 0.0
-        _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}kr")
+        _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}")
         _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
         
         try:
@@ -9469,7 +9632,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_powerwall_share = 0.0
             ev_powerwall_cost = 0.0
-        _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}kr")
+        _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}")
         _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
 
         ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
@@ -9481,32 +9644,40 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
             if not is_solar_configured():
                 raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
                 price = raw_price - refund
-                set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} kr/kWh")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} kr/kWh")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} {i18n.t('ui.common.valuta_kwh')}")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} {i18n.t('ui.common.valuta_kwh')}")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.2f} {i18n.t('ui.common.valuta_kwh')}")
             else:
                 set_attr(f"sensor.{__name__}_kwh_cost_price.local_energy_and_grid_ratio", "")
                 set_attr(f"sensor.{__name__}_kwh_cost_price.solar_share", f"{ev_solar_share*100:.0f}%")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} kr")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_cost", f"{ev_solar_cost:.2f} {i18n.t('ui.common.valuta')}")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.solar_kwh_price", f"{solar_kwh_price:.2f} {i18n.t('ui.common.valuta_kwh')}")
                 
                 if is_powerwall_configured():
                     set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_share", f"{ev_powerwall_share*100:.0f}%")
                     set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_cost", f"{ev_powerwall_cost:.2f} kr")
-                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} kr/kWh")
+                    set_attr(f"sensor.{__name__}_kwh_cost_price.powerwall_kwh_price", f"{powerwall_kwh_price:.2f} {i18n.t('ui.common.valuta_kwh')}")
 
                 set_attr(f"sensor.{__name__}_kwh_cost_price.grid_share", f"{ev_grid_share*100:.0f}%")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} kr")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} kr/kWh")
-                set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} kr/kWh")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_cost", f"{ev_grid_cost:.2f} {i18n.t('ui.common.valuta')}")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.grid_kwh_price", f"{grid_kwh_price:.2f} {i18n.t('ui.common.valuta_kwh')}")
+                set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} {i18n.t('ui.common.valuta_kwh')}")
             
             set_charging_price(ev_total_price_kwh)
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
         _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e}")
-        my_persistent_notification(f"Task was cancelled or timed out while calculating kWh price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_task_error")
+        my_persistent_notification(
+            f"Task was cancelled or timed out while calculating kWh price: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_task_error"
+        )
     except Exception as e:
         _LOGGER.error(f"Error calculating kWh price: {e}")
-        my_persistent_notification(f"Error calculating kWh price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+        my_persistent_notification(
+            f"Error calculating kWh price: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
     finally:
         task_cancel(task_names.values(), task_remove=True, startswith=True)
         
@@ -9587,7 +9758,11 @@ def load_kwh_prices():
         error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
-        my_persistent_notification(f"Kan ikke indlæse {__name__}_kwh_avg_prices_db: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_load_error")
+        my_persistent_notification(
+            f"Cant load {__name__}_kwh_avg_prices_db: {e}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_load_error"
+        )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -9649,7 +9824,7 @@ def append_kwh_prices():
             _LOGGER.error(f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute")
             my_persistent_notification(
                 f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute",
-                f"{TITLE} error",
+                title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_no_today_attr"
             )
             return
@@ -9722,12 +9897,19 @@ def notify_set_battery_level():
             "actions": [
                 {
                     "action": "URI",
-                    "title": "Sæt batteri niveau",
+                    "title": i18n.t('ui.notify_set_battery_level.action'),
                     "uri": f"entityId:input_number.{__name__}_battery_level"
                 }
             ]
         }
-        my_notify(message = f"Husk at sætte batteri niveauet på elbilen i Home Assistant", title = f"{TITLE} Elbilen batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(
+            i18n.t('ui.notify_set_battery_level.message'),
+            title=f"{TITLE} {i18n.t('ui.notify_set_battery_level.title')}",
+            data=data,
+            notify_list=CONFIG['notify_list'],
+            admin_only=False,
+            always=True
+        )
 
 def notify_battery_under_daily_battery_level():
     if not ready_to_charge():
@@ -9738,12 +9920,19 @@ def notify_battery_under_daily_battery_level():
             "actions": [
                 {
                     "action": "URI",
-                    "title": "Aktivere for at starte tvangsladningen",
+                    "title": i18n.t('ui.notify_battery_under_daily_battery_level.action'),
                     "uri": f"entityId:input_boolean.{__name__}_forced_charging_daily_battery_level"
                 }
             ]
         }
-        my_notify(message = f"Skal elbilen tvangslades til minimum daglig batteri niveau\nLader ikke i de 3 dyreste timer", title = f"{TITLE} Elbilen batteri niveau under daglig batteri niveau", data=data, notify_list = CONFIG['notify_list'], admin_only = False, always = True)
+        my_notify(
+            f"{i18n.t('ui.notify_battery_under_daily_battery_level.message')}\n{i18n.t('ui.notify_battery_under_daily_battery_level.no_charge_expensive_hours')}",
+            title=f"{TITLE} {i18n.t('ui.notify_battery_under_daily_battery_level.title')}",
+            data=data,
+            notify_list=CONFIG['notify_list'],
+            admin_only=False,
+            always=True
+        )
 
 if INITIALIZATION_COMPLETE:
     @time_trigger("startup")
@@ -9755,25 +9944,30 @@ if INITIALIZATION_COMPLETE:
         
         log_lines = []
         try:
+            charger_configured = i18n.t('ui.startup.configuration.configured') if is_charger_configured() else i18n.t('ui.startup.configuration.not_configured')
+            ev_configured = i18n.t('ui.startup.configuration.configured') if is_ev_configured() else i18n.t('ui.startup.configuration.not_configured')
+            solar_configured = i18n.t('ui.startup.configuration.configured') if is_solar_configured() else i18n.t('ui.startup.configuration.not_configured')
+            powerwall_configured = i18n.t('ui.startup.configuration.configured') if is_powerwall_configured() else i18n.t('ui.startup.configuration.not_configured')
+            
             log_lines.append(welcome())
             log_lines.append(f"📟{BASENAME} started")
             log_lines.append(f"")
-            log_lines.append(f"**Konfiguration:**")
-            log_lines.append(f"📟Lader konfiguret: {'Ja' if is_ev_configured() else 'Nej'}")
-            log_lines.append(f"📟Elbil konfiguret: {'Ja' if is_ev_configured() else 'Nej'}")
-            log_lines.append(f"📟Solcelle konfiguret: {'Ja' if is_solar_configured() else 'Nej'}")
-            log_lines.append(f"📟Powerwall konfiguret: {'Ja' if is_powerwall_configured() else 'Nej'}")
+            log_lines.append(f"**{i18n.t('ui.startup.configuration.header')}:**")
+            log_lines.append(f"📟{i18n.t('ui.startup.configuration.charger')}: {charger_configured}")
+            log_lines.append(f"📟{i18n.t('ui.startup.configuration.ev')}: {ev_configured}")
+            log_lines.append(f"📟{i18n.t('ui.startup.configuration.solar')}: {solar_configured}")
+            log_lines.append(f"📟{i18n.t('ui.startup.configuration.powerwall')}: {powerwall_configured}")
             log_lines.append(f"")
-            set_charging_rule(f"📟Sætter entities op")
-            log_lines.append(f"📟Sætter entities op")
+            set_charging_rule(f"📟{i18n.t('ui.startup.setting_entities')}")
+            log_lines.append(f"📟{i18n.t('ui.startup.setting_entities')}")
             
             TASKS[f"{func_prefix}set_entity_friendlynames"] = task.create(set_entity_friendlynames)
             TASKS[f"{func_prefix}emoji_description"] = task.create(emoji_description)
             TASKS[f"{func_prefix}set_default_entity_states"] = task.create(set_default_entity_states)
             done, pending = task.wait({TASKS[f"{func_prefix}set_entity_friendlynames"], TASKS[f"{func_prefix}emoji_description"], TASKS[f"{func_prefix}set_default_entity_states"]})
             
-            set_charging_rule(f"📟Indlæser databaserne")
-            log_lines.append(f"📟Indlæser databaserne")
+            set_charging_rule(f"📟{i18n.t('ui.startup.loading_db')}")
+            log_lines.append(f"📟{i18n.t('ui.startup.loading_db')}")
             
             TASKS[f"{func_prefix}load_power_values_db"] = task.create(load_power_values_db)
             TASKS[f"{func_prefix}load_solar_available_db"] = task.create(load_solar_available_db)
@@ -9782,12 +9976,12 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}load_km_kwh_efficiency"] = task.create(load_km_kwh_efficiency)
             done, pending = task.wait({TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
             
-            log_lines.append(f"📟Indlæser ladnings historik")
+            log_lines.append(f"📟{i18n.t('ui.startup.loading_history')}")
             
             TASKS[f"{func_prefix}load_charging_history"] = task.create(load_charging_history)
             done, pending = task.wait({TASKS[f"{func_prefix}load_charging_history"]})
             
-            log_lines.append(f"📟Sætter småting op")
+            log_lines.append(f"📟{i18n.t('ui.startup.almost_ready')}")
             
             TASKS[f"{func_prefix}solar_charged_percentage"] = task.create(solar_charged_percentage)
             TASKS[f"{func_prefix}is_battery_fully_charged"] = task.create(is_battery_fully_charged)
@@ -9796,15 +9990,15 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f"{func_prefix}solar_charged_percentage"], TASKS[f"{func_prefix}is_battery_fully_charged"], TASKS[f"{func_prefix}set_estimated_range"], TASKS[f"{func_prefix}calc_kwh_price"]})
             
             log_lines.append(f"")
-            log_lines.append(f"🚗 Batteri rækkevidde: {battery_range():.2f} km")
-            log_lines.append(f"🚗 Batteri niveau: {battery_level():.0f}%")
+            log_lines.append(f"🚗{i18n.t('ui.startup.ev.range')}: {battery_range():.2f} {i18n.t('ui.common.distance_type')}")
+            log_lines.append(f"🚗{i18n.t('ui.startup.ev.battery_level')}: {battery_level():.0f}%")
             
             TASKS[f"{func_prefix}distance_per_percentage"] = task.create(distance_per_percentage)
             done, pending = task.wait({TASKS[f"{func_prefix}distance_per_percentage"]})
             
             distance_per_percent = TASKS[f"{func_prefix}distance_per_percentage"].result()
-            log_lines.append(f"🚗 km/%: {distance_per_percent:.2f} km")
-            log_lines.append(f"🚗 HA estimeret rækkevidde: {(battery_level() * distance_per_percent):.2f} km")
+            log_lines.append(f"🚗{i18n.t('ui.common.distance_percentage')}: {distance_per_percent:.2f} {i18n.t('ui.common.distance_type')}")
+            log_lines.append(f"🚗{i18n.t('ui.startup.ev.estimated_range')}: {(battery_level() * distance_per_percent):.2f} {i18n.t('ui.common.distance_type')}")
             log_lines.append(f"")
             
             TASKS[f"{func_prefix}calc_charging_amps"] = task.create(calc_charging_amps, 0.0, report = True)
@@ -9815,8 +10009,8 @@ if INITIALIZATION_COMPLETE:
                 log_lines.append(line)
             log_lines.append(f"")
             
-            log_lines.append(f"📟Beregner ladeplan")
-            set_charging_rule(f"📟Beregner ladeplan")
+            log_lines.append(f"📟{i18n.t('ui.startup.calc_charging_plan')}")
+            set_charging_rule(f"📟{i18n.t('ui.startup.calc_charging_plan')}")
             
             TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
             TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
@@ -9828,12 +10022,22 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
             _LOGGER.error(f"Error during startup: {e}")
-            my_persistent_notification(f"Error during startup: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error during startup: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             for line in log_lines:
                 _LOGGER.info(line)
                 
-            my_persistent_notification(f"{"\n".join(log_lines)}", f"📟{TITLE} started", persistent_notification_id=f"{__name__}_{func_name}_notification")
+            log_lines.append(f"\n<center>\n\n**{i18n.t('ui.startup.call_all_entities')}**\n\n</center>")
+            
+            my_persistent_notification(
+                f"{"\n".join(log_lines)}",
+                f"📟{TITLE} started",
+                persistent_notification_id=f"{__name__}_{func_name}_notification"
+            )
             
             task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -9852,17 +10056,29 @@ if INITIALIZATION_COMPLETE:
         if trigger_type == "startup":
             if fill_up_charging_enabled() and workplan_charging_enabled():
                 set_state(f"input_boolean.{__name__}_fill_up", "off")
-                my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
+                my_persistent_notification(
+                    f"❗{i18n.t('ui.charging_rule_changed.deactivate_optimal_rule')}\n\n📎{i18n.t('ui.charging_rule_changed.reason')}",
+                    title=f"📟{TITLE} {i18n.t('ui.charging_rule_changed.charging_rule_conflict')}",
+                    persistent_notification_id=f"{__name__}_{func_name}_conflict"
+                )
         else:
             if value == "on":
                 if var_name == f"input_boolean.{__name__}_fill_up":
                     if workplan_charging_enabled():
                         set_state(f"input_boolean.{__name__}_workplan_charging", "off")
-                        my_persistent_notification(f"❗Deaktivere Arbejdsplan opladning\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
+                        my_persistent_notification(
+                            f"❗{i18n.t('ui.charging_rule_changed.deactivate_workplan_rule')}\n\n📎{i18n.t('ui.charging_rule_changed.reason')}",
+                            title=f"📟{TITLE} {i18n.t('ui.charging_rule_changed.charging_rule_conflict')}",
+                            persistent_notification_id=f"{__name__}_{func_name}_conflict"
+                        )
                 elif var_name == f"input_boolean.{__name__}_workplan_charging":
                     if fill_up_charging_enabled():
                         set_state(f"input_boolean.{__name__}_fill_up", "off")
-                        my_persistent_notification(f"❗Deaktivere Optimal ugeopladning (uden Arbejdsplan)\n\n📎Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid", f"📟{TITLE} laderegel konflikt", persistent_notification_id=f"{__name__}_{func_name}_conflict")
+                        my_persistent_notification(
+                            f"❗{i18n.t('ui.charging_rule_changed.deactivate_optimal_rule')}\n\n📎{i18n.t('ui.charging_rule_changed.reason')}",
+                            title=f"📟{TITLE} {i18n.t('ui.charging_rule_changed.charging_rule_conflict')}",
+                            persistent_notification_id=f"{__name__}_{func_name}_conflict"
+                        )
             
             if var_name == f"input_boolean.{__name__}_deactivate_script":
                 try:
@@ -9921,7 +10137,11 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS[f"{func_prefix}debug_info"]})
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
 
@@ -9983,7 +10203,11 @@ if INITIALIZATION_COMPLETE:
                     set_charging_rule(f"Lader ikke")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -10056,7 +10280,11 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -10105,7 +10333,11 @@ if INITIALIZATION_COMPLETE:
                     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
          
@@ -10148,7 +10380,11 @@ if INITIALIZATION_COMPLETE:
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e}")
-                my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                my_persistent_notification(
+                    f"Error in {func_name}: {e}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_error"
+                )
             finally:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
             
@@ -10167,7 +10403,11 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS[f"{func_prefix}preheat_ev"]})
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e}")
-                my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                my_persistent_notification(
+                    f"Error in {func_name}: {e}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_error"
+                )
             finally:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -10192,7 +10432,11 @@ if INITIALIZATION_COMPLETE:
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e}")
-                        my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                        my_persistent_notification(
+                            f"Error in {func_name}: {e}",
+                            title=f"{TITLE} error",
+                            persistent_notification_id=f"{__name__}_{func_name}_error"
+                        )
                     finally:
                         task_cancel(func_prefix, task_remove=True, startswith=True)
             else:
@@ -10215,7 +10459,11 @@ if INITIALIZATION_COMPLETE:
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e}")
-                        my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                        my_persistent_notification(
+                            f"Error in {func_name}: {e}",
+                            title=f"{TITLE} error",
+                            persistent_notification_id=f"{__name__}_{func_name}_error"
+                        )
                     finally:
                         task_cancel(func_prefix, task_remove=True, startswith=True)
     else:
@@ -10240,7 +10488,11 @@ if INITIALIZATION_COMPLETE:
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                 except Exception as e:
                     _LOGGER.error(f"Error in {func_name}: {e}")
-                    my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+                    my_persistent_notification(
+                        f"Error in {func_name}: {e}",
+                        title=f"{TITLE} error",
+                        persistent_notification_id=f"{__name__}_{func_name}_error"
+                    )
                 finally:
                     task_cancel(func_prefix, task_remove=True, startswith=True)
                 
@@ -10270,7 +10522,11 @@ if INITIALIZATION_COMPLETE:
                                     TASKS[f'{func_prefix}solar_charged_percentage'], TASKS[f'{func_prefix}commands_history_clean_entity_integration']})
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -10290,7 +10546,11 @@ if INITIALIZATION_COMPLETE:
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -10306,7 +10566,11 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f"{func_prefix}append_kwh_prices"]})
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e}")
-            my_persistent_notification(f"Error in {func_name}: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Error in {func_name}: {e}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -10325,7 +10589,15 @@ if INITIALIZATION_COMPLETE:
         if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
-                my_notify(message = f"Entities ikke tilgængelig, stopper ladetab beregningen", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True, persistent_notification_id=f"{__name__}_{func_name}_not_available")
+                my_notify(
+                    f"Entities for calculating charging loss is not available, stopping calculation",
+                    title=f"{TITLE} Error",
+                    notify_list=CONFIG['notify_list'],
+                    admin_only=False,
+                    always=True,
+                    persistent_notification=True,
+                    persistent_notification_id=f"{__name__}_{func_name}_not_available"
+                )
                 set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
             return
         
@@ -10374,8 +10646,18 @@ if INITIALIZATION_COMPLETE:
                         CONFIG['charger']['charging_loss'] = charging_loss
                         
                         set_state(f"input_boolean.{__name__}_calculate_charging_loss", "off")
-                        my_notify(message = f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", notify_list = CONFIG['notify_list'], admin_only = False, always = True)
-                        my_persistent_notification(f"Ladetab beregnet til {round(charging_loss * 100)}%", title = f"{TITLE} Ladetab beregning", persistent_notification_id=f"{__name__}_{func_name}_calculated")
+                        my_notify(
+                            i18n.t("ui.calculate_charging_loss.calculated", percentage=round(charging_loss * 100)),
+                            title=f"{TITLE} {i18n.t('ui.calculate_charging_loss.title')}",
+                            notify_list=CONFIG['notify_list'],
+                            admin_only=False,
+                            always=True
+                        )
+                        my_persistent_notification(
+                            i18n.t("ui.calculate_charging_loss.calculated", percentage=round(charging_loss * 100)),
+                            title=f"{TITLE} {i18n.t('ui.calculate_charging_loss.title')}",
+                            persistent_notification_id=f"{__name__}_{func_name}_calculated"
+                        )
             else:
                 raise Exception(f"Unknown error: trigger_type={trigger_type}, var_name={var_name}, value={value}, old_value={old_value}")
         except Exception as e:
@@ -10384,8 +10666,19 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
             _LOGGER.error(f"Failed to calculate charging loss: {e}")
-            my_notify(message = f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", notify_list = CONFIG['notify_list'], admin_only = False, always = True, persistent_notification = True)
-            my_persistent_notification(f"Fejlede i beregningen af ladetab:\n{e}", title = f"{TITLE} Fejl", persistent_notification_id=f"{__name__}_{func_name}_error")
+            my_notify(
+                f"Fejlede i beregningen af ladetab:\n{e}",
+                title=f"{TITLE} Fejl",
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=True,
+                persistent_notification=True
+            )
+            my_persistent_notification(
+                f"Fejlede i beregningen af ladetab:\n{e}",
+                title=f"{TITLE} Fejl",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
             
     '''@time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_debug_log")
@@ -10427,7 +10720,7 @@ if INITIALIZATION_COMPLETE:
             if cfg_temp:
                 CONFIG = cfg_temp
             
-        set_charging_rule(f"📟Lukker scriptet ned\nGemmer konfigurations filen")
+        set_charging_rule(f"📟{i18n.t('ui.shutdown')}")
         try:
             CONFIG['ev_car']['typical_daily_distance_non_working_day'] = get_entity_daily_distance(ignore_realistic_estimated_range=True)
             CONFIG['ev_car']["workday_distance_needed_monday"] = get_entity_daily_distance(day_text="monday", ignore_realistic_estimated_range=True)
@@ -10453,7 +10746,10 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f'{func_prefix}save_changes']})
         except Exception as e:
             _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
-            my_persistent_notification(f"Kan ikke gemme konfigurationen fra Home Assistant til config: {e}", title = f"{TITLE} Fejl", persistent_notification_id = f"{__name__}_{func_name}_error")
+            my_persistent_notification(
+                f"Cant save config from Home assistant to config: {e}",
+                title=f"{TITLE} Error",
+                persistent_notification_id=f"{__name__}_{func_name}_error")
             
         done, pending = task.wait({TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}reset_counter_entity_integration']})
         
