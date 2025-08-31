@@ -10047,8 +10047,8 @@ if INITIALIZATION_COMPLETE:
     @state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
     @state_trigger(f"input_boolean.{__name__}_deactivate_script")
-    def charging_rule(trigger_type=None, var_name=None, value=None, old_value=None):
-        func_name = "charging_rule"
+    def charging_rule_changed(trigger_type=None, var_name=None, value=None, old_value=None):
+        func_name = "charging_rule_changed"
         func_prefix = f"{func_name}_"
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS
