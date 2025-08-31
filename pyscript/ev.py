@@ -2585,7 +2585,7 @@ def init():
                     new_entity_id = ".".join(new_path.split(".")[-2:])
                     if old_entity_id in all_entities and new_entity_id not in all_entities:
                         old_entity_id_state = get_state(old_entity_id)
-                        old_entity_id_attr = get_attr(old_entity_id)
+                        old_entity_id_attr = get_attr(old_entity_id, error_state={})
                         
                         if new_entity_id in all_entities:
                             if not is_entity_available(new_entity_id):
@@ -3015,7 +3015,7 @@ def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_est
     
     try:
         if day_text is None and date is None:
-            distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
+            distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True, error_state=None))
         else:
             days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
             day_text = day_text if day_text in days else getDayOfWeekText(getTime() if date is None else date, translate=False)
@@ -3024,10 +3024,10 @@ def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_est
             distance = float(get_state(f"input_number.{__name__}_workday_distance_needed_{day_text}", float_type=True, error_state=0.0))
             
             if distance == 0.0 or workday == "off":
-                distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True))
+                distance = float(get_state(f"input_number.{__name__}_typical_daily_distance", float_type=True, error_state=None))
 
         if is_ev_configured() and not ignore_realistic_estimated_range:
-            estimated_range_attr = get_attr(f"sensor.{__name__}_estimated_range")
+            estimated_range_attr = get_attr(f"sensor.{__name__}_estimated_range", error_state={})
             if "total" in estimated_range_attr and float(estimated_range_attr["total"]) > 0.0:
                 estimated_range_per_percent = float(estimated_range_attr["total"]) / 100
                 daily_available_battery_level = get_max_recommended_charge_limit_battery_level() - get_min_daily_battery_level()
@@ -3043,7 +3043,7 @@ def get_min_daily_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get daily battery level, using config data {CONFIG['ev_car']['min_daily_battery_level']}: {e}")
         return CONFIG['ev_car']['min_daily_battery_level']
@@ -3053,7 +3053,7 @@ def get_min_trip_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get min trip battery level, using config data {CONFIG['ev_car']['min_trip_battery_level']}: {e}")
         return CONFIG['ev_car']['min_trip_battery_level']
@@ -3063,7 +3063,7 @@ def get_min_charge_limit_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get min charge limit battery level, using config data {CONFIG['ev_car']['min_charge_limit_battery_level']}: {e}")
         return CONFIG['ev_car']['min_charge_limit_battery_level']
@@ -3073,7 +3073,7 @@ def get_max_recommended_charge_limit_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get max recommended charge limit battery level, using config data {CONFIG['ev_car']['max_recommended_charge_limit_battery_level']}: {e}")
         return CONFIG['ev_car']['max_recommended_charge_limit_battery_level']
@@ -3083,7 +3083,7 @@ def get_very_cheap_grid_charging_max_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get very cheap grid charging max battery level, using config data {CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']}: {e}")
         return CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']
@@ -3093,7 +3093,7 @@ def get_ultra_cheap_grid_charging_max_battery_level():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
     try:
-        return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get ultra cheap grid charging max battery level, using config data {CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']}: {e}")
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
@@ -3119,7 +3119,7 @@ def get_powerwall_battery_level():
         return 100.0
     
     try:
-        return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True))
+        return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e}")
         return 100.0
@@ -3132,7 +3132,7 @@ def get_ev_charge_after_powerwall_battery_level():
         return 100.0
     
     try:
-        return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True))
+        return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True, error_state=None))
     except Exception as e:
         try:
             _LOGGER.warning(f"Cant get ev charge after powerwall battery level, using config data {CONFIG['solar']['ev_charge_after_powerwall_battery_level']}: {e}")
@@ -3147,7 +3147,7 @@ def get_completed_battery_level():
     
     try:
         if not is_ev_configured():
-            return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True))
+            return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True, float_type=True, error_state=None))
         return 100.0
     except Exception as e:
         _LOGGER.warning(f"Using default charge completed battery level 100.0: {e}")
@@ -3203,7 +3203,7 @@ def get_trip_range():
     
     trip_range = 0.0
     try:
-        trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed"))
+        trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.error(f"input_number.{__name__}_trip_range_needed is not set to a number: {e}")
         try:
@@ -3219,7 +3219,7 @@ def get_trip_target_level():
     
     trip_target_level = 0.0
     try:
-        trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent"))
+        trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent", float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.error(f"input_number.{__name__}_trip_charge_procent is not set to a number: {e}")
         try:
@@ -3286,7 +3286,7 @@ def get_tariffs(hour, day_of_week):
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
         
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
         
         if "tariffs" not in power_prices_attr:
             raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
@@ -3367,7 +3367,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         
         if set_entity_attr:
             attr_list = ["price", "transmissions_nettarif", "systemtarif", "elafgift", "tariffs", "tariff_sum", "raw_price", "sell_tariffs_overview", "transmissions_nettarif_", "systemtarif_", "energinets_network_tariff_", "energinets_balance_tariff_", "solar_production_seller_cut_", "sell_tariffs", "solar_sell_price", "fixed_sell_price"]
-            entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price")
+            entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price", error_state={})
             for item in attr_list:
                 if item in entity_attr:
                     state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
@@ -3848,7 +3848,7 @@ def set_state_drive_efficiency():
         set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency_values))))
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
         
-        for item in get_attr(f"sensor.{__name__}_drive_efficiency"):
+        for item in get_attr(f"sensor.{__name__}_drive_efficiency", error_state={}):
             if "dato" in item:
                 state.delete(f"sensor.{__name__}_drive_efficiency.{item}")
 
@@ -3922,7 +3922,7 @@ def set_state_km_kwh_efficiency():
             wh_km_mean = round(1000 / km_kwh_mean, 2)
             set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_mean:.2f} {i18n.t('ui.common.wh_distance')}")
 
-        existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh") or {}
+        existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh", error_state={})
         for item in existing_attributes:
             if "dato" in item:
                 state.delete(f"sensor.{__name__}_km_per_kwh.{item}")
@@ -5316,7 +5316,7 @@ def get_hour_prices():
         if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
             hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
         else:
-            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
             
             if "raw_today" in power_prices_attr:
                 for raw in power_prices_attr['raw_today']:
@@ -5994,7 +5994,7 @@ def cheap_grid_charge_hours():
                     unused_solar_cost[getTimePlusDays(day).date()] = sum(charging_plan[day_before]['solar_cost_prediction'])
             
             try:
-                days_need_between_recommended_full_charge = int(float(get_state(f"input_number.{__name__}_full_charge_recommended", error_state=0)))
+                days_need_between_recommended_full_charge = int(get_state(f"input_number.{__name__}_full_charge_recommended", float_type=True, error_state=0.0))
                 days_since_last_fully_charged = daysBetween(get_state(f"input_datetime.{__name__}_last_full_charge", error_state=resetDatetime()), getTime())
                 need_recommended_full_charge = days_need_between_recommended_full_charge != 0 and days_since_last_fully_charged > days_need_between_recommended_full_charge and day == 1
                 
@@ -7255,7 +7255,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
                 raise Exception(f"Ev charging amps entity unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
             
             max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
-            current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']))
+            current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], float_type=True, error_state=CONFIG['charger']['charging_max_amp']))
             if current_amps == 0.0:
                 _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
                 ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
@@ -8570,7 +8570,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         return
     
     try:
-        preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before"))
+        preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before", float_type=True, error_state=None))
         if preheat_min_before <= 0.0:
             return
     except Exception as e:
@@ -8628,7 +8628,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     
     try:
         if CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']:
-            outdoor_temp = float(get_state(CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id'], float_type=True, error_state=0.0))
+            outdoor_temp = float(get_state(CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id'], float_type=True, error_state=None))
     except Exception as e:
         _LOGGER.error(f"Cant get outdoor temp from entity {CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']}: {e}")
         
@@ -9818,7 +9818,7 @@ def append_kwh_prices():
         load_kwh_prices()
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'])
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
         
         if "today" not in power_prices_attr:
             _LOGGER.error(f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute")
