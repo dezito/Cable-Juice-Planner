@@ -7009,7 +7009,7 @@ def cheap_grid_charge_hours():
             overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.no_upcoming_charging_planned')}**")
             
             if work_overview and solar_over_production:
-                overview.append("**{i18n.t('ui.cheap_grid_charge_hours.enough_solar_production')}**")
+                overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.enough_solar_production')}**")
                 
             planning_basis_markdown()
         
