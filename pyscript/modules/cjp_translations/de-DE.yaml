@@ -759,7 +759,7 @@ ui:
 
   public_charging_session:
     title: "Öffentliches Laden abgeschlossen"
-    message: "Bitte geben Sie die Kosten für die öffentliche Ladesitzung ein"
+    message: "Bitte geben Sie die Kosten für das öffentliche Laden ein\nLadung war von {start_battery_level}% bis {end_battery_level}%\nHinzugefügt {added_battery_level}%"
     action: "Kosten eingeben"
 
   calculate_charging_loss:

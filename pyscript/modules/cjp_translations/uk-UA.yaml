@@ -762,7 +762,7 @@ ui:
 
   public_charging_session:
     title: "Публічне заряджання завершено"
-    message: "Будь ласка, введіть вартість публічного заряджання"
+    message: "Будь ласка, введіть вартість публічного заряджання\nЗарядка була з {start_battery_level}% до {end_battery_level}%\nДодано {added_battery_level}%"
     action: "Ввести вартість"
 
   calculate_charging_loss:
@@ -770,4 +770,3 @@ ui:
     calculated: "Втрати заряджання обчислені: {percentage}%"
 
   shutdown: "Завершення роботи скрипту\nЗбереження конфігураційного файлу"
-

@@ -765,7 +765,7 @@ ui:
 
   public_charging_session:
     title: "Ładowanie publiczne zakończone"
-    message: "Proszę wprowadzić koszt ładowania publicznego"
+    message: "Proszę wprowadzić koszt ładowania publicznego\nŁadowanie od {start_battery_level}% do {end_battery_level}%\nDodano {added_battery_level}%"
     action: "Wprowadź koszt"
 
   calculate_charging_loss:

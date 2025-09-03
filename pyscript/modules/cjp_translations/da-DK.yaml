@@ -780,7 +780,7 @@ ui:
 
   public_charging_session:
     title: "Offentlig ladning afsluttet"
-    message: "Indtast venligst omkostningen for den offentlige ladning"
+    message: "Indtast venligst omkostningen for den offentlige ladning\nOpladning var fra {start_battery_level}% til {end_battery_level}%\nTilføjet {added_battery_level}%"
     action: "Indtast omkostning"
 
   calculate_charging_loss:

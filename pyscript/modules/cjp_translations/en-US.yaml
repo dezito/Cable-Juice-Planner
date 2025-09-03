@@ -777,7 +777,7 @@ ui:
 
   public_charging_session:
     title: "Public charging completed"
-    message: "Please enter the cost of the public charging session"
+    message: "Please enter the cost of the public charging session\nCharging went from {start_battery_level}% to {end_battery_level}%\nAdded {added_battery_level}%"
     action: "Enter cost"
 
   calculate_charging_loss:

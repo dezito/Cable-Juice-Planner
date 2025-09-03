@@ -126,6 +126,8 @@ CHARGING_ALLOWED_AFTER_GOTO_TIME = -120 #Negative value in minutes
 CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
 
+PUBLIC_CHARGING_SESSION = []
+
 POWERWALL_CHARGING_TEXT = ""
 
 SOLAR_PRODUCTION_TRIGGER = 500.0  # Minimum solar production in Watt to consider solar available
@@ -266,7 +268,10 @@ CHARGING_TYPES = {
     "trip": {
         "priority": 6,
         "emoji": "🌍",
-        "description": "Tur ladning / afgang"
+    },
+    "public_charging": {
+        "priority": 6.5,
+        "emoji": "🧾",
     },
     "first_workday_preparation": {
         "priority": 7.0,
@@ -831,6 +836,13 @@ DEFAULT_ENTITIES = {
             "unit_of_measurement": "%",
             "icon": "mdi:percent-outline"
         },
+        f"{__name__}_public_charging_session_cost":{
+            "min": -1,
+            "max": 5000,
+            "step": 0.01,
+            "icon":" mdi:cash-edit",
+            "mode": "box",
+        },
     },
     "input_datetime":{
         f"{__name__}_workday_departure_monday":{
@@ -916,6 +928,15 @@ DEFAULT_ENTITIES = {
             "has_time":True
         },
     },
+    "binary_sensor":[{
+        "platform":"template",
+        "sensors":{
+            f"{__name__}_public_charging_session_done":{
+                "icon_template": "mdi:ev-station",
+                "value_template":"unavailable"
+            }
+        }
+    }],
     "sensor":[{
         "platform":"template",
         "sensors":{
@@ -1332,6 +1353,7 @@ def get_debug_info_sections():
                 "INITIALIZATION_COMPLETE": INITIALIZATION_COMPLETE,
                 "PREHEATING": PREHEATING,
                 "TESTING": TESTING,
+                "PUBLIC_CHARGING_SESSION": PUBLIC_CHARGING_SESSION,
             }),
             "details": None,
         },
@@ -2223,6 +2245,17 @@ def notify_critical_change(cfg = {}, filename = None):
             
             return dt
 
+        def add_template_binary_sensors(item: Dict[str, Any]) -> None:
+            dt: Dict[str, str] = {}
+            
+            binary_sensors = item.get("sensors", {})
+            
+            if isinstance(binary_sensors, dict):
+                for key, attrs in binary_sensors.items():
+                    eid = _full_id("binary_sensor", key)
+                    desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
+                    dt[eid] = desc
+
         def add_template_sensors(item: Dict[str, Any]) -> None:
             dt: Dict[str, str] = {}
             
@@ -2243,14 +2276,21 @@ def notify_critical_change(cfg = {}, filename = None):
                 if isinstance(dom, dict):
                     index.update(add_input_like(domain, dom))
 
-            # 2) sensor(template)
+            # 2) binary_sensors(template)
+            binary_sensors_list = default_entities.get("binary_sensors", [])
+            if isinstance(binary_sensors_list, list):
+                for item in binary_sensors_list:
+                    if isinstance(item, dict) and item.get("platform") == "template":
+                        index.update(add_template_binary_sensors(item))
+
+            # 3) sensor(template)
             sensors_list = default_entities.get("sensor", [])
             if isinstance(sensors_list, list):
                 for item in sensors_list:
                     if isinstance(item, dict) and item.get("platform") == "template":
                         index.update(add_template_sensors(item))
 
-            # 3) overlay homeassistant.customize (full ids expected)
+            # 4) overlay homeassistant.customize (full ids expected)
             ha = default_entities.get("homeassistant", {})
             if isinstance(ha, dict):
                 customize = ha.get("customize", {})
@@ -2685,8 +2725,12 @@ def init():
         else:
             for entity_type in ['input_boolean', 'input_number']:
                 DEFAULT_ENTITIES[entity_type] = {
-                    key: value for key, value in DEFAULT_ENTITIES[entity_type].items() if "preheat" not in key
+                    key: value for key, value in DEFAULT_ENTITIES[entity_type].items() if "preheat" not in key or "public_charging_session" not in key
                 }
+
+            DEFAULT_ENTITIES['binary_sensor'][0]['sensors'] = {
+                key: value for key, value in DEFAULT_ENTITIES['binary_sensor'][0]['sensors'].items() if "public_charging_session" not in key
+            }
 
             DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
                 key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key or "drive_efficiency_last_battery_level" in key
@@ -3228,6 +3272,18 @@ def get_trip_target_level():
             _LOGGER.error(f"Cant set input_number.{__name__}_trip_charge_procent to 0.0: {e}")
         
     return trip_target_level
+
+def get_public_charging_session_done():
+    func_name = "get_public_charging_session_done"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    state = "unknown"
+    try:
+        state = get_state(f"binary_sensor.{__name__}_public_charging_session_done", error_state="unknown")
+    except Exception as e:
+        _LOGGER.error(f"binary_sensor.{__name__}_public_charging_session_done is not set to a value: {e}")
+    return True if state == "on" else False
+    
 
 def is_trip_planned():
     if (not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or
@@ -4304,7 +4360,7 @@ def verify_charge_limit(limit):
 def reset_current_charging_session():
     global CURRENT_CHARGING_SESSION
     CURRENT_CHARGING_SESSION = {
-        "type": None,
+        "charging_type": None,
         "start": None,
         "start_charger_meter": 0.0,
         "emoji": "",
@@ -4367,9 +4423,10 @@ def load_charging_history():
         last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
         if hoursBetween(getTime(), last_item[0]) == 0 and getHour(getTime()) == getHour(last_item[0]):
             try:
-                CURRENT_CHARGING_SESSION = last_item[1]["charging_session"]
-                CHARGING_HISTORY_DB[last_item[0]]["ended"] = ">"
-                _LOGGER.info(f"Adding last charging session to CURRENT_CHARGING_SESSION:\n {pformat(CURRENT_CHARGING_SESSION, width=200, compact=True)}")
+                if "charging_session" in last_item[1]:
+                    CURRENT_CHARGING_SESSION = last_item[1]["charging_session"]
+                    CHARGING_HISTORY_DB[last_item[0]]["ended"] = ">"
+                    _LOGGER.info(f"Adding last charging session to CURRENT_CHARGING_SESSION:\n {pformat(CURRENT_CHARGING_SESSION, width=200, compact=True)}")
             except Exception as e:
                 _LOGGER.error(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}\n  ({last_item})")
                 _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
@@ -4438,6 +4495,9 @@ def charging_history_recalc_price():
                 emoji = CHARGING_HISTORY_DB[start]["emoji"]
                 
                 if ended == ">": return False
+                
+                if "charging_type" in CHARGING_HISTORY_DB[start] and "public_charging" in CHARGING_HISTORY_DB[start]["charging_type"]:
+                    return False
                 
                 if len(sorted_keys) > 1:
                     for i in range(1, min(len(sorted_keys), 20)):
@@ -4566,6 +4626,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
     if CHARGING_HISTORY_DB:
         total = {
             "cost": {"total": 0.0},
+            "public_cost": {"total": 0.0},
             "kwh": {"total": 0.0},
             "percentage": {"total": 0.0},
             "kWh_from_local_energy": {"total": 0.0},
@@ -4646,17 +4707,20 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 charging_session = data["charging_session"] if "charging_session" in data else None
                 ended = data['ended']
                 emoji = data['emoji']
-                percentage = data['percentage']
-                kWh = data["kWh"]
+                percentage = data.get('percentage', 0.0)
+                kWh = data.get('kWh', 0.0)
+                kWh_from_public = data.get("kWh_from_public", 0.0)
                 kWh_from_grid = data.get("kWh_from_grid", 0.0)
                 kWh_from_local_energy = data.get("kWh_from_local_energy", 0.0)
                 solar_kwh_of_local_energy = data.get("solar_kwh_of_local_energy", 0.0)
                 powerwall_kwh_of_local_energy = data.get("powerwall_kwh_of_local_energy", 0.0)
-                cost = data['cost']
+                cost = data.get('cost', 0.0)
+                public_cost = data.get('public_cost', 0.0)
                 unit = data['unit']
                 start_charger_meter = None
                 end_charger_meter = None
                 odometer = None
+                charging_type = []
                 
                 if "start_charger_meter" in data and "end_charger_meter" in data:
                     start_charger_meter = data["start_charger_meter"]
@@ -4670,6 +4734,11 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                         total["odometer_first_charge_datetime"] = when
                     else:
                         total["odometer_first_charge_datetime"] = min(total["odometer_first_charge_datetime"], when)
+                
+                if "charging_type" in data:
+                    if isinstance(data["charging_type"], str):
+                        data["charging_type"] = [data["charging_type"]]
+                    charging_type.extend(data["charging_type"])
                 
                 from_to = "-"
                 
@@ -4695,11 +4764,13 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             started = next_when
                             percentage += next_data['percentage']
                             kWh += next_data["kWh"]
+                            kWh_from_public += next_data.get("kWh_from_public", 0.0)
                             kWh_from_grid += next_data.get("kWh_from_grid", 0.0)
                             kWh_from_local_energy += next_data.get("kWh_from_local_energy", 0.0)
                             solar_kwh_of_local_energy += next_data.get("solar_kwh_of_local_energy", 0.0)
                             powerwall_kwh_of_local_energy += next_data.get("powerwall_kwh_of_local_energy", 0.0)
                             cost += next_data['cost']
+                            public_cost += next_data.get('public_cost', 0.0)
                             if kWh > 0.0:
                                 unit = cost / kWh
                             
@@ -4709,6 +4780,12 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                             if "odometer" in next_data:
                                 if odometer:
                                     odometer = min(odometer, next_data["odometer"])
+                            
+                            if "charging_type" in next_data and next_data["charging_type"] not in charging_type:
+                                if isinstance(next_data["charging_type"], str):
+                                    next_data["charging_type"] = [next_data["charging_type"]]
+                                charging_type.extend(next_data["charging_type"])
+                                charging_type = list(set(charging_type))
                                 
                             skip_counter += 1
                         else:
@@ -4718,6 +4795,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 
                 combined_db[started] = {
                     "cost": round(cost, 3),
+                    "public_cost": round(public_cost, 3),
                     "emoji": emoji,
                     "ended": ended,
                     "kWh": round(kWh, 3),
@@ -4736,6 +4814,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     
                 if odometer is not None:
                     combined_db[started]["odometer"] = odometer
+                    
+                if charging_type:
+                    combined_db[started]["charging_type"] = charging_type
                 
                 if charging_session:
                     combined_db[started]["charging_session"] = charging_session
@@ -4774,6 +4855,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             
             if month not in total['cost']:
                 total['cost'][month] = 0.0
+                total['public_cost'][month] = 0.0
                 total['kwh'][month] = 0.0
                 total['percentage'][month] = 0.0
                 total['kWh_from_public'][month] = 0.0
@@ -4782,30 +4864,32 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                 total['charging_kwh_night'][month] = 0.0
                 total['km'][month] = 0.0
                 
-            total['cost'][month] += data['cost']
-            total['kwh'][month] += data["kWh"]
-            total['percentage'][month] += data['percentage']
+            total['cost'][month] += data.get('cost', 0.0)
+            total['kwh'][month] += data.get('kWh', 0.0)
+            total['percentage'][month] += data.get('percentage', 0.0)
             
             if is_day(when):
-                total['charging_kwh_day'][month] += data["kWh"]
-                total['charging_kwh_day']["total"] += data["kWh"]
+                total['charging_kwh_day'][month] += data.get("kWh", 0.0)
+                total['charging_kwh_day']["total"] += data.get("kWh", 0.0)
             else:
-                total['charging_kwh_night'][month] += data["kWh"]
-                total['charging_kwh_night']["total"] += data["kWh"]
+                total['charging_kwh_night'][month] += data.get("kWh", 0.0)
+                total['charging_kwh_night']["total"] += data.get("kWh", 0.0)
             
             if "kWh_from_local_energy" in data and data['kWh_from_local_energy'] > 0.0:
-                total['kWh_from_local_energy'][month] += data['kWh_from_local_energy']
-                total['kWh_from_local_energy']["total"] += data['kWh_from_local_energy']
+                total['kWh_from_local_energy'][month] += data.get('kWh_from_local_energy', 0.0)
+                total['kWh_from_local_energy']["total"] += data.get('kWh_from_local_energy', 0.0)
                 solar_in_months = True
                 
             if "kWh_from_public" in data and data['kWh_from_public'] > 0.0:
-                total['kWh_from_public'][month] += data['kWh_from_public']
-                total['kWh_from_public']["total"] += data['kWh_from_public']
+                total['kWh_from_public'][month] += data.get('kWh_from_public', 0.0)
+                total['kWh_from_public']["total"] += data.get('kWh_from_public', 0.0)
+                total['public_cost'][month] += data.get('public_cost', 0.0)
+                total['public_cost']["total"] += data.get('public_cost', 0.0)
                 public_charging_in_months = True
 
-            total['cost']["total"] += data['cost']
-            total['kwh']["total"] += data["kWh"]
-            total['percentage']["total"] += data['percentage']
+            total['cost']["total"] += data.get('cost', 0.0)
+            total['kwh']["total"] += data.get('kWh', 0.0)
+            total['percentage']["total"] += data.get('percentage', 0.0)
             
             if "odometer" in data:
                 if month not in total['odometer']:
@@ -4944,8 +5028,9 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             history.append(f"| **{i18n.t('ui.common.total')}** | **{round(total['charging_kwh_day']["total"],1)} ({procent_day}%)** | **{round(total['charging_kwh_night']["total"],1)} ({procent_night}%)** |")
             
             if total['kWh_from_public']['total'] > 0.0 and total['kwh']['total'] > 0.0:
+                total_public_cost = f"{round(total['public_cost']['total'], 2)}{i18n.t('ui.common.valuta')}"
                 total_public_charging_percentage = round(total['kWh_from_public']['total'] / total['kwh']['total'] * 100.0, 1)
-                total_public_charging = f"{round(total['kWh_from_public']['total'], 1)}kWh ({round(total_public_charging_percentage, 1)}%)"
+                total_public_charging = f"{total_public_cost} {round(total['kWh_from_public']['total'], 1)}kWh ({round(total_public_charging_percentage, 1)}%)"
                 history.append("---")
                 history.append(f"\n**{emoji_parse({'public_charging': True})} {i18n.t('ui.charging_history_combine_and_set.public_charing_total')} {total_public_charging}**")
             
@@ -5112,7 +5197,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             _LOGGER.warning(f"ended:{ended} added_percentage:{added_percentage} added_kwh:{added_kwh} cost:{cost} price:{price} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
             CHARGING_HISTORY_DB[start]["ended"] = ended
             
-            if CHARGING_HISTORY_DB[start]["charging_session"]["type"] == "local_energy":
+            if CHARGING_HISTORY_DB[start]["charging_session"]["charging_type"] == "local_energy":
                 if CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] > 0.0:
                     solar_ratio = CHARGING_HISTORY_DB[start]["kWh_from_local_energy"] / CHARGING_HISTORY_DB[start]["kWh"]
                     
@@ -5126,7 +5211,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
         if len(CHARGING_HISTORY_DB) == 0:
             load_charging_history()
         
-        if CURRENT_CHARGING_SESSION['type'] is None and CURRENT_CHARGING_SESSION['start'] is None:
+        if CURRENT_CHARGING_SESSION['charging_type'] is None and CURRENT_CHARGING_SESSION['start'] is None:
             for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
                 if i > 10: break
                 
@@ -5137,7 +5222,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
                     continue
         
         
-        if charging_type != CURRENT_CHARGING_SESSION['type']:
+        if charging_type != CURRENT_CHARGING_SESSION['charging_type']:
             if CURRENT_CHARGING_SESSION['start']:
                 added_kwh, when = get_current_statistic(True)
                 charging_power_to_emulated_battery_level()
@@ -5157,7 +5242,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
         
         if not CURRENT_CHARGING_SESSION['start'] and charging_data:
             start = getTime()
-            CURRENT_CHARGING_SESSION['type'] = charging_type
+            CURRENT_CHARGING_SESSION['charging_type'] = charging_type
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
             
@@ -5180,12 +5265,13 @@ async def _charging_history(charging_data = None, charging_type = ""):
                 "charging_session": CURRENT_CHARGING_SESSION,
                 "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
                 "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
+                "charging_type": charging_type,
             }
             if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
                 odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
                 if odometer:
                     CHARGING_HISTORY_DB[start]["odometer"] = int(odometer)
-            #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['type']}", start.strftime("%Y-%m-%d %H:%M"))
+            #append_overview_output(f"{CURRENT_CHARGING_SESSION['emoji']} {CURRENT_CHARGING_SESSION['charging_type']}", start.strftime("%Y-%m-%d %H:%M"))
             
             charging_power_to_emulated_battery_level()
             
@@ -5216,7 +5302,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "charging_type": charging_type,
             "charging_data": charging_data,
             "session_started": start if 'start' in locals() else False,
-            "session_ended": charging_type != CURRENT_CHARGING_SESSION['type'],
+            "session_ended": charging_type != CURRENT_CHARGING_SESSION['charging_type'],
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
@@ -10208,7 +10294,7 @@ if INITIALIZATION_COMPLETE:
             return
         
         try:
-            if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['type'] == "no_rule":
+            if float(old_value) > 0.0 and float(value) == 0.0 and CURRENT_CHARGING_SESSION['charging_type'] == "no_rule":
                 if not charging_without_rule():
                     TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
                     done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
