@@ -5321,7 +5321,9 @@ def get_hour_prices():
             if "raw_today" in power_prices_attr:
                 for raw in power_prices_attr['raw_today']:
                     if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                        if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) == 0:
+                        if (isinstance(raw['time'], datetime.datetime) and
+                            isinstance(raw['price'], (int, float))  and
+                            daysBetween(current_hour, raw['time']) == 0):
                             hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
                             if hour not in hour_prices:
                                 hour_prices[hour] = []
@@ -5329,7 +5331,9 @@ def get_hour_prices():
                         else:
                             all_prices_loaded = False
                     else:
-                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 0:
+                        if (isinstance(raw['hour'], datetime.datetime) and
+                            isinstance(raw['price'], (int, float)) and
+                            daysBetween(current_hour, raw['hour']) == 0):
                             hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
                         else:
                             all_prices_loaded = False
@@ -5337,7 +5341,9 @@ def get_hour_prices():
             if "forecast" in power_prices_attr:
                 for raw in power_prices_attr['forecast']:
                     if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                        if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) > 0:
+                        if (isinstance(raw['time'], datetime.datetime) and
+                            isinstance(raw['price'], (int, float)) and
+                            daysBetween(current_hour, raw['time']) > 0):
                             hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
                             if hour not in hour_prices:
                                 hour_prices[hour] = []
@@ -5345,7 +5351,9 @@ def get_hour_prices():
                         else:
                             all_prices_loaded = False
                     else:
-                        if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) > 0:
+                        if (isinstance(raw['hour'], datetime.datetime) and
+                            isinstance(raw['price'], (int, float)) and
+                            daysBetween(current_hour, raw['hour']) > 0):
                             hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
                         else:
                             all_prices_loaded = False
@@ -5357,7 +5365,9 @@ def get_hour_prices():
                     else:
                         for raw in power_prices_attr['raw_tomorrow']:
                             if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                                if isinstance(raw['time'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['time']) == 1:
+                                if (isinstance(raw['time'], datetime.datetime) and
+                                    isinstance(raw['price'], (int, float)) and
+                                    daysBetween(current_hour, raw['time']) == 1):
                                     hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
                                     if hour not in hour_prices:
                                         hour_prices[hour] = []
@@ -5365,7 +5375,9 @@ def get_hour_prices():
                                 else:
                                     all_prices_loaded = False
                             else:
-                                if isinstance(raw['hour'], datetime.datetime) and isinstance(raw['price'], (int, float)) and daysBetween(current_hour, raw['hour']) == 1:
+                                if (isinstance(raw['hour'], datetime.datetime) and
+                                    isinstance(raw['price'], (int, float)) and
+                                    daysBetween(current_hour, raw['hour']) == 1):
                                     hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
                                 else:
                                     all_prices_loaded = False
