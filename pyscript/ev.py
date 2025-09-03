@@ -1751,7 +1751,7 @@ def save_error_to_file(error_message, caller_function_name = None):
         if not error_log:
             error_log = dict()
     
-        TASKS[f"{func_prefix}convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, get_debug_info_sections().copy())
+        TASKS[f"{func_prefix}convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, deepcopy(get_debug_info_sections()))
         done, pending = task.wait({TASKS[f"{func_prefix}convert_tuples_to_lists"]})
         
         debug_dict = {
