@@ -4084,7 +4084,7 @@ def drive_efficiency_save_car_stats(bootup=False):
         if LAST_DRIVE_EFFICIENCY_DATA:
             return
         
-        if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level"):
+        if "last_drive_efficiency_data" not in get_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level", error_state={}):
             if not TESTING:
                 return
             
