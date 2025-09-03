@@ -7553,7 +7553,7 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
 def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=False, without_all_exclusion=False, include_local_energy_distribution=False):
     func_name = "local_energy_available"
     _LOGGER = globals()["_LOGGER"].getChild(func_name)
-    global TASKS, POWERWALL_CHARGING_TEXT
+    global TASKS
     
     if not is_solar_configured():
         if include_local_energy_distribution:
