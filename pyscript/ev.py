@@ -10517,7 +10517,7 @@ if INITIALIZATION_COMPLETE:
                     func_prefix = f"{func_name}_"
                     _LOGGER = globals()['_LOGGER'].getChild(func_name)
                     
-                    if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                    if old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
                         return
                     
                     if deactivate_script_enabled():
@@ -10544,7 +10544,7 @@ if INITIALIZATION_COMPLETE:
                     func_prefix = f"{func_name}_"
                     _LOGGER = globals()['_LOGGER'].getChild(func_name)
                     
-                    if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+                    if old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
                         return
                     
                     if deactivate_script_enabled():
@@ -10684,7 +10684,8 @@ if INITIALIZATION_COMPLETE:
         if deactivate_script_enabled():
             return
         
-        if not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
+        if (not is_entity_available(CONFIG['charger']['entity_ids']['kwh_meter_entity_id']) or
+            not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id'])):
             if is_calculating_charging_loss():
                 _LOGGER.error(f"Entities not available, stopping charging loss calculation")
                 my_notify(
