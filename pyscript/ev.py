@@ -4235,7 +4235,7 @@ def drive_efficiency(state=None):
                 )
 
                 if kilometers <= 5.0 or usedBattery <= 2.0:
-                    _LOGGER.warning(f"{kilometers}km <= 5.0 or {usedBattery} usedBattery <= 2.0, ignoring drive")
+                    _LOGGER.warning(f"{kilometers} <= 5.0 or {usedBattery} usedBattery <= 2.0, ignoring drive")
                     return
 
                 if efficiency > 150.0:
