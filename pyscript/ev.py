@@ -1338,6 +1338,8 @@ def format_debug_value(value):
         return [format_debug_value(v) for v in value]
     elif isinstance(value, tuple):
         return tuple([format_debug_value(v) for v in value])
+    elif isinstance(value, asyncio.Task):
+        return str(value)
     return value
 
 def format_debug_table(table):
@@ -1722,6 +1724,7 @@ def save_error_to_file(error_message, caller_function_name = None):
     func_name = "save_error_to_file"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global TASKS
     
     def convert_tuples_to_lists(obj):
         if isinstance(obj, tuple):
@@ -1744,26 +1747,32 @@ def save_error_to_file(error_message, caller_function_name = None):
     filename = f"{__name__}_error_log.yaml"
     
     try:
+        TASKS[f"{func_prefix}get_debug_info_sections"] = task.create(get_debug_info_sections)
         TASKS[f'{func_prefix}error_log'] = task.create(load_yaml, filename)
-        done, pending = task.wait({TASKS[f'{func_prefix}error_log']})
-        error_log = TASKS[f'{func_prefix}error_log'].result()
+        done, pending = task.wait({TASKS[f'{func_prefix}error_log'], TASKS[f"{func_prefix}get_debug_info_sections"]})
         
-        if not error_log:
+        error_log = deepcopy(TASKS[f'{func_prefix}error_log'].result())
+        debug_info_sections = deepcopy(TASKS[f"{func_prefix}get_debug_info_sections"].result())
+        
+        if not isinstance(error_log, dict):
+            _LOGGER.warning(f"Error log file {filename} is not a dictionary, resetting to empty dictionary")
             error_log = dict()
-    
-        TASKS[f"{func_prefix}convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, deepcopy(get_debug_info_sections()))
+        
+        TASKS[f"{func_prefix}convert_tuples_to_lists"] = task.create(convert_tuples_to_lists, debug_info_sections)
         done, pending = task.wait({TASKS[f"{func_prefix}convert_tuples_to_lists"]})
+        
+        live_image = deepcopy(TASKS[f"{func_prefix}convert_tuples_to_lists"].result())
         
         debug_dict = {
             "caller_function_name": caller_function_name,
             "error_message": error_message,
-            "live_image": TASKS[f"{func_prefix}convert_tuples_to_lists"].result(),
+            "live_image": live_image,
         }
+        
         if error_log:
             error_log = limit_dict_size(error_log, 30)
+            
             for timestamp in sorted(list(error_log.keys()), reverse=True):
-                _LOGGER.info(f"Checking timestamp: {timestamp}")
-                continue
                 if minutesBetween(timestamp, getTime()) < 60:
                     _LOGGER.warning("Ignoring error log, as there is already an error logged within the last hour")
                     return
@@ -1771,9 +1780,10 @@ def save_error_to_file(error_message, caller_function_name = None):
                 
         TASKS[f"{func_prefix}remove_anchors"] = task.create(remove_anchors, debug_dict)
         done, pending = task.wait({TASKS[f"{func_prefix}remove_anchors"]})
-        error_log[getTime()] = TASKS[f"{func_prefix}remove_anchors"].result()
+        error_log[getTime()] = deepcopy(TASKS[f"{func_prefix}remove_anchors"].result())
         
-        save_changes(filename, error_log)
+        TASKS[f"{func_prefix}save_changes"] = task.create(save_changes, filename, deepcopy(error_log))
+        done, pending = task.wait({TASKS[f"{func_prefix}save_changes"]})
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
     finally:
@@ -1971,6 +1981,9 @@ def save_changes(file, db):
         TASKS[f'{func_prefix}db_disk_{file}'] = task.create(load_yaml, file)
         done, pending = task.wait({TASKS[f'{func_prefix}db_disk_{file}']})
         db_disk = TASKS[f'{func_prefix}db_disk_{file}'].result()
+        
+        if not isinstance(db_disk, dict):
+            raise Exception(f"Database on disk is not a dictionary for {file}, got {type(db_disk)}")
     except Exception as e:
         _LOGGER.error(f"Error loading {file} from disk: {e}")
         db_disk = {}
