@@ -1,7 +1,12 @@
 # Required: HACS integration (https://hacs.xyz/)
 # Required: config-template-card (https://github.com/iantrich/config-template-card)
 # Required: apexcharts-card (https://github.com/RomRider/apexcharts-card)
-# Optional: Edit refund amount to match your country/state/nation/energy-provider, line 40 and line 144
+# Required: solcast integration (https://www.home-assistant.io/integrations/solcast/) with sensors:
+#   sensor.solcast_pv_forecast_forecast_today, sensor.solcast_pv_forecast_forecast_tomorrow,
+#   sensor.solcast_pv_forecast_forecast_day_3, sensor.solcast_pv_forecast_forecast_day_4,
+#   sensor.solcast_pv_forecast_forecast_day_5, sensor.solcast_pv_forecast_forecast_day_6,
+#   sensor.solcast_pv_forecast_forecast_day_7
+# Optional: Edit refund amount to match your country/state/nation/energy-provider, line 46 and line 155
 
 type: vertical-stack
 cards:
@@ -130,6 +135,11 @@ cards:
         yaxis:
           - id: price
             min: 0
+          - id: solar
+            opposite: true
+            decimals: 1
+            max: ~6.0
+            min: 0
         show:
           loading: true
           last_updated: true
@@ -187,6 +197,68 @@ cards:
               - value: ${vars.price11}
                 color: "#C800C8"
             opacity: 0.75
+            show:
+              in_brush: true
+          - entity: sensor.solcast_pv_forecast_forecast_today
+            yaxis_id: solar
+            type: area
+            name: Solcelle prognose
+            data_generator: >
+              const toUTC00 = (d) => {
+                const x = new Date(d);
+                return new Date(Date.UTC(
+                  x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), x.getUTCHours(), 0, 0, 0
+                ));
+              };
+
+              const map = new Map(); const eds =
+              hass.states['sensor.energi_data_service']?.attributes || {}; const
+              pushZero = (rows) => {
+                (rows || []).forEach(r => {
+                  const key = toUTC00(r.hour).getTime();
+                  if (!map.has(key)) map.set(key, 0);
+                });
+              };
+
+              pushZero(eds.raw_today); pushZero(eds.forecast);
+
+              if (eds.tomorrow_valid) pushZero(eds.raw_tomorrow);
+
+              const overlay = (series) => {
+                (series || []).forEach(row => {
+                  const key = toUTC00(row.period_start).getTime();
+                  map.set(key, row.pv_estimate);
+                });
+              };
+
+
+              overlay(entity.attributes.detailedHourly || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_tomorrow']?.attributes?.detailedHourly
+              || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_day_3']?.attributes?.detailedHourly
+              || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_day_4']?.attributes?.detailedHourly
+              || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_day_5']?.attributes?.detailedHourly
+              || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_day_6']?.attributes?.detailedHourly
+              || []);
+              overlay(hass.states['sensor.solcast_pv_forecast_forecast_day_7']?.attributes?.detailedHourly
+              || []);
+
+              const out = Array.from(map.entries())
+                .sort((a,b) => a[0] - b[0])
+                .map(([k,v]) => [new Date(Number(k)), v]);
+
+              //console.log('solcast ', out);
+
+              return out;
+            color: orange
+            stroke_width: 0
+            opacity: 0.5
+            group_by:
+              func: avg
+              duration: 60min
             show:
               in_brush: true
 grid_options:
