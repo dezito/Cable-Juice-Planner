@@ -10321,7 +10321,135 @@ if INITIALIZATION_COMPLETE:
             )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
-    
+        
+    def public_charging_session(entity_state: str):
+        func_name = "public_charging_session"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        global TASKS, CHARGING_HISTORY_DB, PUBLIC_CHARGING_SESSION
+        
+        current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="away")
+        if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES:
+            return
+        
+        if entity_state in EV_PLUGGED_STATES:
+            if PUBLIC_CHARGING_SESSION:
+                length = len(PUBLIC_CHARGING_SESSION) - 1
+                
+                if not "end_battery_level" in PUBLIC_CHARGING_SESSION[length]:
+                    return
+                        
+            PUBLIC_CHARGING_SESSION.append({"start_battery_level": battery_level()})
+            
+        elif PUBLIC_CHARGING_SESSION and entity_state in EV_UNPLUGGED_STATES:
+            PUBLIC_CHARGING_SESSION[-1].update({
+                "end_battery_level": battery_level(),
+                "added_percentage": round(battery_level() - PUBLIC_CHARGING_SESSION[-1]["start_battery_level"], 1),
+                "timestamp": getTime()
+            })
+            
+            if PUBLIC_CHARGING_SESSION[-1]["added_percentage"] < 0.0:
+                _LOGGER.warning(f"Public charging session: End battery level {PUBLIC_CHARGING_SESSION[-1]['end_battery_level']}% is less than start battery level {PUBLIC_CHARGING_SESSION[-1]['start_battery_level']}%")
+                
+                PUBLIC_CHARGING_SESSION.pop(-1)
+                
+                if not PUBLIC_CHARGING_SESSION:
+                    set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
+                return
+            
+            set_state(f"binary_sensor.{__name__}_public_charging_session_done", "on")
+            set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
+            
+            data = {
+                "actions": [
+                    {
+                        "action": "URI",
+                        "title": i18n.t('ui.public_charging_session.action'),
+                        "uri": f"entityId:input_number.{__name__}_public_charging_session_cost"
+                    }
+                ]
+            }
+            my_notify(
+                i18n.t('ui.public_charging_session.message',
+                       start_battery_level = PUBLIC_CHARGING_SESSION[-1]['start_battery_level'],
+                       end_battery_level = PUBLIC_CHARGING_SESSION[-1]['end_battery_level'],
+                       added_battery_level = PUBLIC_CHARGING_SESSION[-1]['added_percentage']
+                       ),
+                title=f"{TITLE} {i18n.t('ui.public_charging_session.title')}",
+                data=data,
+                notify_list=CONFIG['notify_list'],
+                admin_only=False,
+                always=True
+            )
+        elif (get_public_charging_session_done() and
+              PUBLIC_CHARGING_SESSION and
+              entity_state in "add_to_history"):
+            task.wait_until(timeout=60)
+            
+            cost = get_state(f"input_number.{__name__}_public_charging_session_cost", float_type=True)
+            
+            if cost == -1.0:
+                _LOGGER.info(f"Public charging session cost reset to -1.0, not adding to history")
+                PUBLIC_CHARGING_SESSION.pop(0)
+                
+                if not PUBLIC_CHARGING_SESSION:
+                    set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
+                else:
+                    set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                    set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
+                return
+            
+            current_session = PUBLIC_CHARGING_SESSION.pop(0)
+            
+            
+            added_kwh = percentage_to_kwh(current_session["added_percentage"], include_charging_loss=False)
+            valuta_kwh = cost / added_kwh if added_kwh > 0.0 else 0.0
+            
+            timestamp = getTime()
+            charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+            CHARGING_HISTORY_DB[timestamp] = {
+                "percentage": round(current_session["added_percentage"], 1),
+                "kWh": round(added_kwh, 3),
+                "kWh_from_public": round(added_kwh, 3),
+                "kWh_from_local_energy": 0.0,
+                "solar_kwh_of_local_energy": 0.0,
+                "powerwall_kwh_of_local_energy": 0.0,
+                "cost": round(cost, 3),
+                "public_cost": round(cost, 3),
+                "unit": round(valuta_kwh, 3),
+                "emoji": emoji_parse({'public_charging': True}),
+                "start_charger_meter": charger_meter,
+                "end_charger_meter": charger_meter,
+                "ended": f"{timestamp.strftime('%H:%M')}",
+                "charging_type": "public_charging"
+            }
+            
+            if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
+                odometer = get_state(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], float_type=True, error_state=None)
+                if odometer:
+                    CHARGING_HISTORY_DB[timestamp]["odometer"] = int(odometer)
+
+            if not PUBLIC_CHARGING_SESSION:
+                set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
+            else:
+                set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
+                        
+            try:
+                TASKS[f"{func_prefix}charging_history_combine_and_set"] = task.create(charging_history_combine_and_set)
+                done, pending = task.wait({TASKS[f"{func_prefix}charging_history_combine_and_set"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in {func_name}: {e}")
+                my_persistent_notification(
+                    f"Error in {func_name}: {e}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_error"
+                )
+            finally:
+                task_cancel(func_prefix, task_remove=True, startswith=True)
+        else:
+            _LOGGER.warning(f"Public charging session: Invalid entity_state transition from {entity_state} with {PUBLIC_CHARGING_SESSION}, get_public_charging_session_done()={get_public_charging_session_done()}")
+            
     def wait_until_odometer_stable(func_prefix=None):
         func_name = "wait_until_odometer_stable"
         task.unique(func_name)
@@ -10485,7 +10613,8 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
-                if not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+                if (not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and
+                    not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'])):
                     
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
@@ -10522,7 +10651,63 @@ if INITIALIZATION_COMPLETE:
             finally:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
         
-        if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id']):
+        @time_trigger("startup")
+        def startup_public_charging_session_done(trigger_type=None, var_name=None, value=None, old_value=None):
+            func_name = "startup_public_charging_session_done"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            global PUBLIC_CHARGING_SESSION
+            if get_public_charging_session_done():
+                PUBLIC_CHARGING_SESSION = get_attr(f"binary_sensor.{__name__}_public_charging_session_done", error_state={}).get("public_charging_session", [])
+                
+                if not PUBLIC_CHARGING_SESSION:
+                    set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
+        
+        @state_trigger(f"binary_sensor.{__name__}_public_charging_session_done")
+        def state_trigger_public_charging_session_done(trigger_type=None, var_name=None, value=None, old_value=None):
+            func_name = "state_trigger_public_charging_session_done"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            global PUBLIC_CHARGING_SESSION
+            if value in ENTITY_UNAVAILABLE_STATES: return
+            
+            if value == "off":
+                PUBLIC_CHARGING_SESSION = []
+                set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                state.delete(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session")
+        
+        @state_trigger(f"input_number.{__name__}_public_charging_session_cost")
+        def state_trigger_public_charging_session_cost(trigger_type=None, var_name=None, value=None, old_value=None):
+            func_name = "state_trigger_public_charging_session_cost"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            global TASKS
+            if (value in ENTITY_UNAVAILABLE_STATES or
+                value == 0.0 or
+                deactivate_script_enabled()):
+                return
+            
+            if (not get_public_charging_session_done() or
+                not PUBLIC_CHARGING_SESSION):
+                set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                return
+            
+            task_cancel(func_prefix, task_remove=True, startswith=True, timeout=1.0)
+            
+            try:
+                TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, "add_to_history")
+                done, pending = task.wait({TASKS[f"{func_prefix}public_charging_session"]})
+            except Exception as e:
+                _LOGGER.error(f"Error in {func_name}: {e}")
+                my_persistent_notification(
+                    f"Error in {func_name}: {e}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_error"
+                )
+            finally:
+                task_cancel(func_prefix, task_remove=True, startswith=True)
+                    
+        
+        if (is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or
+            is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'])):
             if is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']):
                 @state_trigger(f"{CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']}")
                 def state_trigger_ev_charger_port(trigger_type=None, var_name=None, value=None, old_value=None):
@@ -10540,7 +10725,8 @@ if INITIALIZATION_COMPLETE:
                     
                     try:
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
-                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                        TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
+                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e}")
                         my_persistent_notification(
@@ -10567,7 +10753,8 @@ if INITIALIZATION_COMPLETE:
                     
                     try:
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
-                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                        TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
+                        done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e}")
                         my_persistent_notification(
