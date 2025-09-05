@@ -1,0 +1,50 @@
+type: conditional
+conditions:
+  - condition: state
+    entity: binary_sensor.ev_public_charging_session_done
+    state: "on"
+card:
+  type: vertical-stack
+  cards:
+    - type: markdown
+      content: >-
+        ## 📎 {{ states.binary_sensor.ev_public_charging_session_done.name }}
+
+        {% if state_attr('binary_sensor.ev_public_charging_session_done',
+        'public_charging_session') | length > 1 -%} <ha-alert alert-type="info">
+        Mangler at indtast omkostninger for **{{
+        state_attr('binary_sensor.ev_public_charging_session_done',
+        'public_charging_session') | length }}** offentlig opladninger
+        </ha-alert>
+
+          | **Offentlig opladninger** |  |
+          |:-----------:|:-----------|
+        {%-for attr in
+        state_attr('binary_sensor.ev_public_charging_session_done',
+        'public_charging_session') %}
+          | ***{{ attr.timestamp }}:*** | {{ attr.start_battery_level }}% ➪ {{ attr.end_battery_level }}% ({{ attr.end_battery_level }}%) |
+        {%- endfor %}
+
+        {%- endif %}
+
+          |  |  |
+          |-----------:|:-----------|
+          | 🕓 **Tidspunkt:** | {{ state_attr('binary_sensor.ev_public_charging_session_done', 'public_charging_session')[0]['timestamp'] }} |
+          | ⛽ **Opladning:** | {{ state_attr('binary_sensor.ev_public_charging_session_done', 'public_charging_session')[0]['start_battery_level'] | int }}% ➪ {{ state_attr('binary_sensor.ev_public_charging_session_done', 'public_charging_session')[0]['end_battery_level'] | int }}% |
+          | 🔋 **Tilføjet:** | {{ state_attr('binary_sensor.ev_public_charging_session_done', 'public_charging_session')[0]['added_percentage'] | int }}% |
+
+
+        **Indtast venligst beløbet i feltet nedenfor.**
+
+
+        *Tilføjes automatisk til historik ~1 min efter indtastning.*
+
+        <center><font color=grey>
+
+        Indtast -1 for at ignorer denne opladning </font></center>
+    - type: custom:mushroom-entity-card
+      entity: input_number.ev_public_charging_session_cost
+      fill_container: false
+      icon: mdi:cash-edit
+grid_options:
+  columns: full
