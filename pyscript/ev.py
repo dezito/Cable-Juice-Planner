@@ -1278,8 +1278,8 @@ def get_hours_plan():
                             not_home_start_emoji += CHARGING_PLAN[day]["emoji"]
                         elif timestamp == workday_end:
                             not_home_end_emoji += CHARGING_PLAN[day]["emoji"]
-                
-            emojis = emoji_parse(CHARGE_HOURS.get(timestamp, ""))
+            
+            emojis = emoji_parse(CHARGE_HOURS.get(timestamp, dict()))
             
             color_start, color_end = (f'<font color="{color}">', "</font>") if color else ("", "")
             
@@ -1287,7 +1287,7 @@ def get_hours_plan():
             
             not_home_start_emoji = f"{not_home_start_emoji}⤵️<br>" if not_home_start_emoji else ""
             not_home_end_emoji = f"<br>{not_home_end_emoji}⤴️" if not_home_end_emoji else ""
-                
+            
             data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
 
         sorted_dates = [f"{i18n.t(f'ui.calendar.weekday_names.{dt.strftime('%a').lower()}')}<br>{dt.strftime('%-d/%-m')}" for dt in sorted(date_objects)]
