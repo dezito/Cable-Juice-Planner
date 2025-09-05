@@ -27,10 +27,21 @@ Der understøttes nuværende & fremtidig prognose solcelle overproduktion, via h
   - Dynamisk ampere begrænsning (til solcelle overproduktion, kun Easee lader indtil videre)
   - (Ved ingen lader integration, skal bilen kunne starte & stoppe ladningen)
 - **Elbil integration eller virtuel elbil**<br>*(Elbil i Home Assistant ellers virtuel elbil, hvor man selv indtaster ladeprocent, ved strømtilkobling)*
+- **Offentlig opladning registrering (hvis elbil integration konfigureret)**
+  - **Guide:**
+    1. Automatisk registrering af tidspunkt, start & stop batteriniveau, tilføjet antal procent
+    2. Efter endt offentlig opladning gemmes dataen
+    3. Hver offentlig opladning indtastes den totale omkostning i **input_number ev_public_charging_session_cost**, efter ca. 1 min tilføjes dataen til historikken *(indtast -1, sletter opladningen)*
+    4. Efter tilføjes, nulstilles **input_number ev_public_charging_session_cost** til 0.0 og næste opladning kan indtastes
+  - Brug evt. kortet **[public_charging_session_done.yaml](cards/public_charging_session_done.yaml)** fra cards mappen
+  - <font color=lightblue>**OBS. hver offentlig opladning indtastes i den rækkefølge der er opladet**</font>
+  - <font color=darkorange>**Dataen slettes ved Home Assistant genstart**</font>
+    
 - **Meget detaljeret opladningshistorik**
   - Hver ladning (Tid, ladegrund, procent, kWh, pris, kr/kWh)
   - Måned oversigt (Måned, Km, kWh, solcelle overproduktion andel, pris, kr/kWh)
   - Ladningsfordeling (Måned, Dag kWh andel, Nat kWh andel)
+  - Offentlig opladning (Total, opladningsandel)
 - **Solcelle over produktion til rådighed i nuværende time eller X minutter tilbage (tilvalg)**
 - **Powerwall understøttelse (tilvalg)**
   - Oplades først til specifik sat batteriniveau
