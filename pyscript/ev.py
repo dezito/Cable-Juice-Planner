@@ -837,7 +837,7 @@ DEFAULT_ENTITIES = {
             "icon": "mdi:percent-outline"
         },
         f"{__name__}_public_charging_session_cost":{
-            "min": -1,
+            "min": -2,
             "max": 5000,
             "step": 0.01,
             "icon":" mdi:cash-edit",
@@ -10328,11 +10328,11 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS, CHARGING_HISTORY_DB, PUBLIC_CHARGING_SESSION
         
-        current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="away")
-        if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES:
-            return
-        
-        if entity_state in EV_PLUGGED_STATES:
+        def _is_not_home() -> bool:
+            current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="away")
+            return True if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES else False
+            
+        if entity_state in EV_PLUGGED_STATES and _is_not_home():
             if PUBLIC_CHARGING_SESSION:
                 length = len(PUBLIC_CHARGING_SESSION) - 1
                 
@@ -10341,7 +10341,7 @@ if INITIALIZATION_COMPLETE:
                         
             PUBLIC_CHARGING_SESSION.append({"start_battery_level": battery_level()})
             
-        elif PUBLIC_CHARGING_SESSION and entity_state in EV_UNPLUGGED_STATES:
+        elif PUBLIC_CHARGING_SESSION and entity_state in EV_UNPLUGGED_STATES and _is_not_home():
             PUBLIC_CHARGING_SESSION[-1].update({
                 "end_battery_level": battery_level(),
                 "added_percentage": round(battery_level() - PUBLIC_CHARGING_SESSION[-1]["start_battery_level"], 1),
@@ -10359,6 +10359,7 @@ if INITIALIZATION_COMPLETE:
             
             set_state(f"binary_sensor.{__name__}_public_charging_session_done", "on")
             set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
+            set_state(f"input_number.{__name__}_public_charging_session_cost", -2.0)
             
             data = {
                 "actions": [
@@ -10383,24 +10384,31 @@ if INITIALIZATION_COMPLETE:
             )
         elif (get_public_charging_session_done() and
               PUBLIC_CHARGING_SESSION and
-              entity_state in "add_to_history"):
+              entity_state == "add_to_history"):
             task.wait_until(timeout=60)
-            
             cost = get_state(f"input_number.{__name__}_public_charging_session_cost", float_type=True)
             
-            if cost == -1.0:
+            if not isinstance(cost, float):
+                _LOGGER.warning(f"Public charging session: Invalid cost {cost}, not adding to history")
+                set_state(f"input_number.{__name__}_public_charging_session_cost", -2.0)
+                return
+            elif cost == 0.0:
+                return
+            elif cost == -1.0:
                 _LOGGER.info(f"Public charging session cost reset to -1.0, not adding to history")
                 PUBLIC_CHARGING_SESSION.pop(0)
                 
                 if not PUBLIC_CHARGING_SESSION:
                     set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
                 else:
-                    set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                    set_state(f"input_number.{__name__}_public_charging_session_cost", -2.0)
                     set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
+                return
+            elif cost < 0.0:
+                set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
                 return
             
             current_session = PUBLIC_CHARGING_SESSION.pop(0)
-            
             
             added_kwh = percentage_to_kwh(current_session["added_percentage"], include_charging_loss=False)
             valuta_kwh = cost / added_kwh if added_kwh > 0.0 else 0.0
@@ -10432,7 +10440,7 @@ if INITIALIZATION_COMPLETE:
             if not PUBLIC_CHARGING_SESSION:
                 set_state(f"binary_sensor.{__name__}_public_charging_session_done", "off")
             else:
-                set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
+                set_state(f"input_number.{__name__}_public_charging_session_cost", -2.0)
                 set_attr(f"binary_sensor.{__name__}_public_charging_session_done.public_charging_session", PUBLIC_CHARGING_SESSION)
                         
             try:
@@ -10681,12 +10689,14 @@ if INITIALIZATION_COMPLETE:
             _LOGGER = globals()['_LOGGER'].getChild(func_name)
             global TASKS
             if (value in ENTITY_UNAVAILABLE_STATES or
-                value == 0.0 or
+                str(value) == "0.0" or
                 deactivate_script_enabled()):
                 return
             
             if (not get_public_charging_session_done() or
-                not PUBLIC_CHARGING_SESSION):
+                not PUBLIC_CHARGING_SESSION or
+                str(value) == "-2.0"):
+                task.wait_until(timeout=0.5)
                 set_state(f"input_number.{__name__}_public_charging_session_cost", 0.0)
                 return
             
@@ -10704,7 +10714,6 @@ if INITIALIZATION_COMPLETE:
                 )
             finally:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
-                    
         
         if (is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) or
             is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'])):

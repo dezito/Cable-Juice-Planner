@@ -1,8 +1,13 @@
 type: conditional
 conditions:
-  - condition: state
-    entity: binary_sensor.ev_public_charging_session_done
-    state: "on"
+  - condition: and
+    conditions:
+      - condition: state
+        entity: binary_sensor.ev_public_charging_session_done
+        state: "on"
+      - condition: numeric_state
+        entity: input_number.ev_public_charging_session_cost
+        above: -2
 card:
   type: vertical-stack
   cards:
