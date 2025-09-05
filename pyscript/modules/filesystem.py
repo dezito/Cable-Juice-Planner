@@ -19,7 +19,7 @@ def get_config_folder():
     """
     return os.getcwd()
 
-def _add_config_folder_path(file_path):
+def add_config_folder_path(file_path):
     if CONFIG_FOLDER not in file_path:
         file_path = f"{CONFIG_FOLDER}/{file_path}"
     return file_path
@@ -54,7 +54,7 @@ async def file_exists(filename=None):
     - bool: True if the file exists, False otherwise.
     """
     _LOGGER = globals()['_LOGGER'].getChild("file_exists")
-    filename = _add_config_folder_path(filename)
+    filename = add_config_folder_path(filename)
     
     try:
         file_exists = os.path.exists(filename)
@@ -74,7 +74,7 @@ async def get_file_modification_time(filename=None):
     - float: The last modification time as a timestamp, or None if an error occurs.
     """
     _LOGGER = globals()['_LOGGER'].getChild("get_file_modification_time")
-    filename = _add_config_folder_path(filename)
+    filename = add_config_folder_path(filename)
     
     if file_exists(filename):
         try:
@@ -95,7 +95,7 @@ async def load_json(filename=None):
     - dict: The content of the JSON file or an empty dictionary if an error occurs.
     """
     _LOGGER = globals()['_LOGGER'].getChild("load_json")
-    filename = _add_config_folder_path(_add_ext(filename, 'json'))
+    filename = add_config_folder_path(_add_ext(filename, 'json'))
     
     if file_exists(filename):
         try:
@@ -121,7 +121,7 @@ async def save_json(filename=None, db=None):
     - bool: True if the file was successfully written, False if an error occurred.
     """
     _LOGGER = globals()['_LOGGER'].getChild("save_json")
-    filename = _add_config_folder_path(_add_ext(filename, 'json'))
+    filename = add_config_folder_path(_add_ext(filename, 'json'))
     
     try:
         async with aiofiles.open(filename, "w", encoding="utf-8") as f:
@@ -132,7 +132,7 @@ async def save_json(filename=None, db=None):
     return False
 
 async def create_yaml(filename=None, db=None):
-    filename = _add_config_folder_path(_add_ext(filename, 'yaml'))
+    filename = add_config_folder_path(_add_ext(filename, 'yaml'))
     if not file_exists(filename):
         save_yaml(filename, db)
         return True
@@ -149,7 +149,7 @@ async def load_yaml(filename=None):
     - dict: The content of the YAML file or an empty dictionary if an error occurs.
     """
     _LOGGER = globals()['_LOGGER'].getChild("load_yaml")
-    filename = _add_config_folder_path(_add_ext(filename, 'yaml'))
+    filename = add_config_folder_path(_add_ext(filename, 'yaml'))
     if file_exists(filename):
         try:
             async with aiofiles.open(filename, 'r', encoding="utf-8") as f:
@@ -170,7 +170,7 @@ async def load_yaml(filename=None):
 async def save_yaml(filename=None, db=None, comment_db=None, max_width=120):
     _LOGGER = globals().get('_LOGGER')
     
-    filename = _add_config_folder_path(_add_ext(filename, 'yaml'))
+    filename = add_config_folder_path(_add_ext(filename, 'yaml'))
 
     try:
         async with aiofiles.open(filename, "w", encoding="utf-8") as f:

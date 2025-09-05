@@ -1,0 +1,772 @@
+_meta:
+  lang: uk-UA
+  project: Cable Juice Planner
+  version: seed-1
+
+app:
+  title: Cable Juice Planner
+
+# ---- charging_type ----
+charging_type:
+  error:
+    description: "Критична помилка, аварійне заряджання"
+  no_rule:
+    description: Заряджання без правила
+  manual:
+    description: Ручне заряджання
+  low_battery:
+    description: Примусове заряджання при низькому денному рівні батареї
+  battery_health:
+    description: Рекомендоване повне заряджання (здоров’я батареї)
+  trip:
+    description: Заряджання перед поїздкою / виїздом
+  public_charging:
+    description: Публічне заряджання
+  first_workday_preparation:
+    description: Підготовка до першого робочого дня
+  second_workday_preparation:
+    description: Підготовка до другого робочого дня
+  third_workday_preparation:
+    description: Підготовка до третього робочого дня
+  fourth_workday_preparation:
+    description: Підготовка до четвертого робочого дня
+  fifth_workday_preparation:
+    description: Підготовка до п’ятого робочого дня
+  sixth_workday_preparation:
+    description: Підготовка до шостого робочого дня
+  seventh_workday_preparation:
+    description: Підготовка до сьомого робочого дня
+  eighth_workday_preparation:
+    description: Підготовка до восьмого робочого дня
+  fill_up:
+    description: "Щотижневе дозаряджання (1-й, 4-й і 7-й день)"
+  under_min_avg_price:
+    description: Нижче середньої ціни за останні 14 днів
+  half_min_avg_price:
+    description: "25% нижче середньої ціни за останні 14 днів"
+  grid_charging:
+    description: Заряджання від мережі
+  solar:
+    description: Заряджання від сонця / надлишкової генерації
+  solar_corrected:
+    description: Досягнуто максимального рівня – надлишок сонячної енергії
+  powerwall:
+    description: Заряджання від домашньої батареї
+  powerwall_avg_symbol:
+    description: Середнє заряджання домашньої батареї
+  battery_stored:
+    description: Споживання з батареї
+  charging_loss:
+    description: Розрахунок втрат під час заряджання
+  sunrise:
+    description: Схід сонця
+  sunset:
+    description: Захід сонця
+  goto:
+    description: Виїзд
+  homecoming:
+    description: Повернення
+  battery_usage:
+    description: "Рівень батареї при виїзді та поверненні"
+  charging_problem:
+    description: Проблеми із заряджанням
+  charging_error:
+    description: Заряджання не вдалося
+
+# ---- config ----
+config:
+  first_run: "**Обов’язково** Після редагування файлу встановіть false"
+  cron_interval: "**Обов’язково** Інтервал між перевіркою стану та виконанням функцій"
+  testing_mode: "У тестовому режимі команди або виклики сервісів до зарядки чи авто не надсилаються"
+
+  charger:
+    entity_ids:
+      status_entity_id: "**Обов’язково** Статус зарядки (Підтримувані стани: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      power_consumtion_entity_id: "**Обов’язково** Потужність заряджання (Вт)"
+      kwh_meter_entity_id: "**Обов’язково** Використовуйте інтегральний сенсор Riemann-sum (метод: ліва сума Рімана), якщо лічильник кВт·год повільний (наприклад Easee); інакше використовуйте лічильник загального ресурсу"
+      lifetime_kwh_meter_entity_id: "**Обов’язково** Альтернатива kwh_meter_entity_id, якщо не хочете використовувати лічильник загального ресурсу"
+      enabled_entity_id: "Увімк./Вимк. зарядний пристрій; не використовується для старт/стоп"
+      dynamic_circuit_limit: "Якщо не задано, charger.entity_ids.start_stop_charging_entity_id має бути встановлено"
+      co2_entity_id: "Energi Data Service CO₂ entity_id"
+      cable_connected_entity_id: "Якщо авто не має сутності 'кабель підключено', використовуйте цю (Підтримувані стани: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      start_stop_charging_entity_id: "Якщо ви використовуєте іншу інтеграцію ніж Easee (наприклад Monta)"
+    power_voltage: "**Обов’язково** Напруга мережі"
+    charging_phases: "**Обов’язково** Доступні фази"
+    charging_max_amp: "**Обов’язково** Максимальний струм заряджання (А)"
+    charging_loss: "**Обов’язково** Може бути обчислено автоматично через WebGUI з input_boolean.{name}_calculate_charging_loss"
+
+  database:
+    power_values_db_data_to_save: "Кількість днів для збереження значень потужності"
+    solar_available_db_data_to_save: "Збережений обсяг за рівнями хмарності"
+    kwh_avg_prices_db_data_to_save: "Збережений обсяг"
+    drive_efficiency_db_data_to_save: "Збережений обсяг"
+    km_kwh_efficiency_db_data_to_save: "Збережений обсяг"
+    charging_history_db_data_to_save: "Зберігати історію на X місяців"
+
+  ev_car:
+    entity_ids:
+      wake_up_entity_id: "Примусове пробудження (залиште порожнім, якщо використовується Hyundai-Kia-Connect з власним сервісом wake-up)"
+      climate_entity_id: "Використовується для попереднього прогріву авто"
+      odometer_entity_id: "**Обов’язково**"
+      estimated_battery_range_entity_id: "**Обов’язково** Має бути точний пробіг"
+      usable_battery_level_entity_id: "**Обов’язково** Має бути точний відсоток батареї"
+      charge_port_door_entity_id: "Стан порту зарядки (відкрито/закрито) (Підтримувані стани: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_cable_entity_id: "Кабель підключено до авто (Підтримувані стани: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_switch_entity_id: "Старт/стоп зарядки в авто (очікується switch on/off або виклик сервісу)"
+      charging_limit_entity_id: "Встановлення ліміту зарядки (%)"
+      charging_amps_entity_id: "Встановлення струму зарядки (А)"
+      location_entity_id: "Якщо не задано, використовується charger.entity_ids.status_entity_id"
+      last_update_entity_id: "Визначає, коли надсилати wake-up"
+    battery_size: "**Обов’язково** Корисна ємність батареї; перевірте через OBD2"
+    min_daily_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    min_trip_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    min_charge_limit_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    max_recommended_charge_limit_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    very_cheap_grid_charging_max_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    ultra_cheap_grid_charging_max_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
+    typical_daily_distance_non_working_day: "**Обов’язково** Може бути змінено через WebGUI"
+
+  forecast:
+    entity_ids:
+      hourly_service_entity_id: "**Обов’язково при сонці** Сутність годинного прогнозу"
+      daily_service_entity_id: "**Обов’язково при сонці** Сутність денного прогнозу"
+      outdoor_temp_entity_id: "Використовується для точнішого прогріву/розморожування ніж forecast"
+
+  home:
+    entity_ids:
+      power_consumption_entity_id: "Споживання будинку (Вт), не споживання мережі"
+      powerwall_watt_flow_entity_id: "Потік потужності батареї будинку (плюс=розряд, мінус=заряд; можна інвертувати). Порада: вимкніть розряд під час зарядки EV"
+      powerwall_battery_level_entity_id: "Використовується з solar.ev_charge_after_powerwall_battery_level"
+      ignore_consumption_from_entity_ids: "Список сенсорів, які ігноруються"
+    power_consumption_entity_id_include_powerwall_charging: "Споживання будинку + заряд батареї (Вт)"
+    power_consumption_entity_id_include_powerwall_discharging: "Споживання будинку + розряд батареї (Вт)"
+    invert_powerwall_watt_flow_entity_id: "Інвертувати знак для home.entity_ids.powerwall_watt_flow_entity_id"
+
+  language: "Мова інтерфейсу (Підтримуються: en-GB, en-US, da-DK, de-DE, pl-PL, uk-UA)"
+
+  notification:
+    efficiency_on_cable_plug_in: "Сповіщення про ефективність останньої поїздки при підключенні кабелю"
+    update_available: "Сповіщення опівночі та при старті скрипту, якщо доступне оновлення"
+    preheating: "Сповіщення при старті/зупинці прогріву"
+  notify_list: "Список користувачів для сповіщень"
+
+  prices:
+    entity_ids:
+      power_prices_entity_id: "**Обов’язково** Сутність ціни енергії (Energi Data Service)"
+    refund: "Сума компенсації від держави/постачальника"
+
+  solar:
+    entity_ids:
+      production_entity_id: "Виробіток сонця (Вт)"
+      forecast_entity_id: "Прогноз сонця (Вт) (Підтримка: Solcast PV Forecast)"
+    solarpower_use_before_minutes: "Кількість хвилин 'позики' від надлишкової генерації"
+    max_to_current_hour: "Вимагати використання надлишку у поточній годині"
+    allow_grid_charging_above_solar_available: "Допустима різниця у Вт вище(+)/нижче(−) надлишку"
+    charging_single_phase_min_amp: "Мінімальний струм для 1 фази; 0 = вимкнено"
+    charging_single_phase_max_amp: "Максимальний струм для 1 фази; 0 = вимкнено"
+    charging_three_phase_min_amp: "Мінімальний струм для 3 фаз"
+    charging_three_phase_max_amp: "Максимальний струм для 3 фаз; 0 = вимкнено"
+    production_price: "Встановіть -1.0 для використання ціни споту; можна змінити через WebGUI"
+    ev_charge_after_powerwall_battery_level: "Заряд EV після рівня батареї будинку (%). Налаштовується через input_number.{name}_ev_charge_after_powerwall_battery_level. 0 = вимкнено. **Потребує** powerwall_battery_level_entity_id"
+    powerwall_battery_size: "Ємність батареї будинку (кВт·год)"
+    inverter_discharging_power_limit: "Ліміт потужності розряду інвертора (Вт)"
+    powerwall_charging_power_limit: "Ліміт потужності заряду батареї будинку (Вт)"
+    powerwall_discharging_power: "Потужність розряду батареї (Вт) для EV вище порогу"
+    enable_selling_during_expensive_hours: "Увімкнути продаж у дорогі години; якщо вимкнено, сонце йде на EV. input_number.{name}_solar_sell_fixed_price = -1.0"
+
+# ---- entity ----
+entity:
+  # ---- input_button ----
+  input_button:
+    trip_reset:
+      name: "Скинути заряд подорожі"
+      description: "Скинути параметри заряджання для поїздки"
+    enforce_planning:
+      name: "Примусове планування"
+      description: "Перерахувати план заряджання"
+    restart_script:
+      name: "Перезапустити скрипт"
+      description: "Перезапустити скрипт"
+
+  # ---- input_boolean ----
+  input_boolean:
+    debug_log:
+      name: "{name}.py журнал налагодження"
+      description: "{name}.py журнал налагодження"
+    forced_charging_daily_battery_level:
+      name: "Примусове заряджання нижче денного рівня"
+      description: "Увімкнути заряд, якщо нижче денного мінімуму"
+    allow_manual_charging_now:
+      name: "Дозволити ручне заряджання зараз"
+      description: "Дозволити ручне заряджання від мережі/сонця"
+    allow_manual_charging_solar:
+      name: "Дозволити лише сонячне ручне заряджання"
+      description: "Обмежити ручне заряджання лише надлишком сонця"
+    solar_charging:
+      name: "Заряджання надлишком сонця"
+      description: "Використовувати надлишок; тижневе планування за прогнозом"
+    fill_up:
+      name: "Оптимальне тижневе заряджання (без роб. плану)"
+      description: "Розподіл за потребою; пріоритет дешевих годин"
+    workplan_charging:
+      name: "Заряджання за робочим планом"
+      description: "Щоденне планування за роб. днями, виїздом і відстанню"
+    deactivate_script:
+      name: "Деактивувати скрипт"
+      description: "Вимкнути керування зарядкою та авто"
+    trip_preheat:
+      name: "Попередній прогрів для поїздки"
+      description: "Прогрівати авто перед виїздом за потреби"
+
+    workday_monday:
+      name: "Понеділок робочий"
+      description: "Позначити понеділок як робочий день"
+    workday_tuesday:
+      name: "Вівторок робочий"
+      description: "Позначити вівторок як робочий день"
+    workday_wednesday:
+      name: "Середа робоча"
+      description: "Позначити середу як робочий день"
+    workday_thursday:
+      name: "Четвер робочий"
+      description: "Позначити четвер як робочий день"
+    workday_friday:
+      name: "П’ятниця робоча"
+      description: "Позначити п’ятницю як робочий день"
+    workday_saturday:
+      name: "Субота робоча"
+      description: "Позначити суботу як робочий день"
+    workday_sunday:
+      name: "Неділя робоча"
+      description: "Позначити неділю як робочий день"
+
+    preheat_monday:
+      name: "Прогрів у понеділок"
+      description: "Прогрівати авто по понеділках"
+    preheat_tuesday:
+      name: "Прогрів у вівторок"
+      description: "Прогрівати авто по вівторках"
+    preheat_wednesday:
+      name: "Прогрів у середу"
+      description: "Прогрівати авто по середах"
+    preheat_thursday:
+      name: "Прогрів у четвер"
+      description: "Прогрівати авто по четвергах"
+    preheat_friday:
+      name: "Прогрів у п’ятницю"
+      description: "Прогрівати авто по п’ятницях"
+    preheat_saturday:
+      name: "Прогрів у суботу"
+      description: "Прогрівати авто по суботах"
+    preheat_sunday:
+      name: "Прогрів у неділю"
+      description: "Прогрівати авто по неділях"
+
+    calculate_charging_loss:
+      name: "Розрахувати втрати заряджання"
+      description: "Автоматизувати повний цикл, зберегти та сповістити"
+    powerwall_discharge_above_needed:
+      name: "Надлишок домашньої батареї в EV"
+      description: "Розряд понад потреби будинку в EV (потрібне solar_charging)"
+
+  # ---- input_number ----
+  input_number:
+    co2_emitted:
+      name: "Викиди CO₂"
+      description: "CO₂ у кг за фактором Energi Data Service"
+      unit_of_measurement: кг
+    kwh_charged_by_solar:
+      name: "кВт·год заряджено від сонця"
+      description: "кВт·год, заряджені сонячною енергією"
+    solar_sell_fixed_price:
+      name: "Фіксована ціна продажу сонця"
+      description: "Фіксована ціна продажу, для розрахунку надлишку.
+        -1.0 — використовувати погодинну спотову ціну."
+      unit_of_measurement: ₴/кВт·год
+    preheat_minutes_before:
+      name: "Прогрів за X хвилин"
+      description: "Прогрівати авто за X хвилин до виїзду (якщо увімкнено)"
+    typical_daily_distance:
+      name: "Типова денна відстань (вихідний)"
+      description: "Типова відстань у км для планування заряджання.
+        Потрібне input_boolean.ev_fill_up."
+      unit_of_measurement: км
+    workday_distance_needed_monday:
+      name: "Понеділок — відстань"
+      description: "Км для заряджання на понеділок"
+      unit_of_measurement: км
+    workday_distance_needed_tuesday:
+      name: "Вівторок — відстань"
+      description: "Км для заряджання на вівторок"
+      unit_of_measurement: км
+    workday_distance_needed_wednesday:
+      name: "Середа — відстань"
+      description: "Км для заряджання на середу"
+      unit_of_measurement: км
+    workday_distance_needed_thursday:
+      name: "Четвер — відстань"
+      description: "Км для заряджання на четвер"
+      unit_of_measurement: км
+    workday_distance_needed_friday:
+      name: "П’ятниця — відстань"
+      description: "Км для заряджання на п’ятницю"
+      unit_of_measurement: км
+    workday_distance_needed_saturday:
+      name: "Субота — відстань"
+      description: "Км для заряджання на суботу"
+      unit_of_measurement: км
+    workday_distance_needed_sunday:
+      name: "Неділя — відстань"
+      description: "Км для заряджання на неділю"
+      unit_of_measurement: км
+    min_daily_battery_level:
+      name: "Мін. рівень при поверненні"
+      description: "Мінімальний денний рівень батареї (%) при поверненні"
+    min_trip_battery_level:
+      name: "Мін. рівень після поїздки"
+      description: "Мінімальний рівень батареї (%) після поїздки"
+    min_charge_limit_battery_level:
+      name: "Мінімальна межа заряджання EV"
+      description: "Нижній поріг цілі заряджання (%)"
+    max_recommended_charge_limit_battery_level:
+      name: "Макс. рекомендована межа EV"
+      description: "Рекомендована щоденна ціль заряджання (%)"
+    very_cheap_grid_charging_max_battery_level:
+      name: "Рівень при дуже дешевій енергії"
+      description: "Заряджати до цього рівня (%) за дуже низької ціни"
+    ultra_cheap_grid_charging_max_battery_level:
+      name: "Рівень при наддешевій енергії"
+      description: "Заряджати до цього рівня (%) за наднизької ціни"
+    battery_level:
+      name: "Віртуальний рівень батареї EV"
+    completed_battery_level:
+      name: "Рівень після завершення заряджання"
+      description: "Для відсутньої інтеграції EV — рівень «заряд завершено»"
+    estimated_total_range:
+      name: "Віртуальний макс. пробіг EV"
+      description: "Без інтеграції EV — оцінка загального пробігу в км"
+      unit_of_measurement: км
+    trip_charge_procent:
+      name: "Ціль заряджання для поїздки"
+      description: "Бажаний рівень батареї (%) на виїзд"
+    trip_range_needed:
+      name: "Км, потрібні для поїздки"
+      description: "Бажана відстань у км; буде конвертовано у %"
+      unit_of_measurement: км
+    full_charge_recommended:
+      name: "Повна зарядка кожні"
+      description: "Рекомендована повна зарядка щонайменше раз на X днів; 0 = вимк."
+      unit_of_measurement: день(дні)
+    ev_charge_after_powerwall_battery_level:
+      name: "Заряд EV після мін. рівня домашньої батареї"
+      description:
+        "Заряд EV з домашньої батареї, коли її рівень вище порогу (%).
+        0 = вимкнено. Потрібен input_boolean.ev_solar_charging."
+    public_charging_session_cost:
+      name: "Вартість публічного заряджання"
+      description: "Вартість останнього публічного заряджання (не ₴/кВт·год)"
+      unit_of_measurement: ₴
+
+  # ---- input_datetime ----
+  input_datetime:
+    workday_departure_monday:
+      name: "Понеділок — виїзд"
+      description: "Час виїзду на роботу в понеділок"
+    workday_departure_tuesday:
+      name: "Вівторок — виїзд"
+      description: "Час виїзду на роботу у вівторок"
+    workday_departure_wednesday:
+      name: "Середа — виїзд"
+      description: "Час виїзду на роботу в середу"
+    workday_departure_thursday:
+      name: "Четвер — виїзд"
+      description: "Час виїзду на роботу в четвер"
+    workday_departure_friday:
+      name: "П’ятниця — виїзд"
+      description: "Час виїзду на роботу в п’ятницю"
+    workday_departure_saturday:
+      name: "Субота — виїзд"
+      description: "Час виїзду на роботу в суботу"
+    workday_departure_sunday:
+      name: "Неділя — виїзд"
+      description: "Час виїзду на роботу в неділю"
+
+    workday_homecoming_monday:
+      name: "Понеділок — повернення"
+      description: "Час повернення в понеділок"
+    workday_homecoming_tuesday:
+      name: "Вівторок — повернення"
+      description: "Час повернення у вівторок"
+    workday_homecoming_wednesday:
+      name: "Середа — повернення"
+      description: "Час повернення в середу"
+    workday_homecoming_thursday:
+      name: "Четвер — повернення"
+      description: "Час повернення в четвер"
+    workday_homecoming_friday:
+      name: "П’ятниця — повернення"
+      description: "Час повернення в п’ятницю"
+    workday_homecoming_saturday:
+      name: "Субота — повернення"
+      description: "Час повернення в суботу"
+    workday_homecoming_sunday:
+      name: "Неділя — повернення"
+      description: "Час повернення в неділю"
+
+    trip_date_time:
+      name: "Виїзд EV"
+      description: "Дата й час виїзду EV"
+    trip_homecoming_date_time:
+      name: "Повернення EV"
+      description: "Дата й час повернення EV"
+    last_full_charge:
+      name: "Остання повна зарядка"
+      description: "Дата й час останньої повної зарядки"
+
+  # ---- binary_sensor ----
+  binary_sensor:
+    public_charging_session_done:
+      friendly_name: "Публічне заряджання завершено"
+      description: "Позначте, що публічне заряджання завершено, і потрібно ввести вартість"
+
+  # ---- sensor ----
+  sensor:
+    solar_over_production_current_hour:
+      friendly_name: "Доступна сонячна генерація за цю годину"
+      description: "Сонячна генерація, доступна в поточну годину (Вт)"
+    solar_charged_percentage:
+      friendly_name: "Частка заряджання від сонця"
+      description: "Відсоток заряджання від сонячної енергії"
+    drive_efficiency:
+      friendly_name: "Ефективність поїздки"
+      description: "Ефективність на основі прогріву, пробігу та споживання"
+    km_per_kwh:
+      friendly_name: "км/кВт·год"
+      description: "Кілометри на кВт·год"
+      unit_of_measurement: км/кВт·год
+    estimated_range:
+      friendly_name: "Оцінений пробіг"
+      description: "Оцінений пробіг на основі рівня батареї та EMA"
+      unit_of_measurement: км
+    drive_efficiency_last_battery_level:
+      friendly_name: "Рівень батареї під час останньої зарядки"
+      description: "Рівень батареї при останньому заряджанні (%)"
+    drive_efficiency_last_odometer:
+      friendly_name: "Пробіг при останньому заряджанні"
+      description: "Пробіг при останньому заряджанні (км)"
+      unit_of_measurement: км
+    charge_very_cheap_battery_level:
+      friendly_name: "Ціль при дуже дешевій енергії"
+      description: "Ціль, коли ціна нижче найнижчої за останні 14 днів"
+    charge_ultra_cheap_battery_level:
+      friendly_name: "Ціль при наддешевій енергії"
+      description: "Ціль, коли ціна на 25% нижче найнижчої за останні 14 днів"
+    kwh_cost_price:
+      friendly_name: "Вартість кВт·год"
+      description: "Вартість електроенергії за кВт·год, включно з компенсацією та продажем сонця"
+      unit_of_measurement: ₴/кВт·год
+    current_charging_rule:
+      friendly_name: "Поточне правило заряджання"
+    emoji_description:
+      friendly_name: "Пояснення emoji"
+    overview:
+      friendly_name: "Огляд"
+    charging_history:
+      friendly_name: "Історія заряджання"
+
+# ---- ui ----
+ui:
+  common:
+    distance_type: "км"
+    distance_kwh: "км/кВт·год"
+    distance_percentage: "км/%"
+    wh_distance: "Вт·год/км"
+    valuta: "₴"
+    valuta_distance: "₴/км"
+    valuta_kwh: "₴/кВт·год"
+    valuta_percentage: "₴/%"
+    time: "Час"
+    price: "Ціна"
+    total: "Разом"
+    expense: "Витрати"
+    drive_efficiency: "Ефективність поїздки"
+
+  calendar:
+    month_names:
+      jan: "Січ"
+      feb: "Лют"
+      mar: "Бер"
+      apr: "Кві"
+      may: "Тра"
+      jun: "Чер"
+      jul: "Лип"
+      aug: "Сер"
+      sep: "Вер"
+      oct: "Жовт"
+      nov: "Лис"
+      dec: "Гру"
+      january: "Січень"
+      february: "Лютий"
+      march: "Березень"
+      april: "Квітень"
+      may_full: "Травень"
+      june: "Червень"
+      july: "Липень"
+      august: "Серпень"
+      september: "Вересень"
+      october: "Жовтень"
+      november: "Листопад"
+      december: "Грудень"
+    weekday_names:
+      mon: "Пн"
+      tue: "Вт"
+      wed: "Ср"
+      thu: "Чт"
+      fri: "Пт"
+      sat: "Сб"
+      sun: "Нд"
+      monday: "Понеділок"
+      tuesday: "Вівторок"
+      wednesday: "Середа"
+      thursday: "Четвер"
+      friday: "П’ятниця"
+      saturday: "Субота"
+      sunday: "Неділя"
+
+  tasks:
+    closing_progress: "Закриття потоків"
+    closed_done: "Потоки закрито — готово"
+    not_all_closed: "Не всі потоки вдалося закрити"
+
+  # ---- prices ----
+  get_hours_plan:
+    header: "Ціни на електроенергію"
+
+  recreate_hardlinks:
+    success: "Жорсткі посилання відновлено"
+    error: "Помилка відновлення жорстких посилань"
+
+  repo:
+    no_updates_available_title: "Перевірка оновлень"
+    no_updates_available: "Оновлень немає"
+    new_update_available_title: "Доступне нове оновлення"
+    new_update_available_changes: "Зміни"
+    new_update_available_changes_behind: "відставання"
+    update_error_check: "Помилка під час перевірки оновлень"
+    updated_success: "Оновлення успішно завершено"
+    update_error: "Помилка під час оновлення"
+
+  entity_unavailable:
+    title: "Сутність недоступна"
+    message: "Сутність '{entity}' недоступна з {timestamp}"
+    restart_integration: "Перезапуск інтеграції"
+
+  set_charging_rule:
+    hour_limit: "Досягнуто погодинний ліміт"
+    day_limit: "Досягнуто денний ліміт"
+
+  restart_script:
+    message: "Перезапуск скрипту"
+
+  notify_critical_change:
+    title: "Критична зміна конфігурації"
+    important_header: "Важлива зміна"
+    critical_change_message: "Сталася критична зміна, потрібно оновити файл {name}_config.yaml."
+    new_config_keys: "Нові ключі конфігурації"
+    action: "Дія"
+    update_config_file: "Оновіть, будь ласка, {name}_config.yaml"
+    new_entities_added: "Додано нові сутності."
+    entity_description: "Деталі див. в описах сутностей."
+    new_entities: "Нові сутності"
+    add_new_entities: "Додайте нові сутності до Dashboard."
+    critical_entities_change: "Критична зміна сутностей"
+
+  init:
+    script_starting: "Запуск скрипту"
+    file_created_message: "Файл конфігурації створено: {file_path}"
+    add_entities: "Додайте нові сутності до Dashboard."
+    yaml_file_created: "YAML-файл створено: {file_path}"
+    restart_required: "Перезапустіть Home Assistant для застосування змін"
+    error_loading: "Повторне завантаження {file_path} за 5 с — сталася помилка"
+    created: "Створено"
+    renamed_to: "перейменовано на"
+    config_renamed_keys: "Ключі конфігурації перейменовано у {file_path}"
+    entities_renamed: "Сутності перейменовано у {file_path}"
+    deprecated_keys_title: "Застарілі ключі"
+    deprecated_keys_in: "Застарілі ключі у {file_path}"
+    remove_these_keys: "Вилучіть ці ключі"
+    config_updated: "Конфігурацію {file_path} оновлено"
+    entities_package_updated: "Пакет сутностей {file_path} оновлено"
+    first_run_warning: "Встановіть first_run у {file_path} = false"
+    loading_config: "Завантаження конфігурації"
+    charger_not_configured: "Зарядка не налаштована; без інтеграції використовуйте сутності EV"
+    script_stopped: "Скрипт зупинено"
+    check_log: "Перевірте журнал для деталей"
+
+  get_all_entities:
+    all_entities: "Усі сутності"
+    sensors: "Датчики"
+
+  emoji_description:
+    header: "Опис emoji"
+    markdown_hint: "Використайте картку Markdown з: {{{{ states.sensor.{name}_emoji_description.attributes.description }}}}"
+
+  set_default_entity_states:
+    markdown_guide: "Картка Markdown з: {{{{ states.sensor.{name}_overview.attributes.overview }}}}"
+    no_overview: "Поки що немає огляду"
+
+  drive_efficiency:
+    title: "Ефективність останньої поїздки"
+    distance: "Відстань"
+    used: "Використано"
+
+  load_charging_history:
+    default_state: "Картка Markdown з: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}"
+
+  charging_history_combine_and_set:
+    too_big_warning: "Home Assistant не може показати більше історії"
+    more_history: "Показати більше історії"
+    month: "Місяць"
+    estimated_distance: "Оцінені км за споживанням та ефективністю"
+    charging_allocation: "Розподіл заряджання"
+    day_kwh: "День кВт·год"
+    night_kwh: "Ніч кВт·год"
+    public_charging_total: "Загальне публічне заряджання"
+
+  cheap_grid_charge_hours:
+    entity_not_in_domain: "Неможливо отримати ціни; {entity} не у домені sensor"
+    work_goto_equals_work_homecoming: "{day} виїзд збігається з поверненням"
+    work_distance_zero: "Робоча відстань {day} дорівнює 0 км"
+    workplan_settings_error: "Помилка налаштування заряджання за робочим планом"
+    last_drive_efficiency:
+      title: "Ефективність останньої поїздки"
+      drive_date: "Дата поїздки"
+      last_distance: "Відстань"
+      used_battery: "Використано батареї"
+      distance_per_kwh: "Відстань на кВт·год"
+    battery_level_expenses:
+      title: "Витрати за рівнем батареї"
+      current_battery_level: "Поточний рівень батареї"
+      solar_share: "Частка сонця"
+      unit_price: "Ціна за одиницю"
+    planning_basis: "Показати основу планування"
+    charging_overview_title: "Огляд заряджання"
+    offline_prices: "Використання офлайн-цін для деяких годин"
+    no_upcoming_charging_planned: "Запланованого заряджання немає"
+    enough_solar_production: "Достатньо сонячної генерації для заряджання"
+    departure_plan:
+      title: "План виїздів"
+      day: "День"
+      need: "Потреба"
+      sun: "Сонце"
+      no_departure_planned: "Виїзди не заплановано"
+      solar: "сонце"
+      plan_include_estimations: "План містить оціночні витрати мережі, {work_overview_solar_text}рівень батареї"
+      estimated_daily_charging: "Денна оцінка {alternative_cost}₴ {alternative_per_kwh}₴/кВт·год<br>за різниці {total_kwh}кВт·год — {difference_cost}₴"
+      estimated_daily_charging_plan: "Огляд заряджання (**Денна оцінка заряджання**)"
+    solar_production_title: "Надлишкова сонячна генерація"
+    last_scheduled: "Останнє планування"
+
+  max_local_energy_available_remaining_period:
+    powerwall_not_charging_but_should: "Домашня батарея {powerwall_battery_level}% не заряджається, хоча < {powerwall_reserved_battery_level}%"
+    powerwall_force_stop: "Домашню батарею зупинено x̄{powerwall_charging_consumption}Вт — заряджання пізніше"
+    powerwall_charging: "Домашня батарея заряджається x̄{powerwall_charging_consumption}Вт"
+    powerwall_discharging: "Домашня батарея розряджається x̄{powerwall_discharging_available}Вт"
+
+  preheat_ev:
+    preheating: "Прогрів"
+    thawing: "Розморожування"
+    preheat_start: "{heating_type} авто до {time}"
+    preheat_cancel: "Прогрів скасовано; поїздки о {time} немає"
+
+  ready_to_charge:
+    cable_disconnected: "Кабель заряджання від’єднано"
+    cable_connected_ev_not_home: "Кабель підключено, але авто не вдома"
+    cable_connected_ev_not_updated: "Кабель підключено, але авто не оновлено"
+    cable_connected_not_to_ev: "Кабель не підключено до EV\nСпроба розбудити авто"
+    charge_port_closed: "Порт заряджання EV зачинено\nСпроба розбудити авто"
+    ev_unavailable: "Порт або кабель EV недоступні\nСпроба розбудити авто"
+
+  is_charging:
+    charging_again: "EV знову заряджається"
+    charging_failed: "Заряджання не вдалося"
+    fail_title: "Помилка заряджання EV"
+    charger_unavailable: "Зарядний пристрій недоступний"
+    charger_error: "Критична помилка зарядного пристрою; перевірте інтеграцію чи застосунок"
+    charger_dynamic_failed: "Збій динамічного ліміту струму"
+    charger_restart: "Перезапуск зарядного пристрою"
+    charger_restart_count: "Перезапуск зарядного, спроба {count}"
+    charger_control_restart_count: "Перезапуск оператора зарядки, спроба {count}"
+    ev_not_charging: "EV заряджається некоректно"
+    ev_restart_count: "Перезапуск заряджання EV, спроба {count}"
+
+  charging_without_rule:
+    charging_no_rule: "Заряджання без правила {watt}Вт"
+    entities_not_available: "Недоступні сутності"
+    check_options: "Перевірте:\n- Перезапустіть залежні офлайн-інтеграції\n- Перезапустіть Home Assistant"
+    ev_charging_no_rule: "EV заряджається без правила"
+    restart_integration: "Сутність \"{entity_id}\" заряджається без правила\nПерезапуск {integration}"
+
+  charge_if_needed:
+    script_deactivated: "Вимкнено"
+    no_charging_modes_active: "Немає активних правил\nЗаряджання {watt}Вт"
+    charging_loss: "Обчислення втрат, заряд до {percentage}%"
+    manual_charging: "Дозволено ручне заряджання {watt}Вт"
+    manual_charging_solar: "Ручне (лише сонце) {watt}Вт"
+    planned_charging: "Заряд до {emoji}"
+    low_battery_but_expensive: "Не заряджаємо — надто дорого"
+    low_battery: "Заряджаємо: батарея < {percentage}%"
+    solar_production_but_expensive: "Продаємо надлишок сонця — висока спотова ціна ({price}₴)"
+    solar: "Сонце"
+    powerwall: "Домашня батарея"
+    local_energy_charging: "{local_energy} заряджає {watt}Вт"
+    local_energy_charging_not_needed: "Сонце не заряджає — рівень > {percentage}%"
+    not_charging: "Не заряджаємо"
+
+  notify_set_battery_level:
+    action: "Встановити рівень батареї"
+    title: "Рівень батареї EV"
+    message: "Не забудьте встановити рівень батареї EV у Home Assistant"
+
+  notify_battery_under_daily_battery_level:
+    action: "Увімкнути примусове заряджання"
+    title: "Рівень батареї EV нижче денного мінімуму"
+    message: "Батарея нижче денного цільового рівня — можна увімкнути примусове заряджання"
+    no_charge_expensive_hours: "Не заряджаємо у 3 найдорожчі години"
+
+  startup:
+    configuration:
+      header: "Конфігурація"
+      charger: "Зарядний пристрій налаштовано"
+      ev: "EV налаштовано"
+      solar: "Сонячну генерацію налаштовано"
+      powerwall: "Домашню батарею налаштовано"
+      configured: "Так"
+      not_configured: "Ні"
+    setting_entities: "Налаштування сутностей"
+    loading_db: "Завантаження баз даних"
+    loading_history: "Завантаження історії заряджання"
+    almost_ready: "Майже готово"
+    ev:
+      range: "Пробіг"
+      battery_level: "Рівень батареї"
+      estimated_range: "Оцінений пробіг"
+    calc_charging_plan: "Розрахунок плану заряджання"
+    call_all_entities: "Викличте сервіс pyscript.ev_all_entities, щоб переглянути всі сутності"
+
+  charging_rule_changed:
+    charging_rule_conflict: "Конфлікт правил заряджання"
+    deactivate_optimal_rule: "Вимкнути оптимальне тижневе заряджання"
+    deactivate_workplan_rule: "Вимкнути заряджання за робочим планом"
+    reason: "Ці два режими не можуть бути активні одночасно"
+
+  public_charging_session:
+    title: "Публічне заряджання завершено"
+    message: "Будь ласка, введіть вартість публічного заряджання\nЗарядка була з {start_battery_level}% до {end_battery_level}%\nДодано {added_battery_level}%"
+    action: "Ввести вартість"
+
+  calculate_charging_loss:
+    title: "Розрахунок втрат заряджання"
+    calculated: "Втрати заряджання обчислені: {percentage}%"
+
+  shutdown: "Завершення роботи скрипту\nЗбереження конфігураційного файлу"
