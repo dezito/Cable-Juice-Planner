@@ -1278,8 +1278,8 @@ def get_hours_plan():
                             not_home_start_emoji += CHARGING_PLAN[day]["emoji"]
                         elif timestamp == workday_end:
                             not_home_end_emoji += CHARGING_PLAN[day]["emoji"]
-                
-            emojis = emoji_parse(CHARGE_HOURS.get(timestamp, ""))
+            
+            emojis = emoji_parse(CHARGE_HOURS.get(timestamp, dict()))
             
             color_start, color_end = (f'<font color="{color}">', "</font>") if color else ("", "")
             
@@ -1287,7 +1287,7 @@ def get_hours_plan():
             
             not_home_start_emoji = f"{not_home_start_emoji}⤵️<br>" if not_home_start_emoji else ""
             not_home_end_emoji = f"<br>{not_home_end_emoji}⤴️" if not_home_end_emoji else ""
-                
+            
             data[time_str][date_str] = f'{not_home_start_emoji}{color_start}{text_format_start}{price}{text_format_end}{color_end}{emojis}{not_home_end_emoji}'
 
         sorted_dates = [f"{i18n.t(f'ui.calendar.weekday_names.{dt.strftime('%a').lower()}')}<br>{dt.strftime('%-d/%-m')}" for dt in sorted(date_objects)]
@@ -1555,12 +1555,12 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
         
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
+        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
         
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
         commit_log_lines = str(TASKS[f'{func_prefix}commit_log_lines'].result()).split("\n")
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
         
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
 
@@ -1633,7 +1633,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
 
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
+        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
@@ -1648,7 +1648,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
             commit_log_lines += recreate_hardlinks_log_lines
 
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
         _LOGGER.info("Repository updated successfully.")
         my_persistent_notification(
@@ -2202,7 +2202,7 @@ def set_charging_rule(text=""):
         
         powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
         
-        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if line.strip()])
+        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if isinstance(line, str) and line.strip()])
         try:
             set_state(f"sensor.{__name__}_current_charging_rule", f"{text}{limit_string}{powerwall_sting}")
         except Exception as e:
@@ -3457,21 +3457,21 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
             set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs", f"{sell_tariffs:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.solar_sell_price", f"{solar_sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
             LOCAL_ENERGY_PRICES['solar_kwh_price'] = {
-                "price": price,
-                "transmissions_nettarif": transmissions_nettarif,
-                "systemtarif": systemtarif,
-                "elafgift": elafgift,
-                "tariffs": tariffs,
-                "tariff_sum": tariff_sum,
-                "raw_price": raw_price,
+                "price": round(price, 3),
+                "transmissions_nettarif": round(transmissions_nettarif, 3),
+                "systemtarif": round(systemtarif, 3),
+                "elafgift": round(elafgift, 3),
+                "tariffs": round(tariffs, 3),
+                "tariff_sum": round(tariff_sum, 3),
+                "raw_price": round(raw_price, 3),
                 "sell_tariffs_overview": "",
-                "transmissions_nettarif_": transmissions_nettarif,
-                "systemtarif_": systemtarif,
-                "energinets_network_tariff_": energinets_network_tariff,
-                "energinets_balance_tariff_": energinets_balance_tariff,
-                "solar_production_seller_cut_": solar_production_seller_cut,
-                "sell_tariffs": sell_tariffs,
-                "solar_sell_price": solar_sell_price,
+                "transmissions_nettarif_": round(transmissions_nettarif, 3),
+                "systemtarif_": round(systemtarif, 3),
+                "energinets_network_tariff_": round(energinets_network_tariff, 4),
+                "energinets_balance_tariff_": round(energinets_balance_tariff, 4),
+                "solar_production_seller_cut_": round(solar_production_seller_cut, 4),
+                "sell_tariffs": round(sell_tariffs, 3),
+                "solar_sell_price": round(solar_sell_price, 3)
             }
             if entity_price >= 0.0:
                 set_attr(f"sensor.{__name__}_kwh_cost_price.fixed_sell_price", f"{sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
@@ -3572,9 +3572,9 @@ def get_powerwall_kwh_price(kwh = None):
                 solar_available_production = max(solar_production - power_consumption_without_all_exclusion, 0.0)
                 if powerwall_charging_consumption > 0.0  and sum(powerwall_kwh) < kwh:
                     kwh_price = KWH_AVG_PRICES_DB['history_sell'][hour][getDayOfWeek(loop_timestamp)][i] if solar_available_production > 0 else KWH_AVG_PRICES_DB['history'][hour][getDayOfWeek(loop_timestamp)][i]
-                    kwh_price_list.append(kwh_price)
-                    powerwall_kwh.append(powerwall_charging_consumption)
-                    powerwall_total_cost.append(powerwall_charging_consumption * kwh_price)
+                    kwh_price_list.append(round(kwh_price, 3))
+                    powerwall_kwh.append(round(powerwall_charging_consumption, 3))
+                    powerwall_total_cost.append(round(powerwall_charging_consumption * kwh_price, 3))
     except Exception as e:
         _LOGGER.error(f"Error getting powerwall kWh price: {e}")
         return get_solar_sell_price()
@@ -3584,7 +3584,7 @@ def get_powerwall_kwh_price(kwh = None):
             "powerwall_kwh": powerwall_kwh,
             "powerwall_total_cost": powerwall_total_cost,
             "kwh_price_list": kwh_price_list,
-            "kr_per_kwh": sum(powerwall_total_cost) / sum(powerwall_kwh) if sum(powerwall_kwh) > 0.0 else 0.0
+            "kr_per_kwh": round(sum(powerwall_total_cost) / sum(powerwall_kwh), 3) if sum(powerwall_kwh) > 0.0 else 0.0
         }
         
     powerwall_kwh = sum(powerwall_kwh)
@@ -5370,22 +5370,22 @@ def current_battery_level_expenses():
                         percentage = percentage * diff
                         solar_percentage = solar_percentage * diff
                     BATTERY_LEVEL_EXPENSES[key] = {
-                        "cost": cost,
-                        "kWh": kwh,
-                        "percentage": percentage,
-                        "solar_percentage": solar_percentage,
-                        "unit": cost / kwh if kwh > 0.0 else 0.0
+                        "cost": round(cost, 3),
+                        "kWh": round(kwh, 3),
+                        "percentage": round(percentage, 1),
+                        "solar_percentage": round(solar_percentage, 1),
+                        "unit": round(cost / kwh, 3) if kwh > 0.0 else 0.0
                         
                     }
-                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] += kwh
-                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] += percentage
-                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] += solar_percentage
-                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] += cost
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] + kwh, 3)
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] + percentage, 1)
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] + solar_percentage, 1)
+                    BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] + cost, 3)
                 else:
                     break
     
             if BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"] > 0.0:
-                BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] / BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"]
+                BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] / BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"], 3)
 
     except Exception as e:
         _LOGGER.warning(f"Error in battery level cost calculation: {e}")
@@ -6309,6 +6309,12 @@ def cheap_grid_charge_hours():
                                     
                                     if round(battery_level_expenses_solar_kwh_loop, 1) > 0.0:
                                         from_battery_solar = battery_level_expenses_solar_kwh_loop
+                                        
+                            BATTERY_LEVEL_EXPENSES[key]["percentage"] = round(BATTERY_LEVEL_EXPENSES[key]["percentage"], 1)
+                            BATTERY_LEVEL_EXPENSES[key]["solar_percentage"] = round(BATTERY_LEVEL_EXPENSES[key]["solar_percentage"], 1)
+                            BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_percentage"], 1)
+                            BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"], 1)
+                            
                         
                         if kwh_needed > percentage_to_kwh(battery_level_needed, include_charging_loss=True):
                             cost_unit = cost / kwh_needed
@@ -6767,12 +6773,19 @@ def cheap_grid_charge_hours():
 
     for day in charging_plan.keys():
         if not isinstance(day, int): continue
-        charging_plan[day]['battery_level_before_work_sum'] = sum(charging_plan[day]['battery_level_before_work'])
-        charging_plan[day]['battery_level_after_work_sum'] = sum(charging_plan[day]['battery_level_after_work'])
-        charging_plan[day]['battery_level_at_midnight_sum'] = sum(charging_plan[day]['battery_level_at_midnight'])
-        charging_plan[day]['solar_prediction_sum'] = sum(charging_plan[day]['solar_prediction'])
-        charging_plan[day]['solar_kwh_prediction_sum'] = sum(charging_plan[day]['solar_kwh_prediction'])
-        charging_plan[day]['solar_cost_prediction_sum'] = sum(charging_plan[day]['solar_cost_prediction'])
+        charging_plan[day]['battery_level_before_work_sum'] = round(sum(charging_plan[day]['battery_level_before_work']), 3)
+        charging_plan[day]['battery_level_after_work_sum'] = round(sum(charging_plan[day]['battery_level_after_work']), 3)
+        charging_plan[day]['battery_level_at_midnight_sum'] = round(sum(charging_plan[day]['battery_level_at_midnight']), 3)
+        charging_plan[day]['solar_prediction_sum'] = round(sum(charging_plan[day]['solar_prediction']), 3)
+        charging_plan[day]['solar_kwh_prediction_sum'] = round(sum(charging_plan[day]['solar_kwh_prediction']), 3)
+        charging_plan[day]['solar_cost_prediction_sum'] = round(sum(charging_plan[day]['solar_cost_prediction']), 3)
+        
+    key_list = ["battery_level_before_work", "battery_level_after_work", "battery_level_at_midnight", "solar_prediction", "solar_kwh_prediction", "solar_cost_prediction"]
+    for day in charging_plan.keys():
+        if not isinstance(day, int): continue
+        for key in key_list:
+            if key in charging_plan[day]:
+                charging_plan[day][key] = [round(value, 3) for value in charging_plan[day][key]]
 
     _LOGGER.debug(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
@@ -8332,8 +8345,8 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             power_cost = get_database_kwh(cloudiness, loop_datetime)
             loop_kwh.append(power_cost[0] * power_factor)
             loop_sell.append(power_cost[1] * power_factor)
-            total_db.append(power_cost[0])
-            total_db_sell.append(power_cost[1])
+            total_db.append(round(power_cost[0], 3))
+            total_db_sell.append(round(power_cost[1], 3))
 
         # Solar forecast
         if loop_datetime in solar_forecast_from_integration:
@@ -8341,13 +8354,13 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             power_factor *= current_hour_factor
             loop_kwh.append(solar_forecast_from_integration[loop_datetime][0] * power_factor)
             loop_sell.append(solar_forecast_from_integration[loop_datetime][1] * power_factor)
-            total_forecast.append(solar_forecast_from_integration[loop_datetime][0])
-            total_forecast_sell.append(solar_forecast_from_integration[loop_datetime][1])
+            total_forecast.append(round(solar_forecast_from_integration[loop_datetime][0], 3))
+            total_forecast_sell.append(round(solar_forecast_from_integration[loop_datetime][1], 3))
             
         # Average forecast
         if loop_kwh:
-            loop_kwh = average(loop_kwh)
-            loop_sell = average(loop_sell)
+            loop_kwh = round(average(loop_kwh), 3)
+            loop_sell = round(average(loop_sell), 3)
             
             if loop_kwh > 0.0:
                 if powerwall_kwh_needed > 0.0:
@@ -8358,10 +8371,12 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     powerwall_kwh_needed -= charging_kwh
                     
                     if in_between(loop_datetime, now, now + datetime.timedelta(hours=25)):
-                        powerwall_charging_timestamps_dict[loop_datetime] = charging_kwh
+                        powerwall_charging_timestamps_dict[loop_datetime] = round(charging_kwh, 3)
                     
                     if diff < 0.0:
                         loop_kwh = loop_kwh - abs(diff)
+                
+                loop_kwh = round(loop_kwh, 3)
                         
                 if powerwall_kwh_needed <= 0.0:
                     if loop_datetime not in solar_prediction_timestamps_dict:
@@ -8477,10 +8492,10 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                         powerwall_kwh_needed
                     )
                         
-            total = sum(total)
-            total_sell = average(total_sell)
-            total_away = sum(total_away)
-            total_away_sell = average(total_away_sell)
+            total = round(sum(total), 3)
+            total_sell = round(average(total_sell), 3)
+            total_away = round(sum(total_away), 3)
+            total_away_sell = round(average(total_away_sell), 3)
                 
             if not powerwall_charging_timestamps:
                 if day not in LOCAL_ENERGY_PREDICTION_DB["solar_prediction"]:
@@ -10330,7 +10345,7 @@ if INITIALIZATION_COMPLETE:
         
         def _is_not_home() -> bool:
             current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="away")
-            return True if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES else False
+            return False if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES else True
             
         if entity_state in EV_PLUGGED_STATES and _is_not_home():
             if PUBLIC_CHARGING_SESSION:
