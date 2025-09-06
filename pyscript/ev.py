@@ -10345,7 +10345,7 @@ if INITIALIZATION_COMPLETE:
         
         def _is_not_home() -> bool:
             current_location = get_state(CONFIG['ev_car']['entity_ids']['location_entity_id'], float_type=False, error_state="away")
-            return True if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES else False
+            return False if current_location == "home" or current_location in ENTITY_UNAVAILABLE_STATES else True
             
         if entity_state in EV_PLUGGED_STATES and _is_not_home():
             if PUBLIC_CHARGING_SESSION:
