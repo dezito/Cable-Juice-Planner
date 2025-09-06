@@ -1555,12 +1555,12 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
         
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
+        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
         
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
         commit_log_lines = str(TASKS[f'{func_prefix}commit_log_lines'].result()).split("\n")
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
         
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
 
@@ -1633,7 +1633,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
 
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if merge_commits.strip() else 0
+        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
 
         real_commits_behind = max(0, total_commits_behind - merge_commit_count)
 
@@ -1648,7 +1648,7 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
             recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
             commit_log_lines += recreate_hardlinks_log_lines
 
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
+        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
 
         _LOGGER.info("Repository updated successfully.")
         my_persistent_notification(
@@ -2202,7 +2202,7 @@ def set_charging_rule(text=""):
         
         powerwall_sting = f"\n🚧{POWERWALL_CHARGING_TEXT}" if POWERWALL_CHARGING_TEXT else ""
         
-        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if line.strip()])
+        text = "\n".join([f"{testing}{line.strip()}{testing}" for line in text.split("\n") if isinstance(line, str) and line.strip()])
         try:
             set_state(f"sensor.{__name__}_current_charging_rule", f"{text}{limit_string}{powerwall_sting}")
         except Exception as e:
