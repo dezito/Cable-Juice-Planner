@@ -5,13 +5,48 @@ import json
 import yaml
 import re
 import textwrap
-import sys, os, os.path
+import sys, os, os.path, tempfile
+
+from typing import Optional, Dict, Any
+
+_FILE_LOCKS: Dict[str, asyncio.Lock] = {}
 
 from logging import getLogger
 BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
 CONFIG_FOLDER = os.getcwd()
+
+def _get_lock(path: str) -> asyncio.Lock:
+    lock = _FILE_LOCKS.get(path)
+    if lock is None:
+        lock = asyncio.Lock()
+        _FILE_LOCKS[path] = lock
+    return lock
+
+def _atomic_write_text(path: str, text: str, mode: int = 0o666) -> None:
+    """
+    Atomically write text to a file:
+    - Write to a temporary file
+    - Flush + fsync
+    - Replace the original file in one operation
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    directory = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix="._tmp_", suffix=".yaml", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)  # atomic swap
+        os.chmod(path, mode) # set file mode
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 def get_config_folder():
     """
@@ -84,52 +119,127 @@ async def get_file_modification_time(filename=None):
             _LOGGER.error(f"Error getting modification time for {filename}: {error}")
             return None
 
-async def load_json(filename=None):
+async def load_json(filename: Optional[str] = None, retries: int = 10, sleep_seconds: float = 1.0) -> Dict[str, Any]:
     """
     Loads a JSON file and returns its content asynchronously.
 
     Parameters:
     - filename (str): The name of the JSON file to load.
+    - retries (int): Number of retries if file is temporarily locked.
+    - sleep_seconds (float): Delay between retries.
 
     Returns:
-    - dict: The content of the JSON file or an empty dictionary if an error occurs.
+    - dict: The JSON content, or {} on error.
     """
     _LOGGER = globals()['_LOGGER'].getChild("load_json")
-    filename = add_config_folder_path(_add_ext(filename, 'json'))
-    
-    if file_exists(filename):
-        try:
-            async with aiofiles.open(filename, 'r', encoding="utf-8") as f:
-                content = f.read()
-                return json.loads(content)
-        except Exception as error:
-            _LOGGER.error(f"Can't read {filename} file: {error}")
-    else:
-        _LOGGER.error(f"Filename does not exist {filename}")
-    return {}
-        
+    filename = add_config_folder_path(_add_ext(filename, "json"))
 
-async def save_json(filename=None, db=None):
+    if not file_exists(filename):
+        _LOGGER.error(f"Filename does not exist {filename}")
+        return {}
+
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            async with aiofiles.open(filename, "r", encoding="utf-8") as f:
+                content = await f.read()
+
+            if not content.strip():
+                return {}
+
+            return json.loads(content)
+
+        except (PermissionError, OSError) as e:
+            last_exc = e
+            _LOGGER.warning(f"Retry {attempt}/{retries}: file {filename} locked ({e}); sleeping {sleep_seconds}s")
+            await asyncio.sleep(sleep_seconds)
+        except json.JSONDecodeError as e:
+            _LOGGER.error(f"JSON parse error in {filename}: {e}")
+            return {}
+        except Exception as e:
+            _LOGGER.error(f"Can't read {filename} file: {e}")
+            return {}
+
+    _LOGGER.error(f"Can't read {filename} after {retries} retries: {last_exc}")
+    return {}
+
+async def create_json(filename=None, db=None):
+    filename = add_config_folder_path(_add_ext(filename, 'yaml'))
+    if not file_exists(filename):
+        save_json(filename, db)
+        return True
+    return False
+
+async def save_json(filename: Optional[str] = None, db: Optional[Dict[str, Any]] = None) -> bool:
     """
-    Saves a dictionary to a JSON file asynchronously.
+    Saves a dictionary to a JSON file asynchronously (atomically, without comment injection).
 
     Parameters:
-    - filename (str): The name of the JSON file to save.
+    - filename (str): The JSON file to save.
     - db (dict): The dictionary to save into the file.
 
     Returns:
-    - bool: True if the file was successfully written, False if an error occurred.
+    - bool: True if successful, False otherwise.
     """
     _LOGGER = globals()['_LOGGER'].getChild("save_json")
-    filename = add_config_folder_path(_add_ext(filename, 'json'))
-    
     try:
-        async with aiofiles.open(filename, "w", encoding="utf-8") as f:
-            f.write(json.dumps(db, sort_keys=True, indent=4))
+        if db is None or not isinstance(db, dict):
+            raise ValueError("db must be a dict")
+
+        path = add_config_folder_path(_add_ext(filename, "json"))
+        text = json.dumps(db, sort_keys=True, indent=4)
+
+        # Run atomic write in thread to avoid blocking event loop
+        await asyncio.to_thread(_atomic_write_text, path, text)
         return True
     except Exception as error:
         _LOGGER.error(f"Can't write {filename} file: {error}")
-    return False
+        return False
+
+def _inject_comments(lines: list[str], comment_db: Dict[str, str], max_width: int) -> list[str]:
+    """
+    Insert comments after key lines based on dot-paths found in comment_db.
+    Works fully in memory (no file I/O).
+    """
+    new_lines: list[str] = []
+    parents: list[str] = []
+    key_re = re.compile(r"^(\s*)([^:\n]+):")
+
+    for line in lines:
+        stripped = line.strip()
+        # Keep empty lines or existing comments unchanged
+        if not stripped or stripped.startswith("#"):
+            new_lines.append(line)
+            continue
+
+        m = key_re.match(line)
+        if not m:
+            new_lines.append(line)
+            continue
+
+        indent_spaces, raw_key = m.groups()
+        indent = len(indent_spaces)
+        level = indent // 2  # yaml.safe_dump uses 2 spaces by default
+
+        # Normalize key (strip quotes if present)
+        key = raw_key.strip().strip("'\"")
+        parents = parents[:level] + [key]
+        full_key = ".".join(parents)
+
+        # Write the original line without trailing inline comments
+        clean_line = re.sub(r"\s+#.*$", "", line).rstrip("\n")
+        new_lines.append(clean_line + "\n")
+
+        # Add comment lines if available
+        comment = comment_db.get(full_key)
+        if comment:
+            wrap_width = max(20, max_width - indent - 4)
+            wrapped = textwrap.wrap(comment, width=wrap_width, break_long_words=False)
+            extra_indent = indent + 2
+            for w in wrapped:
+                new_lines.append(f"{' ' * extra_indent}# {w}\n")
+
+    return new_lines
 
 async def create_yaml(filename=None, db=None):
     filename = add_config_folder_path(_add_ext(filename, 'yaml'))
@@ -138,91 +248,131 @@ async def create_yaml(filename=None, db=None):
         return True
     return False
 
-async def load_yaml(filename=None):
+async def load_yaml(filename: Optional[str] = None, retries: int = 10, sleep_seconds: float = 1.0) -> Dict[str, Any]:
     """
-    Loads a YAML file and returns its content asynchronously. Lines containing '!include' and '!secret' are ignored for security reasons.
+    Loads a YAML file and returns its content asynchronously.
+    Lines starting with '!include' and '!secret' are ignored.
 
     Parameters:
-    - filename (str): The name of the YAML file to load.
+    - filename (str): The YAML file to load.
+    - retries (int): Number of retries if file is temporarily locked.
+    - sleep_seconds (float): Delay between retries.
 
     Returns:
-    - dict: The content of the YAML file or an empty dictionary if an error occurs.
+    - dict: The YAML content, or {} on error.
     """
     _LOGGER = globals()['_LOGGER'].getChild("load_yaml")
     filename = add_config_folder_path(_add_ext(filename, 'yaml'))
-    if file_exists(filename):
-        try:
-            async with aiofiles.open(filename, 'r', encoding="utf-8") as f:
-                data = f.readlines()
-                
-            yaml_string = ""
-            for line in data:
-                if line not in ("!include","!secret"):
-                    yaml_string += f"{line}"
-                    
-            return yaml.safe_load(yaml_string)
-        except Exception as error:
-            _LOGGER.error(f"Can't read {filename} file: {error}")
-    else:
+
+    if not file_exists(filename):
         _LOGGER.error(f"Filename does not exist {filename}")
+        return {}
+
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            async with aiofiles.open(filename, "r", encoding="utf-8") as f:
+                lines = await f.readlines()
+
+            yaml_string = ""
+            for line in lines:
+                # ignore only if line starts with !include / !secret
+                if line.strip().startswith(("!include", "!secret")):
+                    continue
+                yaml_string += line
+
+            return yaml.safe_load(yaml_string) or {}
+
+        except (PermissionError, OSError) as e:
+            last_exc = e
+            _LOGGER.warning(f"Retry {attempt}/{retries}: file {filename} locked ({e})")
+            await asyncio.sleep(sleep_seconds)
+        except yaml.YAMLError as e:
+            _LOGGER.error(f"YAML parse error in {filename}: {e}")
+            return {}
+        except Exception as e:
+            _LOGGER.error(f"Can't read {filename} file: {e}")
+            return {}
+
+    _LOGGER.error(f"Can't read {filename} after {retries} retries: {last_exc}")
     return {}
 
-async def save_yaml(filename=None, db=None, comment_db=None, max_width=120):
-    _LOGGER = globals().get('_LOGGER')
+async def save_yaml(
+    filename: Optional[str] = None,
+    db: Optional[Dict[str, Any]] = None,
+    comment_db: Optional[Dict[str, str]] = None,
+    max_width: int = 120,
+):
+    """
+    Save a dictionary as YAML safely and atomically, with optional inline comments.
     
-    filename = add_config_folder_path(_add_ext(filename, 'yaml'))
-
+    Features:
+    - Full content is built in memory
+    - Atomic write (temp file + replace)
+    - Per-file async lock to avoid concurrent writes
+    - Protects against asyncio cancellation mid-write
+    - Optionally injects comments from comment_db after keys
+    
+    Returns:
+        True if successful, False on error.
+    """
+    _LOGGER = globals()['_LOGGER'].getChild("save_yaml")
     try:
-        async with aiofiles.open(filename, "w", encoding="utf-8") as f:
-            await f.write(yaml.dump(db, sort_keys=True, allow_unicode=True))
+        if db is None:
+            raise ValueError("db must not be None")
+        if not isinstance(db, dict):
+            raise TypeError("db must be a dict")
+        if comment_db is not None and not isinstance(comment_db, dict):
+            raise TypeError("comment_db must be a dict or None")
 
-        if comment_db is None:
+        path = add_config_folder_path(_add_ext(filename, "yaml"))
+
+        # --- Serialize YAML in memory ---
+        try:
+            text = yaml.safe_dump(
+                db,
+                sort_keys=True,
+                allow_unicode=True,
+                default_flow_style=False,
+                indent=2,
+            )
+        except Exception as e:
+            raise RuntimeError(f"YAML serialization failed: {e}") from e
+
+        if not text.strip():
+            raise RuntimeError("Refusing to write empty YAML content")
+
+        # --- Inject comments in memory ---
+        if comment_db:
+            lines = text.splitlines(keepends=True)
+            new_lines = _inject_comments(lines, comment_db, max_width)
+            text = "".join(new_lines)
+
+        # --- explicit lock/unlock with finally ---
+        lock = _get_lock(path)
+        acquired = False
+        try:
+            await lock.acquire()
+            acquired = True
+            await asyncio.shield(asyncio.to_thread(_atomic_write_text, path, text))
             return True
-
-        async with aiofiles.open(filename, 'r', encoding='utf-8') as file:
-            lines = await file.readlines()
-
-        new_lines = []
-        parents = []
-
-        for line in lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith('#'):
-                new_lines.append(line)
-                continue
-
-            indent = len(line) - len(line.lstrip())
-            level = indent // 2
-
-            match = re.match(r"^\s*([^\s:#]+):", line)
-            if not match:
-                new_lines.append(line)
-                continue
-
-            key = match.group(1)
-            parents = parents[:level] + [key]
-            full_key = ".".join(parents)
-            comment = comment_db.get(full_key)
-            if comment:
-                wrapped_comment = textwrap.wrap(comment, width=max_width - indent - 4)
-                comment_lines = [f"{' ' * indent}# {line}" for line in wrapped_comment]
-                
-                extra_indent = indent + 2
-                comment_lines = [f"{' ' * extra_indent}# {line}" for line in wrapped_comment]
-
-                line = re.sub(r" *#.*", "", line).rstrip("\n")
-                new_lines.append(f"{line}\n")
-                new_lines.extend([f"{c}\n" for c in comment_lines])
-            else:
-                new_lines.append(line)
-
-        async with aiofiles.open(filename, 'w', encoding='utf-8') as file:
-            await file.writelines(new_lines)
+        except Exception as error:
+            if _LOGGER:
+                _LOGGER.error(f"Can't write YAML file: {error}")
+            return False
+        finally:
+            if acquired:
+                lock.release()
 
         return True
 
+    except asyncio.CancelledError:
+        if _LOGGER:
+            _LOGGER.warning("save_yaml was cancelled; file left unchanged (atomic write).")
+        raise
     except Exception as error:
-        _LOGGER.error(f"Can't write {filename} file: {error}")
+        if _LOGGER:
+            _LOGGER.error(f"Can't write YAML file: {error}")
         return False
 
 async def get_yaml_entities(filename=None):
@@ -284,3 +434,11 @@ async def get_secret(key):
         return config.get(key)
     except Exception as e:
         _LOGGER.error(f"Cant get secret with key {key}: {e}")
+
+@time_trigger("shutdown")
+def shutdown(trigger_type=None, var_name=None, value=None, old_value=None):
+    _LOGGER = globals()['_LOGGER'].getChild("shutdown")
+    for key, lock in _FILE_LOCKS.items():
+        if lock.locked():
+            _LOGGER.warning(f"File lock for {key} is still held at shutdown")
+            lock.release()
