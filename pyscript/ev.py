@@ -1077,13 +1077,19 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
 
             task_wait_until(task_key, timeout=0.5, wait_period=0.2)
 
-            if "save" in task_key and "saving" in task_key and not task_obj.done():
-                _LOGGER.warning(f"Waiting 30s for task {task_key} (saving)")
-                task_wait_until(task_key, timeout=30.0, wait_period=0.2)
+            if ("save" in task_key or "saving" in task_key) and not task_obj.done():
+                _LOGGER.warning(f"Waiting 300s for task {task_key} (saving)")
+                task_wait_until(task_key, timeout=300.0, wait_period=0.2)
+                if not task_obj.done():
+                    my_persistent_notification(
+                        f"Task {task_key} from instance {INSTANCE_ID} is taking a long time to finish saving. It is recommended to restart Home Assistant to avoid data corruption.",
+                        title=f"⚠️ {__name__} - Task Saving Timeout Warning",
+                        persistent_notification_id=f"{__name__}_{func_name}_saving_timeout_{INSTANCE_ID}"
+                    )
 
             if "charging_history_worker" in task_key and not task_obj.done():
-                _LOGGER.warning(f"Waiting 30s for task {task_key} (charging history)")
-                task_wait_until(task_key, timeout=30.0, wait_period=0.2)
+                _LOGGER.warning(f"Waiting 60s for task {task_key} (charging history)")
+                task_wait_until(task_key, timeout=60.0, wait_period=0.2)
 
             if not task_wait_until(task_key, timeout=1, wait_period=0.2):
                 task_obj.cancel()
