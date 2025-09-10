@@ -5501,7 +5501,6 @@ def get_hour_prices():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
-                LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
                 USING_OFFLINE_PRICES = False
                 
                 LAST_SUCCESSFUL_GRID_PRICES = {
