@@ -81,14 +81,14 @@ config:
 
   charger:
     entity_ids:
-      status_entity_id: "**Erforderlich** Ladezustand (Unterstützte Zustände: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      status_entity_id: "**Erforderlich** Ladezustand (Unterstützte Zustände: {charger_supported_states})"
       power_consumtion_entity_id: "**Erforderlich** Ladeleistung in Watt"
       kwh_meter_entity_id: "**Erforderlich** Riemann-Summen-Integralsensor verwenden (Methode: linke Riemann-Summe), wenn der kWh-Zähler des Laders träge ist (z. B. Easee); sonst Lebensdauer-kWh-Zähler des Laders nutzen"
       lifetime_kwh_meter_entity_id: "**Erforderlich** Alternative zu kwh_meter_entity_id, wenn der Lebensdauer-kWh-Zähler nicht genutzt werden soll"
       enabled_entity_id: "Ladegerät aktivieren/deaktivieren; nicht für Start/Stopp verwendet"
       dynamic_circuit_limit: "Wenn nicht gesetzt, muss charger.entity_ids.start_stop_charging_entity_id gesetzt sein"
       co2_entity_id: "Energi Data Service CO₂ entity_id"
-      cable_connected_entity_id: "Falls das EV keine „Kabel verbunden“-Entität bietet, diese zum Erkennen der Verbindung nutzen (Unterstützte Zustände: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      cable_connected_entity_id: "Falls das EV keine „Kabel verbunden“-Entität bietet, diese zum Erkennen der Verbindung nutzen (Unterstützte Zustände: {charger_supported_states})"
       start_stop_charging_entity_id: "Falls eine andere Integration als Easee für Start/Stopp genutzt wird (z. B. Monta)"
     power_voltage: "**Erforderlich** Netzspannung"
     charging_phases: "**Erforderlich** Verfügbare Phasen"
@@ -110,8 +110,8 @@ config:
       odometer_entity_id: "**Erforderlich**"
       estimated_battery_range_entity_id: "**Erforderlich** Muss exakte Reichweite sein"
       usable_battery_level_entity_id: "**Erforderlich** Muss exakter Batteriestand (%) sein"
-      charge_port_door_entity_id: "Ladeport offen/geschlossen (Unterstützte Zustände: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
-      charge_cable_entity_id: "Fahrzeug mit Lader verbunden (Unterstützte Zustände: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_port_door_entity_id: "Ladeport offen/geschlossen (Unterstützte Zustände: {ev_supported_states})"
+      charge_cable_entity_id: "Fahrzeug mit Lader verbunden (Unterstützte Zustände: {ev_supported_states})"
       charge_switch_entity_id: "Laden im Fahrzeug starten/stoppen (Switch on/off oder Service-Call erwartet)"
       charging_limit_entity_id: "Ladegrenze (%) setzen"
       charging_amps_entity_id: "Ladestrom (A) setzen"

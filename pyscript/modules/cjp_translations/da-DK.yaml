@@ -81,14 +81,14 @@ config:
 
   charger:
     entity_ids:
-      status_entity_id: "**Påkrævet** Ladestatus (Understøttede tilstande: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      status_entity_id: "**Påkrævet** Ladestatus (Understøttede tilstande: {charger_supported_states})"
       power_consumtion_entity_id: "**Påkrævet** Ladeeffekt i watt"
       kwh_meter_entity_id: "**Påkrævet** Brug Riemann-sum integral-sensor (integrationsmetode: Venstre Riemann-sum), hvis laderens kWh-måler er langsom (fx Easee); ellers brug laderens livstids-kWh-måler"
       lifetime_kwh_meter_entity_id: "**Påkrævet** Alternativ til kwh_meter_entity_id, hvis du ikke vil bruge laderens livstids-kWh-måler"
       enabled_entity_id: "Tænd/sluk ladeenheden; bruges ikke til start/stop af opladning"
       dynamic_circuit_limit: "Hvis ikke sat, skal charger.entity_ids.start_stop_charging_entity_id være sat"
       co2_entity_id: "Energi Data Service CO2 entity_id"
-      cable_connected_entity_id: 'Hvis bilen ikke har en "kabel tilsluttet"-entitet, brug denne til at afgøre om bilen er forbundet (Understøttede tilstande: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})'
+      cable_connected_entity_id: 'Hvis bilen ikke har en "kabel tilsluttet"-entitet, brug denne til at afgøre om bilen er forbundet (Understøttede tilstande: {charger_supported_states})'
       start_stop_charging_entity_id: "Hvis du bruger en anden integration end Easee til start/stop af opladning (fx Monta)"
     power_voltage: "**Påkrævet** Netspænding"
     charging_phases: "**Påkrævet** Tilgængelige faser for bilen"
@@ -110,8 +110,8 @@ config:
       odometer_entity_id: "**Påkrævet**"
       estimated_battery_range_entity_id: "**Påkrævet** Skal være præcis rækkevidde"
       usable_battery_level_entity_id: "**Påkrævet** Skal være præcis batteriprocent"
-      charge_port_door_entity_id: "Afgør om ladelåge er åben/lukket (Understøttede tilstande: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
-      charge_cable_entity_id: "Afgør om bilen er tilsluttet laderen (Understøttede tilstande: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_port_door_entity_id: "Afgør om ladelåge er åben/lukket (Understøttede tilstande: {ev_supported_states})"
+      charge_cable_entity_id: "Afgør om bilen er tilsluttet laderen (Understøttede tilstande: {ev_supported_states})"
       charge_switch_entity_id: "Start/stop opladning i bilen (forventer switch-entitet: on/off eller servicekald)"
       charging_limit_entity_id: "Sæt ladegrænse (%) på bilen"
       charging_amps_entity_id: "Sæt ladestrøm (A) på bilen"
