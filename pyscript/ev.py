@@ -5403,10 +5403,6 @@ def get_hour_prices():
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
     
-    LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
-    
-    USING_OFFLINE_PRICES = False
-    
     now = getTime()
     current_hour = reset_time_to_hour(now)
     
@@ -5505,6 +5501,9 @@ def get_hour_prices():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
+                LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
+                USING_OFFLINE_PRICES = False
+                
                 LAST_SUCCESSFUL_GRID_PRICES = {
                     "last_update": getTime(),
                     "prices": hour_prices
