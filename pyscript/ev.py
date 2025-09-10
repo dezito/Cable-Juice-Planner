@@ -5399,13 +5399,10 @@ def current_battery_level_expenses():
     return BATTERY_LEVEL_EXPENSES
 
 def get_hour_prices():
+    #TODO See development in hourly prices variation, if 15 min interval is better, than 1 hour average
     func_name = "get_hour_prices"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
-    
-    LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
-    
-    USING_OFFLINE_PRICES = False
     
     now = getTime()
     current_hour = reset_time_to_hour(now)
@@ -5424,68 +5421,56 @@ def get_hour_prices():
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
             
             if "raw_today" in power_prices_attr:
+                hour_string = "hour" if "hour" in power_prices_attr['raw_today'] else "time"
+                
                 for raw in power_prices_attr['raw_today']:
-                    if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                        if (isinstance(raw['time'], datetime.datetime) and
-                            isinstance(raw['price'], (int, float))  and
-                            daysBetween(current_hour, raw['time']) == 0):
-                            hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
-                            if hour not in hour_prices:
-                                hour_prices[hour] = []
-                            hour_prices[hour].append(raw['price'])
-                        else:
-                            all_prices_loaded = False
+                    if (isinstance(raw[hour_string], datetime.datetime) and
+                        isinstance(raw['price'], (int, float)) and
+                        daysBetween(current_hour, raw[hour_string]) == 0):
+                        hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                        
+                        if hour not in hour_prices:
+                            hour_prices[hour] = []
+                            
+                        hour_prices[hour].append(raw['price'])
                     else:
-                        if (isinstance(raw['hour'], datetime.datetime) and
-                            isinstance(raw['price'], (int, float)) and
-                            daysBetween(current_hour, raw['hour']) == 0):
-                            hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                        else:
-                            all_prices_loaded = False
+                        all_prices_loaded = False
                         
             if "forecast" in power_prices_attr:
+                hour_string = "hour" if "hour" in power_prices_attr['forecast'] else "time"
+                
                 for raw in power_prices_attr['forecast']:
-                    if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                        if (isinstance(raw['time'], datetime.datetime) and
-                            isinstance(raw['price'], (int, float)) and
-                            daysBetween(current_hour, raw['time']) > 0):
-                            hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
-                            if hour not in hour_prices:
-                                hour_prices[hour] = []
-                            hour_prices[hour].append(raw['price'] + (daysBetween(current_hour, raw['time']) / price_adder_day_between_divider))
-                        else:
-                            all_prices_loaded = False
+                    if (isinstance(raw[hour_string], datetime.datetime) and
+                        isinstance(raw['price'], (int, float)) and
+                        daysBetween(current_hour, raw[hour_string]) > 0):
+                        hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                        
+                        if hour not in hour_prices:
+                            hour_prices[hour] = []
+                            
+                        hour_prices[hour].append(raw['price'] + (daysBetween(current_hour, hour) / price_adder_day_between_divider))
                     else:
-                        if (isinstance(raw['hour'], datetime.datetime) and
-                            isinstance(raw['price'], (int, float)) and
-                            daysBetween(current_hour, raw['hour']) > 0):
-                            hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] + (daysBetween(current_hour, raw['hour']) / price_adder_day_between_divider) - get_refund(), 2)
-                        else:
-                            all_prices_loaded = False
+                        all_prices_loaded = False
 
             if "tomorrow_valid" in power_prices_attr:
                 if power_prices_attr['tomorrow_valid']:
                     if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) < 23: #Summer and winter time compensation
                         _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
                     else:
+                        hour_string = "hour" if "hour" in power_prices_attr['forecast'] else "time"
+                        
                         for raw in power_prices_attr['raw_tomorrow']:
-                            if "time" in raw: #Prepare for change in energidataservice to 15min prices instead of hourly
-                                if (isinstance(raw['time'], datetime.datetime) and
-                                    isinstance(raw['price'], (int, float)) and
-                                    daysBetween(current_hour, raw['time']) == 1):
-                                    hour = raw['time'].replace(minute=0, second=0, microsecond=0, tzinfo=None)
-                                    if hour not in hour_prices:
-                                        hour_prices[hour] = []
-                                    hour_prices[hour].append(raw['price'])
-                                else:
-                                    all_prices_loaded = False
+                            if (isinstance(raw[hour_string], datetime.datetime) and
+                                isinstance(raw['price'], (int, float)) and
+                                daysBetween(current_hour, raw[hour_string]) == 1):
+                                hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                                
+                                if hour not in hour_prices:
+                                    hour_prices[hour] = []
+                                    
+                                hour_prices[hour].append(raw['price'])
                             else:
-                                if (isinstance(raw['hour'], datetime.datetime) and
-                                    isinstance(raw['price'], (int, float)) and
-                                    daysBetween(current_hour, raw['hour']) == 1):
-                                    hour_prices[raw['hour'].replace(tzinfo=None)] = round(raw['price'] - get_refund(), 2)
-                                else:
-                                    all_prices_loaded = False
+                                all_prices_loaded = False
                                     
             for hour in hour_prices:
                 if isinstance(hour_prices[hour], list):
@@ -5505,6 +5490,8 @@ def get_hour_prices():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
+                USING_OFFLINE_PRICES = False
+                
                 LAST_SUCCESSFUL_GRID_PRICES = {
                     "last_update": getTime(),
                     "prices": hour_prices
@@ -9303,13 +9290,12 @@ def charge_if_needed():
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
         
-        cheap_grid_charge_hours()
-        
         if trip_planned:
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
-                cheap_grid_charge_hours()
+                
+        cheap_grid_charge_hours()
                 
         local_energy_available_period = max_local_energy_available_remaining_period()
 

@@ -87,7 +87,7 @@ cards:
         price9: vars.mean_price + vars.step_over_mean * 3
         price10: vars.mean_price + vars.step_over_mean * 4
         price11: vars.highest_price
-        total_span: vars.total_hours-1
+        total_span: 24 * 7
       entities: []
       card:
         type: custom:apexcharts-card
@@ -171,7 +171,7 @@ cards:
               return data;
             float_precision: 2
             group_by:
-              func: max
+              func: avg
               duration: 60min
             color_threshold:
               - value: ${vars.price1}

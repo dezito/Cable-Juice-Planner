@@ -81,14 +81,14 @@ config:
 
   charger:
     entity_ids:
-      status_entity_id: "**Обов’язково** Статус зарядки (Підтримувані стани: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      status_entity_id: "**Обов’язково** Статус зарядки (Підтримувані стани: {charger_supported_states})"
       power_consumtion_entity_id: "**Обов’язково** Потужність заряджання (Вт)"
       kwh_meter_entity_id: "**Обов’язково** Використовуйте інтегральний сенсор Riemann-sum (метод: ліва сума Рімана), якщо лічильник кВт·год повільний (наприклад Easee); інакше використовуйте лічильник загального ресурсу"
       lifetime_kwh_meter_entity_id: "**Обов’язково** Альтернатива kwh_meter_entity_id, якщо не хочете використовувати лічильник загального ресурсу"
       enabled_entity_id: "Увімк./Вимк. зарядний пристрій; не використовується для старт/стоп"
       dynamic_circuit_limit: "Якщо не задано, charger.entity_ids.start_stop_charging_entity_id має бути встановлено"
       co2_entity_id: "Energi Data Service CO₂ entity_id"
-      cable_connected_entity_id: "Якщо авто не має сутності 'кабель підключено', використовуйте цю (Підтримувані стани: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      cable_connected_entity_id: "Якщо авто не має сутності 'кабель підключено', використовуйте цю (Підтримувані стани: {charger_supported_states})"
       start_stop_charging_entity_id: "Якщо ви використовуєте іншу інтеграцію ніж Easee (наприклад Monta)"
     power_voltage: "**Обов’язково** Напруга мережі"
     charging_phases: "**Обов’язково** Доступні фази"
@@ -110,8 +110,8 @@ config:
       odometer_entity_id: "**Обов’язково**"
       estimated_battery_range_entity_id: "**Обов’язково** Має бути точний пробіг"
       usable_battery_level_entity_id: "**Обов’язково** Має бути точний відсоток батареї"
-      charge_port_door_entity_id: "Стан порту зарядки (відкрито/закрито) (Підтримувані стани: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
-      charge_cable_entity_id: "Кабель підключено до авто (Підтримувані стани: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_port_door_entity_id: "Стан порту зарядки (відкрито/закрито) (Підтримувані стани: {ev_supported_states})"
+      charge_cable_entity_id: "Кабель підключено до авто (Підтримувані стани: {ev_supported_states})"
       charge_switch_entity_id: "Старт/стоп зарядки в авто (очікується switch on/off або виклик сервісу)"
       charging_limit_entity_id: "Встановлення ліміту зарядки (%)"
       charging_amps_entity_id: "Встановлення струму зарядки (А)"

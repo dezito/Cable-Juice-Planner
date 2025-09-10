@@ -81,14 +81,14 @@ config:
 
   charger:
     entity_ids:
-      status_entity_id: "**Wymagane** Status ładowarki (Obsługiwane stany: {tuple(chain(CHARGER_READY_STATUS, CHARGER_NOT_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      status_entity_id: "**Wymagane** Status ładowarki (Obsługiwane stany: {charger_supported_states})"
       power_consumtion_entity_id: "**Wymagane** Moc ładowania (W)"
       kwh_meter_entity_id: "**Wymagane** Użyj sensora całkowania Riemann-sum (metoda: lewa suma Riemanna), jeśli licznik kWh ładowarki działa wolno (np. Easee); w przeciwnym razie użyj licznika całkowitego"
       lifetime_kwh_meter_entity_id: "**Wymagane** Alternatywa dla kwh_meter_entity_id, jeśli nie chcesz używać licznika całkowitego"
       enabled_entity_id: "Włącz/wyłącz ładowarkę; nie używane do start/stop"
       dynamic_circuit_limit: "Jeśli nie ustawione, charger.entity_ids.start_stop_charging_entity_id musi być ustawione"
       co2_entity_id: "Energi Data Service CO₂ entity_id"
-      cable_connected_entity_id: "Jeśli EV nie posiada encji 'kabel podłączony', użyj tej do wykrycia połączenia (Obsługiwane stany: {tuple(chain(CHARGER_READY_STATUS, CHARGER_CHARGING_STATUS, CHARGER_COMPLETED_STATUS))})"
+      cable_connected_entity_id: "Jeśli EV nie posiada encji 'kabel podłączony', użyj tej do wykrycia połączenia (Obsługiwane stany: {charger_supported_states})"
       start_stop_charging_entity_id: "Jeśli używasz innej integracji niż Easee do start/stop (np. Monta)"
     power_voltage: "**Wymagane** Napięcie sieciowe"
     charging_phases: "**Wymagane** Dostępne fazy"
@@ -110,8 +110,8 @@ config:
       odometer_entity_id: "**Wymagane**"
       estimated_battery_range_entity_id: "**Wymagane** Musi być dokładny zasięg"
       usable_battery_level_entity_id: "**Wymagane** Musi być dokładny poziom baterii (%)"
-      charge_port_door_entity_id: "Drzwi portu ładowania otwarte/zamknięte (Obsługiwane stany: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
-      charge_cable_entity_id: "Kabel podłączony do EV (Obsługiwane stany: {tuple(chain(EV_PLUGGED_STATES, EV_UNPLUGGED_STATES))})"
+      charge_port_door_entity_id: "Drzwi portu ładowania otwarte/zamknięte (Obsługiwane stany: {ev_supported_states})"
+      charge_cable_entity_id: "Kabel podłączony do EV (Obsługiwane stany: {ev_supported_states})"
       charge_switch_entity_id: "Start/stop ładowania w EV (oczekuje encji przełącznika on/off lub wywołania usługi)"
       charging_limit_entity_id: "Ustaw limit ładowania (%)"
       charging_amps_entity_id: "Ustaw prąd ładowania (A)"
