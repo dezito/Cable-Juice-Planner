@@ -9303,13 +9303,12 @@ def charge_if_needed():
         trip_date_time = get_trip_date_time() if get_trip_date_time() != resetDatetime() else resetDatetime()
         trip_planned = is_trip_planned()
         
-        cheap_grid_charge_hours()
-        
         if trip_planned:
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
-                cheap_grid_charge_hours()
+                
+        cheap_grid_charge_hours()
                 
         local_energy_available_period = max_local_energy_available_remaining_period()
 
