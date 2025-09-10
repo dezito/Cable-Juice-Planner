@@ -5421,9 +5421,9 @@ def get_hour_prices():
             power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
             
             if "raw_today" in power_prices_attr:
-                hour_string = "hour" if "hour" in power_prices_attr['raw_today'] else "time"
-                
                 for raw in power_prices_attr['raw_today']:
+                    hour_string = "hour" if "hour" in raw else "time"
+                    
                     if (isinstance(raw[hour_string], datetime.datetime) and
                         isinstance(raw['price'], (int, float)) and
                         daysBetween(current_hour, raw[hour_string]) == 0):
@@ -5437,9 +5437,9 @@ def get_hour_prices():
                         all_prices_loaded = False
                         
             if "forecast" in power_prices_attr:
-                hour_string = "hour" if "hour" in power_prices_attr['forecast'] else "time"
-                
                 for raw in power_prices_attr['forecast']:
+                    hour_string = "hour" if "hour" in raw else "time"
+                    
                     if (isinstance(raw[hour_string], datetime.datetime) and
                         isinstance(raw['price'], (int, float)) and
                         daysBetween(current_hour, raw[hour_string]) > 0):
@@ -5457,9 +5457,9 @@ def get_hour_prices():
                     if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) < 23: #Summer and winter time compensation
                         _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
                     else:
-                        hour_string = "hour" if "hour" in power_prices_attr['forecast'] else "time"
-                        
                         for raw in power_prices_attr['raw_tomorrow']:
+                            hour_string = "hour" if "hour" in raw else "time"
+                            
                             if (isinstance(raw[hour_string], datetime.datetime) and
                                 isinstance(raw['price'], (int, float)) and
                                 daysBetween(current_hour, raw[hour_string]) == 1):
