@@ -5474,7 +5474,6 @@ def get_hour_prices():
                                     
             for hour in hour_prices:
                 if isinstance(hour_prices[hour], list):
-                    _LOGGER.info(f"Averaging {hour} prices: {hour_prices[hour]} = {average(hour_prices[hour])} - {get_refund()} refund")
                     hour_prices[hour] = round(average(hour_prices[hour]) - get_refund(), 2)
             
             if "raw_today" not in power_prices_attr:
