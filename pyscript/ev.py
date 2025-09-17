@@ -1978,7 +1978,7 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global COMMENT_DB_YAML
     
-    db = deepcopy(db) if isinstance(db, dict) else db
+    db = deepcopy(db) if isinstance(db, (dict, list)) else db
     
     if db == {} or db == [] or db is None:
         _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
@@ -1988,7 +1988,7 @@ def save_changes(file, db):
         done, pending = task.wait({TASKS[f'{func_prefix}db_disk_{file}']})
         db_disk = TASKS[f'{func_prefix}db_disk_{file}'].result()
         
-        if not isinstance(db_disk, dict):
+        if not isinstance(db_disk, (dict, list)):
             raise Exception(f"Database on disk is not a dictionary for {file}, got {type(db_disk)}")
     except Exception as e:
         _LOGGER.error(f"Error loading {file} from disk: {e}")
