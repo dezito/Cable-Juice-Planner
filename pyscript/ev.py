@@ -5325,10 +5325,10 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        _LOGGER.exception(f"Fejl i {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
+        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
         my_persistent_notification(
             f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
-            f"{TITLE} fejl",
+            f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
 
