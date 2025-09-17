@@ -3924,7 +3924,7 @@ def set_state_drive_efficiency():
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency", error_state={}):
-            if "dato" in item:
+            if "date" in item:
                 state.delete(f"sensor.{__name__}_drive_efficiency.{item}")
 
         for i, item in enumerate(DRIVE_EFFICIENCY_DB):
@@ -3999,7 +3999,7 @@ def set_state_km_kwh_efficiency():
 
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh", error_state={})
         for item in existing_attributes:
-            if "dato" in item:
+            if "date" in item:
                 state.delete(f"sensor.{__name__}_km_per_kwh.{item}")
 
         for i, item in enumerate(KM_KWH_EFFICIENCY_DB):
