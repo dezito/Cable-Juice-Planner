@@ -1978,7 +1978,7 @@ def save_changes(file, db):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global COMMENT_DB_YAML
     
-    db = deepcopy(db) if isinstance(db, dict) else db
+    db = deepcopy(db) if isinstance(db, (dict, list)) else db
     
     if db == {} or db == [] or db is None:
         _LOGGER.error(f"Database is empty or None for {file}, not saving changes.")
@@ -1988,7 +1988,7 @@ def save_changes(file, db):
         done, pending = task.wait({TASKS[f'{func_prefix}db_disk_{file}']})
         db_disk = TASKS[f'{func_prefix}db_disk_{file}'].result()
         
-        if not isinstance(db_disk, dict):
+        if not isinstance(db_disk, (dict, list)):
             raise Exception(f"Database on disk is not a dictionary for {file}, got {type(db_disk)}")
     except Exception as e:
         _LOGGER.error(f"Error loading {file} from disk: {e}")
@@ -3924,7 +3924,7 @@ def set_state_drive_efficiency():
         set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency", error_state={}):
-            if "dato" in item:
+            if "date" in item:
                 state.delete(f"sensor.{__name__}_drive_efficiency.{item}")
 
         for i, item in enumerate(DRIVE_EFFICIENCY_DB):
@@ -3999,7 +3999,7 @@ def set_state_km_kwh_efficiency():
 
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh", error_state={})
         for item in existing_attributes:
-            if "dato" in item:
+            if "date" in item:
                 state.delete(f"sensor.{__name__}_km_per_kwh.{item}")
 
         for i, item in enumerate(KM_KWH_EFFICIENCY_DB):
@@ -5325,10 +5325,10 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        _LOGGER.exception(f"Fejl i {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
+        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
         my_persistent_notification(
             f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
-            f"{TITLE} fejl",
+            f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
 
@@ -5474,7 +5474,6 @@ def get_hour_prices():
                                     
             for hour in hour_prices:
                 if isinstance(hour_prices[hour], list):
-                    _LOGGER.info(f"Averaging {hour} prices: {hour_prices[hour]} = {average(hour_prices[hour])} - {get_refund()} refund")
                     hour_prices[hour] = round(average(hour_prices[hour]) - get_refund(), 2)
             
             if "raw_today" not in power_prices_attr:
