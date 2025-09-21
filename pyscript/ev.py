@@ -7787,7 +7787,7 @@ def max_local_energy_available_remaining_period():
         extra_watt = round(max((predicted_solar_power_period_watt + min(powerwall_force_power, 0.0)) * multiple, 0.0), 2)
         total_available = max(sum(((predicted_solar_power + min(powerwall_force_power, 0.0)), allow_grid_charging_above_solar_available, extra_watt, max(powerwall_force_power, 0.0))), 0.0)
         watt_available = min(total_available, CONFIG["solar"]["inverter_discharging_power_limit"])
-        watts_available_solar_only = min(sum(predicted_solar_power, allow_grid_charging_above_solar_available, extra_watt), CONFIG["solar"]["inverter_discharging_power_limit"])
+        watts_available_solar_only = min(sum((predicted_solar_power, allow_grid_charging_above_solar_available, extra_watt)), CONFIG["solar"]["inverter_discharging_power_limit"])
         
         MAX_LOCAL_ENERGY_AVAILABLE_HISTORY[getTime().isoformat()] = {
             "1. predicted_solar_power": predicted_solar_power,
