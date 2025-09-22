@@ -7727,7 +7727,7 @@ def max_local_energy_available_remaining_period():
             
             discharge_above_needed = TASKS[task_names["discharge_above_needed"]].result()
             powerwall_battery_level = TASKS[task_names["powerwall_battery_level"]].result()
-            powerwall_reserved_battery_level = max(TASKS[task_names["powerwall_reserved_battery_level"]].result() - 1.0, 0.0)
+            powerwall_reserved_battery_level = max(TASKS[task_names["powerwall_reserved_battery_level"]].result(), 0.0) #max(TASKS[task_names["powerwall_reserved_battery_level"]].result() - 1.0, 0.0)
             powerwall_charging_power = TASKS[task_names["powerwall_charging_power"]].result()
             powerwall_charging_timestamps = TASKS[task_names["powerwall_charging_timestamps"]].result()
             
