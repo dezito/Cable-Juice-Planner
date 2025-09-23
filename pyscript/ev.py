@@ -7758,13 +7758,13 @@ def max_local_energy_available_remaining_period():
             elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
                   and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
                 if powerwall_forced_stop_charging:
-                    POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_not_charging_but_should', powerwall_charging_consumption=int(powerwall_charging_consumption))
+                    POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_force_stop', powerwall_charging_consumption=int(powerwall_charging_consumption))
                 else:
                     POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_charging', powerwall_charging_consumption=int(powerwall_charging_consumption))
                     
             elif (powerwall_discharging_available > POWERWALL_DISCHARGING_TRIGGER
                   and powerwall_battery_level > powerwall_reserved_battery_level):
-                POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_charging', powerwall_discharging_available=int(powerwall_discharging_available))
+                POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_discharging', powerwall_discharging_available=int(powerwall_discharging_available))
                 
             else:
                 POWERWALL_CHARGING_TEXT = ""
