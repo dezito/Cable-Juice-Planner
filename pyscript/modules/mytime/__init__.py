@@ -8,8 +8,7 @@ from .get_time import (
 )
 
 from .time_comparison import (
-    monthsBetween, daysBetween, hoursBetween, minutesBetween, secondsBetween,
-    inBetween
+    monthsBetween, daysBetween, hoursBetween, minutesBetween, secondsBetween
 )
 
 from .time_helpers import (
@@ -25,6 +24,6 @@ from .time_helpers import (
 
 __all__ = ["datetime_to_unix", "getTimestampSeconds", "getTimestampMinutes", "getTime", "getTimePlusSeconds", "getTimePlusMinutes", "getTimePlusHours", "getTimePlusDays", "getTimePlusMonths", "getTimePlusYears",
            "getTimeMinusSeconds", "getTimeMinusMinutes", "getTimeMinusHours", "getTimeMinusDays", "getTimeMinusMonths", "getTimeMinusYears",
-           "monthsBetween", "daysBetween", "hoursBetween", "minutesBetween", "secondsBetween", "inBetween",
+           "monthsBetween", "daysBetween", "hoursBetween", "minutesBetween", "secondsBetween",
            "getSecond", "getMinute", "getHour", "getDay", "getTimeStartOfDay", "getTimeEndOfDay", "getDayOfWeek", "getDayOfWeekText", "getMonth", "getMonthFirstDay", "getMonthLastDay",
            "getYear", "date_to_string", "toDateTime", "resetDatetime", "reset_time_to_hour"]

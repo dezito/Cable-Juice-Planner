@@ -132,17 +132,3 @@ def secondsBetween(start: datetime, end: datetime, precise: bool=False, error_va
     except Exception:
         _LOGGER.error(f"Error in secondsBetween with start {start} ({type(start)}) and end {end} ({type(end)})")
         return error_value
-
-def inBetween(check, start, end):
-    """
-    Check if 'check' datetime is between 'start' and 'end' datetimes.
-    Handles cases where the interval spans midnight.
-    Parameters:
-    - check (datetime): The datetime to check.
-    - start (datetime): The start of the interval.
-    - end (datetime): The end of the interval.
-    Returns:
-    - bool: True if 'check' is between 'start' and 'end', False otherwise.
-    """
-    #return check <= start < end if check <= end else check <= start or start < end
-    return start <= check < end if start <= end else start <= check or check < end

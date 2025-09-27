@@ -12,17 +12,32 @@ _LOGGER = getLogger(BASENAME)
 
 def in_between(check, start, end):
     """
-    Checks if a given value falls within a specified range, inclusive of the start and exclusive of the end.
-    Handles wrap-around logic for ranges that span the boundary (e.g., overnight).
-
-    Parameters:
-    - check (datetime|int|float): The value to check.
-    - start (datetime|int|float): The start of the range.
-    - end (datetime|int|float): The end of the range.
+    Check if a value lies within [start, end).
+    - Supports datetime with wrap-around (over midnight).
+    - Supports int/float without wrap-around.
     """
     _LOGGER = globals()['_LOGGER'].getChild("in_between")
-    #return check <= start < end if check <= end else check <= start or start < end
-    return start <= check < end if start <= end else start <= check or check < end
+
+    try:
+        types = {type(check), type(start), type(end)}
+        if len(types) != 1:
+            raise TypeError(f"in_between args must all be same type, got: {types}")
+        T = types.pop()
+
+        if T is datetime.datetime:
+            if start <= end:
+                return start <= check < end
+            else:
+                # wrap-around (fx 23:00 → 02:00)
+                return start <= check or check < end
+        elif T in (int, float):
+            return start <= check < end
+        else:
+            raise TypeError(f"in_between only supports datetime, int, float (got {T})")
+
+    except Exception as e:
+        _LOGGER.error(f"Error in in_between(check={check}, start={start}, end={end}): {e}")
+        return False
 
 def round_up(n, decimals=0):
     """
