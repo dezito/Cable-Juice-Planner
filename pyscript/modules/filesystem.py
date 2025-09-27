@@ -71,10 +71,16 @@ def _add_ext(filename, ext_type = ""):
     - str: The filename async with the ensured extension.
     """
     try:
+        if "." not in filename:
+            filename = f"{filename}.{ext_type}"
+            return filename
+        
         ext = filename.split(".")[-1]
+        
         if ext != ext_type:
             filename = f"{filename}.{ext_type}"
-    except:
+    except Exception as e:
+        _LOGGER.error(f"Error adding extension {ext_type} to filename {filename}: {e}")
         filename = f"{filename}.{ext_type}"
     return filename
    
