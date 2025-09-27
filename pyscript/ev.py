@@ -7930,8 +7930,8 @@ def get_forecast(forecast_dict = None, date = None):
                 if data is None:
                     continue
                 
-                date = date.replace(minute=0, second=0, tzinfo=None)
-                forecastDate = toDateTime(data['datetime']).replace(minute=0, second=0, tzinfo=None)
+                date = reset_time_to_hour(date)
+                forecastDate = reset_time_to_hour(toDateTime(data['datetime']))
                 if date == forecastDate:
                     forecast = data
                     break
