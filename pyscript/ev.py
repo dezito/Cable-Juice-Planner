@@ -1051,7 +1051,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
         else:
             return False
     except Exception as e:
-        _LOGGER.error(f"Error while waiting for task {task_name} (INSTANCE_ID: {INSTANCE_ID}): {e}")
+        _LOGGER.error(f"Error while waiting for task {task_name} (INSTANCE_ID: {INSTANCE_ID}): {e} {type(e)}")
         
     return False
     
@@ -1151,7 +1151,7 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
             pass
         except Exception as e:
-            _LOGGER.error(f"Exception cancelling task {name}: {e}")
+            _LOGGER.error(f"Exception cancelling task {name}: {e} {type(e)}")
             all_success = False
         finally:
             TASKS.pop(name, None)
@@ -1470,9 +1470,9 @@ def run_console_command_sync(cmd):
         result.kill()
         raise TimeoutError("Git command timed out after 15 seconds")
     except RuntimeError as e:
-        raise RuntimeError(f"Git command failed: {e}")
+        raise RuntimeError(f"Git command failed: {e} {type(e)}")
     except Exception as e:
-        raise RuntimeError(f"Unexpected error: {e}")
+        raise RuntimeError(f"Unexpected error: {e} {type(e)}")
 
 async def run_console_command(cmd):
     """Run a git command synchronously and safely with timeout and error handling."""
@@ -1791,7 +1791,7 @@ def save_error_to_file(error_message, caller_function_name = None):
         TASKS[f"{func_prefix}save_changes"] = task.create(save_changes, filename, deepcopy(error_log))
         done, pending = task.wait({TASKS[f"{func_prefix}save_changes"]})
     except Exception as e:
-        _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e}")
+        _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e} {type(e)}")
     finally:
         task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
     
@@ -1901,7 +1901,7 @@ def is_entity_available(entity):
                 
         return True
     except Exception as e:
-        _LOGGER.warning(f"Entity {entity} not available: {e}")
+        _LOGGER.warning(f"Entity {entity} not available: {e} {type(e)}")
         
         if integration is not None:
             if integration not in INTEGRATION_OFFLINE_TIMESTAMP:
@@ -1991,7 +1991,7 @@ def save_changes(file, db):
         if not isinstance(db_disk, (dict, list)):
             raise Exception(f"Database on disk is not a dictionary for {file}, got {type(db_disk)}")
     except Exception as e:
-        _LOGGER.error(f"Error loading {file} from disk: {e}")
+        _LOGGER.error(f"Error loading {file} from disk: {e} {type(e)}")
         db_disk = {}
     finally:
         task_cancel(f'{func_prefix}db_disk_{file}', task_remove=True, timeout=5.0)
@@ -2006,11 +2006,11 @@ def save_changes(file, db):
             TASKS[f'{func_prefix}save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}save_yaml_{file}']})
         except Exception as e:
-            _LOGGER.error(f"Cant save {file}: {e}")
+            _LOGGER.error(f"Cant save {file}: {e} {type(e)}")
             fmt = {"file": file, "error": str(e)}
             my_persistent_notification(
                 f"Error saving data to file: {file}\n\n"
-                f"Error: {e}",
+                f"Error: {e} {type(e)}",
                 f"{TITLE} Error",
                 persistent_notification_id=f"{__name__}_{file}_{func_name}_error"
             )
@@ -2075,7 +2075,7 @@ def create_integration_dict():
                 ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
                 add_to_dict(integration)
     except Exception as e:
-        _LOGGER.error(f"Error creating integration dict: {e}")
+        _LOGGER.error(f"Error creating integration dict: {e} {type(e)}")
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
         
@@ -2171,7 +2171,7 @@ def allow_command_entity_integration(entity_id=None, command="None", integration
     except Exception as e:
         _LOGGER.error(
             f"allow_command_entity_integration(entity_id = {entity_id}, command = {command}, integration = {integration})\n"
-            f"ENTITY_INTEGRATION_DICT:{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}:\nError:{e}"
+            f"ENTITY_INTEGRATION_DICT:{pformat(ENTITY_INTEGRATION_DICT, width=200, compact=True)}:\nError:{e} {type(e)}"
         )
         allowed = True
 
@@ -2212,7 +2212,7 @@ def set_charging_rule(text=""):
         try:
             set_state(f"sensor.{__name__}_current_charging_rule", f"{text}{limit_string}{powerwall_sting}")
         except Exception as e:
-            _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e}")
+            _LOGGER.warning(f"Cant set sensor.{__name__}_current_charging_rule to '{text}': {e} {type(e)}")
             
 def restart_script():
     func_name = "restart_script"
@@ -2319,7 +2319,7 @@ def notify_critical_change(cfg = {}, filename = None):
                             index[full_id] = attrs["description"]
 
         except Exception as e:
-            _LOGGER.error(f"Error flattening default entities to description: {e}")
+            _LOGGER.error(f"Error flattening default entities to description: {e} {type(e)}")
 
         return index
 
@@ -2341,7 +2341,7 @@ def notify_critical_change(cfg = {}, filename = None):
                 desc = COMMENT_DB_YAML.get(key) or entity_desc_index.get(key, "")
                 blocks.append(f"**{key}**\n{desc}\n\n")
         except Exception as e:
-            _LOGGER.error(f"Error generating keys description: {e}")
+            _LOGGER.error(f"Error generating keys description: {e} {type(e)}")
         return blocks
 
     
@@ -2538,9 +2538,9 @@ def load_language():
         #_LOGGER.info(f"{BASENAME} loaded i18n catalog: {pformat(i18n.get_catalog(), width=200, compact=True)}")
         
     except Exception as e:
-        _LOGGER.error(f"Error in {func_name}: {e}")
+        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
         my_persistent_notification(
-            f"Error in {func_name}: {e}",
+            f"Error in {func_name}: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -2803,11 +2803,11 @@ def init():
     except Exception as e:
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
-        set_charging_rule(f"⛔{i18n.t('ui.init.script_stopped')}.\n{i18n.t('ui.init.check_log')}:\n{e}")
+        set_charging_rule(f"⛔{i18n.t('ui.init.script_stopped')}.\n{i18n.t('ui.init.check_log')}:\n{e} {type(e)}")
         my_persistent_notification(
             f"{i18n.t('ui.init.script_stopped')}\n"
             f"{i18n.t('ui.init.check_log')}:\n"
-            f"{e}",
+            f"{e} {type(e)}",
             title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -3011,7 +3011,7 @@ def set_default_entity_states():
 
             set_state(entity_id, value)
         except Exception as e:
-            _LOGGER.error(f"Error setting {entity_id} to {value}: {e}")
+            _LOGGER.error(f"Error setting {entity_id} to {value}: {e} {type(e)}")
 
 def weather_values():
     output = []
@@ -3051,7 +3051,7 @@ def is_ev_home():
             else:
                 current_location = "home"
     except Exception as e:
-        _LOGGER.error(f"Error getting current location: {e}")
+        _LOGGER.error(f"Error getting current location: {e} {type(e)}")
         current_location = "home"
     
     return True if current_location == "home" else False
@@ -3063,7 +3063,7 @@ def is_calculating_charging_loss():
     try:
         return True if get_state(f"input_boolean.{__name__}_calculate_charging_loss", float_type=False, error_state=False) == "on" else False
     except Exception as e:
-        _LOGGER.warning(f": {e}")
+        _LOGGER.warning(f": {e} {type(e)}")
         return False
     
 def get_vin_cupra_born(entity_id):
@@ -3098,7 +3098,7 @@ def get_entity_daily_distance(day_text = None, date = None, ignore_realistic_est
                 distance = min(daily_available_range, distance)
         return distance
     except Exception as e:
-        _LOGGER.warning(f"Cant get daily distance, using config data {CONFIG['ev_car']['typical_daily_distance_non_working_day']}: {e}")
+        _LOGGER.warning(f"Cant get daily distance, using config data {CONFIG['ev_car']['typical_daily_distance_non_working_day']}: {e} {type(e)}")
         return CONFIG['ev_car']['typical_daily_distance_non_working_day']
 
 def get_min_daily_battery_level():
@@ -3108,7 +3108,7 @@ def get_min_daily_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_min_daily_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get daily battery level, using config data {CONFIG['ev_car']['min_daily_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get daily battery level, using config data {CONFIG['ev_car']['min_daily_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['min_daily_battery_level']
 
 def get_min_trip_battery_level():
@@ -3118,7 +3118,7 @@ def get_min_trip_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_min_trip_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get min trip battery level, using config data {CONFIG['ev_car']['min_trip_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get min trip battery level, using config data {CONFIG['ev_car']['min_trip_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['min_trip_battery_level']
 
 def get_min_charge_limit_battery_level():
@@ -3128,7 +3128,7 @@ def get_min_charge_limit_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_min_charge_limit_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get min charge limit battery level, using config data {CONFIG['ev_car']['min_charge_limit_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get min charge limit battery level, using config data {CONFIG['ev_car']['min_charge_limit_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['min_charge_limit_battery_level']
 
 def get_max_recommended_charge_limit_battery_level():
@@ -3138,7 +3138,7 @@ def get_max_recommended_charge_limit_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_max_recommended_charge_limit_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get max recommended charge limit battery level, using config data {CONFIG['ev_car']['max_recommended_charge_limit_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get max recommended charge limit battery level, using config data {CONFIG['ev_car']['max_recommended_charge_limit_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['max_recommended_charge_limit_battery_level']
 
 def get_very_cheap_grid_charging_max_battery_level():
@@ -3148,7 +3148,7 @@ def get_very_cheap_grid_charging_max_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_very_cheap_grid_charging_max_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get very cheap grid charging max battery level, using config data {CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get very cheap grid charging max battery level, using config data {CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['very_cheap_grid_charging_max_battery_level']
 
 def get_ultra_cheap_grid_charging_max_battery_level():
@@ -3158,7 +3158,7 @@ def get_ultra_cheap_grid_charging_max_battery_level():
     try:
         return float(get_state(f"input_number.{__name__}_ultra_cheap_grid_charging_max_battery_level", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get ultra cheap grid charging max battery level, using config data {CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']}: {e}")
+        _LOGGER.warning(f"Cant get ultra cheap grid charging max battery level, using config data {CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']}: {e} {type(e)}")
         return CONFIG['ev_car']['ultra_cheap_grid_charging_max_battery_level']
 
 def get_powerwall_discharge_above_needed():
@@ -3172,7 +3172,7 @@ def get_powerwall_discharge_above_needed():
         state = get_state(f"input_boolean.{__name__}_powerwall_discharge_above_needed", float_type=False, error_state="off")
         return True if state == "on" else False
     except Exception as e:
-        _LOGGER.warning(f"Cant get powerwall discharge above needed state from input_boolean.{__name__}_powerwall_discharge_above_needed entity: {e}")
+        _LOGGER.warning(f"Cant get powerwall discharge above needed state from input_boolean.{__name__}_powerwall_discharge_above_needed entity: {e} {type(e)}")
 
 def get_powerwall_battery_level():
     func_name = "get_powerwall_battery_level"
@@ -3184,7 +3184,7 @@ def get_powerwall_battery_level():
     try:
         return float(get_state(CONFIG["home"]["entity_ids"]["powerwall_battery_level_entity_id"], float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e}")
+        _LOGGER.warning(f"Cant get powerwall battery level from {CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']}, using default value 100.0: {e} {type(e)}")
         return 100.0
 
 def get_ev_charge_after_powerwall_battery_level():
@@ -3198,10 +3198,10 @@ def get_ev_charge_after_powerwall_battery_level():
         return float(get_state(f"input_number.{__name__}_ev_charge_after_powerwall_battery_level", float_type=True, error_state=None))
     except Exception as e:
         try:
-            _LOGGER.warning(f"Cant get ev charge after powerwall battery level, using config data {CONFIG['solar']['ev_charge_after_powerwall_battery_level']}: {e}")
+            _LOGGER.warning(f"Cant get ev charge after powerwall battery level, using config data {CONFIG['solar']['ev_charge_after_powerwall_battery_level']}: {e} {type(e)}")
             return float(CONFIG['solar']['ev_charge_after_powerwall_battery_level'])
         except Exception as e:
-            _LOGGER.error(f"Failed to get ev charge after powerwall battery level from config: {e}")
+            _LOGGER.error(f"Failed to get ev charge after powerwall battery level from config: {e} {type(e)}")
             return 100.0
 
 def get_completed_battery_level():
@@ -3213,7 +3213,7 @@ def get_completed_battery_level():
             return float(get_state(f"input_number.{__name__}_completed_battery_level", float_type=True, float_type=True, error_state=None))
         return 100.0
     except Exception as e:
-        _LOGGER.warning(f"Using default charge completed battery level 100.0: {e}")
+        _LOGGER.warning(f"Using default charge completed battery level 100.0: {e} {type(e)}")
         return 100.0
 
 def get_estimated_total_range():
@@ -3224,7 +3224,7 @@ def get_estimated_total_range():
     try:
         estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
     except Exception as e:
-        _LOGGER.error(f"input_number.{__name__}_estimated_total_range is not set to a total range: {e}")
+        _LOGGER.error(f"input_number.{__name__}_estimated_total_range is not set to a total range: {e} {type(e)}")
         
     return estimated_total_range
 
@@ -3236,11 +3236,11 @@ def get_trip_date_time():
     try:
         trip_date_time = get_state(f"input_datetime.{__name__}_trip_date_time", error_state=resetDatetime())
     except Exception as e:
-        _LOGGER.error(f"input_datetime.{__name__}_trip_date_time is not set to a dateTime: {e}")
+        _LOGGER.error(f"input_datetime.{__name__}_trip_date_time is not set to a dateTime: {e} {type(e)}")
         try:
             set_state(f"input_datetime.{__name__}_trip_date_time", resetDatetime())
         except Exception as e:
-            _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_date_time to {resetDatetime()}: {e}")
+            _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_date_time to {resetDatetime()}: {e} {type(e)}")
             
     return trip_date_time
 
@@ -3252,11 +3252,11 @@ def get_trip_homecoming_date_time():
     try:
         trip_homecoming_date_time = get_state(f"input_datetime.{__name__}_trip_homecoming_date_time", error_state=resetDatetime())
     except Exception as e:
-        _LOGGER.error(f"input_datetime.{__name__}_trip_homecoming_date_time is not set to a dateTime: {e}")
+        _LOGGER.error(f"input_datetime.{__name__}_trip_homecoming_date_time is not set to a dateTime: {e} {type(e)}")
         try:
             set_state(f"input_datetime.{__name__}_trip_homecoming_date_time", resetDatetime())
         except Exception as e:
-            _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_homecoming_date_time to {resetDatetime()}: {e}")
+            _LOGGER.error(f"Cant set input_datetime.{__name__}_trip_homecoming_date_time to {resetDatetime()}: {e} {type(e)}")
             
     return trip_homecoming_date_time
 
@@ -3268,11 +3268,11 @@ def get_trip_range():
     try:
         trip_range = float(get_state(f"input_number.{__name__}_trip_range_needed", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.error(f"input_number.{__name__}_trip_range_needed is not set to a number: {e}")
+        _LOGGER.error(f"input_number.{__name__}_trip_range_needed is not set to a number: {e} {type(e)}")
         try:
             set_state(f"input_number.{__name__}_trip_range_needed", 0.0)
         except Exception as e:
-            _LOGGER.error(f"Cant set input_number.{__name__}_trip_range_needed to 0.0: {e}")
+            _LOGGER.error(f"Cant set input_number.{__name__}_trip_range_needed to 0.0: {e} {type(e)}")
         
     return trip_range
 
@@ -3284,11 +3284,11 @@ def get_trip_target_level():
     try:
         trip_target_level = float(get_state(f"input_number.{__name__}_trip_charge_procent", float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.error(f"input_number.{__name__}_trip_charge_procent is not set to a number: {e}")
+        _LOGGER.error(f"input_number.{__name__}_trip_charge_procent is not set to a number: {e} {type(e)}")
         try:
             set_state(f"input_number.{__name__}_trip_charge_procent", 0.0)
         except Exception as e:
-            _LOGGER.error(f"Cant set input_number.{__name__}_trip_charge_procent to 0.0: {e}")
+            _LOGGER.error(f"Cant set input_number.{__name__}_trip_charge_procent to 0.0: {e} {type(e)}")
         
     return trip_target_level
 
@@ -3300,7 +3300,7 @@ def get_public_charging_session_done():
     try:
         state = get_state(f"binary_sensor.{__name__}_public_charging_session_done", error_state="unknown")
     except Exception as e:
-        _LOGGER.error(f"binary_sensor.{__name__}_public_charging_session_done is not set to a value: {e}")
+        _LOGGER.error(f"binary_sensor.{__name__}_public_charging_session_done is not set to a value: {e} {type(e)}")
     return True if state == "on" else False
     
 
@@ -3382,7 +3382,7 @@ def get_tariffs(hour, day_of_week):
         }
         
     except Exception as e:
-        _LOGGER.debug(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e}")
+        _LOGGER.debug(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e} {type(e)}")
         return {
                 "transmissions_nettarif": 0.0,
                 "systemtarif": 0.0,
@@ -3496,7 +3496,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         if sell_price is None:
             sell_price = max(CONFIG['solar']['production_price'], 0.0)
             
-        _LOGGER.error(f"Cant get solar sell price using {using_text} {sell_price}: {e}")
+        _LOGGER.error(f"Cant get solar sell price using {using_text} {sell_price}: {e} {type(e)}")
         
     return sell_price
 
@@ -3507,7 +3507,7 @@ def get_refund():
     try:
         return abs(CONFIG['prices']['refund'])
     except Exception as e:
-        _LOGGER.warning(f"Cant get refund, using default 0.0: {e}")
+        _LOGGER.warning(f"Cant get refund, using default 0.0: {e} {type(e)}")
         return 0.0
 
 def get_current_hour_price():
@@ -3517,7 +3517,7 @@ def get_current_hour_price():
     try:
         return float(get_state(f"sensor.{__name__}_kwh_cost_price", float_type=True))
     except Exception as e:
-        _LOGGER.warning(f"Cant get current hour price, using default 0.0: {e}")
+        _LOGGER.warning(f"Cant get current hour price, using default 0.0: {e} {type(e)}")
         return 0.0
 
 def get_powerwall_kwh_price(kwh = None):
@@ -3582,7 +3582,7 @@ def get_powerwall_kwh_price(kwh = None):
                     powerwall_kwh.append(round(powerwall_charging_consumption, 3))
                     powerwall_total_cost.append(round(powerwall_charging_consumption * kwh_price, 3))
     except Exception as e:
-        _LOGGER.error(f"Error getting powerwall kWh price: {e}")
+        _LOGGER.error(f"Error getting powerwall kWh price: {e} {type(e)}")
         return get_solar_sell_price()
     
     if powerwall_kwh:
@@ -3639,7 +3639,7 @@ def distance_per_percentage():
             output = km_kwh_to_km_percentage(ema)
             _LOGGER.debug(f"ema_km/kwh:{ema} km_kwh_to_km_percentage({ema})={output}")
         except Exception as e:
-            _LOGGER.warning(f"Using default value 3.0: {e}")
+            _LOGGER.warning(f"Using default value 3.0: {e} {type(e)}")
     return output
 
 def calc_distance_to_battery_level(distance):
@@ -3818,7 +3818,7 @@ def peak_battery_level_after_last_plug():
         
         max_battery_level = max(get_values(ev_entity_id, from_time_stamp, to_time_stamp, error_state=[]), default=0.0)
     except Exception as e:
-        _LOGGER.error(f"peak_battery_level_after_last_plug(): {e}")
+        _LOGGER.error(f"peak_battery_level_after_last_plug(): {e} {type(e)}")
         
     return max_battery_level
 
@@ -3883,7 +3883,7 @@ def load_drive_efficiency():
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         DRIVE_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
-        error_message = f"Cant load {__name__}_drive_efficiency_db: {e}"
+        error_message = f"Cant load {__name__}_drive_efficiency_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}")
@@ -3933,7 +3933,7 @@ def set_state_drive_efficiency():
             except:
                 set_attr(f"sensor.{__name__}_drive_efficiency.date_{i}", round(item, 2))
     except Exception as e:
-        _LOGGER.error(f"Cant set drive efficiency: {e}")
+        _LOGGER.error(f"Cant set drive efficiency: {e} {type(e)}")
 
 def load_km_kwh_efficiency():
     func_name = "load_km_kwh_efficiency"
@@ -3952,7 +3952,7 @@ def load_km_kwh_efficiency():
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         KM_KWH_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
-        error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e}"
+        error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(error_message, f"{TITLE} warning", persistent_notification_id=f"{__name__}_{func_name}")
@@ -4015,9 +4015,9 @@ def set_state_km_kwh_efficiency():
         set_estimated_range()
 
     except Exception as e:
-        _LOGGER.error(f"Cant set {i18n.t('ui.common.distance_kwh')} efficiency: {e}", exc_info=True)
+        _LOGGER.error(f"Cant set {i18n.t('ui.common.distance_kwh')} efficiency: {e} {type(e)}", exc_info=True)
         my_persistent_notification(
-            f"Cant set km/kwh efficiency: {e}",
+            f"Cant set km/kwh efficiency: {e} {type(e)}",
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -4053,9 +4053,9 @@ def set_estimated_range():
         set_attr(f"sensor.{__name__}_estimated_range.total", range_total)
 
     except Exception as e:
-        _LOGGER.error(f"Cant set estimated range: {e}", exc_info=True)
+        _LOGGER.error(f"Cant set estimated range: {e} {type(e)}", exc_info=True)
         my_persistent_notification(
-            f"Cant set estimated range: {e}",
+            f"Cant set estimated range: {e} {type(e)}",
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -4071,7 +4071,7 @@ def set_last_drive_efficiency_attributes(kilometers, usedkWh, used_battery, cost
             set_attr(f"sensor.{__name__}{sensor}.last_drive_cost", f"{round(cost, 2)}kr")
             set_attr(f"sensor.{__name__}{sensor}.last_drive_efficiency", f"{round(efficiency, 1)}% {round(distance_per_kWh, 2)} {i18n.t('ui.common.distance_kwh')} ({wh_km} {i18n.t('ui.common.wh_distance')})")
         except Exception as e:
-            _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e}")
+            _LOGGER.error(f"Error setting sensor attributes for sensor.{__name__}{sensor}: {e} {type(e)}")
 
 def drive_efficiency_save_car_stats(bootup=False):
     func_name = "drive_efficiency_save_car_stats"
@@ -4314,9 +4314,9 @@ def drive_efficiency(state=None):
                 
             set_last_drive_efficiency_attributes(kilometers, usedkWh, usedBattery, cost, efficiency, distancePerkWh, wh_km)
     except Exception as e:
-        _LOGGER.error(f"Error in drive_efficiency: {e}")
+        _LOGGER.error(f"Error in drive_efficiency: {e} {type(e)}")
         my_persistent_notification(
-            f"Error in drive_efficiency:\n{e}",
+            f"Error in drive_efficiency:\n{e} {type(e)}",
             f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -4339,7 +4339,7 @@ def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
     except Exception as e:
         _LOGGER.error(
             f"Error calculating battery level - extraRange: {extraRange}, batteryBuffer: {batteryBuffer}, "
-            f"minRangeInBatteryLevel: {minRangeInBatteryLevel}: {e}"
+            f"minRangeInBatteryLevel: {minRangeInBatteryLevel}: {e} {type(e)}"
         )
 
     return min(minRangeInBatteryLevel, 100.0)
@@ -4371,7 +4371,7 @@ def verify_charge_limit(limit):
         limit = min(max(limit, get_min_charge_limit_battery_level()), 100.0)
 
     except Exception as e:
-        _LOGGER.error(f"Error verifying charge limit: {e}")
+        _LOGGER.error(f"Error verifying charge limit: {e} {type(e)}")
         limit = get_max_recommended_charge_limit_battery_level()
 
     return limit
@@ -4421,7 +4421,7 @@ def load_charging_history():
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         CHARGING_HISTORY_DB = TASKS[f'{func_prefix}load_yaml'].result()
     except Exception as e:
-        error_message = f"Cant load {__name__}_charging_history_db: {e}"
+        error_message = f"Cant load {__name__}_charging_history_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_load_charging_history")
@@ -4449,7 +4449,7 @@ def load_charging_history():
             except Exception as e:
                 _LOGGER.error(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}\n  ({last_item})")
                 _LOGGER.error(f"Last item:\n {pformat(last_item, width=200, compact=True)}")
-                my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_last_charging_session")
+                my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_last_charging_session")
     
     if is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
         now = getTime()
@@ -4489,7 +4489,7 @@ def save_charging_history():
         
             save_changes(f"{__name__}_charging_history_db", CHARGING_HISTORY_DB)
         except Exception as e:
-            error_message = f"Cant save {__name__}_charging_history_db: {e}"
+            error_message = f"Cant save {__name__}_charging_history_db: {e} {type(e)}"
             _LOGGER.error(error_message)
             save_error_to_file(error_message, caller_function_name = f"{func_name}()")
             my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}")
@@ -4558,11 +4558,11 @@ def charging_history_recalc_price():
                     kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS["charging_history_recalc_price_calc_local_energy_kwh"].result()
                     price = TASKS["charging_history_recalc_price_calc_kwh_price"].result()
                 except (asyncio.CancelledError, asyncio.TimeoutError) as e:
-                    _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
-                    my_persistent_notification(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price_task_cancelled")
+                    _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}")
+                    my_persistent_notification(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price_task_cancelled")
                 except Exception as e:
-                    _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
-                    my_persistent_notification(f"Error calculating local energy kWh or price: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price")
+                    _LOGGER.error(f"Error calculating local energy kWh or price: {e} {type(e)}")
+                    my_persistent_notification(f"Error calculating local energy kWh or price: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price")
                 finally:
                     task_cancel("charging_history_recalc_price_", task_remove=True, startswith=True)
                 
@@ -4592,8 +4592,8 @@ def charging_history_recalc_price():
                     _LOGGER.info(f"{pformat(CHARGING_HISTORY_DB[start], width=200, compact=True)}")
                     return True
             except Exception as e:
-                _LOGGER.error(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}")
-                my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_calculate_last_charging_session")
+                _LOGGER.error(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e} {type(e)}")
+                my_persistent_notification(f"Cant calculate last charging session to CHARGING_HISTORY_DB({start}): {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_calculate_last_charging_session")
     return False
 
 def charging_history_combine_and_set(get_ending_byte_size=False):
@@ -4635,7 +4635,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             adjusted_km_per_kwh = km_per_kwh * efficiency_factor
             return round(kwh * adjusted_km_per_kwh, 1), True
         except Exception as e:
-            _LOGGER.error(f"Error calculating estimated range: {e}")
+            _LOGGER.error(f"Error calculating estimated range: {e} {type(e)}")
             return 0.0, False
     
     history = []
@@ -5120,9 +5120,9 @@ async def charging_history(charging_data=None, charging_type=""):
         if not task_running or task_running.done():
             TASKS[func_name] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.exception(f"Failed to add to charging history queue: {e}")
+        _LOGGER.exception(f"Failed to add to charging history queue: {e} {type(e)}")
         my_persistent_notification(
-            f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
+            f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} failed",
             persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
@@ -5142,11 +5142,11 @@ async def charging_history_worker():
             
             CHARGING_HISTORY_QUEUE.task_done()
         except (TypeError, AttributeError) as e:
-            _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e}")
+            _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e} {type(e)}")
         except Exception as e:
-            _LOGGER.exception(f"Exception in charging_history_worker: {e}")
+            _LOGGER.exception(f"Exception in charging_history_worker: {e} {type(e)}")
             my_persistent_notification(
-                f"Charging history queue failed: {e}",
+                f"Charging history queue failed: {e} {type(e)}",
                 f"{TITLE} Failed",
                 persistent_notification_id=f"{__name__}_{func_name}_failed"
             )
@@ -5181,16 +5181,16 @@ async def _charging_history(charging_data = None, charging_type = ""):
             kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS[f"{func_prefix}calc_local_energy_kwh"].result()
             price = round(TASKS[f"{func_prefix}calc_kwh_price"].result(), 3)
         except (asyncio.CancelledError, asyncio.TimeoutError) as e:
-            _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e}")
+            _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}")
             my_persistent_notification(
-                f"Charging history task for calculating local energy kWh or price was cancelled or timed out: {e}",
+                f"Charging history task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}",
                 f"{TITLE} failed",
                 persistent_notification_id=f"{__name__}_{func_name}_task_cancelled_or_timed_out"
             )
         except Exception as e:
-            _LOGGER.error(f"Error calculating local energy kWh or price: {e}")
+            _LOGGER.error(f"Error calculating local energy kWh or price: {e} {type(e)}")
             my_persistent_notification(
-                f"Charging history failed to calculate local energy kWh or price: {e}",
+                f"Charging history failed to calculate local energy kWh or price: {e} {type(e)}",
                 f"{TITLE} failed",
                 persistent_notification_id=f"{__name__}_{func_name}_calc_local_energy_kwh_or_price_failed"
             )
@@ -5325,9 +5325,9 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e}")
+        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}")
         my_persistent_notification(
-            f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e}",
+            f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_failed"
         )
@@ -5394,7 +5394,7 @@ def current_battery_level_expenses():
                 BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] = round(BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"] / BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"], 3)
 
     except Exception as e:
-        _LOGGER.warning(f"Error in battery level cost calculation: {e}")
+        _LOGGER.warning(f"Error in battery level cost calculation: {e} {type(e)}")
 
     return BATTERY_LEVEL_EXPENSES
 
@@ -5500,7 +5500,7 @@ def get_hour_prices():
             hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
-            _LOGGER.warning(f"Cant get all online prices, using database: {e}")
+            _LOGGER.warning(f"Cant get all online prices, using database: {e} {type(e)}")
 
             USING_OFFLINE_PRICES = True
             missing_hours = {}
@@ -5532,11 +5532,11 @@ def get_hour_prices():
                     LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = deepcopy(missing_hours)
                     
             except Exception as e:
-                error_message = f"Cant get offline prices: {e}"
+                error_message = f"Cant get offline prices: {e} {type(e)}"
                 _LOGGER.error(error_message)
                 save_error_to_file(error_message, caller_function_name = f"{func_name}()")
-                my_persistent_notification(f"Kan ikke hente offline priser: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error")
-                raise Exception(f"Offline prices error: {e}")
+                my_persistent_notification(f"Kan ikke hente offline priser: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error")
+                raise Exception(f"Offline prices error: {e} {type(e)}")
             
     return hour_prices
 
@@ -5635,7 +5635,7 @@ def cheap_grid_charge_hours():
             if trip_datetime:
                 on_trip = in_between(timestamp, trip_datetime, trip_homecoming_datetime)
         except Exception as e:
-            _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e}")
+            _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e} {type(e)}")
         
         return working, on_trip
     
@@ -5790,7 +5790,7 @@ def cheap_grid_charge_hours():
             if round(price, 3) <= (average_price * 0.75):
                 ultra_cheap_price = True
         except Exception as e:
-            _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e}")
+            _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e} {type(e)}")
             average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
             if round(price, 3) <= average_price:
                 very_cheap_price = True
@@ -6191,7 +6191,7 @@ def cheap_grid_charge_hours():
                                 if charging_plan[day]['offday']:
                                     charging_plan[day]['offday_total_cost'] += cost_added
             except Exception as e:
-                error_message = f"Error in fill up or need recommended full charge for day {day}: {e}"
+                error_message = f"Error in fill up or need recommended full charge for day {day}: {e} {type(e)}"
                 _LOGGER.warning(error_message)
                 save_error_to_file(error_message, caller_function_name = f"{func_name}().{sub_func_name}().fill_up_or_need_recommended_full_charge")
                 my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_fill_up_or_need_recommended_full_charge_error")
@@ -6364,7 +6364,7 @@ def cheap_grid_charge_hours():
                     work_overview_key = float(day) + (index / 10.0)
                     work_overview[work_overview_key] = event["data"]
             except Exception as e:
-                _LOGGER.warning(f"Cant create work overview for day {day}: {e}")
+                _LOGGER.warning(f"Cant create work overview for day {day}: {e} {type(e)}")
         
             try: #Alternative charging estimate
                 charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="unavailable")
@@ -6435,7 +6435,7 @@ def cheap_grid_charge_hours():
                             else:
                                 break
             except Exception as e:
-                _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e}")
+                _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e} {type(e)}")
             
             try:
                 if solar_charging_enabled() and sum(charging_plan[day]['solar_prediction']) > 0.0:
@@ -6475,7 +6475,7 @@ def cheap_grid_charge_hours():
                         "corrected": charging_plan[day]['solar_prediction_corrected'],
                     }
             except Exception as e:
-                _LOGGER.warning(f"Cant create solar over production prediction for day {day}: {e}")
+                _LOGGER.warning(f"Cant create solar over production prediction for day {day}: {e} {type(e)}")
                 
             if charging_plan[day]['trip']:
                 total_trip_battery_level_needed = max((charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max'] - get_min_trip_battery_level()), 0.0) * -1
@@ -6820,7 +6820,7 @@ def cheap_grid_charge_hours():
                             charging_plan_attr[title]["Trip kWh needed"] = f"{value["trip_kwh_needed"]:.2f} kWh"
                 charging_plan_attr[title] = dict(sorted(charging_plan_attr[title].items()))
     except Exception as e:
-        _LOGGER.error(f"Failed to create charging plan attributes: {e}")
+        _LOGGER.error(f"Failed to create charging plan attributes: {e} {type(e)}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
 
     try:
@@ -6838,7 +6838,7 @@ def cheap_grid_charge_hours():
             else:
                 charging_hours_attr[str(key)] = [f"{value['battery_level']:.2f}%", f"{value['kWh']:.2f} kWh", f"{value['Cost']:.2f}{i18n.t('ui.common.valuta')}"]
     except Exception as e:
-        _LOGGER.error(f"Failed to create charging plan charging_hours attributes: {e}")
+        _LOGGER.error(f"Failed to create charging plan charging_hours attributes: {e} {type(e)}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     
     set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
@@ -6871,7 +6871,7 @@ def cheap_grid_charge_hours():
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
-        _LOGGER.error(f"Failed to calculate last drive efficiency: {e}")
+        _LOGGER.error(f"Failed to calculate last drive efficiency: {e} {type(e)}")
     
     try:
         battery_level_expenses_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"]
@@ -6894,7 +6894,7 @@ def cheap_grid_charge_hours():
             overview.append("</center>\n")
             overview.append("***")
     except Exception as e:
-        _LOGGER.error(f"Failed to calculate battery level cost: {e}")
+        _LOGGER.error(f"Failed to calculate battery level cost: {e} {type(e)}")
         
     try:
         def planning_basis_markdown():
@@ -7033,8 +7033,7 @@ def cheap_grid_charge_hours():
         
         overview.append("</center>\n")
     except Exception as e:
-        _LOGGER.error(f"Failed to create charging plan overview: {e}")
-        _LOGGER.error(f"USING_OFFLINE_PRICES: {USING_OFFLINE_PRICES}")
+        _LOGGER.error(f"Failed to create charging plan overview: {e} {type(e)}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
@@ -7159,7 +7158,7 @@ def cheap_grid_charge_hours():
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
-        _LOGGER.error(f"Failed to create work overview: {e}")
+        _LOGGER.error(f"Failed to create work overview: {e} {type(e)}")
         _LOGGER.error(f"work_overview: {work_overview}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
@@ -7187,7 +7186,7 @@ def cheap_grid_charge_hours():
 
             overview.append("</center>\n")
     except Exception as e:
-        _LOGGER.error(f"Failed to create solar over production overview: {e}")
+        _LOGGER.error(f"Failed to create solar over production overview: {e} {type(e)}")
         _LOGGER.error(f"solar_over_production: {solar_over_production}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
@@ -7331,7 +7330,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
     except Exception as e:
-        _LOGGER.warning(f"Cant set dynamic amps on charger: {e}")
+        _LOGGER.warning(f"Cant set dynamic amps on charger: {e} {type(e)}")
         _LOGGER.warning(f"Setting ev cars charging amps to {amps}")
         my_persistent_notification(
             f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}",
@@ -7340,7 +7339,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         )
         try:
             if not is_ev_configured():
-                raise Exception(f"{e}")
+                raise Exception(f"{e} {type(e)}")
             
             if not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
                 raise Exception(f"Ev charging amps unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
@@ -7376,7 +7375,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
                 _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
                 ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
     except Exception as e:
-        error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e}"
+        error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e} {type(e)}"
         _LOGGER.warning(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
         my_persistent_notification(
@@ -7412,7 +7411,7 @@ def power_from_ignored(from_time_stamp, to_time_stamp):
             for entity_id in CONFIG['home']['entity_ids']['ignore_consumption_from_entity_ids']:
                 total += average_since_sum(entity_id)
     except Exception as e:
-        _LOGGER.warning(f"Cant get ignore values from {from_time_stamp} to {to_time_stamp}: {e}")
+        _LOGGER.warning(f"Cant get ignore values from {from_time_stamp} to {to_time_stamp}: {e} {type(e)}")
     return round(total, 2)
 
 def powerwall_max_charging_power(period=60):
@@ -7438,7 +7437,7 @@ def powerwall_max_charging_power(period=60):
         else:
             max_power = abs(min(get_specific_values(powerwall_values, negative_only = True)))
     except Exception as e:
-        _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e}")
+        _LOGGER.warning(f"Cant get powerwall values for {CONFIG['home']['entity_ids']['powerwall_watt_flow_entity_id']}from {from_time_stamp} to {to_time_stamp}: {e} {type(e)}")
         
     return max_power
 
@@ -7460,7 +7459,7 @@ def charge_from_powerwall(from_time_stamp, to_time_stamp):
             else:
                 powerwall_charging_consumption = abs(round(average(get_specific_values(powerwall_values, negative_only = True)), 0))
     except Exception as e:
-        _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
+        _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e} {type(e)}")
         
     return powerwall_charging_consumption
 
@@ -7482,7 +7481,7 @@ def discharge_from_powerwall(from_time_stamp, to_time_stamp):
             else:
                 powerwall_discharging_consumption = abs(round(average(get_specific_values(powerwall_values, positive_only = True)), 0))
     except Exception as e:
-        _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e}")
+        _LOGGER.warning(f"Cant get powerwall values from {from_time_stamp} to {to_time_stamp}: {e} {type(e)}")
         
     return powerwall_discharging_consumption
 
@@ -7547,9 +7546,9 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
         power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
     except Exception as e:
-        _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}")
+        _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e} {type(e)}")
         my_persistent_notification(
-            f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e}",
+            f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -7629,9 +7628,9 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
             
             return watts_available_from_local_energy_solar_only if solar_only else watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy
     except Exception as e:
-        _LOGGER.error(f"Error calculating local energy available: {e}")
+        _LOGGER.error(f"Error calculating local energy available: {e} {type(e)}")
         my_persistent_notification(
-            f"Error calculating local energy available: {e}",
+            f"Error calculating local energy available: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -7823,9 +7822,9 @@ def max_local_energy_available_remaining_period():
             
         _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except Exception as e:
-        _LOGGER.error(f"Error calculating max local energy available remaining hour: {e}")
+        _LOGGER.error(f"Error calculating max local energy available remaining hour: {e} {type(e)}")
         my_persistent_notification(
-            f"Error calculating max local energy available remaining hour: {e}",
+            f"Error calculating max local energy available remaining hour: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -7871,7 +7870,7 @@ def get_forecast_dict():
             else:
                 raise Exception(f"{CONFIG['forecast']['entity_ids']['hourly_service_entity_id']} not in return dict")
     except Exception as e:
-        _LOGGER.error(f"Cant get hourly forecast dict: {e}")
+        _LOGGER.error(f"Cant get hourly forecast dict: {e} {type(e)}")
         
     try:
         if not service.has_service('weather', 'get_forecasts'):
@@ -7887,7 +7886,7 @@ def get_forecast_dict():
             else:
                 raise Exception(f"{CONFIG['forecast']['entity_ids']['daily_service_entity_id']} not in return dict")
     except Exception as e:
-        _LOGGER.error(f"Cant get daily forecast dict: {e}")
+        _LOGGER.error(f"Cant get daily forecast dict: {e} {type(e)}")
         
     return return_dict
 
@@ -7922,7 +7921,7 @@ def get_forecast(forecast_dict = None, date = None):
                     forecast = data
                     break
     except Exception as e:
-        _LOGGER.error(f"Cant get forecast for date {date} {e}")
+        _LOGGER.error(f"Cant get forecast for date {date} {e} {type(e)}")
         
     _LOGGER.debug(f"{date}: {forecast}")
     return forecast
@@ -8032,7 +8031,7 @@ def load_power_values_db():
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
             done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
-        error_message = f"Cant load {__name__}_power_values_db: {e}"
+        error_message = f"Cant load {__name__}_power_values_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(
@@ -8117,7 +8116,7 @@ def load_solar_available_db():
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=SOLAR_PRODUCTION_AVAILABLE_DB)
             done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
-        error_message = f"Cant load {__name__}_solar_production_available_db: {e}"
+        error_message = f"Cant load {__name__}_solar_production_available_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(
@@ -8187,7 +8186,7 @@ def solar_available_append_to_db(power):
             except:
                 cloudiness_score = WEATHER_CONDITION_DICT[get_state(CONFIG['forecast']['entity_ids']['daily_service_entity_id'])]
         except Exception as e:
-            _LOGGER.error(f"Cant get states from hourly {CONFIG['forecast']['entity_ids']['daily_service_entity_id']} or daily {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}: {e}")
+            _LOGGER.error(f"Cant get states from hourly {CONFIG['forecast']['entity_ids']['daily_service_entity_id']} or daily {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}: {e} {type(e)}")
             return
     
     SOLAR_PRODUCTION_AVAILABLE_DB[hour][cloudiness_score].insert(0, [getTime(), power])
@@ -8241,7 +8240,7 @@ def get_solar_kwh_forecast():
                 
                 forecast[date] = (available_kwh, sell_price)
         except Exception as e:
-            _LOGGER.error(f"Error: {e}")
+            _LOGGER.error(f"Error in forecast_task for {base_entity_id}_{ending}: {e} {type(e)}")
         pass
     
     forecast = {}
@@ -8270,6 +8269,8 @@ def get_solar_kwh_forecast():
                 task_set.add(TASKS[task_name])
         
             done, pending = task.wait(task_set)
+        except Exception as e:
+            _LOGGER.error(f"Error: {e} {type(e)}")
         finally:
             task_cancel(task_set, task_remove=True)
             
@@ -8316,7 +8317,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                 
                 return [avg_kwh, avg_sell_price]
         except Exception as e:
-            _LOGGER.warning(f"Cant get cloudiness: {cloudiness}, hour: {hour}, day_of_week: {day_of_week}. {e}")
+            _LOGGER.warning(f"Cant get cloudiness: {cloudiness}, hour: {hour}, day_of_week: {day_of_week}. {e} {type(e)}")
         return [0.0, 0.0]
 
     def process_forecast(loop_datetime, is_away, current_hour_factor, cloudiness, solar_forecast_from_integration,
@@ -8430,7 +8431,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     work_last_charging = None
                     end_work = None
         except Exception as e:
-            _LOGGER.warning(f"Cant get input_datetime.{__name__}_workday_homecoming_{dayName} datetime, using from sunrise: {e}")
+            _LOGGER.warning(f"Cant get input_datetime.{__name__}_workday_homecoming_{dayName} datetime, using from sunrise: {e} {type(e)}")
             
         if forecast_dict:
             if from_hour <= to_hour:
@@ -8549,7 +8550,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         sunrise = location[0].sunrise(now).replace(tzinfo=None).hour
         sunset = location[0].sunset(now).replace(tzinfo=None).hour
     except Exception as e:
-        _LOGGER.error(f"Error: {e}")
+        _LOGGER.error(f"Cant get sunrise/sunset: {e} {type(e)}")
         return output, output_sell
     
     
@@ -8600,7 +8601,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         
         done, pending = task.wait(day_prediction_task_set)
     except Exception as e:
-        _LOGGER.error(f"Error during day prediction tasks: {e}")
+        _LOGGER.error(f"Error during day prediction tasks: {e} {type(e)}")
         my_persistent_notification(
             f"Failed to run local energy prediction tasks",
             title=f"{TITLE} error",
@@ -8695,7 +8696,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         if preheat_min_before <= 0.0:
             return
     except Exception as e:
-        _LOGGER.error(f"Cant preheat ev car input_number.{__name__}_preheat_minutes_before is {preheat_min_before}: {e}")
+        _LOGGER.error(f"Cant preheat ev car input_number.{__name__}_preheat_minutes_before is {preheat_min_before}: {e} {type(e)}")
         return
     
     preheat = False
@@ -8751,7 +8752,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         if CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']:
             outdoor_temp = float(get_state(CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id'], float_type=True, error_state=None))
     except Exception as e:
-        _LOGGER.error(f"Cant get outdoor temp from entity {CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']}: {e}")
+        _LOGGER.error(f"Cant get outdoor temp from entity {CONFIG['forecast']['entity_ids']['outdoor_temp_entity_id']}: {e} {type(e)}")
         
     try:
         try:
@@ -8759,7 +8760,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         except:
             forecast_temp = float(get_attr(CONFIG['forecast']['entity_ids']['daily_service_entity_id'], "temperature"))
     except Exception as e:
-        _LOGGER.error(f"Cant get forecast temp from entity {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}['temperature']: {e}")
+        _LOGGER.error(f"Cant get forecast temp from entity {CONFIG['forecast']['entity_ids']['daily_service_entity_id']}['temperature']: {e} {type(e)}")
     
     entity_id = CONFIG["ev_car"]["entity_ids"]["climate_entity_id"]
     climate_state = get_state(entity_id, error_state="unknown")
@@ -9154,7 +9155,7 @@ def is_charging():
                         raise Exception("Ev is not charging, restarting charger")
                     CHARGING_IS_BEGINNING = True
     except Exception as e:
-        _LOGGER.warning(f"Charging has not started as expected: {e}")
+        _LOGGER.warning(f"Charging has not started as expected: {e} {type(e)}")
         
         if 1 < RESTARTING_CHARGER_COUNT < 3:
             if emoji_charging_problem not in CHARGING_HISTORY_DB[when]["emoji"]:
@@ -9465,10 +9466,10 @@ def charge_if_needed():
     except Exception as e:
         global ERROR_COUNT
         
-        error_message = f"Error running charge_if_needed(), setting charger and car to max: {e}"
+        error_message = f"Error running charge_if_needed(), setting charger and car to max: {e} {type(e)}"
         _LOGGER.error(error_message)
         my_persistent_notification(
-            f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e}",
+            f"Error running charge_if_needed(), setting charger and car to max\nTrying to restart script to fix error in {ERROR_COUNT}/3: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_restart_count_error"
         )
@@ -9519,9 +9520,9 @@ def set_charging_price(price):
                     raise Exception(f"Easee service dont have set_charging_cost, cant set price to {price}")
                 _LOGGER.info(f"Setting charging cost to {price} in Easee")
     except Exception as e:
-        _LOGGER.error(f"Cant set charging cost for {integration.capitalize()}: {e}")
+        _LOGGER.error(f"Cant set charging cost for {integration.capitalize()}: {e} {type(e)}")
         my_persistent_notification(
-            f"Cant set charging cost for {integration.capitalize()}: {e}",
+            f"Cant set charging cost for {integration.capitalize()}: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -9560,21 +9561,21 @@ def kwh_charged_by_solar():
         except Exception as e:
             _LOGGER.error(e)
             my_persistent_notification(
-                f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e}",
+                f"Cant set input_number.{__name__}_kwh_charged_by_solar: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_set_state_error"
             )
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
-        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+        _LOGGER.error(f"Task was cancelled or timed out: {e} {type(e)}")
         my_persistent_notification(
-            f"Task was cancelled or timed out: {e}",
+            f"Task was cancelled or timed out: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_task_error"
         )
     except Exception as e:
-        _LOGGER.error(f"Error calculating kwh charged by solar: {e}")
+        _LOGGER.error(f"Error calculating kwh charged by solar: {e} {type(e)}")
         my_persistent_notification(
-            f"Error calculating kwh charged by solar: {e}",
+            f"Error calculating kwh charged by solar: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -9601,9 +9602,9 @@ def solar_charged_percentage():
             
         set_state(f"sensor.{__name__}_solar_charged_percentage", round(((float(total_solar_ev_kwh) / float(total_ev_kwh)) * 100.0), 1))
     except Exception as e:
-        _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}")
+        _LOGGER.error(f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e} {type(e)}")
         my_persistent_notification(
-            f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e}",
+            f"Cant set sensor.{__name__}_solar_charged_percentage total_solar_ev_kwh={total_solar_ev_kwh} total_ev_kwh={total_ev_kwh}: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
@@ -9653,16 +9654,16 @@ def calc_co2_emitted(period = None, added_kwh = None):
             set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
             return co2_emitted
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
-        _LOGGER.error(f"Task was cancelled or timed out: {e}")
+        _LOGGER.error(f"Task was cancelled or timed out: {e} {type(e)}")
         my_persistent_notification(
-            f"Task was cancelled or timed out: {e}",
+            f"Task was cancelled or timed out: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_task_error"
         )
     except Exception as e:
-        _LOGGER.error(f"Error calculating co2 emitted: {e}")
+        _LOGGER.error(f"Error calculating co2 emitted: {e} {type(e)}")
         my_persistent_notification(
-            f"Error calculating co2 emitted: {e}",
+            f"Error calculating co2 emitted: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -9783,16 +9784,16 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
             
             set_charging_price(ev_total_price_kwh)
     except (asyncio.CancelledError, asyncio.TimeoutError) as e:
-        _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e}")
+        _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e} {type(e)}")
         my_persistent_notification(
-            f"Task was cancelled or timed out while calculating kWh price: {e}",
+            f"Task was cancelled or timed out while calculating kWh price: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_task_error"
         )
     except Exception as e:
-        _LOGGER.error(f"Error calculating kWh price: {e}")
+        _LOGGER.error(f"Error calculating kWh price: {e} {type(e)}")
         my_persistent_notification(
-            f"Error calculating kWh price: {e}",
+            f"Error calculating kWh price: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -9873,11 +9874,11 @@ def load_kwh_prices():
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
             done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
     except Exception as e:
-        error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e}"
+        error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e} {type(e)}"
         _LOGGER.error(error_message)
         save_error_to_file(error_message, caller_function_name = f"{func_name}()")
         my_persistent_notification(
-            f"Cant load {__name__}_kwh_avg_prices_db: {e}",
+            f"Cant load {__name__}_kwh_avg_prices_db: {e} {type(e)}",
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_load_error"
         )
@@ -10139,9 +10140,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
-            _LOGGER.error(f"Error during startup: {e}")
+            _LOGGER.error(f"Error during startup: {e} {type(e)}")
             my_persistent_notification(
-                f"Error during startup: {e}",
+                f"Error during startup: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10215,7 +10216,7 @@ if INITIALIZATION_COMPLETE:
                     TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
                 except Exception as e:
-                    _LOGGER.error(f"Error in {func_name} for {var_name}: {e}")
+                    _LOGGER.error(f"Error in {func_name} for {var_name}: {e} {type(e)}")
                 except ValueError as ve:
                     pass
                 finally:
@@ -10254,9 +10255,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}debug_info"] = task.create(debug_info)
                 done, pending = task.wait({TASKS[f"{func_prefix}debug_info"]})
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10320,9 +10321,9 @@ if INITIALIZATION_COMPLETE:
                     done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
                     set_charging_rule(f"Lader ikke")
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10454,9 +10455,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}charging_history_combine_and_set"] = task.create(charging_history_combine_and_set)
                 done, pending = task.wait({TASKS[f"{func_prefix}charging_history_combine_and_set"]})
             except Exception as e:
-                _LOGGER.error(f"Error in {func_name}: {e}")
+                _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
-                    f"Error in {func_name}: {e}",
+                    f"Error in {func_name}: {e} {type(e)}",
                     title=f"{TITLE} error",
                     persistent_notification_id=f"{__name__}_{func_name}_error"
                 )
@@ -10513,7 +10514,7 @@ if INITIALIZATION_COMPLETE:
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
             pass
         except Exception as e:
-            _LOGGER.error(f"Error in wait_until_odometer_stable: {e}")
+            _LOGGER.error(f"Error in wait_until_odometer_stable: {e} {type(e)}")
             
     def power_connected_trigger(value):
         func_name = "power_connected_trigger"
@@ -10533,9 +10534,9 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10586,9 +10587,9 @@ if INITIALIZATION_COMPLETE:
                     
                     set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10605,8 +10606,8 @@ if INITIALIZATION_COMPLETE:
                     TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
             except Exception as e:
-                _LOGGER.error(f"Error in state_trigger_ev_location: {e}")
-                my_persistent_notification(f"Error in state_trigger_ev_location: {e}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
+                _LOGGER.error(f"Error in state_trigger_ev_location: {e} {type(e)}")
+                my_persistent_notification(f"Error in state_trigger_ev_location: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
             finally:
                 task_cancel("state_trigger_ev_location_", task_remove=True, startswith=True)"""
 
@@ -10634,9 +10635,9 @@ if INITIALIZATION_COMPLETE:
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
             except Exception as e:
-                _LOGGER.error(f"Error in {func_name}: {e}")
+                _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
-                    f"Error in {func_name}: {e}",
+                    f"Error in {func_name}: {e} {type(e)}",
                     title=f"{TITLE} error",
                     persistent_notification_id=f"{__name__}_{func_name}_error"
                 )
@@ -10657,9 +10658,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}preheat_ev"]})
             except Exception as e:
-                _LOGGER.error(f"Error in {func_name}: {e}")
+                _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
-                    f"Error in {func_name}: {e}",
+                    f"Error in {func_name}: {e} {type(e)}",
                     title=f"{TITLE} error",
                     persistent_notification_id=f"{__name__}_{func_name}_error"
                 )
@@ -10713,9 +10714,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, "add_to_history")
                 done, pending = task.wait({TASKS[f"{func_prefix}public_charging_session"]})
             except Exception as e:
-                _LOGGER.error(f"Error in {func_name}: {e}")
+                _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
-                    f"Error in {func_name}: {e}",
+                    f"Error in {func_name}: {e} {type(e)}",
                     title=f"{TITLE} error",
                     persistent_notification_id=f"{__name__}_{func_name}_error"
                 )
@@ -10744,9 +10745,9 @@ if INITIALIZATION_COMPLETE:
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
                     except Exception as e:
-                        _LOGGER.error(f"Error in {func_name}: {e}")
+                        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                         my_persistent_notification(
-                            f"Error in {func_name}: {e}",
+                            f"Error in {func_name}: {e} {type(e)}",
                             title=f"{TITLE} error",
                             persistent_notification_id=f"{__name__}_{func_name}_error"
                         )
@@ -10772,9 +10773,9 @@ if INITIALIZATION_COMPLETE:
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
                     except Exception as e:
-                        _LOGGER.error(f"Error in {func_name}: {e}")
+                        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                         my_persistent_notification(
-                            f"Error in {func_name}: {e}",
+                            f"Error in {func_name}: {e} {type(e)}",
                             title=f"{TITLE} error",
                             persistent_notification_id=f"{__name__}_{func_name}_error"
                         )
@@ -10801,9 +10802,9 @@ if INITIALIZATION_COMPLETE:
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, "on")
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                 except Exception as e:
-                    _LOGGER.error(f"Error in {func_name}: {e}")
+                    _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                     my_persistent_notification(
-                        f"Error in {func_name}: {e}",
+                        f"Error in {func_name}: {e} {type(e)}",
                         title=f"{TITLE} error",
                         persistent_notification_id=f"{__name__}_{func_name}_error"
                     )
@@ -10835,9 +10836,9 @@ if INITIALIZATION_COMPLETE:
                                     TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}kwh_charged_by_solar'],
                                     TASKS[f'{func_prefix}solar_charged_percentage'], TASKS[f'{func_prefix}commands_history_clean_entity_integration']})
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10859,9 +10860,9 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10879,9 +10880,9 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}append_kwh_prices"] = task.create(append_kwh_prices)
             done, pending = task.wait({TASKS[f"{func_prefix}append_kwh_prices"]})
         except Exception as e:
-            _LOGGER.error(f"Error in {func_name}: {e}")
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
-                f"Error in {func_name}: {e}",
+                f"Error in {func_name}: {e} {type(e)}",
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -10980,9 +10981,9 @@ if INITIALIZATION_COMPLETE:
             CHARGING_LOSS_CAR_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
             CHARGING_LOSS_CHARGING_COMPLETED = False
-            _LOGGER.error(f"Failed to calculate charging loss: {e}")
+            _LOGGER.error(f"Failed to calculate charging loss: {e} {type(e)}")
             my_notify(
-                f"Fejlede i beregningen af ladetab:\n{e}",
+                f"Fejlede i beregningen af ladetab:\n{e} {type(e)}",
                 title=f"{TITLE} Fejl",
                 notify_list=CONFIG['notify_list'],
                 admin_only=False,
@@ -10990,7 +10991,7 @@ if INITIALIZATION_COMPLETE:
                 persistent_notification=True
             )
             my_persistent_notification(
-                f"Fejlede i beregningen af ladetab:\n{e}",
+                f"Fejlede i beregningen af ladetab:\n{e} {type(e)}",
                 title=f"{TITLE} Fejl",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
@@ -11060,9 +11061,9 @@ if INITIALIZATION_COMPLETE:
             TASKS[f'{func_prefix}save_changes'] = task.create(save_changes, f"{__name__}_config", CONFIG)
             done, pending = task.wait({TASKS[f'{func_prefix}save_changes']})
         except Exception as e:
-            _LOGGER.error(f"Cant save config from Home assistant to config: {e}")
+            _LOGGER.error(f"Cant save config from Home assistant to config: {e} {type(e)}")
             my_persistent_notification(
-                f"Cant save config from Home assistant to config: {e}",
+                f"Cant save config from Home assistant to config: {e} {type(e)}",
                 title=f"{TITLE} Error",
                 persistent_notification_id=f"{__name__}_{func_name}_error")
             
