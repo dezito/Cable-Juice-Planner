@@ -52,7 +52,7 @@ def get_config_folder():
     """
     Returns the current working directory asynchronously. This directory is used as the base for loading and saving configuration files.
     """
-    return os.getcwd()
+    return CONFIG_FOLDER
 
 def add_config_folder_path(file_path):
     if CONFIG_FOLDER not in file_path:
