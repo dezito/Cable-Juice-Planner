@@ -1803,7 +1803,7 @@ def save_error_to_file(error_message, debug=None, caller_function_name = None):
         }
         
         if error_log:
-            error_log = limit_dict_size(error_log, 30)
+            error_log = limit_dict_size(error_log, 10)
             
             for timestamp in sorted(list(error_log.keys()), reverse=True):
                 if minutesBetween(timestamp, getTime()) < 60:
