@@ -13,8 +13,7 @@ def getTimestampMinutes():
     return getTime().total_minutes()
 
 def getTime():
-    date = datetime.datetime.now()
-    return datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)
+    return datetime.datetime.now().replace(microsecond=0, tzinfo=None)
 
 def getTimePlusSeconds(offset = 0):
     return getTime() + datetime.timedelta(seconds=offset)
