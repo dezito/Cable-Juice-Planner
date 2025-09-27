@@ -4479,7 +4479,6 @@ def load_charging_history():
                 my_persistent_notification(f"Cant add last charging session to CURRENT_CHARGING_SESSION: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_last_charging_session")
     
     if is_entity_available(CONFIG['ev_car']['entity_ids']['odometer_entity_id']):
-        now = getTime()
         added_odometer = False
         for key, value in CHARGING_HISTORY_DB.items():
             if "odometer" not in value:
