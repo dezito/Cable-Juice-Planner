@@ -1708,6 +1708,32 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
                 if len(content["details"]) > 1:
                     debug_info.append("<br>\n")
         debug_info.append("---")
+        
+    if "debug" in kwargs and kwargs["debug"]:
+        debug_info.append(f"<center>\n")
+        debug_info.append(f"#### Debug info function ####\n")
+        debug_info.append(f"</center>\n")
+
+        for section, content in kwargs["debug"].items():
+            debug_info.append(f"<center>\n\n### {section}\n</center>\n")
+            if content["table"]:
+                debug_info.append("| Variable | Value |")
+                debug_info.append("|---:|:---|")
+                for key, value in content["table"].items():
+                    debug_info.append(f"| {key}: | {value} |")
+                    
+            if content["table"] and content["details"]:
+                debug_info.append("<br>\n")
+            
+            if content["details"]:
+                for detail_key, detail_value in content["details"].items():
+                    debug_info.append("<details>")
+                    debug_info.append(f"<summary>{detail_key}: Show dictionary</summary>\n")
+                    debug_info.append(f"```\n{pformat(detail_value)}\n```")
+                    debug_info.append("</details>\n")
+                    if len(content["details"]) > 1:
+                        debug_info.append("<br>\n")
+            debug_info.append("---")
     
     if OVERVIEW_HISTORY:
         debug_info.append(f"<center>\n\n### Overview History\n</center>\n")
@@ -1726,7 +1752,7 @@ def debug_info(trigger_type=None, trigger_id=None, **kwargs):
         persistent_notification_id=f"{__name__}_{func_name}"
     )
 
-def save_error_to_file(error_message, caller_function_name = None):
+def save_error_to_file(error_message, debug=None, caller_function_name = None):
     func_name = "save_error_to_file"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -1772,6 +1798,7 @@ def save_error_to_file(error_message, caller_function_name = None):
         debug_dict = {
             "caller_function_name": caller_function_name,
             "error_message": error_message,
+            "debug": debug,
             "live_image": live_image,
         }
         
