@@ -1237,7 +1237,7 @@ def get_hours_plan():
         price_levels = calculate_price_levels(prices.values())
 
         data = {}
-        now = getTime().replace(minute=0, second=0, microsecond=0)
+        now = reset_time_to_hour()
         date_objects = set()
         not_home_color = "#666666"
         
@@ -9275,10 +9275,10 @@ def charge_if_needed():
     global CHARGE_HOURS
     
     def current_hour_in_charge_hours():
-        current_hour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
+        current_hour = reset_time_to_hour()
         for timestamp in CHARGE_HOURS:
-            if isinstance(timestamp, datetime.datetime) and timestamp.tzinfo is None:
-                if timestamp.replace(minute=0, second=0, microsecond=0) == current_hour:
+            if isinstance(timestamp, datetime.datetime):
+                if reset_time_to_hour(timestamp) == current_hour:
                     return timestamp
         return False
     
@@ -9314,7 +9314,7 @@ def charge_if_needed():
             if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level + 1.0 and powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER:
                 powerwall_discharge_watt = CONFIG["solar"]["powerwall_discharging_power"] if powerwall_discharging_consumption < POWERWALL_DISCHARGING_TRIGGER else powerwall_discharging_consumption
 
-        currentHour = getTime().replace(hour=getHour(), minute=0, second=0, tzinfo=None)
+        currentHour = reset_time_to_hour()
         current_price = get_current_hour_price()
         
         charging_limit = min(range_to_battery_level(), get_max_recommended_charge_limit_battery_level())
