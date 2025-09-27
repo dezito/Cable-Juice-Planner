@@ -7676,7 +7676,7 @@ def max_local_energy_available_remaining_period():
         return 0.0
     
     now = getTime()
-    current_hour = now.replace(minute=0, second=0, tzinfo=None)
+    current_hour = reset_time_to_hour(now)
     period = getMinute()
     
     if CONFIG['solar']['solarpower_use_before_minutes'] > 0:
