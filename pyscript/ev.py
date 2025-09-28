@@ -8270,7 +8270,7 @@ def get_solar_kwh_forecast():
     func_name = "get_solar_kwh_forecast"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global POWER_VALUES_DB, LAST_SUCCESSFUL_GRID_PRICES
+    global POWER_VALUES_DB
     
     if "forecast_entity_id" in CONFIG['solar']['entity_ids'] and not CONFIG['solar']['entity_ids']['forecast_entity_id']:
         return {}
@@ -8310,11 +8310,19 @@ def get_solar_kwh_forecast():
                 forecast[date] = (available_kwh, sell_price)
         except Exception as e:
             _LOGGER.error(f"Error in forecast_task for {base_entity_id}_{ending}: {e} {type(e)}")
-        pass
+    
+    def strip_forecast_suffix(entity_id: str, endings: list) -> str:
+        parts = entity_id.split("_")
+
+        if parts[-1] in endings:
+            return "_".join(parts[:-1])
+
+        if len(parts) >= 2 and parts[-2] == "day" and parts[-1].isdigit():
+            return "_".join(parts[:-2])
     
     forecast = {}
     
-    hour_prices = LAST_SUCCESSFUL_GRID_PRICES['prices'] if "prices" in LAST_SUCCESSFUL_GRID_PRICES else get_hour_prices()
+    hour_prices = get_hour_prices()
                         
     energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
     energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
@@ -8324,7 +8332,7 @@ def get_solar_kwh_forecast():
     
     if integration == "solcast_solar":
         endings = ["today", "tomorrow", "day_3", "day_4", "day_5", "day_6", "day_7"]
-        base_entity_id = "_".join(CONFIG['solar']['entity_ids']['forecast_entity_id'].split("_")[:-1])
+        base_entity_id = strip_forecast_suffix(CONFIG['solar']['entity_ids']['forecast_entity_id'], endings)
         
         random_int = random.randint(0, 1000000)
         task_set = set()
