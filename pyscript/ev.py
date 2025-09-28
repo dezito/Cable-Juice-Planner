@@ -4133,7 +4133,7 @@ def drive_efficiency_save_car_stats(bootup=False):
         if ("battery_level_expenses_cost" not in BATTERY_LEVEL_EXPENSES or
             "battery_level_expenses_kwh" not in BATTERY_LEVEL_EXPENSES or
             "battery_level_expenses_percentage" not in BATTERY_LEVEL_EXPENSES or
-            "battery_level_expenses_solar_percentage" not in BATTERY_LEVEL_EXPENSES or):
+            "battery_level_expenses_solar_percentage" not in BATTERY_LEVEL_EXPENSES):
             return
         
         set_attr(f"sensor.{__name__}_drive_efficiency_last_battery_level.battery_level_expenses_cost", BATTERY_LEVEL_EXPENSES['battery_level_expenses_cost'])
