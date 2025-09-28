@@ -1393,7 +1393,6 @@ def get_debug_info_sections():
         "Charging Plan & Price Logic": {
             "table": format_debug_table({
                 "CURRENT_CHARGING_AMPS": CURRENT_CHARGING_AMPS,
-                "USING_OFFLINE_PRICES": USING_OFFLINE_PRICES,
             }),
             "details": format_debug_details({
                 "CHARGING_PLAN": CHARGING_PLAN,
