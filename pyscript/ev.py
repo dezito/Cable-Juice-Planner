@@ -10171,12 +10171,13 @@ if INITIALIZATION_COMPLETE:
             set_charging_rule(f"📟{i18n.t('ui.startup.loading_db')}")
             log_lines.append(f"📟{i18n.t('ui.startup.loading_db')}")
             
+            TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
             TASKS[f"{func_prefix}load_power_values_db"] = task.create(load_power_values_db)
             TASKS[f"{func_prefix}load_solar_available_db"] = task.create(load_solar_available_db)
             TASKS[f"{func_prefix}load_kwh_prices"] = task.create(load_kwh_prices)
             TASKS[f"{func_prefix}load_drive_efficiency"] = task.create(load_drive_efficiency)
             TASKS[f"{func_prefix}load_km_kwh_efficiency"] = task.create(load_km_kwh_efficiency)
-            done, pending = task.wait({TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
+            done, pending = task.wait({TASKS[f"{func_prefix}update_grid_prices"], TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
             
             log_lines.append(f"📟{i18n.t('ui.startup.loading_history')}")
             
@@ -10951,8 +10952,28 @@ if INITIALIZATION_COMPLETE:
             )
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
+            
+    @time_trigger(f"cron(* 2 * * *)")
+    def cron_update_grid_prices(trigger_type=None, var_name=None, value=None, old_value=None):
+        func_name = "cron_update_grid_prices"
+        func_prefix = f"{func_name}_"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+        global TASKS
         
-    @time_trigger(f"cron(0 1 * * *)")
+        try:
+            TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
+            done, pending = task.wait({TASKS[f"{func_prefix}update_grid_prices"]})
+        except Exception as e:
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
+            my_persistent_notification(
+                f"Error in {func_name}: {e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
+        finally:
+            task_cancel(func_prefix, task_remove=True, startswith=True)
+        
+    @time_trigger(f"cron(0 5 * * *)")
     def cron_append_kwh_prices(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "cron_append_kwh_prices"
         func_prefix = f"{func_name}_"
