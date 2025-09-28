@@ -7018,29 +7018,29 @@ def cheap_grid_charge_hours():
     overview = []
     
     try:
-        if LAST_DRIVE_EFFICIENCY_DATA:
-            kr_km = round(LAST_DRIVE_EFFICIENCY_DATA['cost'] / LAST_DRIVE_EFFICIENCY_DATA['distance'], 2) if LAST_DRIVE_EFFICIENCY_DATA['distance'] > 0 else 0.0
+        if last_drive_efficiency:
+            kr_km = round(last_drive_efficiency['cost'] / last_drive_efficiency['distance'], 2) if last_drive_efficiency['distance'] > 0 else 0.0
             
             overview.append("<center>\n")
             overview.append(f"## 🛣️ {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.title')} ##")
             overview.append("|  |  |")
             overview.append("|:---|---:|")
-            overview.append(f"| **📅 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.drive_date')}** | **{date_to_string(LAST_DRIVE_EFFICIENCY_DATA['timestamp'], format='%d/%m %H:%M')}** |")
-            overview.append(f"| **🚗 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.last_distance')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distance'], 1):.1f} {i18n.t('ui.common.distance_type')}** |")
-            overview.append(f"| **🔋 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.used_battery')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['usedBattery'], 1):.1f}% ({round(LAST_DRIVE_EFFICIENCY_DATA['usedkWh'], 2):.2f} kWh)** |")
-            overview.append(f"| **💰 {i18n.t('ui.common.expense')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['cost'], 2):.2f} {i18n.t('ui.common.valuta')} ({kr_km:.2f} {i18n.t('ui.common.valuta_distance')})**")
-            overview.append(f"| **📊 {i18n.t('ui.common.drive_efficiency')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['efficiency'], 1):.1f}%** |")
-            overview.append(f"| **📏 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.distance_per_kwh')}** | **{round(LAST_DRIVE_EFFICIENCY_DATA['distancePerkWh'], 2):.2f} {i18n.t('ui.common.distance_kwh')} ({LAST_DRIVE_EFFICIENCY_DATA['wh_km']} {i18n.t('ui.common.wh_distance')})** |")
+            overview.append(f"| **📅 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.drive_date')}** | **{date_to_string(last_drive_efficiency['timestamp'], format='%d/%m %H:%M')}** |")
+            overview.append(f"| **🚗 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.last_distance')}** | **{round(last_drive_efficiency['distance'], 1):.1f} {i18n.t('ui.common.distance_type')}** |")
+            overview.append(f"| **🔋 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.used_battery')}** | **{round(last_drive_efficiency['usedBattery'], 1):.1f}% ({round(last_drive_efficiency['usedkWh'], 2):.2f} kWh)** |")
+            overview.append(f"| **💰 {i18n.t('ui.common.expense')}** | **{round(last_drive_efficiency['cost'], 2):.2f} {i18n.t('ui.common.valuta')} ({kr_km:.2f} {i18n.t('ui.common.valuta_distance')})**")
+            overview.append(f"| **📊 {i18n.t('ui.common.drive_efficiency')}** | **{round(last_drive_efficiency['efficiency'], 1):.1f}%** |")
+            overview.append(f"| **📏 {i18n.t('ui.cheap_grid_charge_hours.last_drive_efficiency.distance_per_kwh')}** | **{round(last_drive_efficiency['distancePerkWh'], 2):.2f} {i18n.t('ui.common.distance_kwh')} ({last_drive_efficiency['wh_km']} {i18n.t('ui.common.wh_distance')})** |")
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to calculate last drive efficiency: {e} {type(e)}")
     
     try:
-        battery_level_expenses_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_cost"]
-        battery_level_expenses_kwh_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_kwh"]
-        battery_level_expenses_solar_percentage_report = BATTERY_LEVEL_EXPENSES["battery_level_expenses_solar_percentage"]
-        battery_level_expenses_unit_report = BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] if BATTERY_LEVEL_EXPENSES['battery_level_expenses_unit'] is not None else 0.0
+        battery_level_expenses_report = battery_expenses.get("battery_level_expenses_cost", 0.0)
+        battery_level_expenses_kwh_report = battery_expenses.get("battery_level_expenses_kwh", 0.0)
+        battery_level_expenses_solar_percentage_report = battery_expenses.get("battery_level_expenses_solar_percentage", 0.0)
+        battery_level_expenses_unit_report = battery_expenses.get('battery_level_expenses_unit', 0.0)
         
         if battery_level_expenses_kwh_report > 0.0:
             overview.append("<center>\n")
@@ -7063,7 +7063,7 @@ def cheap_grid_charge_hours():
         def planning_basis_markdown():
             nonlocal overview
             
-            if "last_update" in LAST_SUCCESSFUL_GRID_PRICES:
+            if "last_update" in grid_prices:
                 overview.append(f"\n\n<details><summary>{i18n.t('ui.cheap_grid_charge_hours.planning_basis')}</summary>\n")
                 overview.extend(get_hours_plan())
                 overview.append("</details>\n")
@@ -7142,7 +7142,7 @@ def cheap_grid_charge_hours():
                 
                 planning_basis_markdown()
                 
-            if USING_OFFLINE_PRICES:
+            if "using_offline_prices" in grid_prices and grid_prices['using_offline_prices']:
                 def _build_header(n_pairs=4):
                     heads, aligns = [], []
                     for _ in range(n_pairs):
@@ -7164,7 +7164,7 @@ def cheap_grid_charge_hours():
                 overview.append(f"\n\n<details><summary><b>{i18n.t('ui.cheap_grid_charge_hours.offline_prices')}!!!</b></summary>\n")
 
                 by_day = defaultdict(list)
-                for ts, price in sorted(LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items(), key=lambda kv: kv[0]):
+                for ts, price in sorted(grid_prices["missing_hours"].items(), key=lambda kv: kv[0]):
                     by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}{i18n.t('ui.common.valuta')}"))
                     
                 N_PAIRS = 4
