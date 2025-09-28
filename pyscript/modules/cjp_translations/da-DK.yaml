@@ -4,74 +4,74 @@ _meta:
   version: seed-1
 
 app:
-  title: Cable Juice Planner
+  title: "Cable Juice Planner"
 
 # ---- charging_type ----
 charging_type:
   error:
     description: "Kritisk fejl, nødladning"
   no_rule:
-    description: Lading uden grund
+    description: "Lading uden grund"
   manual:
-    description: Manuel ladning
+    description: "Manuel ladning"
   low_battery:
-    description: Tvangsladning under daglig batteri niveau
+    description: "Tvangsladning under daglig batteri niveau"
   battery_health:
-    description: Anbefalet fuld ladning
+    description: "Anbefalet fuld ladning"
   trip:
-    description: Tur ladning / afgang
+    description: "Tur ladning / afgang"
   public_charging:
-    description: Offentlig ladning
+    description: "Offentlig ladning"
   first_workday_preparation:
-    description: Første arbejdsdag
+    description: "Første arbejdsdag"
   second_workday_preparation:
-    description: Anden arbejdsdag
+    description: "Anden arbejdsdag"
   third_workday_preparation:
-    description: Tredje arbejdsdag
+    description: "Tredje arbejdsdag"
   fourth_workday_preparation:
-    description: Fjerde arbejdsdag
+    description: "Fjerde arbejdsdag"
   fifth_workday_preparation:
-    description: Femte arbejdsdag
+    description: "Femte arbejdsdag"
   sixth_workday_preparation:
-    description: Sjette arbejdsdag
+    description: "Sjette arbejdsdag"
   seventh_workday_preparation:
-    description: Syvende arbejdsdag
+    description: "Syvende arbejdsdag"
   eighth_workday_preparation:
-    description: Ottende arbejdsdag
+    description: "Ottende arbejdsdag"
   fill_up:
     description: "1., 4. & 7. dag opfyldning"
   under_min_avg_price:
-    description: Under gennemsnit pris sidste 14 dage
+    description: "Under gennemsnit pris sidste 14 dage"
   half_min_avg_price:
     description: "25% under gennemsnit pris sidste 14 dage"
   grid_charging:
     description: Ladning fra elnettet
   solar:
-    description: Solcelle ladning / overproduktion
+    description: "Solcelle ladning / overproduktion"
   solar_corrected:
-    description: Maks. opladning nået - soloverskud
+    description: "Maks. opladning nået - soloverskud"
   powerwall:
-    description: Ladning fra husbatteri
+    description: "Ladning fra husbatteri"
   powerwall_avg_symbol:
-    description: Gennemsnitlig ladning af husbatteri
+    description: "Gennemsnitlig ladning af husbatteri"
   battery_stored:
-    description: Forbrug fra batteri
+    description: "Forbrug fra batteri"
   charging_loss:
-    description: Ladetab beregning
+    description: "Ladetab beregning"
   sunrise:
-    description: Solopgang
+    description: "Solopgang"
   sunset:
-    description: Solnedgang
+    description: "Solnedgang"
   goto:
-    description: Afgang
+    description: "Afgang"
   homecoming:
-    description: Hjemkomst
+    description: "Hjemkomst"
   battery_usage:
     description: "Afgang & hjemkomst batteri niveau"
   charging_problem:
-    description: Ladning problemer
+    description: "Ladning problemer"
   charging_error:
-    description: Ladning fejlede helt
+    description: "Ladning fejlede helt"
 
 # ---- config ----
 config:
@@ -279,8 +279,8 @@ entity:
     solar_sell_fixed_price:
       name: "Solcelle fast salgspris"
       description:
-        Fast salgspris for solceller, bruges til at beregne solcelleoverskud,
-        sæt til -1.0 for at bruge timepris
+        "Fast salgspris for solceller, bruges til at beregne solcelleoverskud,
+        sæt til -1.0 for at bruge timepris"
       unit_of_measurement: kr/kWh
     preheat_minutes_before:
       name: "Forvarm bilen X min før"
@@ -288,8 +288,8 @@ entity:
     typical_daily_distance:
       name: "Typisk daglig afstand (Fridag)"
       description:
-        Typisk daglig afstand i km, bruges til at planlægge opladning.
-        Kræver aktivering af input_boolean.ev_fill_up.
+        "Typisk daglig afstand i km, bruges til at planlægge opladning.
+        Kræver aktivering af input_boolean.ev_fill_up."
       unit_of_measurement: km
     workday_distance_needed_monday:
       name: "Mandagsafstand i alt"
@@ -334,53 +334,53 @@ entity:
     very_cheap_grid_charging_max_battery_level:
       name: "Ladingsprocent ved billig strøm"
       description:
-        Ved meget billig strøm, lades bilen til dette niveau i procent.
-        Kræver aktivering af input_boolean.ev_fill_up.
+        "Ved meget billig strøm, lades bilen til dette niveau i procent.
+        Kræver aktivering af input_boolean.ev_fill_up."
     ultra_cheap_grid_charging_max_battery_level:
       name: "Ladingsprocent ved meget billig strøm"
       description:
-        Ved ekstremt billig strøm, lades bilen til dette niveau i procent.
-        Kræver aktivering af input_boolean.ev_fill_up.
+        "Ved ekstremt billig strøm, lades bilen til dette niveau i procent.
+        Kræver aktivering af input_boolean.ev_fill_up."
     battery_level:
       name: "Virtuel elbil batteri niveau"
     completed_battery_level:
       name: "Elbil lading færdig batteri niveau"
       description:
-        Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau
+        "Ved ingen bilintegration, sættes dette til det fuldt opladede batteriniveau
         bilen viser, når den melder opladning færdig. input_number.ev_battery_level
-        opdateres automatisk til dette.
+        opdateres automatisk til dette."
     estimated_total_range:
       name: "Virtuel elbil max rækkevidde"
       description:
-        Ved ingen bilintegration, bruges denne til at sætte det estimerede
-        totale rækkevidde i km
+        "Ved ingen bilintegration, bruges denne til at sætte det estimerede
+        totale rækkevidde i km"
       unit_of_measurement: km
     trip_charge_procent:
       name: "Tur ladning til"
       description:
-        Bruges ved turladning til at angive ønsket batteriniveau ved afgang,
+        "Bruges ved turladning til at angive ønsket batteriniveau ved afgang,
         bilen lades til denne værdi + input_number.ev_min_trip_battery_level (f.eks.
-        50% + 30% = 80%)
+        50% + 30% = 80%)"
     trip_range_needed:
       name: "Tur km forbrug"
       description:
-        Bruges ved turladning til at angive det ønskede rækkevidde i km,
+        "Bruges ved turladning til at angive det ønskede rækkevidde i km,
         der skal oplades til ved afgang, km omregnes automatisk til batteriniveau
         og bilen lades til dette niveau + input_number.ev_min_trip_battery_level (f.eks.
-        50% + 30% = 80%)
+        50% + 30% = 80%)"
       unit_of_measurement: km
     full_charge_recommended:
       name: "Anbefalet fuld ladning hver"
       description:
-        Anbefalet fuld opladning minimum hver X dage, for at undgå batteri
-        skader. Bilen lades til 100%. Sæt til 0 for at deaktivere.
+        "Anbefalet fuld opladning minimum hver X dage, for at undgå batteri
+        skader. Bilen lades til 100%. Sæt til 0 for at deaktivere."
       unit_of_measurement: dag(e)
     ev_charge_after_powerwall_battery_level:
       name: "Oplad elbil efter husbatteri minimumniveau"
       description:
-        Oplader elbilen fra gusbatteri, når husbatteri batteriniveau er over
+        "Oplader elbilen fra gusbatteri, når husbatteri batteriniveau er over
         dette niveau i procent. Sæt til 0.0 for at deaktivere. Kræver aktivering af
-        input_boolean.ev_solar_charging.
+        input_boolean.ev_solar_charging."
     public_charging_session_cost:
       name: "Omkostning ved offentlig ladning"
       description: "Omkostningen for sidste offentlig ladning (ikke kr/kWh)"
@@ -774,8 +774,8 @@ ui:
 
   charging_rule_changed:
     charging_rule_conflict: "Lade regel konflikt"
-    deactivate_optimal_rule: Deaktivere Optimal ugeopladning
-    deactivate_workplan_rule: Deaktivere Arbejdsplan opladning
+    deactivate_optimal_rule: "Deaktivere Optimal ugeopladning"
+    deactivate_workplan_rule: "Deaktivere Arbejdsplan opladning"
     reason: "Arbejdsplan opladning & Optimal ugeopladning (uden Arbejdsplan) kan ikke være aktiveret på sammetid"
 
   public_charging_session:
@@ -784,7 +784,7 @@ ui:
     action: "Indtast omkostning"
 
   calculate_charging_loss:
-    title: Ladetab beregning
-    calculated: Ladetab beregnet til {percentage}%
+    title: "Ladetab beregning"
+    calculated: "Ladetab beregnet til {percentage}%"
 
-  shutdown: Lukker scriptet ned\nGemmer konfigurations filen
+  shutdown: "Lukker scriptet ned\nGemmer konfigurations filen"
