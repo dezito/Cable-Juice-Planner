@@ -1375,6 +1375,16 @@ def get_debug_info_sections():
             }),
             "details": format_debug_details({"CONFIG": CONFIG}),
         },
+        "Database": {
+            "table": None,
+            "details": format_debug_details({
+                "POWER_VALUES_DB": POWER_VALUES_DB,
+                "SOLAR_PRODUCTION_AVAILABLE_DB": SOLAR_PRODUCTION_AVAILABLE_DB,
+                "KWH_AVG_PRICES_DB": KWH_AVG_PRICES_DB,
+                "DRIVE_EFFICIENCY_DB": DRIVE_EFFICIENCY_DB,
+                "KM_KWH_EFFICIENCY_DB": KM_KWH_EFFICIENCY_DB,
+                }),
+        },
         "Entity Integration & Limits": {
             "table": None,
             "details": format_debug_details({"ENTITY_INTEGRATION_DICT": ENTITY_INTEGRATION_DICT}),
