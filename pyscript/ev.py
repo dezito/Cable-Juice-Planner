@@ -7914,8 +7914,9 @@ def max_local_energy_available_remaining_period():
             if (watts_available_from_local_energy_solar_only > SOLAR_PRODUCTION_TRIGGER
                 and powerwall_battery_level < powerwall_reserved_battery_level
                 and powerwall_charging_power == 0.0
-                and watts_available_from_local_energy > 0.0):
-                POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_not_charging_but_should', powerwall_battery_level=powerwall_battery_level, powerwall_reserved_battery_level=powerwall_reserved_battery_level)
+                and watts_available_from_local_energy > 0.0
+                and not current_hour_in_charge_hours()):
+                    POWERWALL_CHARGING_TEXT = i18n.t('ui.max_local_energy_available_remaining_period.powerwall_not_charging_but_should', powerwall_battery_level=powerwall_battery_level, powerwall_reserved_battery_level=powerwall_reserved_battery_level)
                 
             elif (powerwall_charging_consumption > POWERWALL_CHARGING_TRIGGER
                   and powerwall_discharging_available < POWERWALL_DISCHARGING_TRIGGER):
