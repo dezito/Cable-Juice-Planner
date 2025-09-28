@@ -85,6 +85,7 @@ from utils import (
     update_dict_with_new_keys,
     limit_dict_size,
     contains_any,
+    flatten_dict,
     check_next_24_hours_diff,
     time_window_minutes_left,
     time_window_minutes_left_from_datetime,
