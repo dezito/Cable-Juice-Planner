@@ -5467,7 +5467,6 @@ def update_grid_prices():
         )
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
-    
 
 def get_hour_prices(update_prices = False):
     #TODO See development in hourly prices variation, if 15 min interval is better, than 1 hour average
