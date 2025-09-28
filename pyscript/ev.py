@@ -1473,7 +1473,7 @@ def get_debug_info_sections():
 
 def run_console_command_sync(cmd):
     try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+        result = task.executor(subprocess.run, cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         if result.returncode != 0:
             raise RuntimeError(f"Git failed: {result.stderr.strip()}")
         return result.stdout.strip()
