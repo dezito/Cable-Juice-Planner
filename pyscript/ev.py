@@ -108,8 +108,9 @@ SOLAR_CONFIGURED = None
 POWERWALL_CONFIGURED = None
 EV_CONFIGURED = None
 
-USING_OFFLINE_PRICES = False
-LAST_SUCCESSFUL_GRID_PRICES = {}
+LAST_SUCCESSFUL_GRID_PRICES = {
+    "using_offline_prices": False
+}
 
 CHARGING_IS_BEGINNING = False
 RESTARTING_CHARGER = False
@@ -5434,36 +5435,65 @@ def current_battery_level_expenses():
 
     return BATTERY_LEVEL_EXPENSES
 
-def get_hour_prices():
+def update_grid_prices():
+    func_name = "update_grid_prices"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global TASKS
+        
+    try:
+        TASKS[f"{func_prefix}"] = task.create(get_hour_prices, update_prices = True)
+        done, pending = task.wait({TASKS[f"{func_prefix}"]})
+    except Exception as e:
+        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
+        my_persistent_notification(
+            f"Error in {func_name}: {e} {type(e)}",
+            title=f"{TITLE} error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
+        )
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
+    
+
+def get_hour_prices(update_prices = False):
     #TODO See development in hourly prices variation, if 15 min interval is better, than 1 hour average
     func_name = "get_hour_prices"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global USING_OFFLINE_PRICES, LAST_SUCCESSFUL_GRID_PRICES
+    global TASKS, LAST_SUCCESSFUL_GRID_PRICES
     
     now = getTime()
     current_hour = reset_time_to_hour(now)
     
     hour_prices = {}
     price_adder_day_between_divider = 30
+    
     try:
         all_prices_loaded = True
         
         if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
             raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
+        
+        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
             
-        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 60:
-            hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+        if ("prices" in LAST_SUCCESSFUL_GRID_PRICES and
+            LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] is False and
+            update_prices is False):
+            if "update_grid_prices" in TASKS and not TASKS["update_grid_prices"].done():
+                _LOGGER.warning("Waiting for update_grid_prices to complete")
+                task_wait_until("update_grid_prices", timeout=120)
+            
+            hour_prices = deepcopy(LAST_SUCCESSFUL_GRID_PRICES["prices"])
         else:
-            power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
-            
             if "raw_today" in power_prices_attr:
                 for raw in power_prices_attr['raw_today']:
                     hour_string = "hour" if "hour" in raw else "time"
                     
+                    raw[hour_string] = toDateTime(raw[hour_string])
+                    
                     if (isinstance(raw[hour_string], datetime.datetime) and
                         isinstance(raw['price'], (int, float)) and
                         daysBetween(current_hour, raw[hour_string]) == 0):
-                        hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                        hour = reset_time_to_hour(raw[hour_string])
                         
                         if hour not in hour_prices:
                             hour_prices[hour] = []
@@ -5476,10 +5506,12 @@ def get_hour_prices():
                 for raw in power_prices_attr['forecast']:
                     hour_string = "hour" if "hour" in raw else "time"
                     
+                    raw[hour_string] = toDateTime(raw[hour_string])
+                    
                     if (isinstance(raw[hour_string], datetime.datetime) and
                         isinstance(raw['price'], (int, float)) and
                         daysBetween(current_hour, raw[hour_string]) > 0):
-                        hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                        hour = reset_time_to_hour(raw[hour_string])
                         
                         if hour not in hour_prices:
                             hour_prices[hour] = []
@@ -5495,11 +5527,13 @@ def get_hour_prices():
                     else:
                         for raw in power_prices_attr['raw_tomorrow']:
                             hour_string = "hour" if "hour" in raw else "time"
+                    
+                            raw[hour_string] = toDateTime(raw[hour_string])
                             
                             if (isinstance(raw[hour_string], datetime.datetime) and
                                 isinstance(raw['price'], (int, float)) and
                                 daysBetween(current_hour, raw[hour_string]) == 1):
-                                hour = raw[hour_string].replace(minute=0, second=0, microsecond=0, tzinfo=None)
+                                hour = reset_time_to_hour(raw[hour_string])
                                 
                                 if hour not in hour_prices:
                                     hour_prices[hour] = []
@@ -5525,20 +5559,19 @@ def get_hour_prices():
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             else:
-                USING_OFFLINE_PRICES = False
+                LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
                 
-                LAST_SUCCESSFUL_GRID_PRICES = {
-                    "last_update": getTime(),
-                    "prices": hour_prices
-                }
+                LAST_SUCCESSFUL_GRID_PRICES["last_update"] = getTime()
+                LAST_SUCCESSFUL_GRID_PRICES["prices"] = hour_prices
+                LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] = False
     except Exception as e:
         if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
-            hour_prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+            hour_prices = deepcopy(LAST_SUCCESSFUL_GRID_PRICES["prices"])
             _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e} {type(e)}")
 
-            USING_OFFLINE_PRICES = True
+            LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] = True
             missing_hours = {}
             try:
                 if "history" not in KWH_AVG_PRICES_DB:
@@ -5565,7 +5598,7 @@ def get_hour_prices():
                     missing_hours = dict(sorted(missing_hours.items()))
                     _LOGGER.info(f"Using following offline prices: {missing_hours}")
                     
-                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = deepcopy(missing_hours)
+                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours
                     
             except Exception as e:
                 error_message = f"Cant get offline prices: {e} {type(e)}"
