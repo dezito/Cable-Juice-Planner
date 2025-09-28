@@ -28,10 +28,18 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
     if entity_id == "":
         return error_state
     
-    try:
-        if entity_id is None: raise Exception("entity_id argument is None")
+    domain = None
+    if "." in entity_id:
+        domain = entity_id.split(".")[0]
         
-        if entity_id not in state.names(domain=entity_id.split(".")[0]):
+    try:
+        if entity_id is None:
+            raise Exception("entity_id argument is None")
+        
+        if domain is None:
+            raise Exception(f"Invalid entity_id: {entity_id}")
+        
+        if entity_id not in state.names(domain=domain):
             raise Exception(f"Entity not found in Home Assistant: {entity_id}")
         
         output = state.get(entity_id)
@@ -48,7 +56,6 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
         return error_state
     
     try:
-        domain = entity_id.split(".")[0]
         if domain == "input_datetime":
             output = parser.parse(output)
     except Exception as e:
