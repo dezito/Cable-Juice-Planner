@@ -1164,39 +1164,48 @@ def task_shutdown():
     task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
-    
+
+    start_ts = datetime_to_unix()
+    timeout = 5 * 60.0
+
     tasks_done_list = []
-    tasks_length = len(TASKS) + 1
-    for i, task_name in enumerate(list(TASKS.keys())):
-        set_charging_rule(f"📟{i18n.t('ui.tasks.closing_progress')} {i}/{tasks_length}")
-        
+    task_length = len(TASKS)
+
+    async def cancel_and_mark(task_name: str):
         if task_cancel(task_name, task_remove=False):
             tasks_done_list.append(task_name)
-            
-        i += 1
-        task.wait_until(timeout=0.2)
-    
-    set_charging_rule(f"📟{i18n.t('ui.tasks.closed_done')}")
+
+    running = {task.create(cancel_and_mark, name) for name in list(TASKS.keys())}
+
+    while running and (datetime_to_unix() - start_ts) < timeout:
+        running = {t for t in running if not t.done()}
+
+        finished = task_length - len(running)
+        set_charging_rule(f"📟{i18n.t('ui.tasks.closing_progress')} {finished}/{task_length}")
+
+        if running:
+            task.wait_until(timeout=0.2)
+
+    if running:
+        hanging = len(running)
+        _LOGGER.error(f"Timeout: {hanging} tasks kunne ikke lukkes inden 5 minutter")
+        set_charging_rule(f"📟{i18n.t('ui.tasks.not_all_closed')} (timeout)")
+    else:
+        set_charging_rule(f"📟{i18n.t('ui.tasks.closed_done')}")
+
     for task_name in tasks_done_list:
-        try:
-            if task_name in TASKS:
-                del TASKS[task_name]
-        except KeyError:
-            _LOGGER.error(f"Error deleting task {task_name} from TASKS (INSTANCE_ID: {INSTANCE_ID})")
-    
-    if len(TASKS) > 0:
-        set_charging_rule(f"📟{i18n.t('ui.tasks.not_all_closed')}")
-        _LOGGER.error(f"Some tasks were not killed:\n{pformat(TASKS, indent=4, width=200)} (INSTANCE_ID: {INSTANCE_ID})")
-        _LOGGER.error("Please report this issue to the developer.")
+        TASKS.pop(task_name, None)
+
+    if TASKS:
         my_persistent_notification(
-            f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}\n\nPlease report this issue to the developer with the above information\nat https://github.com/dezito/Cable-Juice-Planner/issues",
+            f"Some tasks were not killed from instance {INSTANCE_ID}:\n"
+            f"{pformat(TASKS, indent=4, width=80)}",
             title=f"⚠️ {__name__} - Task Kill Error",
             persistent_notification_id=f"{__name__}_{func_name}_error_{INSTANCE_ID}"
         )
-        
-    task.wait_until(timeout=1.0)
-        
-    TASKS = dict()
+
+    task.wait_until(timeout=0.5)
+    TASKS = {}
 
 def calculate_price_levels(prices):
     """ Calculates price levels based on the provided prices. """
