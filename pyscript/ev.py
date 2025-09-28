@@ -9345,19 +9345,20 @@ def charging_without_rule():
         CHARGING_NO_RULE_COUNT = 0
     return False
 
+def current_hour_in_charge_hours():
+    current_hour = reset_time_to_hour()
+    for timestamp in CHARGE_HOURS:
+        if isinstance(timestamp, datetime.datetime):
+            if reset_time_to_hour(timestamp) == current_hour:
+                return timestamp
+    return False
+
 def charge_if_needed():
     func_name = "charge_if_needed"
+    func_prefix = f"{func_name}_"
     task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global CHARGE_HOURS
-    
-    def current_hour_in_charge_hours():
-        current_hour = reset_time_to_hour()
-        for timestamp in CHARGE_HOURS:
-            if isinstance(timestamp, datetime.datetime):
-                if reset_time_to_hour(timestamp) == current_hour:
-                    return timestamp
-        return False
+    global CHARGE_HOURS, TASKS
     
     try:
         if deactivate_script_enabled():
@@ -9374,10 +9375,13 @@ def charge_if_needed():
             if trip_date_time != resetDatetime() and minutesBetween(getTime(), trip_date_time, error_value=0) < CHARGING_ALLOWED_AFTER_GOTO_TIME:
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
+        
+        TASKS[f"{func_prefix}cheap_grid_charge_hours"] = task.create(cheap_grid_charge_hours)
+        TASKS[f"{func_prefix}max_local_energy_available_remaining_period"] = task.create(max_local_energy_available_remaining_period)
+        done, pending = task.wait({TASKS[f"{func_prefix}cheap_grid_charge_hours"], TASKS[f"{func_prefix}max_local_energy_available_remaining_period"]})
+
                 
-        cheap_grid_charge_hours()
-                
-        inverter_watt, inverter_watt_solar_only = max_local_energy_available_remaining_period()
+        inverter_watt, inverter_watt_solar_only = TASKS[f"{func_prefix}max_local_energy_available_remaining_period"].result()
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
         
         powerwall_discharge_watt = 0.0
@@ -9574,6 +9578,8 @@ def charge_if_needed():
         
         amps = [3.0, CONFIG['charger']['charging_max_amp']]
         set_charger_charging_amps(*amps)
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
 
 def set_charging_price(price):
     func_name = "set_charging_price"
