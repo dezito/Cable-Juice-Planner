@@ -10729,7 +10729,7 @@ if INITIALIZATION_COMPLETE:
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global CURRENT_CHARGING_SESSION, TASKS
         
-        if not is_ev_home() or old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
+        if old_value in ENTITY_UNAVAILABLE_STATES or value in ENTITY_UNAVAILABLE_STATES:
             return
         
         if deactivate_script_enabled():
@@ -10738,33 +10738,40 @@ if INITIALIZATION_COMPLETE:
         try:
             _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
             if value in CHARGER_READY_STATUS and old_value in CHARGER_NOT_READY_STATUS:
-                TASKS[f"{func_prefix}notify_set_battery_level"] = task.create(notify_set_battery_level)
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS[f"{func_prefix}notify_set_battery_level"], TASKS[f"{func_prefix}wake_up_ev"]})
+                TASKS[f"{func_prefix}notify_set_battery_level"] = task.create(notify_set_battery_level)
+                done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"], TASKS[f"{func_prefix}notify_set_battery_level"]})
                 
-                TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
-                done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
+                if not is_ev_home():
+                    return
                 
                 if is_ev_configured():
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
-            elif value in CHARGER_NOT_READY_STATUS:
-                TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
-                TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
-                done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"], TASKS[f"{func_prefix}wake_up_ev"]})
                 
-                TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
-                done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+                done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
+            else:
+                if not is_ev_home():
+                    return
                 
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
-                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
-            elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
-                if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
+                if value in CHARGER_NOT_READY_STATUS:
                     TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
-                    done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
+                    TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
+                    done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"], TASKS[f"{func_prefix}wake_up_ev"]})
                     
-                    set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
+                    TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                    done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                    
+                    set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
+                    set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
+                    set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
+                elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
+                    if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
+                        TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
+                        done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
+                        
+                        set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
