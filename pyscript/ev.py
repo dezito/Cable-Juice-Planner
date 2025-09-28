@@ -149,7 +149,6 @@ EV_UNPLUGGED_STATES = ("off", "closed", "unplugged", "disconnect", "disconnected
 
 INSTANCE_ID = random.randint(0, 10000)
 TASKS = {}
-TASKS_REMOVE = []
 
 CONFIG = {}
 CONFIG_LAST_MODIFIED = None
