@@ -47,6 +47,7 @@ from mynotify import (
     my_notify,
     my_persistent_notification)
 from mytime import (
+    datetime_to_unix,
     getTime,
     getTimePlusDays,
     monthsBetween,
