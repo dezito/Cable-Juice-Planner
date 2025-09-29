@@ -4,74 +4,74 @@ _meta:
   version: seed-1
 
 app:
-  title: Cable Juice Planner
+  title: "Cable Juice Planner"
 
 # ---- charging_type ----
 charging_type:
   error:
     description: "Critical error, emergency charging"
   no_rule:
-    description: Charging without a defined rule
+    description: "Charging without a defined rule"
   manual:
-    description: Manual charging
+    description: "Manual charging"
   low_battery:
-    description: Forced charging below daily battery target
+    description: "Forced charging below daily battery target"
   battery_health:
-    description: Recommended full charge (battery health)
+    description: "Recommended full charge (battery health)"
   trip:
-    description: Trip charging / departure
+    description: "Trip charging / departure"
   public_charging:
-    description: Public charging
+    description: "Public charging"
   first_workday_preparation:
-    description: First workday preparation
+    description: "First workday preparation"
   second_workday_preparation:
-    description: Second workday preparation
+    description: "Second workday preparation"
   third_workday_preparation:
-    description: Third workday preparation
+    description: "Third workday preparation"
   fourth_workday_preparation:
-    description: Fourth workday preparation
+    description: "Fourth workday preparation"
   fifth_workday_preparation:
-    description: Fifth workday preparation
+    description: "Fifth workday preparation"
   sixth_workday_preparation:
-    description: Sixth workday preparation
+    description: "Sixth workday preparation"
   seventh_workday_preparation:
-    description: Seventh workday preparation
+    description: "Seventh workday preparation"
   eighth_workday_preparation:
-    description: Eighth workday preparation
+    description: "Eighth workday preparation"
   fill_up:
     description: "Weekly top-up (1st, 4th & 7th day)"
   under_min_avg_price:
-    description: Below 14-day average price
+    description: "Below 14-day average price"
   half_min_avg_price:
     description: "25% below 14-day average price"
   grid_charging:
-    description: Charging from the electricity grid
+    description: "Charging from the electricity grid"
   solar:
-    description: Solar charging / surplus production
+    description: "Solar charging / surplus production"
   solar_corrected:
-    description: Maximum charging reached – solar surplus
+    description: "Maximum charging reached - solar surplus"
   powerwall:
-    description: Charging from home battery
+    description: "Charging from home battery"
   powerwall_avg_symbol:
-    description: Average home battery charging
+    description: "Average home battery charging"
   battery_stored:
-    description: Consumption from home battery
+    description: "Consumption from home battery"
   charging_loss:
-    description: Charging loss calculation
+    description: "Charging loss calculation"
   sunrise:
-    description: Sunrise
+    description: "Sunrise"
   sunset:
-    description: Sunset
+    description: "Sunset"
   goto:
-    description: Departure
+    description: "Departure"
   homecoming:
-    description: Return home
+    description: "Return home"
   battery_usage:
     description: "Departure & return battery level"
   charging_problem:
-    description: Charging issues
+    description: "Charging issues"
   charging_error:
-    description: Charging failed completely
+    description: "Charging failed completely"
 
 # ---- config ----
 config:
@@ -531,7 +531,7 @@ ui:
 
   tasks:
     closing_progress: "Closing threads"
-    closed_done: "Threads closed – done"
+    closed_done: "Threads closed - done"
     not_all_closed: "Not all threads were closed"
 
   # ---- prices ----
@@ -665,7 +665,7 @@ ui:
 
   max_local_energy_available_remaining_period:
     powerwall_not_charging_but_should: "Home battery {powerwall_battery_level}% not charging though below {powerwall_reserved_battery_level}%"
-    powerwall_force_stop: "Home battery stopped x̄{powerwall_charging_consumption}W – charging later"
+    powerwall_force_stop: "Home battery stopped x̄{powerwall_charging_consumption}W - charging later"
     powerwall_charging: "Home battery charging x̄{powerwall_charging_consumption}W"
     powerwall_discharging: "Home battery discharging x̄{powerwall_discharging_available}W"
 
@@ -710,7 +710,7 @@ ui:
     manual_charging: "Manual charging allowed {watt}W"
     manual_charging_solar: "Manual charging allowed (solar only) {watt}W"
     planned_charging: "Charging to {emoji}"
-    low_battery_but_expensive: "Not charging – electricity expensive"
+    low_battery_but_expensive: "Not charging - electricity expensive"
     low_battery: "Charging, battery below {percentage}%"
     solar_production_but_expensive: "Selling solar surplus, grid price expensive ({price}£)"
     solar: "Solar"

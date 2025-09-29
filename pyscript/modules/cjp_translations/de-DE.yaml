@@ -4,74 +4,74 @@ _meta:
   version: seed-1
 
 app:
-  title: Cable Juice Planner
+  title: "Cable Juice Planner"
 
 # ---- charging_type ----
 charging_type:
   error:
     description: "Kritischer Fehler, Notladung"
   no_rule:
-    description: Laden ohne definierte Regel
+    description: "Laden ohne definierte Regel"
   manual:
-    description: Manuelles Laden
+    description: "Manuelles Laden"
   low_battery:
-    description: Erzwinges Laden unter täglichem Batterieziel
+    description: "Erzwinges Laden unter täglichem Batterieziel"
   battery_health:
-    description: Empfohlene Vollladung (Batteriepflege)
+    description: "Empfohlene Vollladung (Batteriepflege)"
   trip:
-    description: Reiseladen / Abfahrt
+    description: "Reiseladen / Abfahrt"
   public_charging:
-    description: Öffentliches Laden
+    description: "Öffentliches Laden"
   first_workday_preparation:
-    description: Vorbereitung erster Arbeitstag
+    description: "Vorbereitung erster Arbeitstag"
   second_workday_preparation:
-    description: Vorbereitung zweiter Arbeitstag
+    description: "Vorbereitung zweiter Arbeitstag"
   third_workday_preparation:
-    description: Vorbereitung dritter Arbeitstag
+    description: "Vorbereitung dritter Arbeitstag"
   fourth_workday_preparation:
-    description: Vorbereitung vierter Arbeitstag
+    description: "Vorbereitung vierter Arbeitstag"
   fifth_workday_preparation:
-    description: Vorbereitung fünfter Arbeitstag
+    description: "Vorbereitung fünfter Arbeitstag"
   sixth_workday_preparation:
-    description: Vorbereitung sechster Arbeitstag
+    description: "Vorbereitung sechster Arbeitstag"
   seventh_workday_preparation:
-    description: Vorbereitung siebter Arbeitstag
+    description: "Vorbereitung siebter Arbeitstag"
   eighth_workday_preparation:
-    description: Vorbereitung achter Arbeitstag
+    description: "Vorbereitung achter Arbeitstag"
   fill_up:
     description: "Wöchentliches Auffüllen (1., 4. & 7. Tag)"
   under_min_avg_price:
-    description: Unter 14-Tage-Durchschnittspreis
+    description: "Unter 14-Tage-Durchschnittspreis"
   half_min_avg_price:
     description: "25 % unter 14-Tage-Durchschnittspreis"
   grid_charging:
-    description: Laden aus dem Stromnetz
+    description: "Laden aus dem Stromnetz"
   solar:
-    description: Solar-Laden / Überschussnutzung
+    description: "Solar-Laden / Überschussnutzung"
   solar_corrected:
-    description: Maximale Ladeleistung erreicht – Solarüberschuss
+    description: "Maximale Ladeleistung erreicht - Solarüberschuss"
   powerwall:
-    description: Laden aus der Hausbatterie
+    description: "Laden aus der Hausbatterie"
   powerwall_avg_symbol:
-    description: Durchschnittliches Laden der Hausbatterie
+    description: "Durchschnittliches Laden der Hausbatterie"
   battery_stored:
-    description: Verbrauch aus der Batterie
+    description: "Verbrauch aus der Batterie"
   charging_loss:
-    description: Berechnung der Ladeverluste
+    description: "Berechnung der Ladeverluste"
   sunrise:
-    description: Sonnenaufgang
+    description: "Sonnenaufgang"
   sunset:
-    description: Sonnenuntergang
+    description: "Sonnenuntergang"
   goto:
-    description: Abfahrt
+    description: "Abfahrt"
   homecoming:
-    description: Heimkehr
+    description: "Heimkehr"
   battery_usage:
     description: "Batteriestand bei Abfahrt & Heimkehr"
   charging_problem:
-    description: Ladeprobleme
+    description: "Ladeprobleme"
   charging_error:
-    description: Laden vollständig fehlgeschlagen
+    description: "Laden vollständig fehlgeschlagen"
 
 # ---- config ----
 config:
@@ -470,7 +470,6 @@ entity:
     charging_history:
       friendly_name: "Lade­historie"
 
-
 # ---- ui ----
 ui:
   common:
@@ -532,7 +531,7 @@ ui:
 
   tasks:
     closing_progress: "Threads werden geschlossen"
-    closed_done: "Threads geschlossen – fertig"
+    closed_done: "Threads geschlossen - fertig"
     not_all_closed: "Nicht alle Threads konnten geschlossen werden"
 
   # ---- prices ----
@@ -666,7 +665,7 @@ ui:
 
   max_local_energy_available_remaining_period:
     powerwall_not_charging_but_should: "Hausbatterie {powerwall_battery_level}% lädt nicht, obwohl < {powerwall_reserved_battery_level}%"
-    powerwall_force_stop: "Hausbatterie gestoppt x̄{powerwall_charging_consumption}W – späteres Laden"
+    powerwall_force_stop: "Hausbatterie gestoppt x̄{powerwall_charging_consumption}W - späteres Laden"
     powerwall_charging: "Hausbatterie lädt x̄{powerwall_charging_consumption}W"
     powerwall_discharging: "Hausbatterie entlädt x̄{powerwall_discharging_available}W"
 
@@ -692,10 +691,10 @@ ui:
     charger_error: "Kritischer Fehler am Lader, Integration oder App prüfen"
     charger_dynamic_failed: "Dynamische Strombegrenzung fehlgeschlagen"
     charger_restart: "Lader wird neu gestartet"
-    charger_restart_count: "Neustart Lader – Versuch {count}"
-    charger_control_restart_count: "Neustart Lade-Operator – Versuch {count}"
+    charger_restart_count: "Neustart Lader - Versuch {count}"
+    charger_control_restart_count: "Neustart Lade-Operator - Versuch {count}"
     ev_not_charging: "EV lädt nicht korrekt"
-    ev_restart_count: "EV-Ladung neu starten – Versuch {count}"
+    ev_restart_count: "EV-Ladung neu starten - Versuch {count}"
 
   charging_without_rule:
     charging_no_rule: "Laden ohne Regel {watt}W"
@@ -711,7 +710,7 @@ ui:
     manual_charging: "Manuelles Laden erlaubt {watt}W"
     manual_charging_solar: "Manuelles Laden (nur Solar) {watt}W"
     planned_charging: "Laden bis {emoji}"
-    low_battery_but_expensive: "Kein Laden – Strom zu teuer"
+    low_battery_but_expensive: "Kein Laden - Strom zu teuer"
     low_battery: "Laden, Batterie < {percentage}%"
     solar_production_but_expensive: "Solarüberschuss wird verkauft; Spotpreis teuer ({price}€)"
     solar: "Solar"
@@ -728,7 +727,7 @@ ui:
   notify_battery_under_daily_battery_level:
     action: "Erzwungenes Laden aktivieren"
     title: "EV-Batterie unter Tagesziel"
-    message: "Batteriestand unter täglichem Ziel – erzwungenes Laden verfügbar"
+    message: "Batteriestand unter täglichem Ziel - erzwungenes Laden verfügbar"
     no_charge_expensive_hours: "Kein Laden in den 3 teuersten Stunden"
 
   startup:
@@ -767,4 +766,3 @@ ui:
     calculated: "Ladeverlust berechnet auf {percentage}%"
 
   shutdown: "Skript wird beendet\nKonfigurationsdatei wird gespeichert"
-

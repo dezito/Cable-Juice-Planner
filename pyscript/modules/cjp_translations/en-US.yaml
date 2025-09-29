@@ -4,74 +4,74 @@ _meta:
   version: seed-1
 
 app:
-  title: Cable Juice Planner
+  title: "Cable Juice Planner"
 
 # ---- charging_type ----
 charging_type:
   error:
     description: "Critical error, emergency charging"
   no_rule:
-    description: Charging without a defined rule
+    description: "Charging without a defined rule"
   manual:
-    description: Manual charging
+    description: "Manual charging"
   low_battery:
-    description: Forced charging below daily battery target
+    description: "Forced charging below daily battery target"
   battery_health:
-    description: Recommended full charge (battery health)
+    description: "Recommended full charge (battery health)"
   trip:
-    description: Trip charging / departure
+    description: "Trip charging / departure"
   public_charging:
-    description: Public charging
+    description: "Public charging"
   first_workday_preparation:
-    description: First workday preparation
+    description: "First workday preparation"
   second_workday_preparation:
-    description: Second workday preparation
+    description: "Second workday preparation"
   third_workday_preparation:
-    description: Third workday preparation
+    description: "Third workday preparation"
   fourth_workday_preparation:
-    description: Fourth workday preparation
+    description: "Fourth workday preparation"
   fifth_workday_preparation:
-    description: Fifth workday preparation
+    description: "Fifth workday preparation"
   sixth_workday_preparation:
-    description: Sixth workday preparation
+    description: "Sixth workday preparation"
   seventh_workday_preparation:
-    description: Seventh workday preparation
+    description: "Seventh workday preparation"
   eighth_workday_preparation:
-    description: Eighth workday preparation
+    description: "Eighth workday preparation"
   fill_up:
     description: "Weekly top-up (1st, 4th & 7th day)"
   under_min_avg_price:
-    description: Below 14-day average price
+    description: "Below 14-day average price"
   half_min_avg_price:
     description: "25% below 14-day average price"
   grid_charging:
-    description: Charging from the electricity grid
+    description: "Charging from the electricity grid"
   solar:
-    description: Solar charging / surplus production
+    description: "Solar charging / surplus production"
   solar_corrected:
-    description: Max charging reached – solar surplus
+    description: "Max charging reached - solar surplus"
   powerwall:
-    description: Charging from home battery
+    description: "Charging from home battery"
   powerwall_avg_symbol:
-    description: Average home battery charging
+    description: "Average home battery charging"
   battery_stored:
-    description: Consumption from home battery
+    description: "Consumption from home battery"
   charging_loss:
-    description: Charging loss calculation
+    description: "Charging loss calculation"
   sunrise:
-    description: Sunrise
+    description: "Sunrise"
   sunset:
-    description: Sunset
+    description: "Sunset"
   goto:
-    description: Departure
+    description: "Departure"
   homecoming:
-    description: Arrival home
+    description: "Arrival home"
   battery_usage:
     description: "Battery level at departure & arrival"
   charging_problem:
-    description: Charging issues
+    description: "Charging issues"
   charging_error:
-    description: Charging completely failed
+    description: "Charging completely failed"
 
 # ---- config ----
 config:
@@ -273,81 +273,82 @@ entity:
   input_number:
     co2_emitted:
       name: "CO₂ emitted"
-      description: CO₂ emitted in kg, based on Energi Data Service CO₂ factor
+      description: "CO₂ emitted in kg, based on Energi Data Service CO₂ factor"
       unit_of_measurement: kg
     kwh_charged_by_solar:
       name: "kWh charged by solar"
-      description: kWh charged by solar
+      description: "kWh charged by solar"
     solar_sell_fixed_price:
       name: "Fixed solar sell price"
-      description: Fixed sell price for solar, used to calculate solar surplus.
-        Set to -1.0 to use the hourly spot price.
+      description: "Fixed sell price for solar, used to calculate solar surplus.
+        Set to -1.0 to use the hourly spot price."
       unit_of_measurement: $/kWh
     preheat_minutes_before:
       name: "Preheat X minutes before"
-      description: Preheat vehicle X minutes before departure if preheating is enabled
+      description: "Preheat vehicle X minutes before departure if preheating is enabled"
     typical_daily_distance:
       name: "Typical daily distance (Non-workday)"
-      description: Typical daily distance in miles; used to plan charging.
-        Requires input_boolean.ev_fill_up enabled.
+      description: "Typical daily distance in miles; used to plan charging.
+        Requires input_boolean.ev_fill_up enabled."
       unit_of_measurement: mi
     workday_distance_needed_monday:
       name: "Monday total distance"
-      description: Distance in miles to charge for Monday workday
+      description: "Distance in miles to charge for Monday workday"
       unit_of_measurement: mi
     workday_distance_needed_tuesday:
       name: "Tuesday total distance"
-      description: Distance in miles to charge for Tuesday workday
+      description: "Distance in miles to charge for Tuesday workday"
       unit_of_measurement: mi
     workday_distance_needed_wednesday:
       name: "Wednesday total distance"
-      description: Distance in miles to charge for Wednesday workday
+      description: "Distance in miles to charge for Wednesday workday"
       unit_of_measurement: mi
     workday_distance_needed_thursday:
       name: "Thursday total distance"
-      description: Distance in miles to charge for Thursday workday
+      description: "Distance in miles to charge for Thursday workday"
       unit_of_measurement: mi
     workday_distance_needed_friday:
       name: "Friday total distance"
-      description: Distance in miles to charge for Friday workday
+      description: "Distance in miles to charge for Friday workday"
       unit_of_measurement: mi
     workday_distance_needed_saturday:
       name: "Saturday total distance"
-      description: Distance in miles to charge for Saturday workday
+      description: "Distance in miles to charge for Saturday workday"
       unit_of_measurement: mi
     workday_distance_needed_sunday:
       name: "Sunday total distance"
-      description: Distance in miles to charge for Sunday workday
+      description: "Distance in miles to charge for Sunday workday"
       unit_of_measurement: mi
     min_daily_battery_level:
       name: "Daily arrival battery level"
-      description: Minimum daily arrival battery level (%)
+      description: "Minimum daily arrival battery level (%)"
     min_trip_battery_level:
       name: "Trip arrival battery level"
-      description: Minimum trip arrival battery level (%)
+      description: "Minimum trip arrival battery level (%)"
     min_charge_limit_battery_level:
       name: "EV minimum charging limit"
-      description: Minimum charging limit (%) the EV can be set to
+      description: "Minimum charging limit (%) the EV can be set to"
     max_recommended_charge_limit_battery_level:
       name: "EV max recommended charging limit"
-      description: Maximum recommended daily charging limit (%)
+      description: "Maximum recommended daily charging limit (%)"
     very_cheap_grid_charging_max_battery_level:
       name: "Charge level for very cheap electricity"
-      description: With very cheap electricity, charge the EV to this level (%).
-        Requires input_boolean.ev_fill_up enabled.
+      description:
+        "With very cheap electricity, charge the EV to this level (%).
+        Requires input_boolean.ev_fill_up enabled."
     ultra_cheap_grid_charging_max_battery_level:
       name: "Charge level for ultra cheap electricity"
       description:
-        With ultra cheap electricity, charge the EV to this level (%).
-        Requires input_boolean.ev_fill_up enabled.
+        "With ultra cheap electricity, charge the EV to this level (%).
+        Requires input_boolean.ev_fill_up enabled."
     battery_level:
       name: "Virtual EV battery level"
     completed_battery_level:
       name: "Completed charging battery level"
       description:
-        If there is no EV integration, set this to the fully charged level
+        "If there is no EV integration, set this to the fully charged level
         the EV reports when charging completes. input_number.ev_battery_level
-        is updated automatically to this.
+        is updated automatically to this."
     estimated_total_range:
       name: "Virtual EV max range"
       description: If there is no EV integration, this sets the estimated total range in miles.
@@ -355,27 +356,27 @@ entity:
     trip_charge_procent:
       name: "Trip charging target"
       description:
-        Used for trip charging to set desired battery level (%) at departure.
+        "Used for trip charging to set desired battery level (%) at departure.
         EV will charge to this value + input_number.ev_min_trip_battery_level
-        (e.g., 50% + 30% = 80%).
+        (e.g., 50% + 30% = 80%)."
     trip_range_needed:
       name: "Trip miles needed"
-      description: Used for trip charging to set desired range in miles.
+      description: "Used for trip charging to set desired range in miles.
         Miles are converted to % automatically, then the EV charges to that
-        level + input_number.ev_min_trip_battery_level (e.g., 50% + 30% = 80%).
+        level + input_number.ev_min_trip_battery_level (e.g., 50% + 30% = 80%)."
       unit_of_measurement: mi
     full_charge_recommended:
       name: "Recommended full charge every"
       description:
-        A full charge is recommended at least every X days to avoid battery
-        degradation. EV will charge to 100%. Set to 0 to disable.
+        "A full charge is recommended at least every X days to avoid battery
+        degradation. EV will charge to 100%. Set to 0 to disable."
       unit_of_measurement: day(s)
     ev_charge_after_powerwall_battery_level:
       name: "Charge EV after home battery minimum level"
       description:
-        Charges the EV from the home battery once the home battery level is
+        "Charges the EV from the home battery once the home battery level is
         above this threshold (%). Set to 0.0 to disable. Requires
-        input_boolean.ev_solar_charging enabled.
+        input_boolean.ev_solar_charging enabled."
     public_charging_session_cost:
       name: "Cost of public charging"
       description: "The cost of the last public charging session (not $/kWh)"
@@ -488,7 +489,6 @@ entity:
     charging_history:
       friendly_name: "Charging history"
 
-
 # ---- ui ----
 ui:
   common:
@@ -550,7 +550,7 @@ ui:
 
   tasks:
     closing_progress: "Closing threads"
-    closed_done: "Threads closed – done"
+    closed_done: "Threads closed - done"
     not_all_closed: "Not all threads were closed"
 
   # ---- prices ----
@@ -684,7 +684,7 @@ ui:
 
   max_local_energy_available_remaining_period:
     powerwall_not_charging_but_should: "Home battery {powerwall_battery_level}% not charging, though level < {powerwall_reserved_battery_level}%"
-    powerwall_force_stop: "Home battery stopped x̄{powerwall_charging_consumption}W – charging later"
+    powerwall_force_stop: "Home battery stopped x̄{powerwall_charging_consumption}W - charging later"
     powerwall_charging: "Home battery charging x̄{powerwall_charging_consumption}W"
     powerwall_discharging: "Home battery discharging x̄{powerwall_discharging_available}W"
 
@@ -729,7 +729,7 @@ ui:
     manual_charging: "Manual charging allowed {watt}W"
     manual_charging_solar: "Manual charging allowed, solar only {watt}W"
     planned_charging: "Charging up to {emoji}"
-    low_battery_but_expensive: "Not charging – electricity too expensive"
+    low_battery_but_expensive: "Not charging - electricity too expensive"
     low_battery: "Charging because battery < {percentage}%"
     solar_production_but_expensive: "Selling solar surplus because raw spot price is expensive ({price}$)"
     solar: "Solar"
@@ -785,4 +785,3 @@ ui:
     calculated: "Charging loss calculated at {percentage}%"
 
   shutdown: "Shutting down the script\nSaving configuration file"
-

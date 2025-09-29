@@ -2,7 +2,7 @@ from dateutil import parser
 
 import homeassistant.helpers.device as device_helper
 
-from history import get_previous_value
+from history import get_last_value
 
 ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
 
@@ -28,16 +28,24 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
     if entity_id == "":
         return error_state
     
-    try:
-        if entity_id is None: raise Exception("entity_id argument is None")
+    domain = None
+    if "." in entity_id:
+        domain = entity_id.split(".")[0]
         
-        if entity_id not in state.names(domain=entity_id.split(".")[0]):
+    try:
+        if entity_id is None:
+            raise Exception("entity_id argument is None")
+        
+        if domain is None:
+            raise Exception(f"Invalid entity_id: {entity_id}")
+        
+        if entity_id not in state.names(domain=domain):
             raise Exception(f"Entity not found in Home Assistant: {entity_id}")
         
         output = state.get(entity_id)
         
         if try_history and output in ENTITY_UNAVAILABLE_STATES:
-            output = get_previous_value(entity_id, float_type=float_type, error_state=error_state)
+            output = get_last_value(entity_id, float_type=float_type, error_state=error_state)
             
         if float_type is True:
             output = float(output) if output not in ENTITY_UNAVAILABLE_STATES else error_state
@@ -48,7 +56,6 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
         return error_state
     
     try:
-        domain = entity_id.split(".")[0]
         if domain == "input_datetime":
             output = parser.parse(output)
     except Exception as e:

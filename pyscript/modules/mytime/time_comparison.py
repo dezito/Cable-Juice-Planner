@@ -19,7 +19,11 @@ def monthsBetween(start: datetime, end: datetime, precise: bool=False, error_val
     - int: The number of full months between start and end, or error_value on error
     """
     _LOGGER = globals()['_LOGGER'].getChild("monthsBetween")
+    
     try:
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise Exception(f"Error in monthsBetween with start {start} ({type(start)}) or end {end} ({type(end)}) is not datetime")
+        
         start = start.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
         if not precise:
@@ -47,7 +51,11 @@ def daysBetween(start: datetime, end: datetime, precise: bool=False, error_value
     - int: The number of full days between start and end, or error_value on error
     """
     _LOGGER = globals()['_LOGGER'].getChild("daysBetween")
+    
     try:
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise Exception(f"Error in daysBetween with start {start} ({type(start)}) or end {end} ({type(end)}) is not datetime")
+        
         start = start.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
         if not precise:
@@ -72,7 +80,11 @@ def hoursBetween(start: datetime, end: datetime, precise: bool=False, error_valu
     - int: The number of full hours between start and end, or error_value on error
     """
     _LOGGER = globals()['_LOGGER'].getChild("hoursBetween")
+    
     try:
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise Exception(f"Error in hoursBetween with start {start} ({type(start)}) or end {end} ({type(end)}) is not datetime")
+        
         start = start.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
         if not precise:
@@ -97,7 +109,11 @@ def minutesBetween(start: datetime, end: datetime, precise: bool=False, error_va
     - int: The number of full minutes between start and end, or error_value on error
     """
     _LOGGER = globals()['_LOGGER'].getChild("minutesBetween")
+    
     try:
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise Exception(f"Error in minutesBetween with start {start} ({type(start)}) or end {end} ({type(end)}) is not datetime")
+        
         start = start.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
         if not precise:
@@ -122,7 +138,11 @@ def secondsBetween(start: datetime, end: datetime, precise: bool=False, error_va
     - int: The number of full seconds between start and end, or error_value on error
     """
     _LOGGER = globals()['_LOGGER'].getChild("secondsBetween")
+    
     try:
+        if not isinstance(start, datetime) or not isinstance(end, datetime):
+            raise Exception(f"Error in secondsBetween with start {start} ({type(start)}) or end {end} ({type(end)}) is not datetime")
+        
         start = start.replace(tzinfo=None)
         end = end.replace(tzinfo=None)
         if not precise:
@@ -132,17 +152,3 @@ def secondsBetween(start: datetime, end: datetime, precise: bool=False, error_va
     except Exception:
         _LOGGER.error(f"Error in secondsBetween with start {start} ({type(start)}) and end {end} ({type(end)})")
         return error_value
-
-def inBetween(check, start, end):
-    """
-    Check if 'check' datetime is between 'start' and 'end' datetimes.
-    Handles cases where the interval spans midnight.
-    Parameters:
-    - check (datetime): The datetime to check.
-    - start (datetime): The start of the interval.
-    - end (datetime): The end of the interval.
-    Returns:
-    - bool: True if 'check' is between 'start' and 'end', False otherwise.
-    """
-    #return check <= start < end if check <= end else check <= start or start < end
-    return start <= check < end if start <= end else start <= check or check < end

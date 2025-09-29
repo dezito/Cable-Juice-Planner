@@ -52,7 +52,7 @@ def get_config_folder():
     """
     Returns the current working directory asynchronously. This directory is used as the base for loading and saving configuration files.
     """
-    return os.getcwd()
+    return CONFIG_FOLDER
 
 def add_config_folder_path(file_path):
     if CONFIG_FOLDER not in file_path:
@@ -71,10 +71,16 @@ def _add_ext(filename, ext_type = ""):
     - str: The filename async with the ensured extension.
     """
     try:
+        if "." not in filename:
+            filename = f"{filename}.{ext_type}"
+            return filename
+        
         ext = filename.split(".")[-1]
+        
         if ext != ext_type:
             filename = f"{filename}.{ext_type}"
-    except:
+    except Exception as e:
+        _LOGGER.error(f"Error adding extension {ext_type} to filename {filename}: {e}")
         filename = f"{filename}.{ext_type}"
     return filename
    

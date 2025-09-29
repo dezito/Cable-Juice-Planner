@@ -118,7 +118,9 @@ class I18nCatalog:
         base_files = []
         other_files = []
 
-        for fname in os.listdir(path):
+        lstdir = task.executor(os.listdir, path)
+        
+        for fname in lstdir:
             if not fname.endswith(".yaml"):
                 continue
             full_path = os.path.join(path, fname)

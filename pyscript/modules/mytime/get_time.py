@@ -4,6 +4,9 @@ import time
 from dateutil.relativedelta import relativedelta
 
 def datetime_to_unix(date_time = None):
+    if date_time is None:
+        date_time = getTime()
+        
     return time.mktime(date_time.timetuple())
 
 def getTimestampSeconds():
@@ -13,8 +16,7 @@ def getTimestampMinutes():
     return getTime().total_minutes()
 
 def getTime():
-    date = datetime.datetime.now()
-    return datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)
+    return datetime.datetime.now().replace(microsecond=0, tzinfo=None)
 
 def getTimePlusSeconds(offset = 0):
     return getTime() + datetime.timedelta(seconds=offset)

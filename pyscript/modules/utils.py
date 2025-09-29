@@ -12,17 +12,32 @@ _LOGGER = getLogger(BASENAME)
 
 def in_between(check, start, end):
     """
-    Checks if a given value falls within a specified range, inclusive of the start and exclusive of the end.
-    Handles wrap-around logic for ranges that span the boundary (e.g., overnight).
-
-    Parameters:
-    - check (datetime|int|float): The value to check.
-    - start (datetime|int|float): The start of the range.
-    - end (datetime|int|float): The end of the range.
+    Check if a value lies within [start, end).
+    - Supports datetime with wrap-around (over midnight).
+    - Supports int/float without wrap-around.
     """
     _LOGGER = globals()['_LOGGER'].getChild("in_between")
-    #return check <= start < end if check <= end else check <= start or start < end
-    return start <= check < end if start <= end else start <= check or check < end
+
+    try:
+        types = {type(check), type(start), type(end)}
+        if len(types) != 1:
+            raise TypeError(f"in_between args must all be same type, got: {types}")
+        T = types.pop()
+
+        if T is datetime.datetime:
+            if start <= end:
+                return start <= check < end
+            else:
+                # wrap-around (fx 23:00 → 02:00)
+                return start <= check or check < end
+        elif T in (int, float):
+            return start <= check < end
+        else:
+            raise TypeError(f"in_between only supports datetime, int, float (got {T})")
+
+    except Exception as e:
+        _LOGGER.error(f"Error in in_between(check={check}, start={start}, end={end}): {e}")
+        return False
 
 def round_up(n, decimals=0):
     """
@@ -33,6 +48,7 @@ def round_up(n, decimals=0):
     - decimals (int): The number of decimal places to round to.
     """
     _LOGGER = globals()['_LOGGER'].getChild("round_up")
+    
     n = max(n, 0.0)
     multiplier = 10 ** decimals
     return float(math.ceil(n * multiplier) / multiplier)
@@ -63,43 +79,52 @@ def calculate_ema(data, span=5):
     if not data:
         return 0.0
     
-    ema_values = []
-    alpha = 2 / (span + 1)
-    ema = data[0]
-    for value in data:
-        ema = (value * alpha) + (ema * (1 - alpha))
-        ema_values.append(ema)
-    return ema_values[-1]
+    try:
+        ema_values = []
+        alpha = 2 / (span + 1)
+        ema = data[0]
+        for value in data:
+            ema = (value * alpha) + (ema * (1 - alpha))
+            ema_values.append(ema)
+        return ema_values[-1]
+    except Exception as e:
+        _LOGGER.error(f"Error calculating EMA for data {data} with span {span}: {e}")
+        return 0.0
 
 def calculate_trend(data):
     """
     Calculates the trend of a list of numbers.
     """
     _LOGGER = globals()['_LOGGER'].getChild("calculate_trend")
-    x = list(range(len(data)))
-    n = len(x)
+    
+    try:
+        x = list(range(len(data)))
+        n = len(x)
 
-    sum_x = 0
-    sum_y = 0
-    sum_x_squared = 0
-    sum_xy = 0
+        sum_x = 0
+        sum_y = 0
+        sum_x_squared = 0
+        sum_xy = 0
 
-    for i in x:
-        sum_x += i
-        sum_x_squared += i ** 2
+        for i in x:
+            sum_x += i
+            sum_x_squared += i ** 2
 
-    for i, j in zip(x, data):
-        sum_y += j
-        sum_xy += i * j
+        for i, j in zip(x, data):
+            sum_y += j
+            sum_xy += i * j
 
-    denominator = (n * sum_x_squared - sum_x ** 2)
-    if denominator == 0:
-        return data[-1]
+        denominator = (n * sum_x_squared - sum_x ** 2)
+        if denominator == 0:
+            return data[-1]
 
-    slope = (n * sum_xy - sum_x * sum_y) / denominator
-    intercept = (sum_y - slope * sum_x) / n
+        slope = (n * sum_xy - sum_x * sum_y) / denominator
+        intercept = (sum_y - slope * sum_x) / n
 
-    return intercept + slope * len(data)
+        return intercept + slope * len(data)
+    except Exception as e:
+        _LOGGER.error(f"Error calculating trend for data {data}: {e}")
+        return 0.0
 
 def reverse_list(lst):
     """
@@ -109,31 +134,41 @@ def reverse_list(lst):
     - lst (list): The list to reverse.
     """
     _LOGGER = globals()['_LOGGER'].getChild("reverse_list")
-    if not isinstance(lst, list):
-        raise ValueError(f"Expected a list, got {type(lst)}")
     
-    return lst[::-1]
+    try:
+        if not isinstance(lst, list):
+            raise ValueError(f"Expected a list, got {type(lst)}")
+        
+        return lst[::-1]
+    except Exception as e:
+        _LOGGER.error(f"Error reversing list {lst}: {e}")
+        return lst
 
 def get_specific_values(values, positive_only = False, negative_only = False):
     _LOGGER = globals()['_LOGGER'].getChild("get_specific_values")
+    
     if positive_only is False and negative_only is False:
         raise ValueError("At least one of positive_only or negative_only must be True")
     elif positive_only is True and negative_only is True:
         raise ValueError("Only one of positive_only or negative_only can be True")
     
-    return_list = []
-    for value in values:
-        try:
-            value = float(value)
-        except:
-            continue
-        
-        if (negative_only and value > 0.0) or (positive_only and value < 0.0):
-            continue
-        
-        return_list.append(value)
-        
-    return [0.0] if return_list == [] else return_list
+    try:
+        return_list = []
+        for value in values:
+            try:
+                value = float(value)
+            except:
+                continue
+            
+            if (negative_only and value > 0.0) or (positive_only and value < 0.0):
+                continue
+            
+            return_list.append(value)
+            
+        return [0.0] if return_list == [] else return_list
+    except Exception as e:
+        _LOGGER.error(f"Error getting specific values from {values}: {e}")
+        return [0.0]
 
             
 def get_closest_key(input_value, collection, return_key=False, max_allowed=None):
@@ -197,6 +232,7 @@ def keys_exists(element, *keys):
     - keys (str): A sequence of keys representing the path to check for existence.
     """
     _LOGGER = globals()['_LOGGER'].getChild("keys_exists")
+    
     if not isinstance(element, dict):
         raise AttributeError('keys_exists() expects dict as first argument.')
     if len(keys) == 0:
@@ -219,6 +255,7 @@ def has_key(d, path):
     - path (str): The dot-separated path of keys to check for existence.
     """
     _LOGGER = globals()['_LOGGER'].getChild("has_key")
+    
     try:
         functools.reduce(lambda x, y: x[y], path.split("."), d)
         return True
@@ -377,7 +414,8 @@ def update_keys_recursive(obj, key_mapping):
     Returns:
     - bool: True if any updates were made, False otherwise.
     """
-    _LOGGER = globals()['_LOGGER'].getChild("update_keys_recursive")
+    _LOGGER = globals()['_LOGGER'].getChild("update_keys_recursive"
+                                            )
     updated = False
 
     if isinstance(obj, dict):
@@ -510,22 +548,28 @@ def flatten_dict(d, parent_key="", sep="."):
     return items
 
 def check_next_24_hours_diff(dict1, dict2):
-    now = datetime.datetime.now()
-    end_time = now + datetime.timedelta(hours=24)
+    _LOGGER = globals()['_LOGGER'].getChild("check_next_24_hours_diff")
+    
+    try:
+        now = datetime.datetime.now()
+        end_time = now + datetime.timedelta(hours=24)
 
-    keys1 = {key for key in dict1 if isinstance(key, datetime.datetime) and now <= key < end_time}
-    keys2 = {key for key in dict2 if isinstance(key, datetime.datetime) and now <= key < end_time}
+        keys1 = {key for key in dict1 if isinstance(key, datetime.datetime) and now <= key < end_time}
+        keys2 = {key for key in dict2 if isinstance(key, datetime.datetime) and now <= key < end_time}
 
-    only_in_dict1 = keys1 - keys2
-    only_in_dict2 = keys2 - keys1
+        only_in_dict1 = keys1 - keys2
+        only_in_dict2 = keys2 - keys1
 
-    if not only_in_dict1 and not only_in_dict2:
+        if not only_in_dict1 and not only_in_dict2:
+            return {}
+
+        return {
+            'only_in_dict1': list(only_in_dict1),
+            'only_in_dict2': list(only_in_dict2)
+        }
+    except Exception as e:
+        _LOGGER.error(f"Error comparing dicts for next 24 hours: {e}")
         return {}
-
-    return {
-        'only_in_dict1': list(only_in_dict1),
-        'only_in_dict2': list(only_in_dict2)
-    }
 
 def time_window_minutes_left(minute: int, total_minutes: int) -> int:
     """
@@ -534,7 +578,7 @@ def time_window_minutes_left(minute: int, total_minutes: int) -> int:
     """
     return total_minutes - (minute % total_minutes) if (minute % total_minutes) != 0 else total_minutes
 
-def time_window_minutes_left_from_datetime(dt: datetime, total_minutes: int) -> int:
+def time_window_minutes_left_from_datetime(dt: datetime.datetime, total_minutes: int) -> int:
     """
     Wrapper around time_window_minutes_left using a datetime object.
     """
@@ -545,9 +589,15 @@ def time_window_linear_weight(minute: int, total_minutes: int, max_value: float 
     Calculates a linear increasing weight based on the number of minutes left until the next multiple of total_minutes.
     The weight decreases linearly from max_value to 0 as the minute approaches total_minutes.
     """
-    minutes = time_window_minutes_left(minute, total_minutes)
-    factor = 1 - (minutes / total_minutes)
-    return max_value * factor
+    _LOGGER = globals()['_LOGGER'].getChild("time_window_parabolic_weight")
+    
+    try:
+        minutes = time_window_minutes_left(minute, total_minutes)
+        factor = 1 - (minutes / total_minutes)
+        return max_value * factor
+    except Exception as e:
+        _LOGGER.error(f"Error calculating linear weight: {e}")
+        return 0.0
 
 def time_window_parabolic_weight(minute: int, total_minutes: int, max_value: float = 1.0, curve_ratio: float = 1.0) -> float:
     """
@@ -555,11 +605,17 @@ def time_window_parabolic_weight(minute: int, total_minutes: int, max_value: flo
     The weight decreases parabolically from max_value to 0 as the minute approaches total_minutes.
     The curve_ratio controls the steepness of the parabola.
     """
-    minutes = time_window_minutes_left(minute, total_minutes)
-    x = (minutes - total_minutes / 2) / (total_minutes / 2)
-    x *= curve_ratio
-    weight = max(0.0, 1.0 - x ** 2)
-    return max_value * weight
+    _LOGGER = globals()['_LOGGER'].getChild("time_window_parabolic_weight")
+    
+    try:
+        minutes = time_window_minutes_left(minute, total_minutes)
+        x = (minutes - total_minutes / 2) / (total_minutes / 2)
+        x *= curve_ratio
+        weight = max(0.0, 1.0 - x ** 2)
+        return max_value * weight
+    except Exception as e:
+        _LOGGER.error(f"Error calculating parabolic weight: {e}")
+        return 0.0
 
 def time_window_gaussian_weight(minute: int, total_minutes: int, max_value: float = 1.0, sigma_ratio: float = 0.2) -> float:
     """
@@ -567,9 +623,15 @@ def time_window_gaussian_weight(minute: int, total_minutes: int, max_value: floa
     The weight decreases according to a Gaussian distribution centered at total_minutes / 2.
     The sigma_ratio controls the width of the Gaussian curve.
     """
-    minutes = time_window_minutes_left(minute, total_minutes)
-    center = total_minutes / 2
-    sigma = total_minutes * sigma_ratio
-    exponent = -((minutes - center) ** 2) / (2 * sigma ** 2)
-    weight = math.exp(exponent)
-    return max_value * weight
+    _LOGGER = globals()['_LOGGER'].getChild("time_window_gaussian_weight")
+    
+    try:
+        minutes = time_window_minutes_left(minute, total_minutes)
+        center = total_minutes / 2
+        sigma = total_minutes * sigma_ratio
+        exponent = -((minutes - center) ** 2) / (2 * sigma ** 2)
+        weight = math.exp(exponent)
+        return max_value * weight
+    except Exception as e:
+        _LOGGER.error(f"Error calculating Gaussian weight: {e}")
+        return 0.0

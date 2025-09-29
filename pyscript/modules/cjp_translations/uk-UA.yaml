@@ -11,67 +11,67 @@ charging_type:
   error:
     description: "Критична помилка, аварійне заряджання"
   no_rule:
-    description: Заряджання без правила
+    description: "Заряджання без правила"
   manual:
-    description: Ручне заряджання
+    description: "Ручне заряджання"
   low_battery:
-    description: Примусове заряджання при низькому денному рівні батареї
+    description: "Примусове заряджання при низькому денному рівні батареї"
   battery_health:
-    description: Рекомендоване повне заряджання (здоров’я батареї)
+    description: "Рекомендоване повне заряджання (здоров’я батареї)"
   trip:
-    description: Заряджання перед поїздкою / виїздом
+    description: "Заряджання перед поїздкою / виїздом"
   public_charging:
-    description: Публічне заряджання
+    description: "Публічне заряджання"
   first_workday_preparation:
-    description: Підготовка до першого робочого дня
+    description: "Підготовка до першого робочого дня"
   second_workday_preparation:
-    description: Підготовка до другого робочого дня
+    description: "Підготовка до другого робочого дня"
   third_workday_preparation:
-    description: Підготовка до третього робочого дня
+    description: "Підготовка до третього робочого дня"
   fourth_workday_preparation:
-    description: Підготовка до четвертого робочого дня
+    description: "Підготовка до четвертого робочого дня"
   fifth_workday_preparation:
-    description: Підготовка до п’ятого робочого дня
+    description: "Підготовка до п’ятого робочого дня"
   sixth_workday_preparation:
-    description: Підготовка до шостого робочого дня
+    description: "Підготовка до шостого робочого дня"
   seventh_workday_preparation:
-    description: Підготовка до сьомого робочого дня
+    description: "Підготовка до сьомого робочого дня"
   eighth_workday_preparation:
-    description: Підготовка до восьмого робочого дня
+    description: "Підготовка до восьмого робочого дня"
   fill_up:
     description: "Щотижневе дозаряджання (1-й, 4-й і 7-й день)"
   under_min_avg_price:
-    description: Нижче середньої ціни за останні 14 днів
+    description: "Нижче середньої ціни за останні 14 днів"
   half_min_avg_price:
     description: "25% нижче середньої ціни за останні 14 днів"
   grid_charging:
-    description: Заряджання від мережі
+    description: "Заряджання від мережі"
   solar:
-    description: Заряджання від сонця / надлишкової генерації
+    description: "Заряджання від сонця / надлишкової генерації"
   solar_corrected:
-    description: Досягнуто максимального рівня – надлишок сонячної енергії
+    description: "Досягнуто максимального рівня – надлишок сонячної енергії"
   powerwall:
-    description: Заряджання від домашньої батареї
+    description: "Заряджання від домашньої батареї"
   powerwall_avg_symbol:
-    description: Середнє заряджання домашньої батареї
+    description: "Середнє заряджання домашньої батареї"
   battery_stored:
-    description: Споживання з батареї
+    description: "Споживання з батареї"
   charging_loss:
-    description: Розрахунок втрат під час заряджання
+    description: "Розрахунок втрат під час заряджання"
   sunrise:
-    description: Схід сонця
+    description: "Схід сонця"
   sunset:
-    description: Захід сонця
+    description: "Захід сонця"
   goto:
-    description: Виїзд
+    description: "Виїзд"
   homecoming:
-    description: Повернення
+    description: "Повернення"
   battery_usage:
     description: "Рівень батареї при виїзді та поверненні"
   charging_problem:
-    description: Проблеми із заряджанням
+    description: "Проблеми із заряджанням"
   charging_error:
-    description: Заряджання не вдалося
+    description: "Заряджання не вдалося"
 
 # ---- config ----
 config:
@@ -161,7 +161,7 @@ config:
       forecast_entity_id: "Прогноз сонця (Вт) (Підтримка: Solcast PV Forecast)"
     solarpower_use_before_minutes: "Кількість хвилин 'позики' від надлишкової генерації"
     max_to_current_hour: "Вимагати використання надлишку у поточній годині"
-    allow_grid_charging_above_solar_available: "Допустима різниця у Вт вище(+)/нижче(−) надлишку"
+    allow_grid_charging_above_solar_available: "Допустима різниця у Вт вище(+)/нижче(-) надлишку"
     charging_single_phase_min_amp: "Мінімальний струм для 1 фази; 0 = вимкнено"
     charging_single_phase_max_amp: "Максимальний струм для 1 фази; 0 = вимкнено"
     charging_three_phase_min_amp: "Мінімальний струм для 3 фаз"

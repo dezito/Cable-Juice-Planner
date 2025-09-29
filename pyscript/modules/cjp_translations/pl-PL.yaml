@@ -4,74 +4,74 @@ _meta:
   version: seed-1
 
 app:
-  title: Cable Juice Planner
+  title: "Cable Juice Planner"
 
 # ---- charging_type ----
 charging_type:
   error:
     description: "Błąd krytyczny, ładowanie awaryjne"
   no_rule:
-    description: Ładowanie bez reguły
+    description: "Ładowanie bez reguły"
   manual:
-    description: Ładowanie ręczne
+    description: "Ładowanie ręczne"
   low_battery:
-    description: Wymuszone ładowanie poniżej dziennego poziomu baterii
+    description: "Wymuszone ładowanie poniżej dziennego poziomu baterii"
   battery_health:
-    description: Zalecane pełne ładowanie (kondycja baterii)
+    description: "Zalecane pełne ładowanie (kondycja baterii)"
   trip:
-    description: Ładowanie przed podróżą / wyjazdem
+    description: "Ładowanie przed podróżą / wyjazdem"
   public_charging:
-    description: Ładowanie publiczne
+    description: "Ładowanie publiczne"
   first_workday_preparation:
-    description: Przygotowanie na pierwszy dzień pracy
+    description: "Przygotowanie na pierwszy dzień pracy"
   second_workday_preparation:
-    description: Przygotowanie na drugi dzień pracy
+    description: "Przygotowanie na drugi dzień pracy"
   third_workday_preparation:
-    description: Przygotowanie na trzeci dzień pracy
+    description: "Przygotowanie na trzeci dzień pracy"
   fourth_workday_preparation:
-    description: Przygotowanie na czwarty dzień pracy
+    description: "Przygotowanie na czwarty dzień pracy"
   fifth_workday_preparation:
-    description: Przygotowanie na piąty dzień pracy
+    description: "Przygotowanie na piąty dzień pracy"
   sixth_workday_preparation:
-    description: Przygotowanie na szósty dzień pracy
+    description: "Przygotowanie na szósty dzień pracy"
   seventh_workday_preparation:
-    description: Przygotowanie na siódmy dzień pracy
+    description: "Przygotowanie na siódmy dzień pracy"
   eighth_workday_preparation:
-    description: Przygotowanie na ósmy dzień pracy
+    description: "Przygotowanie na ósmy dzień pracy"
   fill_up:
     description: "Cotygodniowe doładowanie (1., 4. i 7. dzień)"
   under_min_avg_price:
-    description: Poniżej średniej ceny z ostatnich 14 dni
+    description: "Poniżej średniej ceny z ostatnich 14 dni"
   half_min_avg_price:
     description: "25% poniżej średniej ceny z ostatnich 14 dni"
   grid_charging:
-    description: Ładowanie z sieci
+    description: "Ładowanie z sieci"
   solar:
-    description: Ładowanie energią słoneczną / nadwyżka
+    description: "Ładowanie energią słoneczną / nadwyżka"
   solar_corrected:
-    description: Maksymalne ładowanie osiągnięte – nadwyżka solarna
+    description: "Maksymalne ładowanie osiągnięte - nadwyżka solarna"
   powerwall:
-    description: Ładowanie z baterii domowej
+    description: "Ładowanie z baterii domowej"
   powerwall_avg_symbol:
-    description: Średnie ładowanie baterii domowej
+    description: "Średnie ładowanie baterii domowej"
   battery_stored:
-    description: Zużycie z baterii
+    description: "Zużycie z baterii"
   charging_loss:
-    description: Obliczanie strat ładowania
+    description: "Obliczanie strat ładowania"
   sunrise:
-    description: Wschód słońca
+    description: "Wschód słońca"
   sunset:
-    description: Zachód słońca
+    description: "Zachód słońca"
   goto:
-    description: Wyjazd
+    description: "Wyjazd"
   homecoming:
-    description: Powrót
+    description: "Powrót"
   battery_usage:
     description: "Poziom baterii przy wyjeździe i powrocie"
   charging_problem:
-    description: Problemy z ładowaniem
+    description: "Problemy z ładowaniem"
   charging_error:
-    description: Ładowanie nie powiodło się
+    description: "Ładowanie nie powiodło się"
 
 # ---- config ----
 config:
@@ -281,16 +281,17 @@ entity:
     solar_sell_fixed_price:
       name: "Stała cena sprzedaży solara"
       description:
-        Stała cena sprzedaży energii słonecznej, używana do obliczeń nadwyżki.
-        Ustaw -1.0 aby używać ceny godzinowej.
+        "Stała cena sprzedaży energii słonecznej, używana do obliczeń nadwyżki.
+        Ustaw -1.0 aby używać ceny godzinowej."
       unit_of_measurement: zł/kWh
     preheat_minutes_before:
       name: "Podgrzej X minut przed"
-      description: Podgrzej pojazd X minut przed wyjazdem jeśli aktywne
+      description: "Podgrzej pojazd X minut przed wyjazdem jeśli aktywne"
     typical_daily_distance:
       name: "Typowy dzienny dystans (dzień wolny)"
-      description: Typowy dzienny dystans w km, używany do planowania ładowania.
-        Wymaga input_boolean.ev_fill_up.
+      description:
+        "Typowy dzienny dystans w km, używany do planowania ładowania.
+        Wymaga input_boolean.ev_fill_up."
       unit_of_measurement: km
     workday_distance_needed_monday:
       name: "Poniedziałek dystans"
@@ -339,8 +340,8 @@ entity:
     ultra_cheap_grid_charging_max_battery_level:
       name: "Limit ładowania przy ekstremalnie tanim prądzie"
       description:
-        Przy ekstremalnie tanim prądzie, naładuj EV do tego poziomu (%).
-        Wymaga input_boolean.ev_fill_up.
+        "Przy ekstremalnie tanim prądzie, naładuj EV do tego poziomu (%).
+        Wymaga input_boolean.ev_fill_up."
     battery_level:
       name: "Wirtualny poziom baterii EV"
     completed_battery_level:
@@ -538,7 +539,7 @@ ui:
 
   tasks:
     closing_progress: "Zamykanie wątków"
-    closed_done: "Wątki zamknięte – zakończono"
+    closed_done: "Wątki zamknięte - zakończono"
     not_all_closed: "Nie wszystkie wątki zostały zamknięte"
 
   # ---- prices ----
@@ -590,7 +591,7 @@ ui:
     add_entities: "Dodaj nowe encje do pulpitów (Dashboard)."
     yaml_file_created: "Utworzono plik YAML: {file_path}"
     restart_required: "Zrestartuj Home Assistant, aby wczytać zmiany"
-    error_loading: "Ponowne wczytanie {file_path} za 5 sekund – wystąpił błąd"
+    error_loading: "Ponowne wczytanie {file_path} za 5 sekund - wystąpił błąd"
     created: "Utworzono"
     renamed_to: "zmieniono nazwę na"
     config_renamed_keys: "Zmieniono nazwy kluczy w pliku {file_path}"
@@ -672,7 +673,7 @@ ui:
 
   max_local_energy_available_remaining_period:
     powerwall_not_charging_but_should: "Bateria domowa {powerwall_battery_level}% nie ładuje, choć < {powerwall_reserved_battery_level}%"
-    powerwall_force_stop: "Bateria domowa zatrzymana x̄{powerwall_charging_consumption}W – ładowanie później"
+    powerwall_force_stop: "Bateria domowa zatrzymana x̄{powerwall_charging_consumption}W - ładowanie później"
     powerwall_charging: "Bateria domowa ładuje x̄{powerwall_charging_consumption}W"
     powerwall_discharging: "Bateria domowa rozładowuje x̄{powerwall_discharging_available}W"
 
@@ -717,13 +718,13 @@ ui:
     manual_charging: "Ręczne ładowanie dozwolone {watt}W"
     manual_charging_solar: "Ręczne ładowanie dozwolone, tylko solar {watt}W"
     planned_charging: "Ładowanie do {emoji}"
-    low_battery_but_expensive: "Brak ładowania – prąd zbyt drogi"
+    low_battery_but_expensive: "Brak ładowania - prąd zbyt drogi"
     low_battery: "Ładowanie, bo poziom baterii < {percentage}%"
-    solar_production_but_expensive: "Sprzedaż nadwyżki solara – wysoka cena spot ({price}zł)"
+    solar_production_but_expensive: "Sprzedaż nadwyżki solara - wysoka cena spot ({price}zł)"
     solar: "Solar"
     powerwall: "Bateria domowa"
     local_energy_charging: "{local_energy} ładuje {watt}W"
-    local_energy_charging_not_needed: "Brak ładowania solarnego – bateria powyżej {percentage}%"
+    local_energy_charging_not_needed: "Brak ładowania solarnego - bateria powyżej {percentage}%"
     not_charging: "Brak ładowania"
 
   notify_set_battery_level:
@@ -734,7 +735,7 @@ ui:
   notify_battery_under_daily_battery_level:
     action: "Aktywuj, aby rozpocząć wymuszone ładowanie"
     title: "Poziom baterii EV poniżej dziennego minimum"
-    message: "Poziom baterii poniżej dziennego celu – można włączyć wymuszone ładowanie"
+    message: "Poziom baterii poniżej dziennego celu - można włączyć wymuszone ładowanie"
     no_charge_expensive_hours: "Brak ładowania w 3 najdroższych godzinach"
 
   startup:
