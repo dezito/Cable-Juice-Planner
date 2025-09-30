@@ -627,10 +627,10 @@ ui:
 
   emoji_description:
     header: "Emoji beskrivelse"
-    markdown_hint: "Brug Markdown kort med dette i: {{{{ states.sensor.{name}_emoji_description.attributes.description }}}}"
+    markdown_hint: "Brug Markdown kort med dette i: {{ states.sensor.{name}_emoji_description.attributes.description }}"
 
   set_default_entity_states:
-    markdown_guide: "Brug Markdown kort med dette i: {{{{ states.sensor.{name}_overview.attributes.overview }}}}"
+    markdown_guide: "Brug Markdown kort med dette i: {{ states.sensor.{name}_overview.attributes.overview }}"
     no_overview: "Ingen oversigt endnu"
 
   drive_efficiency:
@@ -639,7 +639,7 @@ ui:
     used: "Brugt"
 
   load_charging_history:
-    default_state: "Brug Markdown kort med dette i: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}"
+    default_state: "Brug Markdown kort med dette i: {{ states.sensor.{__name__}_charging_history.attributes.history }}"
 
   charging_history_combine_and_set:
     too_big_warning: "Home Assistant tillader ikke at vise mere historik"
