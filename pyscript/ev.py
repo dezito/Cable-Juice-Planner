@@ -1057,7 +1057,7 @@ def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
         
     return False
     
-def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, startswith=False):
+def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, startswith=False, contains=False):
     func_name = "task_cancel"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -1111,14 +1111,24 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
     task_names = []
 
     if isinstance(task_name, str):
-        task_names = [n for n in TASKS.keys() if n.startswith(task_name)] if startswith else [task_name]
+        if startswith:
+            task_names = [n for n in TASKS.keys() if n.startswith(task_name)]
+        elif contains:
+            task_names = [n for n in TASKS.keys() if task_name in n]
+        else:
+            task_names = [task_name]
 
     elif isinstance(task_name, Iterable):
         for name in task_name:
             if isinstance(name, asyncio.Task):
                 task_names.append(name.get_name())
             elif isinstance(name, str):
-                task_names.extend([n for n in TASKS.keys() if n.startswith(name)] if startswith else [name])
+                if startswith:
+                    task_names.extend([n for n in TASKS.keys() if n.startswith(name)])
+                elif contains:
+                    task_names.extend([n for n in TASKS.keys() if name in n])
+                else:
+                    task_names.append(name)
             else:
                 _LOGGER.warning(f"Ignoring invalid task name: {name}")
 
@@ -1128,9 +1138,11 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
 
     if not task_names:
         if startswith:
-            _LOGGER.warning(f"No matching tasks to cancel with prefix: {task_name}")
+            _LOGGER.debug(f"No matching tasks to cancel with prefix: {task_name}")
+        elif contains:
+            _LOGGER.debug(f"No matching tasks to cancel containing: {task_name}")
         else:
-            _LOGGER.warning(f"No matching tasks to cancel with name: {task_name}")
+            _LOGGER.debug(f"No matching tasks to cancel with name: {task_name}")
         return True
 
     task_set = set()
@@ -1150,7 +1162,7 @@ def task_cancel(task_name, task_remove=True, timeout=5.0, wait_period=0.2, start
             if result is not True:
                 _LOGGER.warning(f"Task cancel failed for: {name}")
                 all_success = False
-        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
             pass
         except Exception as e:
             _LOGGER.error(f"Exception cancelling task {name}: {e} {type(e)}")
@@ -1325,7 +1337,6 @@ def get_hours_plan():
 
 def append_overview_output(title = None, timestamp = None):
     func_name = "append_overview_output"
-    task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global OVERVIEW_HISTORY
     
@@ -9466,7 +9477,6 @@ def current_hour_in_charge_hours():
 def charge_if_needed():
     func_name = "charge_if_needed"
     func_prefix = f"{func_name}_"
-    task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CHARGE_HOURS, TASKS
     
@@ -10325,6 +10335,7 @@ if INITIALIZATION_COMPLETE:
             log_lines.append(f"📟{i18n.t('ui.startup.calc_charging_plan')}")
             set_charging_rule(f"📟{i18n.t('ui.startup.calc_charging_plan')}")
             
+            task_cancel("charge_if_needed", task_remove=True, contains=True)
             TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
             TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
             TASKS[f"{func_prefix}drive_efficiency_save_car_stats"] = task.create(drive_efficiency_save_car_stats, bootup=True)
@@ -10407,6 +10418,8 @@ if INITIALIZATION_COMPLETE:
                         pass
                     else:
                         raise ValueError(f"Invalid value for {var_name}: {value}")
+                    
+                    task_cancel("charge_if_needed", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
                 except Exception as e:
@@ -10440,6 +10453,7 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
+            task_cancel("charge_if_needed", task_remove=True, contains=True)
             TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
             TASKS[f"{func_prefix}is_battery_fully_charged"] = task.create(is_battery_fully_charged)
             TASKS[f"{func_prefix}set_estimated_range"] = task.create(set_estimated_range)
@@ -10662,7 +10676,6 @@ if INITIALIZATION_COMPLETE:
             
     def wait_until_odometer_stable(func_prefix=None):
         func_name = "wait_until_odometer_stable"
-        task.unique(func_name)
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         if not is_ev_configured():
             return
@@ -10713,7 +10726,6 @@ if INITIALIZATION_COMPLETE:
     def power_connected_trigger(value):
         func_name = "power_connected_trigger"
         func_prefix = f"{func_name}_"
-        task.unique(func_name)
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
         global TASKS, LAST_DRIVE_EFFICIENCY_DATA
                 
@@ -10761,9 +10773,11 @@ if INITIALIZATION_COMPLETE:
                     return
                 
                 if is_ev_configured():
+                    task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                 
+                task_cancel("charge_if_needed", task_remove=True, timeout=5.0, wait_period=0.2, startswith=False, contains=True)
                 TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
                 done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
             else:
@@ -10775,6 +10789,7 @@ if INITIALIZATION_COMPLETE:
                     TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                     done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"], TASKS[f"{func_prefix}wake_up_ev"]})
                     
+                    task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                     
@@ -10804,6 +10819,7 @@ if INITIALIZATION_COMPLETE:
             global TASKS
             try:
                 if value == "home":
+                    task_cancel("charge_if_needed", contains=True)
                     TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
             except Exception as e:
@@ -10832,7 +10848,7 @@ if INITIALIZATION_COMPLETE:
                 
                 if (not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_port_door_entity_id']) and
                     not is_entity_configured(CONFIG['ev_car']['entity_ids']['charge_cable_entity_id'])):
-                    
+                    task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
             except Exception as e:
@@ -10942,6 +10958,7 @@ if INITIALIZATION_COMPLETE:
                     _LOGGER.info(f"Ev charge port changed from {old_value} to {value}")
                     
                     try:
+                        task_cancel("power_connected_trigger", task_remove=True, contains=True)
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
@@ -10970,6 +10987,7 @@ if INITIALIZATION_COMPLETE:
                     _LOGGER.info(f"Ev charge cable changed from {old_value} to {value}")
                     
                     try:
+                        task_cancel("power_connected_trigger", task_remove=True, contains=True)
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
@@ -11000,6 +11018,7 @@ if INITIALIZATION_COMPLETE:
             
             if old_value == 0.0 and value > 0.0:
                 try:
+                    task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, "on")
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                 except Exception as e:
