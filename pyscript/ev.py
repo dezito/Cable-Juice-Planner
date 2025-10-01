@@ -5929,6 +5929,9 @@ def cheap_grid_charge_hours():
             if round(price, 3) <= (average_price * 0.75):
                 ultra_cheap_price = True
         except Exception as e:
+            if "min" not in KWH_AVG_PRICES_DB or not isinstance(KWH_AVG_PRICES_DB['min'], list) or len(KWH_AVG_PRICES_DB['min']) < 1:
+                _LOGGER.error(f"Missing min in KWH_AVG_PRICES_DB or not a list or len < 1: {KWH_AVG_PRICES_DB}")
+                
             _LOGGER.warning(f"Using local low prices to calc very/ultra cheap price: {e} {type(e)}")
             average_price = round(average(KWH_AVG_PRICES_DB['min']), 3)
             if round(price, 3) <= average_price:
