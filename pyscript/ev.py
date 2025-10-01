@@ -2498,7 +2498,7 @@ def build_comment_db_yaml() -> dict:
             i18n_key,
             charger_supported_states=charger_supported_str,
             ev_supported_states=ev_supported_str,
-            modname=__name__,
+            name=__name__,
         )
     
     return COMMENT_DB_YAML

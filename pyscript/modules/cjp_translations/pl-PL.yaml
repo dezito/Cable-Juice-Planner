@@ -613,10 +613,10 @@ ui:
 
   emoji_description:
     header: "Opis emoji"
-    markdown_hint: "Użyj karty Markdown z: {{{{ states.sensor.{name}_emoji_description.attributes.description }}}}"
+    markdown_hint: "Użyj karty Markdown z: {{ states.sensor.{name}_emoji_description.attributes.description }}"
 
   set_default_entity_states:
-    markdown_guide: "Użyj karty Markdown z: {{{{ states.sensor.{name}_overview.attributes.overview }}}}"
+    markdown_guide: "Użyj karty Markdown z: {{ states.sensor.{name}_overview.attributes.overview }}"
     no_overview: "Brak przeglądu"
 
   drive_efficiency:
@@ -625,7 +625,7 @@ ui:
     used: "Zużyto"
 
   load_charging_history:
-    default_state: "Użyj karty Markdown z: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}"
+    default_state: "Użyj karty Markdown z: {{ states.sensor.{__name__}_charging_history.attributes.history }}"
 
   charging_history_combine_and_set:
     too_big_warning: "Home Assistant nie może wyświetlić większej historii"

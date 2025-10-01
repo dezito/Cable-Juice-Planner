@@ -7,7 +7,7 @@ import re
 import textwrap
 import sys, os, os.path, tempfile
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Optional, Union
 
 _FILE_LOCKS: Dict[str, asyncio.Lock] = {}
 
@@ -305,10 +305,10 @@ async def load_yaml(filename: Optional[str] = None, retries: int = 10, sleep_sec
 
 async def save_yaml(
     filename: Optional[str] = None,
-    db: Optional[Dict[str, Any]] = None,
+    db: Optional[Union[Dict[str, Any], List[Any]]] = None,
     comment_db: Optional[Dict[str, str]] = None,
     max_width: int = 120,
-):
+) -> bool:
     """
     Save a dictionary as YAML safely and atomically, with optional inline comments.
     
@@ -326,8 +326,8 @@ async def save_yaml(
     try:
         if db is None:
             raise ValueError("db must not be None")
-        if not isinstance(db, dict):
-            raise TypeError("db must be a dict")
+        if not isinstance(db, (dict, list)):
+            raise TypeError("db must be a dict or list")
         if comment_db is not None and not isinstance(comment_db, dict):
             raise TypeError("comment_db must be a dict or None")
 

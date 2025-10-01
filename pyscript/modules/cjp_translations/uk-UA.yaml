@@ -609,10 +609,10 @@ ui:
 
   emoji_description:
     header: "Опис emoji"
-    markdown_hint: "Використайте картку Markdown з: {{{{ states.sensor.{name}_emoji_description.attributes.description }}}}"
+    markdown_hint: "Використайте картку Markdown з: {{ states.sensor.{name}_emoji_description.attributes.description }}"
 
   set_default_entity_states:
-    markdown_guide: "Картка Markdown з: {{{{ states.sensor.{name}_overview.attributes.overview }}}}"
+    markdown_guide: "Картка Markdown з: {{ states.sensor.{name}_overview.attributes.overview }}"
     no_overview: "Поки що немає огляду"
 
   drive_efficiency:
@@ -621,7 +621,7 @@ ui:
     used: "Використано"
 
   load_charging_history:
-    default_state: "Картка Markdown з: {{{{ states.sensor.{__name__}_charging_history.attributes.history }}}}"
+    default_state: "Картка Markdown з: {{ states.sensor.{__name__}_charging_history.attributes.history }}"
 
   charging_history_combine_and_set:
     too_big_warning: "Home Assistant не може показати більше історії"
