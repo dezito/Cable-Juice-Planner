@@ -1589,7 +1589,11 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
         
-        total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
+        total_commits_behind = 0
+        try:
+            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
+        except Exception as e:
+            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
         
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
         merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
@@ -1669,7 +1673,11 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
         TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
         done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
         
-        total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result() or "0")
+        total_commits_behind = 0
+        try:
+            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
+        except Exception as e:
+            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
 
         merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
         merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
