@@ -9364,21 +9364,19 @@ def is_charging():
     if RESTARTING_CHARGER_COUNT == 0 and minutesBetween(getTime(), when, error_value=CONFIG['cron_interval'] + 5) <= CONFIG['cron_interval'] * 2:
         return
     
+    dynamic_circuit_limit = sum(CURRENT_CHARGING_AMPS)
+    current_charging_amps = sum(CURRENT_CHARGING_AMPS)
+    
     if "easee" == get_integration(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']) and is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
-        error_dict = {
-            "state_dynamicCircuitCurrentP1": CONFIG['charger']['charging_max_amp'],
-            "state_dynamicCircuitCurrentP2": CONFIG['charger']['charging_max_amp'],
-            "state_dynamicCircuitCurrentP3": CONFIG['charger']['charging_max_amp']
-        }
-        charger_dynamic_circuit_limit = get_attr(CONFIG['charger']['entity_ids']['dynamic_circuit_limit'], error_state=error_dict)
-        p1 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP1"])
-        p2 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP2"])
-        p3 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP3"])
-        dynamic_circuit_limit = sum([p1, p2, p3])
-        current_charging_amps = sum(CURRENT_CHARGING_AMPS)
-    else:
-        dynamic_circuit_limit = sum(CURRENT_CHARGING_AMPS)
-        current_charging_amps = sum(CURRENT_CHARGING_AMPS)
+        charger_dynamic_circuit_limit = get_attr(CONFIG['charger']['entity_ids']['dynamic_circuit_limit'], error_state=None)
+        
+        try:
+            p1 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP1"])
+            p2 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP2"])
+            p3 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP3"])
+            dynamic_circuit_limit = sum([p1, p2, p3])
+        except Exception as e:
+            _LOGGER.error(f"Cant get dynamic circuit limit from entity {CONFIG['charger']['entity_ids']['dynamic_circuit_limit']} where attr is {charger_dynamic_circuit_limit}: {e} {type(e)}")
     
     try:
         if RESTARTING_CHARGER:
