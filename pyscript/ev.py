@@ -2086,7 +2086,6 @@ def save_changes(file, db):
             return
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e} {type(e)}")
-            fmt = {"file": file, "error": str(e)}
             my_persistent_notification(
                 f"Error saving data to file: {file}\n\n"
                 f"Error: {e} {type(e)}",
