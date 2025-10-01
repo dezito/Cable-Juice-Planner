@@ -1600,7 +1600,9 @@ def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
         commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
         
         result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
-
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
     finally:
@@ -1697,7 +1699,9 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
         task.wait_until(timeout=5)
         restart_script()
-
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Update failed: {str(e)}")
         my_persistent_notification(
@@ -1848,6 +1852,9 @@ def save_error_to_file(error_message, debug=None, caller_function_name = None):
         
         TASKS[f"{func_prefix}save_changes"] = task.create(save_changes, filename, deepcopy(error_log))
         done, pending = task.wait({TASKS[f"{func_prefix}save_changes"]})
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error saving error to file error_message: {error_message} caller_function_name: {caller_function_name}: {e} {type(e)}")
     finally:
@@ -2048,6 +2055,9 @@ def save_changes(file, db):
         
         if not isinstance(db_disk, (dict, list)):
             raise Exception(f"Database on disk is not a dictionary for {file}, got {type(db_disk)}")
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error loading {file} from disk: {e} {type(e)}")
         db_disk = {}
@@ -2063,6 +2073,9 @@ def save_changes(file, db):
             _LOGGER.info(f"Saving {file} to disk")
             TASKS[f'{func_prefix}save_yaml_{file}'] = task.create(save_yaml, file, db, comment_db=comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}save_yaml_{file}']})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+            return
         except Exception as e:
             _LOGGER.error(f"Cant save {file}: {e} {type(e)}")
             fmt = {"file": file, "error": str(e)}
@@ -2132,6 +2145,9 @@ def create_integration_dict():
                                 
                 ENTITY_INTEGRATION_DICT["entities"][entity_id] = integration
                 add_to_dict(integration)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error creating integration dict: {e} {type(e)}")
     finally:
@@ -2594,7 +2610,9 @@ def load_language():
         _LOGGER.info(f"{BASENAME} i18n set language to: {i18n.get_lang()}")
         _LOGGER.info(f"{BASENAME} i18n get_available_langs: {i18n.get_available_langs()}")
         #_LOGGER.info(f"{BASENAME} loaded i18n catalog: {pformat(i18n.get_catalog(), width=200, compact=True)}")
-        
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
         my_persistent_notification(
@@ -2858,6 +2876,9 @@ def init():
         
         
         INITIALIZATION_COMPLETE = True
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
@@ -3940,6 +3961,9 @@ def load_drive_efficiency():
         TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         DRIVE_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"load_drive_efficiency(): {e} {type(e)}")
+        return
     except Exception as e:
         error_message = f"Cant load {__name__}_drive_efficiency_db: {e} {type(e)}"
         _LOGGER.error(error_message)
@@ -4009,6 +4033,9 @@ def load_km_kwh_efficiency():
         TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         KM_KWH_EFFICIENCY_DB = TASKS[f'{func_prefix}load_yaml'].result()
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"load_km_kwh_efficiency(): {e} {type(e)}")
+        return
     except Exception as e:
         error_message = f"Cant load {__name__}_km_kwh_efficiency_db: {e} {type(e)}"
         _LOGGER.error(error_message)
@@ -4484,6 +4511,9 @@ def load_charging_history():
         TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, filename)
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml']})
         CHARGING_HISTORY_DB = TASKS[f'{func_prefix}load_yaml'].result()
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"load_charging_history(): {e} {type(e)}")
+        return
     except Exception as e:
         error_message = f"Cant load {__name__}_charging_history_db: {e} {type(e)}"
         _LOGGER.error(error_message)
@@ -4620,7 +4650,7 @@ def charging_history_recalc_price():
                     
                     kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS["charging_history_recalc_price_calc_local_energy_kwh"].result()
                     price = TASKS["charging_history_recalc_price_calc_kwh_price"].result()
-                except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+                except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
                     _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}")
                     my_persistent_notification(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_charging_history_recalc_price_task_cancelled")
                 except Exception as e:
@@ -5243,7 +5273,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             
             kwh_from_local_energy, solar_kwh_of_local_energy, powerwall_kwh_of_local_energy = TASKS[f"{func_prefix}calc_local_energy_kwh"].result()
             price = round(TASKS[f"{func_prefix}calc_kwh_price"].result(), 3)
-        except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
             _LOGGER.error(f"Task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}")
             my_persistent_notification(
                 f"Charging history task for calculating local energy kWh or price was cancelled or timed out: {e} {type(e)}",
@@ -5470,6 +5500,9 @@ def update_grid_prices():
     try:
         TASKS[f"{func_prefix}"] = task.create(get_hour_prices, update_prices = True)
         done, pending = task.wait({TASKS[f"{func_prefix}"]})
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task for updating grid prices was cancelled or timed out: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
         my_persistent_notification(
@@ -6919,6 +6952,11 @@ def cheap_grid_charge_hours():
         done, pending = task.wait({TASKS[f"{func_prefix}future_charging"]})
         
         totalCost, totalkWh = TASKS[f"{func_prefix}future_charging"].result()
+        """except asyncio.exceptions.InvalidStateError as e:
+            _LOGGER.info(f"InvalidStateError in future_charging: TASKS[f'{func_prefix}future_charging']={TASKS[f'{func_prefix}future_charging']} {e} {type(e)}")"""
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/Timeout/KeyError in future_charging: TASKS[f'{func_prefix}future_charging']={TASKS[f'{func_prefix}future_charging']} {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error in future_charging: {e} {type(e)}")
         raise Exception(f"Error in future_charging: {e} {type(e)}")
@@ -7734,6 +7772,9 @@ def power_values(from_time_stamp = None, to_time_stamp = None, period = None):
         power_consumption_without_ignored = round(power_consumption - ignored_consumption, 2)
         power_consumption_without_ignored_ev = round(power_consumption_without_ignored - ev_used_consumption, 2)
         power_consumption_without_all_exclusion = max(round(power_consumption_without_ignored_ev - powerwall_charging_consumption, 2), 0.0)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/timeout getting power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Failed to get power values from {from_time_stamp} to {to_time_stamp} or period {period}: {e} {type(e)}")
         my_persistent_notification(
@@ -8011,6 +8052,9 @@ def max_local_energy_available_remaining_period():
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
             
         _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/timeout calculating max local energy available remaining hour: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error calculating max local energy available remaining hour: {e} {type(e)}")
         my_persistent_notification(
@@ -8220,6 +8264,9 @@ def load_power_values_db():
         if not POWER_VALUES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=POWER_VALUES_DB)
             done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/timeout loading {__name__}_power_values_db: {e} {type(e)}")
+        return
     except Exception as e:
         error_message = f"Cant load {__name__}_power_values_db: {e} {type(e)}"
         _LOGGER.error(error_message)
@@ -8314,6 +8361,9 @@ def load_solar_available_db():
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}"
         )
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/timeout loading {__name__}_solar_production_available_db: {e} {type(e)}")
+        return
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
     
@@ -8469,6 +8519,9 @@ def get_solar_kwh_forecast():
             done, pending = task.wait(task_set)
         except Exception as e:
             _LOGGER.error(f"Error: {e} {type(e)}")
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Cancelled/timeout getting solar kwh forecast: {e} {type(e)}")
+            return
         finally:
             task_cancel(task_set, task_remove=True)
             
@@ -8798,6 +8851,9 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             day_prediction_task_set.add(TASKS[task_name])
         
         done, pending = task.wait(day_prediction_task_set)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/timeout during day prediction tasks: {e} {type(e)}")
+        return
     except Exception as e:
         _LOGGER.error(f"Error during day prediction tasks: {e} {type(e)}")
         my_persistent_notification(
@@ -9664,6 +9720,8 @@ def charge_if_needed():
         if charging_rule:
             set_charging_rule(charging_rule)
         set_charger_charging_amps(*amps)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.error(f"Task cancelled {e} ({type(e)})")
     except Exception as e:
         global ERROR_COUNT
         
@@ -9768,7 +9826,7 @@ def kwh_charged_by_solar():
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_set_state_error"
             )
-    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.error(f"Task was cancelled or timed out: {e} {type(e)}")
         my_persistent_notification(
             f"Task was cancelled or timed out: {e} {type(e)}",
@@ -9856,7 +9914,7 @@ def calc_co2_emitted(period = None, added_kwh = None):
             _LOGGER.info(f"Setting sensor.{__name__}_co2_emitted to {co2_emitted} increased by {grid_co2_emitted}")
             set_state(entity_id=f"input_number.{__name__}_co2_emitted", new_state=co2_emitted)
             return co2_emitted
-    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.error(f"Task was cancelled or timed out: {e} {type(e)}")
         my_persistent_notification(
             f"Task was cancelled or timed out: {e} {type(e)}",
@@ -9986,7 +10044,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
                 set_attr(f"sensor.{__name__}_kwh_cost_price.ev_kwh_price", f"{ev_total_price_kwh:.2f} {i18n.t('ui.common.valuta_kwh')}")
             
             set_charging_price(ev_total_price_kwh)
-    except (asyncio.CancelledError, asyncio.TimeoutError) as e:
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.error(f"Task was cancelled or timed out while calculating kWh price: {e} {type(e)}")
         my_persistent_notification(
             f"Task was cancelled or timed out while calculating kWh price: {e} {type(e)}",
@@ -10076,6 +10134,8 @@ def load_kwh_prices():
         if not KWH_AVG_PRICES_DB:
             TASKS[f'{func_prefix}create_yaml'] = task.create(create_yaml, filename, db=KWH_AVG_PRICES_DB)
             done, pending = task.wait({TASKS[f'{func_prefix}create_yaml']})
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task was cancelled or timed out: {e} {type(e)}")
     except Exception as e:
         error_message = f"Error loading {__name__}_kwh_avg_prices_db: {e} {type(e)}"
         _LOGGER.error(error_message)
@@ -10422,10 +10482,12 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("charge_if_needed", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"]})
+                except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                    _LOGGER.warning(f"Task was cancelled or timed out in {func_name} for {var_name}: {e} {type(e)}")
+                except ValueError as ve:
+                    _LOGGER.error(f"Value error in {func_name} for {var_name}: {ve} {type(ve)}")
                 except Exception as e:
                     _LOGGER.error(f"Error in {func_name} for {var_name}: {e} {type(e)}")
-                except ValueError as ve:
-                    pass
                 finally:
                     task_cancel(func_prefix, task_remove=True, startswith=True)
                 
@@ -10462,6 +10524,8 @@ if INITIALIZATION_COMPLETE:
             if var_name == f"input_button.{__name__}_enforce_planning" and TESTING:
                 TASKS[f"{func_prefix}debug_info"] = task.create(debug_info)
                 done, pending = task.wait({TASKS[f"{func_prefix}debug_info"]})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -10528,6 +10592,8 @@ if INITIALIZATION_COMPLETE:
                     TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
                     done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
                     set_charging_rule(f"Lader ikke")
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -10662,6 +10728,8 @@ if INITIALIZATION_COMPLETE:
             try:
                 TASKS[f"{func_prefix}charging_history_combine_and_set"] = task.create(charging_history_combine_and_set)
                 done, pending = task.wait({TASKS[f"{func_prefix}charging_history_combine_and_set"]})
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
@@ -10718,8 +10786,8 @@ if INITIALIZATION_COMPLETE:
                         _LOGGER.info(f"Odometer stable at {current_odometer} now, no need to wait anymore")
                         break
                 task.wait_until(timeout=60)
-        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError):
-            pass
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in wait_until_odometer_stable: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in wait_until_odometer_stable: {e} {type(e)}")
             
@@ -10739,6 +10807,8 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}drive_efficiency"] = task.create(drive_efficiency, str(value))
             TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -10802,6 +10872,8 @@ if INITIALIZATION_COMPLETE:
                         done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
                         
                         set_state(entity_id=f"input_number.{__name__}_battery_level", new_state=get_completed_battery_level())
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -10822,6 +10894,8 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("charge_if_needed", contains=True)
                     TASKS["state_trigger_ev_location_charge_if_needed"] = task.create(charge_if_needed)
                     done, pending = task.wait({TASKS["state_trigger_ev_location_charge_if_needed"]})
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task was cancelled or timed out in state_trigger_ev_location: {e} {type(e)}")
             except Exception as e:
                 _LOGGER.error(f"Error in state_trigger_ev_location: {e} {type(e)}")
                 my_persistent_notification(f"Error in state_trigger_ev_location: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_state_trigger_ev_location_error")
@@ -10851,6 +10925,8 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
@@ -10874,6 +10950,8 @@ if INITIALIZATION_COMPLETE:
             try:
                 TASKS[f"{func_prefix}preheat_ev"] = task.create(preheat_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}preheat_ev"]})
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
@@ -10930,6 +11008,8 @@ if INITIALIZATION_COMPLETE:
             try:
                 TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, "add_to_history")
                 done, pending = task.wait({TASKS[f"{func_prefix}public_charging_session"]})
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
             except Exception as e:
                 _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                 my_persistent_notification(
@@ -10962,6 +11042,8 @@ if INITIALIZATION_COMPLETE:
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
+                    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                        _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                         my_persistent_notification(
@@ -10991,6 +11073,8 @@ if INITIALIZATION_COMPLETE:
                         TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                         TASKS[f"{func_prefix}public_charging_session"] = task.create(public_charging_session, value)
                         done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"], TASKS[f"{func_prefix}public_charging_session"]})
+                    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                        _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
                     except Exception as e:
                         _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                         my_persistent_notification(
@@ -11021,6 +11105,8 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, "on")
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                    _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
                 except Exception as e:
                     _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
                     my_persistent_notification(
@@ -11055,6 +11141,8 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f'{func_prefix}solar_available_append_to_db'], TASKS[f'{func_prefix}power_values_to_db'],
                                     TASKS[f'{func_prefix}stop_current_charging_session'], TASKS[f'{func_prefix}kwh_charged_by_solar'],
                                     TASKS[f'{func_prefix}solar_charged_percentage'], TASKS[f'{func_prefix}commands_history_clean_entity_integration']})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -11079,6 +11167,8 @@ if INITIALIZATION_COMPLETE:
             if CONFIG['notification']['update_available'] and not deactivate_script_enabled():
                 TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
                 done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -11099,6 +11189,8 @@ if INITIALIZATION_COMPLETE:
         try:
             TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
             done, pending = task.wait({TASKS[f"{func_prefix}update_grid_prices"]})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
@@ -11119,6 +11211,8 @@ if INITIALIZATION_COMPLETE:
         try:
             TASKS[f"{func_prefix}append_kwh_prices"] = task.create(append_kwh_prices)
             done, pending = task.wait({TASKS[f"{func_prefix}append_kwh_prices"]})
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:
             _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
             my_persistent_notification(
