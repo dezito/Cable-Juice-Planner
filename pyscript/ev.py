@@ -8179,7 +8179,7 @@ def max_local_energy_available_remaining_period():
     global TASKS, MAX_LOCAL_ENERGY_AVAILABLE_HISTORY, POWERWALL_CHARGING_TEXT
     
     if not is_solar_configured():
-        return 0.0
+        return 0.0, 0.0
     
     now = getTime()
     current_hour = reset_time_to_hour(now)
