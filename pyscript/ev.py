@@ -1280,6 +1280,12 @@ def get_hours_plan():
             not_home_start_emoji, not_home_end_emoji = "", ""
 
             day = daysBetween(now, timestamp)
+            if day < 0:
+                continue
+            
+            if day < 0:
+                continue
+            
             if day in CHARGING_PLAN:
                 if timestamp < now:
                     text_format_start, text_format_end = "", ""
@@ -5738,22 +5744,34 @@ def cheap_grid_charge_hours():
         sub_func_name = "change_timestamp_with_minutes"
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
-        what_day = daysBetween(getTime(), timestamp)
         work_minute = 0
         trip_minute = 0
-        if isinstance(charging_plan[what_day]['work_last_charging'], datetime.datetime):
-            if charging_plan[what_day]['work_last_charging'].hour == timestamp.hour and charging_plan[what_day]['work_last_charging'].minute != 0:
-                work_minute = max(charging_plan[what_day]['work_last_charging'].minute, work_minute)
-        if isinstance(charging_plan[what_day]['work_homecoming'], datetime.datetime):
-            if charging_plan[what_day]['work_homecoming'].hour == timestamp.hour and charging_plan[what_day]['work_homecoming'].minute != 0:
-                work_minute = max(charging_plan[what_day]['work_homecoming'].minute, work_minute)
         
-        if isinstance(charging_plan[what_day]['trip_last_charging'], datetime.datetime):
-            if charging_plan[what_day]['trip_last_charging'].hour == timestamp.hour and charging_plan[what_day]['trip_last_charging'].minute != 0:
-                trip_minute = max(charging_plan[what_day]['trip_last_charging'].minute, trip_minute)
-        if isinstance(charging_plan[what_day]['trip_homecoming'], datetime.datetime):
-            if charging_plan[what_day]['trip_homecoming'].hour == timestamp.hour and charging_plan[what_day]['trip_homecoming'].minute != 0:
-                trip_minute = max(charging_plan[what_day]['trip_homecoming'].minute, trip_minute)
+        try:
+            what_day = daysBetween(getTime(), timestamp)
+            if what_day < 0:
+                return timestamp
+            
+            if isinstance(charging_plan[what_day]['work_last_charging'], datetime.datetime):
+                if charging_plan[what_day]['work_last_charging'].hour == timestamp.hour and charging_plan[what_day]['work_last_charging'].minute != 0:
+                    work_minute = max(charging_plan[what_day]['work_last_charging'].minute, work_minute)
+            if isinstance(charging_plan[what_day]['work_homecoming'], datetime.datetime):
+                if charging_plan[what_day]['work_homecoming'].hour == timestamp.hour and charging_plan[what_day]['work_homecoming'].minute != 0:
+                    work_minute = max(charging_plan[what_day]['work_homecoming'].minute, work_minute)
+            
+            if isinstance(charging_plan[what_day]['trip_last_charging'], datetime.datetime):
+                if charging_plan[what_day]['trip_last_charging'].hour == timestamp.hour and charging_plan[what_day]['trip_last_charging'].minute != 0:
+                    trip_minute = max(charging_plan[what_day]['trip_last_charging'].minute, trip_minute)
+            if isinstance(charging_plan[what_day]['trip_homecoming'], datetime.datetime):
+                if charging_plan[what_day]['trip_homecoming'].hour == timestamp.hour and charging_plan[what_day]['trip_homecoming'].minute != 0:
+                    trip_minute = max(charging_plan[what_day]['trip_homecoming'].minute, trip_minute)
+        except Exception as e:
+            _LOGGER.error(f"timestamp:{timestamp} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error changing timestamp with minutes timestamp:{timestamp} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error"
+            )
         
         return timestamp.replace(minute=max(work_minute, trip_minute, 0))
         
@@ -5765,17 +5783,25 @@ def cheap_grid_charge_hours():
         
         working = False
         on_trip = False
-        day = daysBetween(getTime(), timestamp)
         
         try:
+            day = daysBetween(getTime(), timestamp)
+            
+            if day < 0:
+                return working, on_trip
+            
             if charging_plan[day]['workday']:
                 working = in_between(timestamp, charging_plan[day]['work_goto'], charging_plan[day]['work_homecoming'])
 
             if trip_datetime:
                 on_trip = in_between(timestamp, trip_datetime, trip_homecoming_datetime)
         except Exception as e:
-            _LOGGER.error(f"day:{day} timestamp:{timestamp} charging_plan[{day}][work_goto].hour:{charging_plan[day]['work_goto'].hour} charging_plan[{day}][work_homecoming].hour:{charging_plan[day]['work_homecoming'].hour} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} working:{working} on_trip:{on_trip} error:{e} {type(e)}")
-        
+            _LOGGER.error(f"timestamp:{timestamp} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error checking available for charging prediction timestamp:{timestamp} trip_datetime:{trip_datetime} trip_homecoming_datetime:{trip_homecoming_datetime} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error"
+            )
         return working, on_trip
     
     def kwh_available_in_hour(hour):
@@ -5786,16 +5812,24 @@ def cheap_grid_charge_hours():
         hour_in_chargeHours = False
         kwh_available = False
         
-        kwh = MAX_KWH_CHARGING - 1.0
-        
-        percentage_missed = hour.minute / 60
-        kwh_missed = kwh * percentage_missed
-        
-        kwh -= kwh_missed
-        if hour in chargeHours:
-            hour_in_chargeHours = True
-            if chargeHours[hour]['kWh'] < kwh:
-                kwh_available = True
+        try:
+            kwh = MAX_KWH_CHARGING - 1.0
+            
+            percentage_missed = hour.minute / 60
+            kwh_missed = kwh * percentage_missed
+            
+            kwh -= kwh_missed
+            if hour in chargeHours:
+                hour_in_chargeHours = True
+                if chargeHours[hour]['kWh'] < kwh:
+                    kwh_available = True
+        except Exception as e:
+            _LOGGER.error(f"hour:{hour} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error checking kWh available in hour:{hour} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error"
+            )
         return [hour_in_chargeHours, kwh_available]
 
     def check_max_battery_level_allowed(day, what_day, battery_level_id, max_recommended_battery_level, battery_level_to_added):
@@ -5805,38 +5839,46 @@ def cheap_grid_charge_hours():
         
         charging_sessions_id = "battery_level_before_work" if battery_level_id == "battery_level_before_work" else "battery_level_after_work"
         max_battery_level = 0.0
-        
-        for i in range(max(what_day - 1, 0), day + 1):
-            if charging_sessions_id == "battery_level_before_work":
-                if i == max(what_day - 1, 0) and day > 0:
-                    max_battery_level = max(
-                        sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
-                        max_battery_level
-                        )
+        try:
+            for i in range(max(what_day - 1, 0), day + 1):
+                if charging_sessions_id == "battery_level_before_work":
+                    if i == max(what_day - 1, 0) and day > 0:
+                        max_battery_level = max(
+                            sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
+                            max_battery_level
+                            )
+                        
+                    if  i >= what_day:
+                        max_battery_level = max(
+                            sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
+                            sum(charging_plan[i]['battery_level_after_work']) + battery_level_to_added,
+                            sum(charging_plan[i]['battery_level_before_work']) + battery_level_to_added,
+                            max_battery_level
+                            )
+                elif charging_sessions_id == "battery_level_after_work":
+                    if i >= what_day:
+                        max_battery_level = max(
+                            sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
+                            sum(charging_plan[i]['battery_level_after_work']) + battery_level_to_added,
+                            max_battery_level
+                            )
                     
-                if  i >= what_day:
-                    max_battery_level = max(
-                        sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
-                        sum(charging_plan[i]['battery_level_after_work']) + battery_level_to_added,
-                        sum(charging_plan[i]['battery_level_before_work']) + battery_level_to_added,
-                        max_battery_level
-                        )
-            elif charging_sessions_id == "battery_level_after_work":
-                if i >= what_day:
-                    max_battery_level = max(
-                        sum(charging_plan[i]['battery_level_at_midnight']) + battery_level_to_added,
-                        sum(charging_plan[i]['battery_level_after_work']) + battery_level_to_added,
-                        max_battery_level
-                        )
-                
-                if i > what_day:
-                    max_battery_level = max(
-                        sum(charging_plan[i]['battery_level_before_work']) + battery_level_to_added,
-                        max_battery_level
-                        )
-        if max_battery_level > max_recommended_battery_level:
-            kwh_allowed = percentage_to_kwh(max_recommended_battery_level - max_battery_level, include_charging_loss = True)
-            return kwh_allowed
+                    if i > what_day:
+                        max_battery_level = max(
+                            sum(charging_plan[i]['battery_level_before_work']) + battery_level_to_added,
+                            max_battery_level
+                            )
+            if max_battery_level > max_recommended_battery_level:
+                kwh_allowed = percentage_to_kwh(max_recommended_battery_level - max_battery_level, include_charging_loss = True)
+                return kwh_allowed
+        except Exception as e:
+            _LOGGER.error(f"day:{day} what_day:{what_day} battery_level_id:{battery_level_id} max_recommended_battery_level:{max_recommended_battery_level} battery_level_to_added:{battery_level_to_added} max_battery_level:{max_battery_level} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error checking max battery level allowed day:{day} what_day:{what_day} battery_level_id:{battery_level_id} max_recommended_battery_level:{max_recommended_battery_level} battery_level_to_added:{battery_level_to_added} max_battery_level:{max_battery_level} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error"
+            )
+            
         return percentage_to_kwh(battery_level_to_added, include_charging_loss = True)
 
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwh_available, battery_level = None, check_max_charging_plan={"day": None, "what_day": None, "battery_level_id": None}, max_recommended_battery_level = None, rules = []):
@@ -5844,72 +5886,80 @@ def cheap_grid_charge_hours():
         sub_func_name = "add_to_charge_hours"
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
-        cost = 0.0
-        kwh = MAX_KWH_CHARGING
-        battery_level_added = False
+        try:
+            cost = 0.0
+            kwh = MAX_KWH_CHARGING
+            battery_level_added = False
+                
+            price = float(price)
+            kwhNeeded = float(kwhNeeded)
             
-        price = float(price)
-        kwhNeeded = float(kwhNeeded)
-        
-        percentage_missed = hour.minute / 60
-        kwh_missed = kwh * percentage_missed
-        kwh -= kwh_missed
+            percentage_missed = hour.minute / 60
+            kwh_missed = kwh * percentage_missed
+            kwh -= kwh_missed
 
-            
-        if battery_level:
-            if max_recommended_battery_level is None:
-                max_recommended_battery_level = get_max_recommended_charge_limit_battery_level()
                 
-            battery_level_diff = round(max_recommended_battery_level - (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)),2)
-            kwh_diff = round(percentage_to_kwh(battery_level_diff, include_charging_loss = True),2)
-            if (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)) > max_recommended_battery_level:
-                kwh -= abs(kwh_diff)
-            
-        if kwh_available == True and hour in chargeHours:
-            kwh -= chargeHours[hour]['kWh']
-            
-        if check_max_charging_plan and check_max_charging_plan['day'] is not None:
-            kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
-            kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
-        
-        if kwh > 0.5:
-            if hour not in chargeHours:
-                chargeHours[hour] = {
-                    "Cost": 0.0,
-                    "kWh": 0.0,
-                    "battery_level": 0.0,
-                    "Price": round(price, 2),
-                    "ChargingAmps": CONFIG['charger']['charging_max_amp']
-                }
-            
-            if (kwhNeeded - kwh) < 0.0:
-                kwh = kwhNeeded
-                kwhNeeded = 0.0
-            else:
-                kwhNeeded = kwhNeeded - kwh
-                
-            cost = kwh * price
-            totalCost = totalCost + cost
-            battery_level_added = kwh_to_percentage(kwh, include_charging_loss = True)
-
-            chargeHours[hour]['Cost'] = round(chargeHours[hour]['Cost'] + cost, 2)
-            chargeHours[hour]['kWh'] = round(chargeHours[hour]['kWh'] + kwh, 2)
-            chargeHours[hour]['battery_level'] = round(chargeHours[hour]['battery_level'] + battery_level_added, 2)
-            totalkWh = round(totalkWh + kwh, 2)
-                
-            if ultra_cheap_price:
-                rules.append("half_min_avg_price")
-            elif very_cheap_price:
-                rules.append("under_min_avg_price")
-                
-            if rules == []:
-                rules.append("no_rule")
-                
-            for rule in rules:
-                if rule not in chargeHours[hour]:
-                    chargeHours[hour][rule] = True
+            if battery_level:
+                if max_recommended_battery_level is None:
+                    max_recommended_battery_level = get_max_recommended_charge_limit_battery_level()
                     
-            _LOGGER.info(f"Adding {hour} {price} valuta/kWh {chargeHours[hour]['battery_level']}% {chargeHours[hour]['kWh']}kWh with keys {rules}")
+                battery_level_diff = round(max_recommended_battery_level - (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)),2)
+                kwh_diff = round(percentage_to_kwh(battery_level_diff, include_charging_loss = True),2)
+                if (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)) > max_recommended_battery_level:
+                    kwh -= abs(kwh_diff)
+                
+            if kwh_available == True and hour in chargeHours:
+                kwh -= chargeHours[hour]['kWh']
+                
+            if check_max_charging_plan and check_max_charging_plan['day'] is not None:
+                kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
+                kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
+            
+            if kwh > 0.5:
+                if hour not in chargeHours:
+                    chargeHours[hour] = {
+                        "Cost": 0.0,
+                        "kWh": 0.0,
+                        "battery_level": 0.0,
+                        "Price": round(price, 2),
+                        "ChargingAmps": CONFIG['charger']['charging_max_amp']
+                    }
+                
+                if (kwhNeeded - kwh) < 0.0:
+                    kwh = kwhNeeded
+                    kwhNeeded = 0.0
+                else:
+                    kwhNeeded = kwhNeeded - kwh
+                    
+                cost = kwh * price
+                totalCost = totalCost + cost
+                battery_level_added = kwh_to_percentage(kwh, include_charging_loss = True)
+
+                chargeHours[hour]['Cost'] = round(chargeHours[hour]['Cost'] + cost, 2)
+                chargeHours[hour]['kWh'] = round(chargeHours[hour]['kWh'] + kwh, 2)
+                chargeHours[hour]['battery_level'] = round(chargeHours[hour]['battery_level'] + battery_level_added, 2)
+                totalkWh = round(totalkWh + kwh, 2)
+                    
+                if ultra_cheap_price:
+                    rules.append("half_min_avg_price")
+                elif very_cheap_price:
+                    rules.append("under_min_avg_price")
+                    
+                if rules == []:
+                    rules.append("no_rule")
+                    
+                for rule in rules:
+                    if rule not in chargeHours[hour]:
+                        chargeHours[hour][rule] = True
+                        
+                _LOGGER.info(f"Adding {hour} {price} valuta/kWh {chargeHours[hour]['battery_level']}% {chargeHours[hour]['kWh']}kWh with keys {rules}")
+        except Exception as e:
+            _LOGGER.error(f"Error adding to charge hours kwhNeeded:{kwhNeeded} totalCost:{totalCost} totalkWh:{totalkWh} hour:{hour} price:{price} very_cheap_price:{very_cheap_price} ultra_cheap_price:{ultra_cheap_price} kwh_available:{kwh_available} battery_level:{battery_level} check_max_charging_plan:{check_max_charging_plan} max_recommended_battery_level:{max_recommended_battery_level} rules:{rules} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error adding to charge hours kwhNeeded:{kwhNeeded} totalCost:{totalCost} totalkWh:{totalkWh} hour:{hour} price:{price} very_cheap_price:{very_cheap_price} ultra_cheap_price:{ultra_cheap_price} kwh_available:{kwh_available} battery_level:{battery_level} check_max_charging_plan:{check_max_charging_plan} max_recommended_battery_level:{max_recommended_battery_level} rules:{rules} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error_{hour}"
+            )
 
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
 
@@ -5947,23 +5997,31 @@ def cheap_grid_charge_hours():
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         nonlocal charging_plan, energy_prediction_db
         
-        if solar_percentage_prediction is None:
-            solar_percentage_prediction = sum(charging_plan[day]['solar_prediction'])
-        
-        if timestamp in energy_prediction_db["solar_prediction_timestamps"]:
-            solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
-            solar_kwh_added = percentage_to_kwh(solar_percentage_added, include_charging_loss=True)
+        try:
+            if solar_percentage_prediction is None:
+                solar_percentage_prediction = sum(charging_plan[day]['solar_prediction'])
             
-            _LOGGER.info(f"Added {timestamp} charging, removing solar prediction {solar_kwh_added}kWh {solar_percentage_added}% from day {day}")
-            
-            charging_plan[day]['solar_prediction'].append(-abs(solar_percentage_added))
-            charging_plan[day]['solar_kwh_prediction'].append(-abs(solar_kwh_added))
-            
-            if solar_percentage_prediction is not None:
-                for key in ("solar_prediction", "solar_kwh_prediction"):
-                    total = sum(charging_plan[day][key])
-                    if total < 0.0:
-                        charging_plan[day][key].append(-total)
+            if timestamp in energy_prediction_db["solar_prediction_timestamps"]:
+                solar_percentage_added = min(battery_level_added, solar_percentage_prediction)
+                solar_kwh_added = percentage_to_kwh(solar_percentage_added, include_charging_loss=True)
+                
+                _LOGGER.info(f"Added {timestamp} charging, removing solar prediction {solar_kwh_added}kWh {solar_percentage_added}% from day {day}")
+                
+                charging_plan[day]['solar_prediction'].append(-abs(solar_percentage_added))
+                charging_plan[day]['solar_kwh_prediction'].append(-abs(solar_kwh_added))
+                
+                if solar_percentage_prediction is not None:
+                    for key in ("solar_prediction", "solar_kwh_prediction"):
+                        total = sum(charging_plan[day][key])
+                        if total < 0.0:
+                            charging_plan[day][key].append(-total)
+        except Exception as e:
+            _LOGGER.error(f"Error in {sub_func_name} timestamp:{timestamp} day:{day} battery_level_added:{battery_level_added} solar_percentage_prediction:{solar_percentage_prediction} error:{e} {type(e)}")
+            my_persistent_notification(
+                f"Error in {sub_func_name} timestamp:{timestamp} day:{day} battery_level_added:{battery_level_added} solar_percentage_prediction:{solar_percentage_prediction} error:{e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error_{day}_timestamp_{timestamp}"
+            )
                 
     
     def future_charging(totalCost, totalkWh):
@@ -5975,84 +6033,138 @@ def cheap_grid_charge_hours():
         nonlocal trip_date_time, trip_target_level, battery_expenses
         
         def what_battery_level(what_day, hour, price, day):
+            nonlocal func_name, sub_func_name
+            sub_sub_func_name = "what_battery_level"
+            _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
+            
             battery_level_id = "battery_level_at_midnight"
             max_recommended_charge_limit_battery_level = get_max_recommended_charge_limit_battery_level()
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
             
-            if what_day < 0:
-                _LOGGER.warning(f"Error in hour_prices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
-                return return_fail_list
-            
-            total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
-            
-            if charging_plan[day]["trip"] and in_between(day - what_day, 0, 2) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
-                max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
-            
-            what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
-            what_day_battery_level_after_work = max(sum(charging_plan[what_day]['battery_level_after_work']), sum(charging_plan[what_day]['battery_level_at_midnight']))
-            after_what_day_battery_level_after_work = max(sum(charging_plan[min(what_day + 1, 7)]['battery_level_after_work']), sum(charging_plan[min(what_day + 1, 7)]['battery_level_at_midnight']))
-            
-            if price >= 0.0:
-                if charging_plan[what_day]['workday']:
-                    if hour < charging_plan[what_day]['work_goto']:
-                        if what_day_battery_level_before_work >= max_recommended_charge_limit_battery_level:
-                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}. {what_day_battery_level_before_work}% >= {max_recommended_charge_limit_battery_level}%")
-                            return return_fail_list
-                        battery_level_id = "battery_level_before_work"
+            try:
+                if what_day < 0:
+                    _LOGGER.warning(f"Error in hour_prices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
+                    return return_fail_list
+                
+                total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
+                
+                if charging_plan[day]["trip"] and in_between(day - what_day, 0, 2) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed: # if charging_plan[day]["trip"] and in_between(day - what_day, 1, 0) and max_recommended_charge_limit_battery_level < total_trip_battery_level_needed:
+                    max_recommended_charge_limit_battery_level = total_trip_battery_level_needed
+                
+                what_day_battery_level_before_work = sum(charging_plan[what_day]['battery_level_before_work'])
+                what_day_battery_level_after_work = max(sum(charging_plan[what_day]['battery_level_after_work']), sum(charging_plan[what_day]['battery_level_at_midnight']))
+                after_what_day_battery_level_after_work = max(sum(charging_plan[min(what_day + 1, 7)]['battery_level_after_work']), sum(charging_plan[min(what_day + 1, 7)]['battery_level_at_midnight']))
+                
+                if price >= 0.0:
+                    if charging_plan[what_day]['workday']:
+                        if hour < charging_plan[what_day]['work_goto']:
+                            if what_day_battery_level_before_work >= max_recommended_charge_limit_battery_level:
+                                _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}. {what_day_battery_level_before_work}% >= {max_recommended_charge_limit_battery_level}%")
+                                return return_fail_list
+                            battery_level_id = "battery_level_before_work"
+                        else:
+                            if what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
+                                _LOGGER.debug(f"Max battery level reached for day ({what_day}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
+                                return return_fail_list
+                            if what_day + 1 < 7 and after_what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
+                                _LOGGER.debug(f"Max battery level reached for next day ({what_day + 1}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
+                                return return_fail_list
                     else:
                         if what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
                             _LOGGER.debug(f"Max battery level reached for day ({what_day}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
                             return return_fail_list
                         if what_day + 1 < 7 and after_what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
-                            _LOGGER.debug(f"Max battery level reached for next day ({what_day + 1}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
+                            _LOGGER.debug(f"Max battery level reached for next day ({what_day + 1}) at midnight {hour} {price}. {after_what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
                             return return_fail_list
-                else:
-                    if what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
-                        _LOGGER.debug(f"Max battery level reached for day ({what_day}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
-                        return return_fail_list
-                    if what_day + 1 < 7 and after_what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
-                        _LOGGER.debug(f"Max battery level reached for next day ({what_day + 1}) at midnight {hour} {price}. {after_what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
-                        return return_fail_list
+            except Exception as e:
+                _LOGGER.error(f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} price:{price} day:{day}: {e} {type(e)}")
+                my_persistent_notification(
+                    f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} price:{price} day:{day}: {e} {type(e)}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_{sub_sub_func_name}_error_{day}_{what_day}_hour_{hour}"
+                )
+                raise Exception(f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} price:{price} day:{day}: {e} {type(e)}")
+                
             return [battery_level_id, max_recommended_charge_limit_battery_level]
         
         def add_charging_session_to_day(hour, what_day, battery_level_id):
+            nonlocal func_name, sub_func_name
+            sub_sub_func_name = "add_charging_session_to_day"
+            _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
+            
             charging_sessions_id = "battery_level_before_work" if battery_level_id == "battery_level_before_work" else "battery_level_after_work"
             
-            if battery_level_id not in charging_plan[what_day]['charging_sessions']:
-                charging_plan[what_day]['charging_sessions'][charging_sessions_id] = {}
-            charging_plan[what_day]['charging_sessions'][charging_sessions_id][hour] = chargeHours[hour]
+            try:
+                if battery_level_id not in charging_plan[what_day]['charging_sessions']:
+                    charging_plan[what_day]['charging_sessions'][charging_sessions_id] = {}
+                charging_plan[what_day]['charging_sessions'][charging_sessions_id][hour] = chargeHours[hour]
+            except Exception as e:
+                _LOGGER.error(f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} battery_level_id:{battery_level_id}: {e} {type(e)}")
+                my_persistent_notification(
+                    f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} battery_level_id:{battery_level_id}: {e} {type(e)}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_{sub_sub_func_name}_error_{day}_{what_day}_hour_{hour}"
+                )
+                raise Exception(f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} battery_level_id:{battery_level_id}: {e} {type(e)}")
+                
             return charging_sessions_id
                                 
         def add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added):
-            for i in range(max(what_day - 1, 0), day + 1):
-                if charging_sessions_id == "battery_level_before_work":
-                    if i == max(what_day - 1, 0) and day > 0:
-                        charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
+            nonlocal func_name, sub_func_name
+            sub_sub_func_name = "add_charging_to_days"
+            _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
+            
+            try:
+                for i in range(max(what_day - 1, 0), day + 1):
+                    if charging_sessions_id == "battery_level_before_work":
+                        if i == max(what_day - 1, 0) and day > 0:
+                            charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
+                            
+                        if  i >= what_day:
+                            charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
+                            charging_plan[i]['battery_level_after_work'].append(battery_level_added)
+                            charging_plan[i]['battery_level_before_work'].append(battery_level_added)
+                    elif charging_sessions_id == "battery_level_after_work":
+                        if i >= what_day:
+                            charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
+                            charging_plan[i]['battery_level_after_work'].append(battery_level_added)
                         
-                    if  i >= what_day:
-                        charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
-                        charging_plan[i]['battery_level_after_work'].append(battery_level_added)
-                        charging_plan[i]['battery_level_before_work'].append(battery_level_added)
-                elif charging_sessions_id == "battery_level_after_work":
-                    if i >= what_day:
-                        charging_plan[i]['battery_level_at_midnight'].append(battery_level_added)
-                        charging_plan[i]['battery_level_after_work'].append(battery_level_added)
-                    
-                    if i > what_day:
-                        charging_plan[i]['battery_level_before_work'].append(battery_level_added)
+                        if i > what_day:
+                            charging_plan[i]['battery_level_before_work'].append(battery_level_added)
+            except Exception as e:
+                _LOGGER.error(f"Error in {sub_sub_func_name} what_day:{what_day} day:{day} charging_sessions_id:{charging_sessions_id} battery_level_added:{battery_level_added}: {e} {type(e)}")
+                my_persistent_notification(
+                    f"Error in {sub_sub_func_name} what_day:{what_day} day:{day} charging_sessions_id:{charging_sessions_id} battery_level_added:{battery_level_added}: {e} {type(e)}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_{sub_sub_func_name}_error_{day}_{what_day}_charging_sessions_id_{charging_sessions_id}"
+                )
+                raise Exception(f"Error in {sub_sub_func_name} what_day:{what_day} day:{day} charging_sessions_id:{charging_sessions_id} battery_level_added:{battery_level_added}: {e} {type(e)}")
         
         def battery_level_full_on_next_departure(what_day):
-            if what_day == 7:
-                return False
+            nonlocal func_name, sub_func_name
+            sub_sub_func_name = "battery_level_full_on_next_departure"
+            _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
             
-            for day in range(what_day + 1,8):
-                if charging_plan[day]['trip']:
+            try:
+                if what_day == 7:
                     return False
                 
-                if charging_plan[day]['workday']:
-                    if round(sum(charging_plan[day]["battery_level_before_work"]),0) >= get_max_recommended_charge_limit_battery_level():
-                        return True
-                    break
+                for day in range(what_day + 1,8):
+                    if charging_plan[day]['trip']:
+                        return False
+                    
+                    if charging_plan[day]['workday']:
+                        if round(sum(charging_plan[day]["battery_level_before_work"]),0) >= get_max_recommended_charge_limit_battery_level():
+                            return True
+                        break
+            except Exception as e:
+                _LOGGER.error(f"Error in battery_level_full_on_next_departure what_day:{what_day}: {e} {type(e)}")
+                my_persistent_notification(
+                    f"Error in battery_level_full_on_next_departure what_day:{what_day}: {e} {type(e)}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_{sub_sub_func_name}_error_{what_day}"
+                )
+                
             return False
         
         def scheduled_planner(day):
@@ -6107,6 +6219,9 @@ def cheap_grid_charge_hours():
                                 continue
                             
                             what_day = daysBetween(getTime(), timestamp)
+                            if what_day < 0:
+                                continue
+                            
                             battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                             if not battery_level_id:
                                 _LOGGER.debug(f"battery_level_id not found for day ({what_day}) {timestamp} {price}. continue to next cheapest timestamp/price")
@@ -6172,8 +6287,14 @@ def cheap_grid_charge_hours():
                                 break
                         while_count += 1
             except Exception as e:
-                _LOGGER.error(f"Error in scheduled_planner: {e} {type(e)}")
-                raise Exception(f"Error in scheduled_planner: {e} {type(e)}")
+                _LOGGER.error(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
+                save_error_to_file(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
+                my_persistent_notification(
+                    f"Error in scheduled_planner day:{day}: {e} {type(e)}",
+                    title=f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_{sub_sub_func_name}_error_{day}"
+                )
+                raise Exception(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
         
         def unscheduled_planner(day):
             nonlocal func_name, sub_func_name
@@ -6220,6 +6341,9 @@ def cheap_grid_charge_hours():
                                 continue
                             
                             what_day = daysBetween(getTime(), timestamp)
+                            if what_day < 0:
+                                continue
+                            
                             battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
                             
                             if not battery_level_id:
