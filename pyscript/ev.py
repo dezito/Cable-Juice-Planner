@@ -2633,6 +2633,168 @@ def load_language():
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
 
+def validate_config(config: dict, default: dict, path: str = "") -> bool:
+    """
+    Recursively validate that CONFIG values match the type of DEFAULT_CONFIG.
+    Missing keys in CONFIG are ignored (not treated as errors).
+    
+    Args:
+        config (dict): The CONFIG dict to validate.
+        default (dict): The DEFAULT_CONFIG dict to compare against.
+        path (str): Internal path for error messages.
+
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+    func_name = "validate_config"
+    _LOGGER = globals()["_LOGGER"].getChild(func_name)
+    
+    valid = True
+
+    for key, default_val in default.items():
+        full_path = f"{path}.{key}" if path else key
+
+        if key not in config:
+            continue
+
+        cfg_val = config[key]
+
+        if isinstance(default_val, dict):
+            if not isinstance(cfg_val, dict):
+                _LOGGER.error(f"Type mismatch at {full_path}: expected dict, got {type(cfg_val).__name__}")
+                valid = False
+            else:
+                if not validate_config(cfg_val, default_val, full_path):
+                    valid = False
+            continue
+
+        if isinstance(default_val, list):
+            if not isinstance(cfg_val, list):
+                _LOGGER.error(f"Type mismatch at {full_path}: expected list, got {type(cfg_val).__name__}")
+                valid = False
+            elif default_val and cfg_val:
+                exp_type = type(default_val[0])
+                for idx, val in enumerate(cfg_val):
+                    if not isinstance(val, exp_type):
+                        _LOGGER.error(
+                            f"Type mismatch at {full_path}[{idx}]: expected {exp_type.__name__}, got {type(val).__name__}"
+                        )
+                        valid = False
+            continue
+
+        if not isinstance(cfg_val, type(default_val)):
+            if isinstance(default_val, float) and isinstance(cfg_val, int):
+                continue
+            _LOGGER.error(f"Type mismatch at {full_path}: expected {type(default_val).__name__}, got {type(cfg_val).__name__}")
+            valid = False
+
+    return valid
+
+def validate_entities(config: dict, path: str = "") -> tuple[list[str], list[str]]:
+    """
+    Validate that all configured entity_ids exist and are available in Home Assistant.
+
+    Args:
+        config (dict): The CONFIG dictionary.
+        path (str): Internal path for recursion (optional).
+
+    Returns:
+        tuple[list[str], list[str]]:
+            - missing: list of entity_ids not found at all
+            - unavailable: list of entity_ids found but state is unavailable
+    """
+    _LOGGER = globals()["_LOGGER"].getChild("validate_entities")
+    missing: list[str] = []
+    unavailable: list[str] = []
+
+    for key, value in config.items():
+        full_path = f"{path}.{key}" if path else key
+
+        if key == "entity_ids" and isinstance(value, dict):
+            for eid_key, eid_val in value.items():
+                if isinstance(eid_val, str) and eid_val:
+                    if "." not in eid_val:
+                        _LOGGER.error(f"Invalid entity_id format at {full_path}.{eid_key}: {eid_val}")
+                        missing.append(eid_val)
+                        continue
+                    domain = eid_val.split(".")[0]
+                    known_entities = state.names(domain=domain)
+                    if eid_val not in known_entities:
+                        missing.append(eid_val)
+                    else:
+                        st = get_state(eid_val, try_history=False, error_state=None)
+                        _LOGGER.debug(f"Entity {eid_val} state: {st}")
+                        if st in ENTITY_UNAVAILABLE_STATES:
+                            unavailable.append(eid_val)
+
+                elif isinstance(eid_val, list):
+                    for idx, ev in enumerate(eid_val):
+                        if not ev:
+                            continue
+                        if "." not in ev:
+                            _LOGGER.error(f"Invalid entity_id format at {full_path}.{eid_key}[{idx}]: {ev}")
+                            missing.append(ev)
+                            continue
+                        domain = ev.split(".")[0]
+                        known_entities = state.names(domain=domain)
+                        if ev not in known_entities:
+                            missing.append(ev)
+                        else:
+                            _LOGGER.debug(f"Entity {ev} state: {get_state(ev)}")
+                            st = get_state(ev, try_history=False, error_state=None)
+                            if st in ENTITY_UNAVAILABLE_STATES:
+                                unavailable.append(ev)
+
+        elif isinstance(value, dict):
+            m, u = validate_entities(value, full_path)
+            missing.extend(m)
+            unavailable.extend(u)
+
+    return missing, unavailable
+
+def validation_procedure():
+    func_name = "validation_procedure"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global CONFIG
+    
+    task.wait_until(timeout=0.5)
+    set_charging_rule(f"📟{i18n.t('ui.validation_procedure.entity_validation')}")
+    missing_entity_ids, unavailable_entity_ids = validate_entities(CONFIG)
+    if missing_entity_ids:
+        _LOGGER.warning(f"Some configured entity IDs are missing, checking again in 2 min: {missing_entity_ids}")
+        set_charging_rule(f"📟{i18n.t('ui.validation_procedure.entity_missing_try_again')}")
+        task.wait_until(timeout=120)
+        
+        missing_entity_ids, unavailable_entity_ids = validate_entities(CONFIG)
+        if missing_entity_ids:
+            entity_ids = '\n- '.join(missing_entity_ids)
+            my_persistent_notification(
+                f"- {entity_ids}\n\n"
+                f"{i18n.t('ui.validation_procedure.check_entity_ids')}",
+                title=f"{TITLE} {i18n.t('ui.validation_procedure.missing_entity_ids_title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_missing_entity_ids"
+            )
+            shutdown()
+    _LOGGER.info(f"All configured entity IDs are present.")
+        
+    if unavailable_entity_ids:
+        _LOGGER.warning(f"Some configured entity IDs are unavailable, checking again in 2 min: {unavailable_entity_ids}")
+        set_charging_rule(f"📟{i18n.t('ui.validation_procedure.entity_unavailable_try_again')}")
+        task.wait_until(timeout=120)
+        
+        _, unavailable_entity_ids = validate_entities(CONFIG)
+        if unavailable_entity_ids:
+            entity_ids = '\n- '.join(unavailable_entity_ids)
+            my_persistent_notification(
+                f"- {entity_ids}\n\n"
+                f"{i18n.t('ui.validation_procedure.check_entity_ids')}",
+                title=f"{TITLE} {i18n.t('ui.validation_procedure.unavailable_entity_ids_title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_unavailable_entity_ids"
+            )
+    _LOGGER.info(f"All configured entity IDs are available.")
+        
+    set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
+
 def init():
     func_name = "init"
     func_prefix = f"{func_name}_"
@@ -2809,13 +2971,22 @@ def init():
     
     set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
     _LOGGER.info(welcome())
+    task.wait_until(timeout=1.0)
     try:
+        set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
+        
         CONFIG = handle_yaml(f"{__name__}_config.yaml", deepcopy(DEFAULT_CONFIG), deepcopy(CONFIG_KEYS_RENAMING), deepcopy(COMMENT_DB_YAML), check_first_run=True, prompt_restart=False)
         CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
-
-        TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
         
-        set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
+        task.wait_until(timeout=0.5)
+        set_charging_rule(f"📟{i18n.t('ui.init.config_validation')}")
+        
+        if not validate_config(CONFIG, DEFAULT_CONFIG):
+            raise Exception(i18n.t('ui.init.config_validation_failed'))
+        
+        _LOGGER.info(f"{BASENAME} CONFIG loaded and validated")
+        
+        TESTING = True if "test" in __name__ or ("testing_mode" in CONFIG and CONFIG['testing_mode']) else False
         
         if is_ev_configured(CONFIG):#TODO check when ev car is configured and still having virtual ev car entities
             keys_to_remove = [
@@ -2896,7 +3067,7 @@ def init():
         my_persistent_notification(
             f"{i18n.t('ui.init.script_stopped')}\n"
             f"{i18n.t('ui.init.check_log')}:\n"
-            f"{e} {type(e)}",
+            f"{e}\n",
             title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
@@ -10455,6 +10626,9 @@ if INITIALIZATION_COMPLETE:
         
         log_lines = []
         try:
+            TASKS[f"{func_prefix}validation_procedure"] = task.create(validation_procedure)
+            done, pending = task.wait({TASKS[f"{func_prefix}validation_procedure"]})
+            
             charger_configured = i18n.t('ui.startup.configuration.configured') if is_charger_configured() else i18n.t('ui.startup.configuration.not_configured')
             ev_configured = i18n.t('ui.startup.configuration.configured') if is_ev_configured() else i18n.t('ui.startup.configuration.not_configured')
             solar_configured = i18n.t('ui.startup.configuration.configured') if is_solar_configured() else i18n.t('ui.startup.configuration.not_configured')

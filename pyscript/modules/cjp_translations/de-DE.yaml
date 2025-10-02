@@ -577,6 +577,14 @@ ui:
     add_new_entities: "Bitte die neuen Entitäten in die Dashboards aufnehmen."
     critical_entities_change: "Kritische Änderung an Entitäten"
 
+  validation_procedure:
+    entity_validation: "Entitäten werden validiert"
+    entity_missing_try_again: "Einige Entitäten fehlen\nNeuer Versuch in 2 Minuten"
+    entity_ids_missing: "Einige Entity-IDs fehlen\n- {entity_ids}"
+    entity_unavailable_try_again: "Einige Entitäten sind nicht verfügbar\nneuer Versuch in 2 Minuten"
+    unavailable_entity_ids_title: "Einige Entity-IDs sind nicht verfügbar"
+    check_entity_ids: "Entity-IDs prüfen"
+
   init:
     script_starting: "Starte Cable Juice Planner"
     file_created_message: "Konfigurationsdatei erstellt: {file_path}"
@@ -595,6 +603,8 @@ ui:
     entities_package_updated: "Entitäten-Paket {file_path} aktualisiert"
     first_run_warning: "{file_path} first_run auf false setzen"
     loading_config: "Konfiguration wird geladen"
+    config_validation: "Konfiguration wird validiert"
+    config_validation_failed: "Konfigurationsvalidierung fehlgeschlagen"
     charger_not_configured: "Lader nicht konfiguriert; bei fehlender Lader-Integration EV-Entitäten verwenden"
     script_stopped: "Skript gestoppt"
     check_log: "Log prüfen für weitere Informationen"
