@@ -1283,9 +1283,6 @@ def get_hours_plan():
             if day < 0:
                 continue
             
-            if day < 0:
-                continue
-            
             if day in CHARGING_PLAN:
                 if timestamp < now:
                     text_format_start, text_format_end = "", ""
