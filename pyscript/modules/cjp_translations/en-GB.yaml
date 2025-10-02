@@ -578,7 +578,7 @@ ui:
     critical_entities_change: "Critical entity change"
 
   init:
-    script_starting: "Script starting"
+    script_starting: "Starting Cable Juice Planner"
     file_created_message: "Configuration file created: {file_path}"
     add_entities: "Please add new entities to your dashboards"
     yaml_file_created: "YAML file created: {file_path}"

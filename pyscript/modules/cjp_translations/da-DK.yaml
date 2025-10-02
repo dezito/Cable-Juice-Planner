@@ -600,7 +600,7 @@ ui:
     critical_entities_change: "Kritisk ændring i entiteter"
 
   init:
-    script_starting: "Script starter"
+    script_starting: "Starter Cable Juice Planner"
     file_created_message: "Konfigurationsfil oprettet: {file_path}"
     add_entities: "Tilføj venligst de nye entiteter til dine Betjeningspaneler sider."
     yaml_file_created: "YAML file oprettet: {file_path}"

@@ -578,7 +578,7 @@ ui:
     critical_entities_change: "Kritische Änderung an Entitäten"
 
   init:
-    script_starting: "Skript startet"
+    script_starting: "Starte Cable Juice Planner"
     file_created_message: "Konfigurationsdatei erstellt: {file_path}"
     add_entities: "Bitte neue Entitäten in die Dashboards aufnehmen."
     yaml_file_created: "YAML-Datei erstellt: {file_path}"

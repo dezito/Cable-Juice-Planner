@@ -582,7 +582,7 @@ ui:
     critical_entities_change: "Критична зміна сутностей"
 
   init:
-    script_starting: "Запуск скрипту"
+    script_starting: "Запуск Cable Juice Planner"
     file_created_message: "Файл конфігурації створено: {file_path}"
     add_entities: "Додайте нові сутності до Dashboard."
     yaml_file_created: "YAML-файл створено: {file_path}"

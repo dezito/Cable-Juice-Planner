@@ -586,7 +586,7 @@ ui:
     critical_entities_change: "Krytyczna zmiana w encjach"
 
   init:
-    script_starting: "Uruchamianie skryptu"
+    script_starting: "Uruchamianie Cable Juice Planner"
     file_created_message: "Utworzono plik konfiguracji: {file_path}"
     add_entities: "Dodaj nowe encje do pulpitów (Dashboard)."
     yaml_file_created: "Utworzono plik YAML: {file_path}"
