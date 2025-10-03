@@ -11482,7 +11482,7 @@ if INITIALIZATION_COMPLETE:
         finally:
             task_cancel(func_prefix, task_remove=True, startswith=True)
             
-    @time_trigger(f"cron(* 2 * * *)")
+    @time_trigger(f"cron(2 * * * *)")
     def cron_update_grid_prices(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "cron_update_grid_prices"
         func_prefix = f"{func_name}_"
