@@ -1210,12 +1210,11 @@ def task_shutdown():
         TASKS.pop(task_name, None)
 
     if TASKS:
-        my_persistent_notification(
-            f"Some tasks were not killed from instance {INSTANCE_ID}:\n"
-            f"{pformat(TASKS, indent=4, width=80)}",
-            title=f"⚠️ {__name__} - Task Kill Error",
-            persistent_notification_id=f"{__name__}_{func_name}_error_{INSTANCE_ID}"
-        )
+        for task_name in list(TASKS.keys()):
+            if TASKS[task_name].done() or TASKS[task_name].cancelled():
+                TASKS.pop(task_name, None)
+        if TASKS:
+            _LOGGER.warning(f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}")
 
     task.wait_until(timeout=0.5)
     TASKS = {}
