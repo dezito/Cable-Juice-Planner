@@ -8239,9 +8239,9 @@ def max_local_energy_available_remaining_period():
         solar_production = values["solar_production"]
         total_local_energy = solar_production + powerwall_discharging_consumption
         
-        watts_available_from_local_energy = max(total_local_energy - power_consumption_without_all_exclusion, 0.0)
-        watts_available_from_local_energy_solar_only = max(solar_production - power_consumption_without_all_exclusion, 0.0)
-        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        watts_available_from_local_energy = round(max(total_local_energy - power_consumption_without_all_exclusion, 0.0))
+        watts_available_from_local_energy_solar_only = round(max(solar_production - power_consumption_without_all_exclusion, 0.0), 2)
+        powerwall_discharging_available = round(max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0))
         
         powerwall_force_power = 0.0
         
