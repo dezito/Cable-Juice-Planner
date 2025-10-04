@@ -1210,12 +1210,11 @@ def task_shutdown():
         TASKS.pop(task_name, None)
 
     if TASKS:
-        my_persistent_notification(
-            f"Some tasks were not killed from instance {INSTANCE_ID}:\n"
-            f"{pformat(TASKS, indent=4, width=80)}",
-            title=f"⚠️ {__name__} - Task Kill Error",
-            persistent_notification_id=f"{__name__}_{func_name}_error_{INSTANCE_ID}"
-        )
+        for task_name in list(TASKS.keys()):
+            if TASKS[task_name].done() or TASKS[task_name].cancelled():
+                TASKS.pop(task_name, None)
+        if TASKS:
+            _LOGGER.warning(f"Some tasks were not killed from instance {INSTANCE_ID}:\n{pformat(TASKS, indent=4, width=80)}")
 
     task.wait_until(timeout=0.5)
     TASKS = {}
@@ -8240,9 +8239,9 @@ def max_local_energy_available_remaining_period():
         solar_production = values["solar_production"]
         total_local_energy = solar_production + powerwall_discharging_consumption
         
-        watts_available_from_local_energy = max(total_local_energy - power_consumption_without_all_exclusion, 0.0)
-        watts_available_from_local_energy_solar_only = max(solar_production - power_consumption_without_all_exclusion, 0.0)
-        powerwall_discharging_available = max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0)
+        watts_available_from_local_energy = round(max(total_local_energy - power_consumption_without_all_exclusion, 0.0))
+        watts_available_from_local_energy_solar_only = round(max(solar_production - power_consumption_without_all_exclusion, 0.0), 2)
+        powerwall_discharging_available = round(max(watts_available_from_local_energy - watts_available_from_local_energy_solar_only, 0.0))
         
         powerwall_force_power = 0.0
         
@@ -10729,7 +10728,7 @@ if INITIALIZATION_COMPLETE:
             task_cancel(func_prefix, task_remove=True, startswith=True)
         
         append_overview_output(f"📟{BASENAME} started")
-   
+    
     @time_trigger("startup")
     @state_trigger(f"input_boolean.{__name__}_fill_up")
     @state_trigger(f"input_boolean.{__name__}_workplan_charging")
