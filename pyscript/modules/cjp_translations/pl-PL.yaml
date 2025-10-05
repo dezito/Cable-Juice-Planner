@@ -94,6 +94,7 @@ config:
     charging_phases: "**Wymagane** Dostępne fazy"
     charging_max_amp: "**Wymagane** Maksymalny prąd ładowania (A)"
     charging_loss: "**Wymagane** Może być obliczane automatycznie przez WebGUI z input_boolean.{name}_calculate_charging_loss"
+    use_last_kwh_meter_from_history: "Użyj ostatniego odczytu licznika kWh z historii ładowania, aby ustawić licznik kWh na początku nowej sesji ładowania, jeśli dostępny (Wyłącz, jeśli kilka samochodów korzysta z tej samej ładowarki)"
 
   database:
     power_values_db_data_to_save: "Liczba dni przechowywania wartości mocy"
