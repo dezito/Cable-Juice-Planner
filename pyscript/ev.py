@@ -9474,7 +9474,7 @@ def ready_to_charge():
             #_LOGGER.info(f"currentLocation: {currentLocation}, charger_connector: {charger_connector}, ev_charger_connector: {ev_charger_connector}")
             """if (ev_charger_connector in EV_PLUGGED_STATES or charger_connector in CHARGER_READY_STATUS or
                 charger_status in CHARGER_READY_STATUS) and currentLocation != "home":"""
-            if (ev_charger_connector in EV_PLUGGED_STATES or charger_status in CHARGER_READY_STATUS) and not is_ev_home():
+            if (ev_charger_connector in EV_PLUGGED_STATES or charger_status in CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS + CHARGER_COMPLETED_STATUS) and not is_ev_home():
                 _LOGGER.info("To long away from home")
                 set_charging_rule(f"⛔{i18n.t('ui.ready_to_charge.cable_connected_ev_not_home')}")
                 return
