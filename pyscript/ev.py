@@ -396,6 +396,7 @@ DEFAULT_CONFIG = {
         "charging_phases": 3.0,
         "charging_max_amp": 16.0,
         "charging_loss": -0.05,
+        "use_last_kwh_meter_from_history": True,
     },
     "cron_interval": 5,
     "database": {
@@ -5538,11 +5539,12 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
             
-            if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
-                last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
-                if "end_charger_meter" in last_item[1]:
-                    CURRENT_CHARGING_SESSION['start_charger_meter'] = last_item[1]["end_charger_meter"]
-                    _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
+            if CONFIG['charger']['use_last_kwh_meter_from_history']:
+                if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
+                    last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
+                    if "end_charger_meter" in last_item[1]:
+                        CURRENT_CHARGING_SESSION['start_charger_meter'] = last_item[1]["end_charger_meter"]
+                        _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
 
             CURRENT_CHARGING_SESSION['emoji'] = f"{emoji_parse(charging_data)}"
             CURRENT_CHARGING_SESSION['data'] = charging_data

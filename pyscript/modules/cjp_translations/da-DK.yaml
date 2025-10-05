@@ -94,6 +94,7 @@ config:
     charging_phases: "**Påkrævet** Tilgængelige faser for bilen"
     charging_max_amp: "**Påkrævet** Maks. ladestrøm (A) for bilen"
     charging_loss: "**Påkrævet** Kan beregnes automatisk via WebGUI med input_boolean.{name}_calculate_charging_loss"
+    use_last_kwh_meter_from_history: "Brug sidste kWh-måler fra ladehistorik til at sætte kWh-måler ved start af ny lade-session, hvis tilgængelig (Deaktivere hvis flere biler deler samme lader)"
 
   database:
     power_values_db_data_to_save: "Antal dage tilbage der gemmes effektværdier"

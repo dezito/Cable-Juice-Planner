@@ -94,6 +94,7 @@ config:
     charging_phases: "**Erforderlich** Verfügbare Phasen"
     charging_max_amp: "**Erforderlich** Maximaler Ladestrom (A)"
     charging_loss: "**Erforderlich** Kann per WebGUI automatisch berechnet werden mit input_boolean.{name}_calculate_charging_loss"
+    use_last_kwh_meter_from_history: "Verwende den letzten kWh-Zählerwert aus der Ladehistorie, um den kWh-Zähler beim Start einer neuen Ladesitzung zu setzen, falls verfügbar (Deaktivieren, wenn mehrere Fahrzeuge denselben Lader teilen)"
 
   database:
     power_values_db_data_to_save: "Anzahl der aufzubewahrenden Tage mit Leistungswerten"
