@@ -1220,6 +1220,129 @@ def task_shutdown():
     task.wait_until(timeout=0.5)
     TASKS = {}
 
+def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_time_minutes=5, check_interval=5.0, float_type=False, task_prefix=None, task_name=None) -> bool:
+    """
+    Wait until a Home Assistant entity has updated its state within a given timeframe.
+
+    The function checks the entity's historical values (last 24h) and waits until it
+    receives a new update that is more recent than the last known state. If the entity
+    already has an update within the `updated_within_minutes` window, the function
+    returns immediately.
+
+    Task naming rules:
+        - If both `task_prefix` and `task_name` are None, a default name is generated
+          using the function name and the entity_id.
+        - If both `task_prefix` and `task_name` are provided, the task will NOT be
+          automatically removed when finished.
+        - If only one of `task_prefix` or `task_name` is provided, the other will be
+          set to a default value based on the function name, and the task will be
+          removed when done.
+
+    Args:
+        entity_id (str): The entity ID to monitor.
+        updated_within_minutes (int): If the entity has been updated within this time
+            window (minutes), the function returns immediately.
+        max_wait_time_minutes (int): Maximum number of minutes to wait before giving up.
+        check_interval (float): Interval in seconds to re-check for updates.
+        float_type (bool): Whether to treat the entity state as float when fetching values.
+        task_prefix (str, optional): Optional prefix for the task name.
+        task_name (str, optional): Optional base name for the task.
+
+    Returns:
+        bool:
+            - True if the entity has a new state update within the specified time frame.
+            - False if no new update is detected before timeout,
+              or if the task is cancelled/errored.
+
+    Notes:
+        - The function looks at historical values from the last 24 hours using `get_values`.
+        - A background task entry is created in TASKS to track cancellation and cleanup.
+        - If `task_prefix` and `task_name` are auto-generated, the task will be
+          cancelled/removed in the `finally` block when done.
+    """
+    func_name = "wait_for_entity_update"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    global TASKS
+    
+    remove_task_when_done = False
+    
+    if not is_ev_configured():
+        return True
+    
+    if entity_id is None:
+        _LOGGER.error("No entity_id provided")
+        return False
+    
+    if isinstance(task_prefix, str) and isinstance(task_name, str):
+        full_task_name = f"{task_prefix}{task_name}"
+    else:
+        if task_prefix is None:
+            task_prefix = func_prefix
+        
+        if task_name is None:
+            task_name = func_name
+        
+        full_task_name = f"{task_prefix}{task_name}_{entity_id}"
+        remove_task_when_done = True
+    
+    if full_task_name not in TASKS:
+        TASKS[full_task_name] = task.current_task()
+    
+    def _conditions():
+        task_obj = TASKS.get(full_task_name)
+        if not task_obj:
+            return False
+        if task_obj.cancelled() or task_obj.cancelling():
+            return False
+        return (getTime() - start_time) < datetime.timedelta(minutes=max_wait_time_minutes)
+    
+    try:
+        to_datetime = getTime()
+        from_datetime = to_datetime - datetime.timedelta(hours=24)
+        values = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to=None, include_timestamps=True, error_state={})
+        if not values or not isinstance(values, dict) or not values.items():
+            _LOGGER.warning(f"No state values found in the last 24 hours for {entity_id}")
+            return False
+        
+        values_sorted = sorted(values.items(), reverse=True)
+        last_state = values_sorted[1][1] if values_sorted else 0.0
+        last_state_timestamp = values_sorted[1][0] if values_sorted else getTime()
+        
+        start_time = getTime()
+        
+        if minutesBetween(last_state_timestamp, start_time) < updated_within_minutes:
+            _LOGGER.info(f"{entity_id} state up to date {int(last_state)} {last_state_timestamp}, no need to wait")
+            return True
+        
+        while _conditions():
+            to_datetime = getTime()
+            from_datetime = to_datetime - datetime.timedelta(hours=24)
+            values = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to=None, include_timestamps=True, error_state={})
+            
+            if not values or not isinstance(values, dict) or not values.items():
+                _LOGGER.warning(f"No state values found in the last 24 hours for {entity_id}")
+                return False
+            
+            values_sorted = sorted(values.items(), reverse=True)
+            if values_sorted:
+                current_state = values_sorted[1][1]
+                current_state_timestamp = values_sorted[1][0]
+                if current_state_timestamp > last_state_timestamp:
+                    _LOGGER.info(f"{entity_id} state stable at {current_state} now, no need to wait anymore")
+                    return True
+            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {now}")
+            task.wait_until(timeout=check_interval)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
+    except Exception as e:
+        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
+    finally:
+        if remove_task_when_done:
+            task_cancel(f"{task_prefix}{task_name}")
+    return False
+
 def calculate_price_levels(prices):
     """ Calculates price levels based on the provided prices. """
     lowest_price = min(prices)
@@ -11048,53 +11171,8 @@ if INITIALIZATION_COMPLETE:
             
     def wait_until_odometer_stable(func_prefix=None):
         func_name = "wait_until_odometer_stable"
-        _LOGGER = globals()['_LOGGER'].getChild(func_name)
-        if not is_ev_configured():
-            return
+        return wait_for_entity_update(entity_id=CONFIG['ev_car']['entity_ids']['odometer_entity_id'], updated_within_minutes=5, max_wait_time_minutes=30, check_interval=5.0, float_type=True, task_prefix=func_prefix if func_prefix else "", task_name=func_name)
         
-        max_wait_time_minutes = 30
-        updated_within_minutes = 5
-        
-        try:
-            to_datetime = getTime()
-            from_datetime = to_datetime - datetime.timedelta(hours=24)
-            values = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_datetime, to_datetime, float_type=True, convert_to=None, include_timestamps=True, error_state={})
-            if not values or not isinstance(values, dict) or not values.items():
-                _LOGGER.warning(f"No odometer values found in the last 24 hours")
-                return
-            
-            values_sorted = sorted(values.items(), reverse=True)
-            last_odometer = values_sorted[1][1] if values_sorted else 0.0
-            last_odometer_timestamp = values_sorted[1][0] if values_sorted else getTime()
-            
-            now = getTime()
-            
-            if minutesBetween(last_odometer_timestamp, now) < updated_within_minutes:
-                _LOGGER.info(f"Odometer up to date {int(last_odometer)} {last_odometer_timestamp}, no need to wait")
-                return
-            
-            while minutesBetween(now, getTime()) < max_wait_time_minutes and (not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelling() or not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelled()):
-                to_datetime = getTime()
-                from_datetime = to_datetime - datetime.timedelta(hours=24)
-                values = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_datetime, to_datetime, float_type=True, convert_to=None, include_timestamps=True, error_state={})
-                
-                if not values or not isinstance(values, dict) or not values.items():
-                    _LOGGER.warning(f"No odometer values found in the last 24 hours")
-                    return
-                
-                values_sorted = sorted(values.items(), reverse=True)
-                if values_sorted:
-                    current_odometer = values_sorted[1][1]
-                    current_odometer_timestamp = values_sorted[1][0]
-                    if current_odometer_timestamp > last_odometer_timestamp:
-                        _LOGGER.info(f"Odometer stable at {current_odometer} now, no need to wait anymore")
-                        break
-                task.wait_until(timeout=60)
-        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-            _LOGGER.warning(f"Task was cancelled or timed out in wait_until_odometer_stable: {e} {type(e)}")
-        except Exception as e:
-            _LOGGER.error(f"Error in wait_until_odometer_stable: {e} {type(e)}")
-            
     def power_connected_trigger(value):
         func_name = "power_connected_trigger"
         func_prefix = f"{func_name}_"
