@@ -2643,6 +2643,24 @@ def notify_critical_change(cfg = {}, filename = None):
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
                 persistent_notification_id= f"{__name__}_{func_name}_deactivate_script_entity_update_required"
             )
+            
+        if __name__ == "ev":
+            cjp_select_release_entity = [f"input_select.cjp_select_release"]
+            cjp_select_release_missing = check_nested_keys_exist(cfg, cjp_select_release_entity)
+            
+            if cjp_select_release_missing:
+                _LOGGER.warning(f"CJP select release entity update required: {cjp_select_release_missing}")
+                
+                my_persistent_notification(
+                    f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                    f"{i18n.t('ui.notify_critical_change.new_entities_added')}\n"
+                    f"{i18n.t('ui.notify_critical_change.entity_description')}\n\n"
+                    f"### {i18n.t('ui.notify_critical_change.new_entities')}:\n - {'- '.join(keys_description(cjp_select_release_missing))}\n\n"
+                    f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                    f"{i18n.t('ui.notify_critical_change.add_new_entities')}\n",
+                    title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
+                    persistent_notification_id= f"{__name__}_{func_name}_cjp_select_release_entity_update_required"
+                )
 
 def build_comment_db_yaml() -> dict:
     _LOGGER = globals()['_LOGGER'].getChild("build_comment_db_yaml")
