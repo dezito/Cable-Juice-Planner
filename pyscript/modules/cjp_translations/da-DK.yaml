@@ -175,6 +175,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Vælg CJP udgivelse"
+      description: "Vælg den udgivelse at opgradere til"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -566,14 +572,19 @@ ui:
     error: "Fejl under genoprettelse af hardlinks"
 
   repo:
+    current: "Nuværende version"
+    latest: "Seneste version"
     no_updates_available_title: "Opdaterings tjek"
     no_updates_available: "Ingen opdateringer tilgængelige"
     new_update_available_title: "Ny opdatering tilgængelig"
     new_update_available_changes: "Ændringer"
     new_update_available_changes_behind: "bagud"
     update_error_check: "Fejl under opdateringstjek"
+    updated_from: "Opdateret fra"
     updated_success: "Opdatering gennemført succesfuldt"
     update_error: "Fejl under opdatering"
+    no_release_notes: "Ingen udgivelsesnoter tilgængelige"
+    view_on_github: "Se på GitHub"
 
   entity_unavailable:
     title: "Entity ikke tilgængelig"

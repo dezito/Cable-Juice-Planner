@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import random
 import string
 import subprocess
@@ -502,6 +503,7 @@ COMMENT_DB_YAML = {}
 DEFAULT_ENTITIES = {
     "homeassistant": {
         "customize": {
+            f"input_select.cjp_select_release": {},
             f"input_button.{__name__}_trip_reset": {},
             f"input_button.{__name__}_enforce_planning": {},
             f"input_button.{__name__}_restart_script": {},
@@ -584,6 +586,15 @@ DEFAULT_ENTITIES = {
             f"sensor.{__name__}_charge_very_cheap_battery_level": {},
             f"sensor.{__name__}_charge_ultra_cheap_battery_level": {},
             f"sensor.{__name__}_kwh_cost_price": {},
+        },
+    },
+    "input_select":{
+        f"cjp_select_release":{
+            "options":[
+                "latest",
+                ],
+            "initial":"latest",
+            "icon":"mdi:form-select"
         },
     },
     "input_button":{
@@ -1674,177 +1685,180 @@ def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Hardlinks Error",
             persistent_notification_id=f"{__name__}_recreate_hardlinks_error"
         )
-    
-@service(f"pyscript.{__name__}_check_master_updates")
-def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
-    func_name = "check_master_updates"
-    func_prefix = f"{func_name}_"
-    task.unique(func_name)
-    _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS
-    
-    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    branch = kwargs.get("branch", "master")
-    
-    result = {"has_updates": False, "commits_behind": 0}
 
+def get_github_releases(repo_owner="dezito", repo_name="Cable-Juice-Planner"):
+    """Fetch all releases from GitHub (newest first)."""
+    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases"
+    output = run_console_command_sync(["curl", "-s", api_url])
+    data = json.loads(output)
+    if not isinstance(data, list):
+        raise ValueError(f"Unexpected GitHub API format: {type(data)}")
+    return data
+
+def get_local_tag(repo_path):
+    """Return the current local Git tag or fallback to v0.0.0."""
     try:
-        _LOGGER.info(f"Checking for updates in {repo_path}")
+        run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
+        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"]).strip()
+        if not tag or tag.lower() == "none":
+            return "v0.0.0"
+        return tag
+    except Exception as e:
+        _LOGGER.warning(f"Could not determine local tag: {e}")
+        return "v0.0.0"
 
-        run_console_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
-        run_console_command(["git", "-C", repo_path, "fetch", "origin", branch])
+def get_newer_releases(releases, local_tag, target_tag=None):
+    """
+    Return all releases newer than the local tag (up to target tag if given).
+    Newest → Oldest.
+    """
+    newer = []
+    for rel in reverse_list(releases):
+        tag = rel.get("tag_name", "").strip()
+        _LOGGER.info(f"Checking release tag: {tag}")
+        if tag == local_tag:
+            continue
+        newer.append(rel)
+        if target_tag and tag == target_tag:
+            break
+    if not newer:
+        newer = releases
+    return newer
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
+def build_combined_changelog(releases):
+    """Combine multiple GitHub release notes into a Markdown-formatted changelog (newest first)."""
+    items = []
+    for rel in reverse_list(releases):
+        tag = rel.get("tag_name", "")
+        name = rel.get("name", tag)
+        body = rel.get("body", "").strip().replace("##", "###").replace("What's Changed", f"{name or tag} {i18n.t('ui.repo.new_update_available_changes').lower()}:") or f"{name or tag} {i18n.t('ui.repo.no_release_notes')}:"
+        url = rel.get("html_url", "")
+        section = (
+            f"{body}\n\n"
+            f"[{i18n.t('ui.repo.view_on_github')}]({url})\n\n"
+            f"---"
+        )
+        items.append(section)
+    return "\n\n".join(items)
+
+@service(f"pyscript.{__name__}_check_release_updates")
+def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
+    """Check if newer releases are available and show combined changelog."""
+    func_name = "check_release_updates"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
+    try:
+        releases = get_github_releases()
+        local_tag = get_local_tag(repo_path)
+
+        if not selected_version or selected_version.lower() == "latest":
+            target_release = releases[0]
+        else:
+            target_release = None
+            for r in releases:
+                if r.get("tag_name", "") == selected_version:
+                    target_release = r
+                    break
+            if not target_release:
+                raise ValueError(f"Release '{selected_version}' not found")
         
-        local_head = TASKS[f'{func_prefix}local_head'].result()
-        remote_head = TASKS[f'{func_prefix}remote_head'].result()
-        
-        if local_head == remote_head:
-            _LOGGER.info("No updates available.")
+        target_tag = target_release.get("tag_name", "").strip()
+        _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
+
+        if local_tag == target_tag:
             my_persistent_notification(
-                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                f"✅ {i18n.t('ui.repo.no_updates_available')} ({local_tag})",
                 title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
-        
-        total_commits_behind = 0
-        try:
-            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
-        except Exception as e:
-            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
-        
-        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
-        
-        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
+        newer_releases = get_newer_releases(releases, local_tag, target_tag)
+        changelog = build_combined_changelog(newer_releases)
+        if len(changelog) > 5000:
+            changelog = changelog[:5000] + "\n* …"
 
-        commit_log_lines = str(TASKS[f'{func_prefix}commit_log_lines'].result()).split("\n")
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
-        
-        result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
-        return
+        my_persistent_notification(
+            f"### ➡️ {i18n.t('ui.repo.current')}: `{local_tag}`\n"
+            f"### ➡️ {i18n.t('ui.repo.latest')}: `{target_tag}`\n\n"
+            f"## 📌 **{i18n.t('ui.repo.new_update_available_changes')}:**\n\n{changelog}",
+            title=f"{TITLE} {i18n.t('ui.repo.new_update_available_title')} ({len(newer_releases)} releases)",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
+
     except Exception as e:
-        result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
-    finally:
-        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
-
-    _LOGGER.info(f"Check {branch} updates: {result}")
-
-    if result["has_updates"]:
-        _LOGGER.info(f"New version available: {result['commits_behind']} commits behind")
+        _LOGGER.error(f"Update check failed: {e}")
         my_persistent_notification(
-            f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
-            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{result['commit_log']}",
-            title=f"{TITLE} {i18n.t('ui.repo.new_update_available_title')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
-        )
-    elif "error" in result:
-        _LOGGER.error(f"Could not check for updates: {result['error']}")
-        my_persistent_notification(
-            f"⚠️ {i18n.t('ui.repo.update_error_check')}: {result['error']}",
-            title=f"{TITLE} Fejl",
-            persistent_notification_id=f"{__name__}_{func_name}"
-        )
-    elif trigger_type == "service":
-        _LOGGER.info("No updates available")
-        my_persistent_notification(
-            f"✅ {i18n.t('ui.repo.no_updates_available')}",
-            title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+            f"⚠️ {i18n.t('ui.repo.update_error_check')}: {e}",
+            title=f"{TITLE} Error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
         )
 
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
+    """Update repo to selected or latest version and display changelog."""
     func_name = "update_repo"
-    func_prefix = f"{func_name}_"
-    task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS
 
     repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    branch = kwargs.get("branch", "master")
-
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
     try:
-        _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
+        releases = get_github_releases()
+        local_tag = get_local_tag(repo_path)
 
-        run_console_command(["git", "-C", repo_path, "fetch", "--all"])
+        if not selected_version or selected_version.lower() == "latest":
+            target_release = releases[0]
+        else:
+            target_release = None
+            for r in releases:
+                if r.get("tag_name", "") == selected_version:
+                    target_release = r
+                    break
+            if not target_release:
+                raise ValueError(f"Release '{selected_version}' not found")
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
-        
-        local_head = TASKS[f'{func_prefix}local_head'].result()
-        remote_head = TASKS[f'{func_prefix}remote_head'].result()
-        
-        if local_head == remote_head:
-            _LOGGER.info("No updates available.")
+        target_tag = target_release.get("tag_name", "").strip()
+        _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
+
+        if local_tag == target_tag:
             my_persistent_notification(
-                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                f"✅ {i18n.t('ui.repo.no_updates_available')} ({local_tag})",
                 title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
-        
-        total_commits_behind = 0
-        try:
-            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
-        except Exception as e:
-            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
+        newer_releases = get_newer_releases(releases, local_tag, target_tag)
+        changelog = build_combined_changelog(newer_releases)
+        if len(changelog) > 5000:
+            changelog = changelog[:5000] + "\n* …"
 
-        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
+        # --- perform actual update ---
+        run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
+        run_console_command(["git", "-C", repo_path, "checkout", "-f", target_tag])
+        recreate_hardlinks()
 
-        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
-
-        run_console_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
-        run_console_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
-
-        commit_log_lines = run_console_command(
-            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
-        ).split("\n")
-        
-        if commit_log_lines:
-            recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
-            commit_log_lines += recreate_hardlinks_log_lines
-
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
-
-        _LOGGER.info("Repository updated successfully.")
-        my_persistent_notification(
-            f"📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
-            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{commit_log_md}",
-            title=f"{TITLE} {i18n.t('ui.repo.updated_success')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+        message = (
+            f"### {i18n.t('ui.repo.updated_from')} `{local_tag}` → `{target_tag}`\n\n"
+            f"## 📌 **{i18n.t('ui.repo.new_update_available_changes')}:**\n\n{changelog}"
         )
 
-        task.wait_until(timeout=5)
+        my_persistent_notification(
+            message,
+            title=f"{TITLE} {i18n.t('ui.repo.updated_success')} ({len(newer_releases)} releases)",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
         restart_script()
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
-        return
+
     except Exception as e:
-        _LOGGER.error(f"Update failed: {str(e)}")
+        _LOGGER.error(f"Update failed: {e}")
         my_persistent_notification(
-            f"⚠️ {str(e)}",
-            title=f"{TITLE} {i18n.t('ui.repo.update_error')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+            f"⚠️ {i18n.t('ui.repo.update_error')}: {e}",
+            title=f"{TITLE} Error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
         )
-    finally:
-        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
@@ -3163,6 +3177,9 @@ def init():
             for key in keys_to_remove:
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+                
+        if __name__ != "ev" and "input_select.cjp_select_release" in state.names(domain="input_select"):
+            DEFAULT_ENTITIES.get('input_select', {}).pop("cjp_select_release", None)
         
         localize_default_entities()
         
@@ -10741,6 +10758,70 @@ def notify_battery_under_daily_battery_level():
         )
 
 if INITIALIZATION_COMPLETE:
+    if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+        @service(f"pyscript.{__name__}_update_release_options")
+        @state_trigger(f"input_select.cjp_select_release")
+        def update_release_options(trigger_type=None, trigger_id=None, var_name=None, value=None, old_value=None, **kwargs):
+            """
+            Fetches all release tags from GitHub and updates an input_select
+            entity with them, so the user can pick a release manually.
+            """
+            func_name = "update_release_options"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            global TASKS
+            
+            entity_id="input_select.cjp_select_release"
+            repo_api = "https://api.github.com/repos/dezito/Cable-Juice-Planner/releases"
+            
+            try:
+                
+                if trigger_type == "state":
+                    TASKS[f'{func_prefix}check_release_updates'] = task.create(check_release_updates)
+                    done, pending = task.wait({TASKS[f'{func_prefix}check_release_updates']})
+                    return
+                
+                _LOGGER.info("Fetching release list from GitHub...")
+                TASKS[f'{func_prefix}_fetch'] = task.create(run_console_command_sync, ["curl", "-s", repo_api])
+                done, pending = task.wait({TASKS[f'{func_prefix}_fetch']})
+                api_response = TASKS[f'{func_prefix}_fetch'].result()
+
+                releases = json.loads(api_response)
+
+                # extract tag names (newest first)
+                tags = [r.get("tag_name") for r in releases if r.get("tag_name")]
+                if not tags:
+                    raise ValueError("No tags found in release data")
+
+                tags.insert(0, "latest")  # add 'latest' option at the top
+                _LOGGER.info(f"Found {len(tags)} releases: {tags}")
+                
+                # update input_select options
+                input_select.set_options(entity_id=entity_id, options=tags)
+
+                # optionally set the first (latest) as current value
+                input_select.select_option(entity_id=entity_id, option=tags[0])
+                
+                if trigger_type == "service":
+                    my_persistent_notification(
+                        f"✅ Release list updated ({len(tags)} options)",
+                        title=f"{TITLE} Release Selector",
+                        persistent_notification_id=f"{__name__}_{func_name}"
+                    )
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+                return
+            except Exception as e:
+                _LOGGER.error(f"Failed to update release list: {e}")
+                my_persistent_notification(
+                    f"⚠️ Failed to update release list: {e}",
+                    title=f"{TITLE} Release Selector Error",
+                    persistent_notification_id=f"{__name__}_{func_name}"
+                )
+            finally:
+                task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
+                
+    @benchmark_decorator()
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "startup"
@@ -10828,9 +10909,14 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}drive_efficiency_save_car_stats"] = task.create(drive_efficiency_save_car_stats, bootup=True)
             done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"], TASKS[f"{func_prefix}preheat_ev"], TASKS[f"{func_prefix}drive_efficiency_save_car_stats"]})
             
-            if CONFIG['notification']['update_available']:
-                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
+            if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+                if CONFIG['notification']['update_available']:
+                    TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
+                else:
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}update_release_options"]})
         except Exception as e:
             _LOGGER.error(f"Error during startup: {e} {type(e)}")
             my_persistent_notification(
@@ -11545,10 +11631,14 @@ if INITIALIZATION_COMPLETE:
         try:
             TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
             done, pending = task.wait({TASKS[f'{func_prefix}reset_counter_entity_integration']})
-            
-            if CONFIG['notification']['update_available'] and not deactivate_script_enabled():
-                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
+            if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+                if CONFIG['notification']['update_available']:
+                    TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
+                else:
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}update_release_options"]})
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
             _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:

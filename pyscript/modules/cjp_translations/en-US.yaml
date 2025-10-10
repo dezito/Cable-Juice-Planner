@@ -177,6 +177,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Select CJP release"
+      description: "Choose the release to upgrade to"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -563,14 +569,19 @@ ui:
     error: "Error recreating hardlinks"
 
   repo:
+    current: "Current version"
+    latest: "Latest version"
     no_updates_available_title: "Update check"
     no_updates_available: "No updates available"
     new_update_available_title: "New update available"
     new_update_available_changes: "Changes"
     new_update_available_changes_behind: "behind"
     update_error_check: "Error during update check"
+    updated_from: "Updated from"
     updated_success: "Update completed successfully"
     update_error: "Error during update"
+    no_release_notes: "No release notes available"
+    view_on_github: "View on GitHub"
 
   entity_unavailable:
     title: "Entity unavailable"

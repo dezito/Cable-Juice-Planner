@@ -177,6 +177,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Виберіть реліз CJP"
+      description: "Виберіть реліз для оновлення"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -548,14 +554,19 @@ ui:
     error: "Помилка відновлення жорстких посилань"
 
   repo:
+    current: "Поточна версія"
+    latest: "Остання версія"
     no_updates_available_title: "Перевірка оновлень"
     no_updates_available: "Оновлень немає"
     new_update_available_title: "Доступне нове оновлення"
     new_update_available_changes: "Зміни"
     new_update_available_changes_behind: "відставання"
     update_error_check: "Помилка під час перевірки оновлень"
+    updated_from: "Оновлено з"
     updated_success: "Оновлення успішно завершено"
     update_error: "Помилка під час оновлення"
+    no_release_notes: "Немає доступних нотаток до релізу"
+    view_on_github: "Переглянути на GitHub"
 
   entity_unavailable:
     title: "Сутність недоступна"

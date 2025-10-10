@@ -177,6 +177,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "CJP-Version auswählen"
+      description: "Wählen Sie die Version, auf die Sie aktualisieren möchten"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -544,14 +550,19 @@ ui:
     error: "Fehler beim Wiederherstellen der Hardlinks"
 
   repo:
+    current: "Aktuelle Version"
+    latest: "Neueste Version"
     no_updates_available_title: "Update-Prüfung"
     no_updates_available: "Keine Updates verfügbar"
     new_update_available_title: "Neues Update verfügbar"
     new_update_available_changes: "Änderungen"
     new_update_available_changes_behind: "zurück"
     update_error_check: "Fehler bei der Update-Prüfung"
+    updated_from: "Aktualisiert von"
     updated_success: "Update erfolgreich abgeschlossen"
     update_error: "Fehler beim Aktualisieren"
+    no_release_notes: "Keine Versionshinweise verfügbar"
+    view_on_github: "Auf GitHub ansehen"
 
   entity_unavailable:
     title: "Entität nicht verfügbar"
