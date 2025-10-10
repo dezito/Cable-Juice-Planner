@@ -1,11 +1,11 @@
 #!/bin/bash
+set -e
 
-# Forsøg først at bruge den normale sti
+# --- Locate Home Assistant config directory ---
 if [ -d "/config" ]; then
   REPO_DIR="/config"
 else
-  echo "🔍 Søger efter Home Assistant-mappe..."
-  # Find alle forekomster af .HA_VERSION under /mnt
+  echo "🔍 Searching for Home Assistant directory..."
   while IFS= read -r HA_FILE; do
     DIR_PATH=$(dirname "$HA_FILE")
     if [ -f "$DIR_PATH/configuration.yaml" ]; then
@@ -14,140 +14,68 @@ else
     fi
   done < <(find /mnt -type f -name ".HA_VERSION" 2>/dev/null)
 
-  # Hvis intet blev fundet
   if [ -z "$REPO_DIR" ]; then
-    echo "Kunne ikke finde en Home Assistant-mappe med både .HA_VERSION og configuration.yaml."
+    echo "❌ Could not find a Home Assistant directory containing both .HA_VERSION and configuration.yaml."
     exit 1
   fi
 fi
 
-# Definer GitHub repository URL
 REPO_URL="https://github.com/dezito/Cable-Juice-Planner.git"
+TARGET_TAG=${1:-latest}  # Example: ./update_cable_juice_planner.sh v1.3.0
 
-# Tjekker om branch-argumentet er givet, ellers brug standardbranchen (master)
-BRANCH=${1:-master}
+# --- Ensure base directories exist ---
+mkdir -p "$REPO_DIR/packages" "$REPO_DIR/pyscript" "$REPO_DIR/scripts" "$REPO_DIR/Cable-Juice-Planner"
 
-# Sikrer at basismapper eksisterer
-mkdir -p "$REPO_DIR/packages"
-mkdir -p "$REPO_DIR/Cable-Juice-Planner"
-mkdir -p "$REPO_DIR/scripts"
-mkdir -p "$REPO_DIR/pyscript"
-
-# Kloner repoet, hvis det ikke eksisterer, ellers henter seneste ændringer
+# --- Clone or update the repository ---
 if [ ! -d "$REPO_DIR/Cable-Juice-Planner/.git" ]; then
-  echo -e "\nKloner repository fra $REPO_URL (branch: $BRANCH) til $REPO_DIR/Cable-Juice-Planner"
-  git clone --branch $BRANCH $REPO_URL $REPO_DIR/Cable-Juice-Planner
-else
-  echo -e "\nHenter seneste ændringer fra branch $BRANCH i $REPO_DIR/Cable-Juice-Planner"
-  cd "$REPO_DIR/Cable-Juice-Planner"
-  git config --global --add safe.directory $REPO_DIR/Cable-Juice-Planner
-  git fetch --all && git reset --hard origin/$BRANCH
-  git checkout $BRANCH
-  git pull --force origin $BRANCH
+  echo "🧩 Cloning repository from $REPO_URL"
+  git clone "$REPO_URL" "$REPO_DIR/Cable-Juice-Planner"
 fi
 
-# Opretter nødvendige mapper for pyscript baseret på relative stier
-echo -e "\nOpretter nødvendige mapper for pyscript..."
-cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
-find . -type d | while read -r dir; do
-  # Fjerner indledende './' fra mappestien
-  relative_dir="${dir#./}"
-  mkdir -p "$REPO_DIR/pyscript/$relative_dir"
-done
+cd "$REPO_DIR/Cable-Juice-Planner"
+git config --global --add safe.directory "$PWD"
+git fetch --tags >/dev/null 2>&1
 
-# Opretter nødvendige mapper for scripts baseret på relative stier
-echo -e "\nOpretter nødvendige mapper for scripts..."
-cd "$REPO_DIR/Cable-Juice-Planner/scripts"
-find . -type d | while read -r dir; do
-  # Fjerner indledende './' fra mappestien
-  relative_dir="${dir#./}"
-  mkdir -p "$REPO_DIR/scripts/$relative_dir"
-done
-
-# Opretter hardlinks for alle pyscript-filer
-echo "Opretter hardlinks for alle pyscript-filer..."
-cd "$REPO_DIR/Cable-Juice-Planner/pyscript"
-find . -type f | while read -r src_file; do
-  # Fjerner indledende './' fra filstien
-  relative_file="${src_file#./}"
-  dest_file="$REPO_DIR/pyscript/$relative_file"
-
-  # Tjekker om destinationsfilen eksisterer og ikke er et hardlink
-  if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
-    echo "Fjerner gammel fil: $dest_file (ikke et hardlink)"
-    rm "$dest_file"
-  fi
-
-  # Opretter hardlinket
-  ln -f "$PWD/$src_file" "$dest_file"
-done
-
-# Opretter hardlinks for scripts
-echo "Opretter hardlinks for scripts..."
-cd "$REPO_DIR/Cable-Juice-Planner/scripts"
-find . -type f | while read -r src_file; do
-  # Fjerner indledende './' fra filstien
-  relative_file="${src_file#./}"
-  dest_file="$REPO_DIR/scripts/$relative_file"
-
-  # Tjekker om destinationsfilen eksisterer og ikke er et hardlink
-  if [ -e "$dest_file" ] && [ "$(stat -c %i "$PWD/$src_file")" != "$(stat -c %i "$dest_file")" ]; then
-    echo "Fjerner gammel fil: $dest_file (ikke et hardlink)"
-    rm "$dest_file"
-  fi
-
-  # Opretter hardlinket
-  ln -f "$PWD/$src_file" "$dest_file"
-done
-
-echo "Alle mapper og hardlinks er oprettet med succes."
-
-# Tjekker og opdaterer configuration.yaml
-CONFIG_FILE="$REPO_DIR/configuration.yaml"
-
-CONFIG_CHANGED=0
-
-if [ -f "$CONFIG_FILE" ]; then
-  # Sikkerhedskopierer konfigurationsfilen
-  cp "$CONFIG_FILE" "${CONFIG_FILE}.bak"
-
-  # Sikrer at 'homeassistant:' og 'packages:' er konfigureret
-  if ! grep -q '^homeassistant:' "$CONFIG_FILE"; then
-    echo "Tilføjer 'homeassistant:' sektion med 'packages: !include_dir_named packages/'."
-    echo -e "\nhomeassistant:\n  packages: !include_dir_named packages/" >> "$CONFIG_FILE"
-    CONFIG_CHANGED=1
-  else
-    if ! awk '/^homeassistant:/{found=1} found && /^\s*packages: !include_dir_named packages\//{print; exit}' "$CONFIG_FILE" > /dev/null; then
-      echo "Tilføjer 'packages: !include_dir_named packages/' under 'homeassistant:'."
-      awk '/^homeassistant:/ {print; print "  packages: !include_dir_named packages/"; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-      CONFIG_CHANGED=1
-    fi
-  fi
-
-  # Sikrer at 'shell_command:' og 'update_cable_juice_planner' er konfigureret
-  if ! grep -q '^shell_command:' "$CONFIG_FILE"; then
-    echo "Tilføjer 'shell_command:' sektion med 'update_cable_juice_planner'."
-    echo -e "\nshell_command:\n  update_cable_juice_planner: \"bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\"" >> "$CONFIG_FILE"
-    CONFIG_CHANGED=1
-  else
-    if ! awk '/^shell_command:/{found=1} found && /^\s*update_cable_juice_planner:/{print; exit}' "$CONFIG_FILE" > /dev/null; then
-      echo "Tilføjer 'update_cable_juice_planner' under 'shell_command:'."
-      awk -v repo_dir="$REPO_DIR" '/^shell_command:/ {print; print "  update_cable_juice_planner: \"bash " repo_dir "/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh\""; next}1' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
-      CONFIG_CHANGED=1
-    fi
-  fi
-
-  if [ "$CONFIG_CHANGED" -eq 1 ]; then
-    echo "Konfigurationen er opdateret med succes."
-  fi
-else
-  echo "$CONFIG_FILE findes ikke. Opretter den med nødvendige konfigurationer."
-  cat <<EOL > "$CONFIG_FILE"
-homeassistant:
-  packages: !include_dir_named packages/
-
-shell_command:
-  update_cable_juice_planner: "bash $REPO_DIR/Cable-Juice-Planner/scripts/update_cable_juice_planner.sh"
-EOL
-  echo "Konfigurationsfil oprettet og opdateret med succes."
+# --- Determine which tag to install ---
+if [ "$TARGET_TAG" = "latest" ]; then
+  TARGET_TAG=$(curl -s https://api.github.com/repos/dezito/Cable-Juice-Planner/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
 fi
+
+if [ -z "$TARGET_TAG" ]; then
+  echo "❌ Could not determine a valid release tag."
+  exit 1
+fi
+
+# --- Get current local tag ---
+LOCAL_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+
+echo "📦 Updating from $LOCAL_TAG → $TARGET_TAG"
+
+# --- Checkout the selected tag ---
+git fetch --all >/dev/null 2>&1
+git checkout -f "$TARGET_TAG"
+
+# --- Create hardlinks (sync pyscript & scripts) ---
+echo "🔗 Creating hardlinks..."
+link_tree() {
+  SRC="$1"
+  DST="$2"
+  cd "$SRC"
+  find . -type d -exec mkdir -p "$DST/{}" \;
+  find . -type f | while read -r f; do
+    ln -f "$SRC/$f" "$DST/$f"
+  done
+}
+
+link_tree "$REPO_DIR/Cable-Juice-Planner/pyscript" "$REPO_DIR/pyscript"
+link_tree "$REPO_DIR/Cable-Juice-Planner/scripts" "$REPO_DIR/scripts"
+
+echo "✅ All hardlinks created successfully."
+
+# --- Display release notes ---
+BODY=$(curl -s "https://api.github.com/repos/dezito/Cable-Juice-Planner/releases/tags/$TARGET_TAG" | jq -r '.body')
+echo
+echo "📋 What's Changed in $TARGET_TAG:"
+echo "${BODY:-No release notes found.}"
+echo
+echo "🎉 Repository updated to $TARGET_TAG!"
