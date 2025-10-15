@@ -11956,8 +11956,8 @@ if INITIALIZATION_COMPLETE:
         
         current_mod_time = get_file_modification_time(f"{__name__}_config.yaml")
         if CONFIG_LAST_MODIFIED != current_mod_time:
-            script_loaded__mod_datetime = datetime.fromtimestamp(CONFIG_LAST_MODIFIED).strftime('%Y-%m-%d %H:%M:%S')
-            current_config_mod_datetime = datetime.fromtimestamp(current_mod_time).strftime('%Y-%m-%d %H:%M:%S')
+            script_loaded__mod_datetime = datetime.datetime.fromtimestamp(CONFIG_LAST_MODIFIED).strftime('%Y-%m-%d %H:%M:%S')
+            current_config_mod_datetime = datetime.datetime.fromtimestamp(current_mod_time).strftime('%Y-%m-%d %H:%M:%S')
             _LOGGER.info(f"Config file has been modified since script start, reloading config to avoid overwriting changes made outside the script. Script loaded: {script_loaded__mod_datetime}, Current config: {current_config_mod_datetime}")
             
             TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, f"{__name__}_config.yaml")
