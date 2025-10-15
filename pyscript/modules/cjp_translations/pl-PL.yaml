@@ -90,6 +90,7 @@ config:
       co2_entity_id: "Energi Data Service CO₂ entity_id"
       cable_connected_entity_id: "Jeśli EV nie posiada encji 'kabel podłączony', użyj tej do wykrycia połączenia (Obsługiwane stany: {charger_supported_states})"
       start_stop_charging_entity_id: "Jeśli używasz innej integracji niż Easee do start/stop (np. Monta)"
+      other_ev_using_this_charger_entity_ids: "Lista innych pojazdów korzystających z tej ładowarki, używana do unikania konfliktów (Obsługiwane stany: {ev_supported_states})"
     power_voltage: "**Wymagane** Napięcie sieciowe"
     charging_phases: "**Wymagane** Dostępne fazy"
     charging_max_amp: "**Wymagane** Maksymalny prąd ładowania (A)"
@@ -177,6 +178,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Wybierz wydanie CJP"
+      description: "Wybierz wydanie, do którego chcesz zaktualizować"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -552,14 +559,19 @@ ui:
     error: "Błąd przy odtwarzaniu hardlinków"
 
   repo:
+    current: "Obecna wersja"
+    latest: "Najnowsza wersja"
     no_updates_available_title: "Sprawdzenie aktualizacji"
     no_updates_available: "Brak dostępnych aktualizacji"
     new_update_available_title: "Dostępna nowa aktualizacja"
     new_update_available_changes: "Zmiany"
     new_update_available_changes_behind: "opóźnienie"
     update_error_check: "Błąd podczas sprawdzania aktualizacji"
+    updated_from: "Zaktualizowano z"
     updated_success: "Aktualizacja zakończona pomyślnie"
     update_error: "Błąd podczas aktualizacji"
+    no_release_notes: "Brak dostępnych informacji o wydaniu"
+    view_on_github: "Zobacz na GitHubie"
 
   entity_unavailable:
     title: "Encja niedostępna"
@@ -724,6 +736,7 @@ ui:
 
   charge_if_needed:
     script_deactivated: "Wyłączone"
+    other_ev_connected: "Inny samochód elektryczny jest podłączony"
     no_charging_modes_active: "Brak aktywnych reguł ładowania\nŁadowanie {watt}W"
     charging_loss: "Obliczanie strat ładowania, ładowanie do {percentage}%"
     manual_charging: "Ręczne ładowanie dozwolone {watt}W"

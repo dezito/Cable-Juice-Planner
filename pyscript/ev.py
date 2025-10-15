@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 import random
 import string
 import subprocess
@@ -390,13 +391,13 @@ DEFAULT_CONFIG = {
             "dynamic_circuit_limit": "",
             "co2_entity_id": "",
             "cable_connected_entity_id": "",
-            "start_stop_charging_entity_id": ""
+            "start_stop_charging_entity_id": "",
+            "other_ev_using_this_charger_entity_ids": [],
         },
         "power_voltage": 240.0,
         "charging_phases": 3.0,
         "charging_max_amp": 16.0,
         "charging_loss": -0.05,
-        "use_last_kwh_meter_from_history": True,
     },
     "cron_interval": 5,
     "database": {
@@ -502,6 +503,7 @@ COMMENT_DB_YAML = {}
 DEFAULT_ENTITIES = {
     "homeassistant": {
         "customize": {
+            f"input_select.cjp_select_release": {},
             f"input_button.{__name__}_trip_reset": {},
             f"input_button.{__name__}_enforce_planning": {},
             f"input_button.{__name__}_restart_script": {},
@@ -584,6 +586,15 @@ DEFAULT_ENTITIES = {
             f"sensor.{__name__}_charge_very_cheap_battery_level": {},
             f"sensor.{__name__}_charge_ultra_cheap_battery_level": {},
             f"sensor.{__name__}_kwh_cost_price": {},
+        },
+    },
+    "input_select":{
+        f"cjp_select_release":{
+            "options":[
+                "latest",
+                ],
+            "initial":"latest",
+            "icon":"mdi:form-select"
         },
     },
     "input_button":{
@@ -1220,6 +1231,129 @@ def task_shutdown():
     task.wait_until(timeout=0.5)
     TASKS = {}
 
+def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_time_minutes=5, check_interval=5.0, float_type=False, task_prefix=None, task_name=None) -> bool:
+    """
+    Wait until a Home Assistant entity has updated its state within a given timeframe.
+
+    The function checks the entity's historical values (last 24h) and waits until it
+    receives a new update that is more recent than the last known state. If the entity
+    already has an update within the `updated_within_minutes` window, the function
+    returns immediately.
+
+    Task naming rules:
+        - If both `task_prefix` and `task_name` are None, a default name is generated
+          using the function name and the entity_id.
+        - If both `task_prefix` and `task_name` are provided, the task will NOT be
+          automatically removed when finished.
+        - If only one of `task_prefix` or `task_name` is provided, the other will be
+          set to a default value based on the function name, and the task will be
+          removed when done.
+
+    Args:
+        entity_id (str): The entity ID to monitor.
+        updated_within_minutes (int): If the entity has been updated within this time
+            window (minutes), the function returns immediately.
+        max_wait_time_minutes (int): Maximum number of minutes to wait before giving up.
+        check_interval (float): Interval in seconds to re-check for updates.
+        float_type (bool): Whether to treat the entity state as float when fetching values.
+        task_prefix (str, optional): Optional prefix for the task name.
+        task_name (str, optional): Optional base name for the task.
+
+    Returns:
+        bool:
+            - True if the entity has a new state update within the specified time frame.
+            - False if no new update is detected before timeout,
+              or if the task is cancelled/errored.
+
+    Notes:
+        - The function looks at historical values from the last 24 hours using `get_values`.
+        - A background task entry is created in TASKS to track cancellation and cleanup.
+        - If `task_prefix` and `task_name` are auto-generated, the task will be
+          cancelled/removed in the `finally` block when done.
+    """
+    func_name = "wait_for_entity_update"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    global TASKS
+    
+    remove_task_when_done = False
+    
+    if not is_ev_configured():
+        return True
+    
+    if entity_id is None:
+        _LOGGER.error("No entity_id provided")
+        return False
+    
+    if isinstance(task_prefix, str) and isinstance(task_name, str):
+        full_task_name = f"{task_prefix}{task_name}"
+    else:
+        if task_prefix is None:
+            task_prefix = func_prefix
+        
+        if task_name is None:
+            task_name = func_name
+        
+        full_task_name = f"{task_prefix}{task_name}_{entity_id}"
+        remove_task_when_done = True
+    
+    if full_task_name not in TASKS:
+        TASKS[full_task_name] = task.current_task()
+    
+    def _conditions():
+        task_obj = TASKS.get(full_task_name)
+        if not task_obj:
+            return False
+        if task_obj.cancelled() or task_obj.cancelling():
+            return False
+        return (getTime() - start_time) < datetime.timedelta(minutes=max_wait_time_minutes)
+    
+    try:
+        to_datetime = getTime()
+        from_datetime = to_datetime - datetime.timedelta(hours=24)
+        values = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to=None, include_timestamps=True, error_state={})
+        if not values or not isinstance(values, dict) or not values.items():
+            _LOGGER.warning(f"No state values found in the last 24 hours for {entity_id}")
+            return False
+        
+        values_sorted = sorted(values.items(), reverse=True)
+        last_state = values_sorted[1][1] if values_sorted else 0.0
+        last_state_timestamp = values_sorted[1][0] if values_sorted else getTime()
+        
+        start_time = getTime()
+        
+        if minutesBetween(last_state_timestamp, start_time) < updated_within_minutes:
+            _LOGGER.info(f"{entity_id} state up to date {int(last_state)} {last_state_timestamp}, no need to wait")
+            return True
+        
+        while _conditions():
+            to_datetime = getTime()
+            from_datetime = to_datetime - datetime.timedelta(hours=24)
+            values = get_values(entity_id, from_datetime, to_datetime, float_type=float_type, convert_to=None, include_timestamps=True, error_state={})
+            
+            if not values or not isinstance(values, dict) or not values.items():
+                _LOGGER.warning(f"No state values found in the last 24 hours for {entity_id}")
+                return False
+            
+            values_sorted = sorted(values.items(), reverse=True)
+            if values_sorted:
+                current_state = values_sorted[1][1]
+                current_state_timestamp = values_sorted[1][0]
+                if current_state_timestamp > last_state_timestamp:
+                    _LOGGER.info(f"{entity_id} state stable at {current_state} now, no need to wait anymore")
+                    return True
+            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {now}")
+            task.wait_until(timeout=check_interval)
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
+    except Exception as e:
+        _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
+    finally:
+        if remove_task_when_done:
+            task_cancel(f"{task_prefix}{task_name}")
+    return False
+
 def calculate_price_levels(prices):
     """ Calculates price levels based on the provided prices. """
     lowest_price = min(prices)
@@ -1551,177 +1685,180 @@ def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
             title=f"{TITLE} Hardlinks Error",
             persistent_notification_id=f"{__name__}_recreate_hardlinks_error"
         )
-    
-@service(f"pyscript.{__name__}_check_master_updates")
-def check_master_updates(trigger_type=None, trigger_id=None, **kwargs):
-    func_name = "check_master_updates"
-    func_prefix = f"{func_name}_"
-    task.unique(func_name)
-    _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS
-    
-    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    branch = kwargs.get("branch", "master")
-    
-    result = {"has_updates": False, "commits_behind": 0}
 
+def get_github_releases(repo_owner="dezito", repo_name="Cable-Juice-Planner"):
+    """Fetch all releases from GitHub (newest first)."""
+    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases"
+    output = run_console_command_sync(["curl", "-s", api_url])
+    data = json.loads(output)
+    if not isinstance(data, list):
+        raise ValueError(f"Unexpected GitHub API format: {type(data)}")
+    return data
+
+def get_local_tag(repo_path):
+    """Return the current local Git tag or fallback to v0.0.0."""
     try:
-        _LOGGER.info(f"Checking for updates in {repo_path}")
+        run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
+        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"]).strip()
+        if not tag or tag.lower() == "none":
+            return "v0.0.0"
+        return tag
+    except Exception as e:
+        _LOGGER.warning(f"Could not determine local tag: {e}")
+        return "v0.0.0"
 
-        run_console_command(["git", "-C", repo_path, "config", "--global", "--add", "safe.directory", repo_path])
-        run_console_command(["git", "-C", repo_path, "fetch", "origin", branch])
+def get_newer_releases(releases, local_tag, target_tag=None):
+    """
+    Return all releases newer than the local tag (up to target tag if given).
+    Newest → Oldest.
+    """
+    newer = []
+    for rel in reverse_list(releases):
+        tag = rel.get("tag_name", "").strip()
+        _LOGGER.info(f"Checking release tag: {tag}")
+        if tag == local_tag:
+            continue
+        newer.append(rel)
+        if target_tag and tag == target_tag:
+            break
+    if not newer:
+        newer = releases
+    return newer
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
+def build_combined_changelog(releases):
+    """Combine multiple GitHub release notes into a Markdown-formatted changelog (newest first)."""
+    items = []
+    for rel in reverse_list(releases):
+        tag = rel.get("tag_name", "")
+        name = rel.get("name", tag)
+        body = rel.get("body", "").strip().replace("##", "###").replace("What's Changed", f"{name or tag} {i18n.t('ui.repo.new_update_available_changes').lower()}:") or f"{name or tag} {i18n.t('ui.repo.no_release_notes')}:"
+        url = rel.get("html_url", "")
+        section = (
+            f"{body}\n\n"
+            f"[{i18n.t('ui.repo.view_on_github')}]({url})\n\n"
+            f"---"
+        )
+        items.append(section)
+    return "\n\n".join(items)
+
+@service(f"pyscript.{__name__}_check_release_updates")
+def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
+    """Check if newer releases are available and show combined changelog."""
+    func_name = "check_release_updates"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
+    try:
+        releases = get_github_releases()
+        local_tag = get_local_tag(repo_path)
+
+        if not selected_version or selected_version.lower() == "latest":
+            target_release = releases[0]
+        else:
+            target_release = None
+            for r in releases:
+                if r.get("tag_name", "") == selected_version:
+                    target_release = r
+                    break
+            if not target_release:
+                raise ValueError(f"Release '{selected_version}' not found")
         
-        local_head = TASKS[f'{func_prefix}local_head'].result()
-        remote_head = TASKS[f'{func_prefix}remote_head'].result()
-        
-        if local_head == remote_head:
-            _LOGGER.info("No updates available.")
+        target_tag = target_release.get("tag_name", "").strip()
+        _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
+
+        if local_tag == target_tag:
             my_persistent_notification(
-                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                f"✅ {i18n.t('ui.repo.no_updates_available')} ({local_tag})",
                 title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"HEAD..origin/{branch}"])
-        TASKS[f'{func_prefix}commit_log_lines'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"HEAD..origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits'], TASKS[f'{func_prefix}commit_log_lines']})
-        
-        total_commits_behind = 0
-        try:
-            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
-        except Exception as e:
-            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
-        
-        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
-        
-        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
+        newer_releases = get_newer_releases(releases, local_tag, target_tag)
+        changelog = build_combined_changelog(newer_releases)
+        if len(changelog) > 5000:
+            changelog = changelog[:5000] + "\n* …"
 
-        commit_log_lines = str(TASKS[f'{func_prefix}commit_log_lines'].result()).split("\n")
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen ændringer fundet."
-        
-        result = {"has_updates": real_commits_behind > 0, "commits_behind": real_commits_behind, "commit_log": commit_log_md}
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
-        return
+        my_persistent_notification(
+            f"### ➡️ {i18n.t('ui.repo.current')}: `{local_tag}`\n"
+            f"### ➡️ {i18n.t('ui.repo.latest')}: `{target_tag}`\n\n"
+            f"## 📌 **{i18n.t('ui.repo.new_update_available_changes')}:**\n\n{changelog}",
+            title=f"{TITLE} {i18n.t('ui.repo.new_update_available_title')} ({len(newer_releases)} releases)",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
+
     except Exception as e:
-        result = {"has_updates": False, "commits_behind": 0, "error": str(e)}
-    finally:
-        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
-
-    _LOGGER.info(f"Check {branch} updates: {result}")
-
-    if result["has_updates"]:
-        _LOGGER.info(f"New version available: {result['commits_behind']} commits behind")
+        _LOGGER.error(f"Update check failed: {e}")
         my_persistent_notification(
-            f"📌 **{result['commits_behind']} commit{'s' if result['commits_behind'] > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
-            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{result['commit_log']}",
-            title=f"{TITLE} {i18n.t('ui.repo.new_update_available_title')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
-        )
-    elif "error" in result:
-        _LOGGER.error(f"Could not check for updates: {result['error']}")
-        my_persistent_notification(
-            f"⚠️ {i18n.t('ui.repo.update_error_check')}: {result['error']}",
-            title=f"{TITLE} Fejl",
-            persistent_notification_id=f"{__name__}_{func_name}"
-        )
-    elif trigger_type == "service":
-        _LOGGER.info("No updates available")
-        my_persistent_notification(
-            f"✅ {i18n.t('ui.repo.no_updates_available')}",
-            title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+            f"⚠️ {i18n.t('ui.repo.update_error_check')}: {e}",
+            title=f"{TITLE} Error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
         )
 
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
+    """Update repo to selected or latest version and display changelog."""
     func_name = "update_repo"
-    func_prefix = f"{func_name}_"
-    task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS
 
     repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    branch = kwargs.get("branch", "master")
-
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
     try:
-        _LOGGER.info(f"Pulling latest changes for {repo_path} (branch: {branch})")
+        releases = get_github_releases()
+        local_tag = get_local_tag(repo_path)
 
-        run_console_command(["git", "-C", repo_path, "fetch", "--all"])
+        if not selected_version or selected_version.lower() == "latest":
+            target_release = releases[0]
+        else:
+            target_release = None
+            for r in releases:
+                if r.get("tag_name", "") == selected_version:
+                    target_release = r
+                    break
+            if not target_release:
+                raise ValueError(f"Release '{selected_version}' not found")
 
-        TASKS[f'{func_prefix}local_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", "HEAD"])
-        TASKS[f'{func_prefix}remote_head'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-parse", f"origin/{branch}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}local_head'], TASKS[f'{func_prefix}remote_head']})
-        
-        local_head = TASKS[f'{func_prefix}local_head'].result()
-        remote_head = TASKS[f'{func_prefix}remote_head'].result()
-        
-        if local_head == remote_head:
-            _LOGGER.info("No updates available.")
+        target_tag = target_release.get("tag_name", "").strip()
+        _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
+
+        if local_tag == target_tag:
             my_persistent_notification(
-                f"✅ {i18n.t('ui.repo.no_updates_available')}",
+                f"✅ {i18n.t('ui.repo.no_updates_available')} ({local_tag})",
                 title=f"{TITLE} {i18n.t('ui.repo.no_updates_available_title')}",
                 persistent_notification_id=f"{__name__}_{func_name}"
             )
             return
 
-        TASKS[f'{func_prefix}total_commits_behind'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "rev-list", "--count", f"{local_head}..{remote_head}"])
-        TASKS[f'{func_prefix}merge_commits'] = task.create(run_console_command_sync, ["git", "-C", repo_path, "log", "--oneline", "--grep=Merge pull request", f"{local_head}..{remote_head}"])
-        done, pending = task.wait({TASKS[f'{func_prefix}total_commits_behind'], TASKS[f'{func_prefix}merge_commits']})
-        
-        total_commits_behind = 0
-        try:
-            total_commits_behind = int(TASKS[f'{func_prefix}total_commits_behind'].result())
-        except Exception as e:
-            _LOGGER.error(f"Error parsing total commits behind: {e} {type(e)}")
+        newer_releases = get_newer_releases(releases, local_tag, target_tag)
+        changelog = build_combined_changelog(newer_releases)
+        if len(changelog) > 5000:
+            changelog = changelog[:5000] + "\n* …"
 
-        merge_commits = TASKS[f'{func_prefix}merge_commits'].result()
-        merge_commit_count = len(merge_commits.split("\n")) if isinstance(merge_commits, str) and merge_commits.strip() else 0
+        # --- perform actual update ---
+        run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
+        run_console_command(["git", "-C", repo_path, "checkout", "-f", target_tag])
+        recreate_hardlinks()
 
-        real_commits_behind = max(0, total_commits_behind - merge_commit_count)
-
-        run_console_command(["git", "-C", repo_path, "reset", "--hard", f"origin/{branch}"])
-        run_console_command(["git", "-C", repo_path, "pull", "--force", "origin", branch])
-
-        commit_log_lines = run_console_command(
-            ["git", "-C", repo_path, "log", "--pretty=format:%s", "--grep=Merge pull request", "--invert-grep", f"{local_head}..{remote_head}"]
-        ).split("\n")
-        
-        if commit_log_lines:
-            recreate_hardlinks_log_lines = str(recreate_hardlinks()).split("\n")
-            commit_log_lines += recreate_hardlinks_log_lines
-
-        commit_log_md = "\n".join([f"- {line.lstrip('- ')}" for line in commit_log_lines if isinstance(line, str) and line.strip()]) if commit_log_lines else "✅ Ingen specifikke ændringer fundet."
-
-        _LOGGER.info("Repository updated successfully.")
-        my_persistent_notification(
-            f"📌 **{real_commits_behind} commit{'s' if real_commits_behind > 1 else ''} {i18n.t('ui.repo.new_update_available_changes_behind')}**\n\n"
-            f"**{i18n.t('ui.repo.new_update_available_changes')}:**\n{commit_log_md}",
-            title=f"{TITLE} {i18n.t('ui.repo.updated_success')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+        message = (
+            f"### {i18n.t('ui.repo.updated_from')} `{local_tag}` → `{target_tag}`\n\n"
+            f"## 📌 **{i18n.t('ui.repo.new_update_available_changes')}:**\n\n{changelog}"
         )
 
-        task.wait_until(timeout=5)
+        my_persistent_notification(
+            message,
+            title=f"{TITLE} {i18n.t('ui.repo.updated_success')} ({len(newer_releases)} releases)",
+            persistent_notification_id=f"{__name__}_{func_name}"
+        )
         restart_script()
-    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-        _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
-        return
+
     except Exception as e:
-        _LOGGER.error(f"Update failed: {str(e)}")
+        _LOGGER.error(f"Update failed: {e}")
         my_persistent_notification(
-            f"⚠️ {str(e)}",
-            title=f"{TITLE} {i18n.t('ui.repo.update_error')}",
-            persistent_notification_id=f"{__name__}_{func_name}"
+            f"⚠️ {i18n.t('ui.repo.update_error')}: {e}",
+            title=f"{TITLE} Error",
+            persistent_notification_id=f"{__name__}_{func_name}_error"
         )
-    finally:
-        task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
@@ -2466,7 +2603,24 @@ def notify_critical_change(cfg = {}, filename = None):
                 f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
                 f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
-                persistent_notification_id=f"{__name__}_{func_name}_powerwall_update_required"
+                persistent_notification_id=f"{__name__}_{func_name}_language_required"
+            )
+            
+        other_ev_using_this_charger_new_key = ["other_ev_using_this_charger_entity_ids"]
+        other_ev_using_this_charger_missing_key = check_nested_keys_exist(cfg, other_ev_using_this_charger_new_key)
+        
+        if other_ev_using_this_charger_missing_key:
+            _LOGGER.warning(f"Other EV using this charger configuration added and set to default: {other_ev_using_this_charger_missing_key}")
+            
+            fmt = {"name":__name__}
+            my_persistent_notification(
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.critical_change_message', **fmt)}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_config_keys')}:\n - {'- '.join(keys_description(other_ev_using_this_charger_missing_key))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_other_ev_using_this_charger"
             )
             
     if filename == f"packages/{__name__}.yaml":
@@ -2506,6 +2660,24 @@ def notify_critical_change(cfg = {}, filename = None):
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
                 persistent_notification_id= f"{__name__}_{func_name}_deactivate_script_entity_update_required"
             )
+            
+        if __name__ == "ev":
+            cjp_select_release_entity = [f"input_select.cjp_select_release"]
+            cjp_select_release_missing = check_nested_keys_exist(cfg, cjp_select_release_entity)
+            
+            if cjp_select_release_missing:
+                _LOGGER.warning(f"CJP select release entity update required: {cjp_select_release_missing}")
+                
+                my_persistent_notification(
+                    f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                    f"{i18n.t('ui.notify_critical_change.new_entities_added')}\n"
+                    f"{i18n.t('ui.notify_critical_change.entity_description')}\n\n"
+                    f"### {i18n.t('ui.notify_critical_change.new_entities')}:\n - {'- '.join(keys_description(cjp_select_release_missing))}\n\n"
+                    f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                    f"{i18n.t('ui.notify_critical_change.add_new_entities')}\n",
+                    title=f"{TITLE} {i18n.t('ui.notify_critical_change.critical_entities_change')}",
+                    persistent_notification_id= f"{__name__}_{func_name}_cjp_select_release_entity_update_required"
+                )
 
 def build_comment_db_yaml() -> dict:
     _LOGGER = globals()['_LOGGER'].getChild("build_comment_db_yaml")
@@ -3040,6 +3212,9 @@ def init():
             for key in keys_to_remove:
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
+                
+        if __name__ != "ev" and "input_select.cjp_select_release" in state.names(domain="input_select"):
+            DEFAULT_ENTITIES.get('input_select', {}).pop("cjp_select_release", None)
         
         localize_default_entities()
         
@@ -6055,9 +6230,24 @@ def cheap_grid_charge_hours():
         sub_func_name = "add_to_charge_hours"
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
+        min_charging_kwh_cron = 0.0
+        min_charging_kwh_ev = 0.0
+        
+        try:
+            min_charging_kwh_cron = CONFIG['cron_interval'] / 60 * MAX_KWH_CHARGING / 2
+        except:
+            pass
+        
+        try:
+            min_charging_kwh_ev = CONFIG['ev_car']['battery_size'] / 100 / 2
+        except:
+            pass
+        
         try:
             cost = 0.0
             kwh = MAX_KWH_CHARGING
+            min_charging_kwh = max(min(min_charging_kwh_cron, min_charging_kwh_ev), 0.2)
+            
             battery_level_added = False
                 
             price = float(price)
@@ -6066,7 +6256,6 @@ def cheap_grid_charge_hours():
             percentage_missed = hour.minute / 60
             kwh_missed = kwh * percentage_missed
             kwh -= kwh_missed
-
                 
             if battery_level:
                 if max_recommended_battery_level is None:
@@ -6074,8 +6263,8 @@ def cheap_grid_charge_hours():
                     
                 battery_level_diff = round(max_recommended_battery_level - (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)),2)
                 kwh_diff = round(percentage_to_kwh(battery_level_diff, include_charging_loss = True),2)
-                if (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)) > max_recommended_battery_level:
-                    kwh -= abs(kwh_diff)
+                if kwh_diff < 0.0:
+                    kwh = max(kwh + kwh_diff, 0.0)
                 
             if kwh_available == True and hour in chargeHours:
                 kwh -= chargeHours[hour]['kWh']
@@ -6084,7 +6273,7 @@ def cheap_grid_charge_hours():
                 kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
                 kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
             
-            if kwh > 0.5:
+            if kwh > min_charging_kwh:
                 if hour not in chargeHours:
                     chargeHours[hour] = {
                         "Cost": 0.0,
@@ -6093,7 +6282,7 @@ def cheap_grid_charge_hours():
                         "Price": round(price, 2),
                         "ChargingAmps": CONFIG['charger']['charging_max_amp']
                     }
-                
+                    
                 if (kwhNeeded - kwh) < 0.0:
                     kwh = kwhNeeded
                     kwhNeeded = 0.0
@@ -6347,9 +6536,11 @@ def cheap_grid_charge_hours():
                 if charging_plan[day]['workday'] or charging_plan[day]['trip']:
                     if charging_plan[day]['workday']:
                         last_charging = charging_plan[day]['work_last_charging']
+                        next_departure = charging_plan[day]['work_goto']
                         
                     if charging_plan[day]['trip']:
                         last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging']) if charging_plan[day]['workday'] else charging_plan[day]['trip_last_charging']
+                        next_departure = min(charging_plan[day]['work_goto'], charging_plan[day]['trip_goto']) if charging_plan[day]['workday'] else charging_plan[day]['trip_goto']
                                         
                     _LOGGER.debug(f"charging_plan[{day}]['work_goto'] {charging_plan[day]['work_goto']} / charging_plan[{day}]['trip_last_charging'] {charging_plan[day]['trip_last_charging']} / last_charging {last_charging}")
                     
@@ -6427,7 +6618,6 @@ def cheap_grid_charge_hours():
                                 
                                 kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
 
-                                
                                 if timestamp in chargeHours and battery_level_added:
                                     remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                                     
@@ -6455,6 +6645,53 @@ def cheap_grid_charge_hours():
                                 while_loop = False
                                 break
                         while_count += 1
+
+                    if kwh_needed_today > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True) > 0.0:
+                        _LOGGER.warning(f"Not enought charging planned for day {day} kwh_needed_today {kwh_needed_today}kWh, using all available hours until {next_departure} to fullfill needed kWh")
+                        for i in range(hoursBetween(current_hour, next_departure), 0, -1):
+                            timestamp = next_departure - datetime.timedelta(hours=i)
+                            hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
+                            if hour_in_chargeHours and not kwh_available:
+                                continue
+                            
+                            what_day = daysBetween(getTime(), timestamp)
+                            if what_day < 0:
+                                continue
+                            
+                            battery_level_id, max_recommended_charge_limit_battery_level = what_battery_level(what_day, timestamp, price, day)
+                            if not battery_level_id:
+                                continue
+                            
+                            if round(kwh_needed_today, 1) > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True) > 0.0:
+                                '''if round(sum(charging_plan[what_day][battery_level_id]), 0) >= get_max_recommended_charge_limit_battery_level() - 1.0:
+                                    #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
+                                    continue'''
+                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
+                            
+                            if timestamp in chargeHours and battery_level_added:
+                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
+                                
+                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                                battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                                
+                                if battery_level_sum > 0.0:
+                                    if "trip" in charging_plan[day]['rules']:
+                                        cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
+                                        charging_plan[day]['trip_total_cost'] += cost_trip
+                                        
+                                    """if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
+                                        cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                        charging_plan[day]['work_total_cost'] += cost_work"""
+                                        
+                                    for rule in charging_plan[day].get('rules', []):
+                                        if 'workday_preparation' in rule:
+                                            cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                            charging_plan[day]['work_total_cost'] += cost_work
+                                            break
+                                    
+                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
+                                add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                    _LOGGER.warning(f"End planning for day {day} kwh_needed_today {kwh_needed_today}kWh")
             except Exception as e:
                 _LOGGER.error(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
                 save_error_to_file(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
@@ -9823,6 +10060,21 @@ def charging_without_rule():
         CHARGING_NO_RULE_COUNT = 0
     return False
 
+def other_ev_connected():
+    func_name = "other_ev_connected"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="disconnected")
+    
+    if charger_status not in CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS + CHARGER_COMPLETED_STATUS:
+        return False
+    
+    for entity_id in CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
+        if get_state(entity_id, try_history=False, float_type=False, error_state="off") in EV_PLUGGED_STATES:
+            return True
+    
+    return False
+
 def current_hour_in_charge_hours():
     current_hour = reset_time_to_hour()
     for timestamp in CHARGE_HOURS:
@@ -9841,6 +10093,10 @@ def charge_if_needed():
         if deactivate_script_enabled():
             _LOGGER.info("Script deactivated")
             set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.script_deactivated')}")
+            return
+
+        if other_ev_connected():
+            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
             return
         
         charging_rule = None
@@ -10618,6 +10874,70 @@ def notify_battery_under_daily_battery_level():
         )
 
 if INITIALIZATION_COMPLETE:
+    if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+        @service(f"pyscript.{__name__}_update_release_options")
+        @state_trigger(f"input_select.cjp_select_release")
+        def update_release_options(trigger_type=None, trigger_id=None, var_name=None, value=None, old_value=None, **kwargs):
+            """
+            Fetches all release tags from GitHub and updates an input_select
+            entity with them, so the user can pick a release manually.
+            """
+            func_name = "update_release_options"
+            func_prefix = f"{func_name}_"
+            _LOGGER = globals()['_LOGGER'].getChild(func_name)
+            global TASKS
+            
+            entity_id="input_select.cjp_select_release"
+            repo_api = "https://api.github.com/repos/dezito/Cable-Juice-Planner/releases"
+            
+            try:
+                
+                if trigger_type == "state":
+                    TASKS[f'{func_prefix}check_release_updates'] = task.create(check_release_updates)
+                    done, pending = task.wait({TASKS[f'{func_prefix}check_release_updates']})
+                    return
+                
+                _LOGGER.info("Fetching release list from GitHub...")
+                TASKS[f'{func_prefix}_fetch'] = task.create(run_console_command_sync, ["curl", "-s", repo_api])
+                done, pending = task.wait({TASKS[f'{func_prefix}_fetch']})
+                api_response = TASKS[f'{func_prefix}_fetch'].result()
+
+                releases = json.loads(api_response)
+
+                # extract tag names (newest first)
+                tags = [r.get("tag_name") for r in releases if r.get("tag_name")]
+                if not tags:
+                    raise ValueError("No tags found in release data")
+
+                tags.insert(0, "latest")  # add 'latest' option at the top
+                _LOGGER.info(f"Found {len(tags)} releases: {tags}")
+                
+                # update input_select options
+                input_select.set_options(entity_id=entity_id, options=tags)
+
+                # optionally set the first (latest) as current value
+                input_select.select_option(entity_id=entity_id, option=tags[0])
+                
+                if trigger_type == "service":
+                    my_persistent_notification(
+                        f"✅ Release list updated ({len(tags)} options)",
+                        title=f"{TITLE} Release Selector",
+                        persistent_notification_id=f"{__name__}_{func_name}"
+                    )
+            except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+                _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
+                return
+            except Exception as e:
+                _LOGGER.error(f"Failed to update release list: {e}")
+                my_persistent_notification(
+                    f"⚠️ Failed to update release list: {e}",
+                    title=f"{TITLE} Release Selector Error",
+                    persistent_notification_id=f"{__name__}_{func_name}"
+                )
+            finally:
+                task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
+                
+    @benchmark_decorator()
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "startup"
@@ -10705,9 +11025,14 @@ if INITIALIZATION_COMPLETE:
             TASKS[f"{func_prefix}drive_efficiency_save_car_stats"] = task.create(drive_efficiency_save_car_stats, bootup=True)
             done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"], TASKS[f"{func_prefix}preheat_ev"], TASKS[f"{func_prefix}drive_efficiency_save_car_stats"]})
             
-            if CONFIG['notification']['update_available']:
-                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
+            if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+                if CONFIG['notification']['update_available']:
+                    TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
+                else:
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}update_release_options"]})
         except Exception as e:
             _LOGGER.error(f"Error during startup: {e} {type(e)}")
             my_persistent_notification(
@@ -10815,7 +11140,7 @@ if INITIALIZATION_COMPLETE:
             if deactivate_script_enabled():
                 return
             
-            if is_charging():
+            if is_charging() and not other_ev_connected():
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
@@ -10888,6 +11213,9 @@ if INITIALIZATION_COMPLETE:
             return
         
         if deactivate_script_enabled():
+            return
+        
+        if other_ev_connected():
             return
         
         try:
@@ -11048,53 +11376,8 @@ if INITIALIZATION_COMPLETE:
             
     def wait_until_odometer_stable(func_prefix=None):
         func_name = "wait_until_odometer_stable"
-        _LOGGER = globals()['_LOGGER'].getChild(func_name)
-        if not is_ev_configured():
-            return
+        return wait_for_entity_update(entity_id=CONFIG['ev_car']['entity_ids']['odometer_entity_id'], updated_within_minutes=5, max_wait_time_minutes=30, check_interval=5.0, float_type=True, task_prefix=func_prefix if func_prefix else "", task_name=func_name)
         
-        max_wait_time_minutes = 30
-        updated_within_minutes = 5
-        
-        try:
-            to_datetime = getTime()
-            from_datetime = to_datetime - datetime.timedelta(hours=24)
-            values = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_datetime, to_datetime, float_type=True, convert_to=None, include_timestamps=True, error_state={})
-            if not values or not isinstance(values, dict) or not values.items():
-                _LOGGER.warning(f"No odometer values found in the last 24 hours")
-                return
-            
-            values_sorted = sorted(values.items(), reverse=True)
-            last_odometer = values_sorted[1][1] if values_sorted else 0.0
-            last_odometer_timestamp = values_sorted[1][0] if values_sorted else getTime()
-            
-            now = getTime()
-            
-            if minutesBetween(last_odometer_timestamp, now) < updated_within_minutes:
-                _LOGGER.info(f"Odometer up to date {int(last_odometer)} {last_odometer_timestamp}, no need to wait")
-                return
-            
-            while minutesBetween(now, getTime()) < max_wait_time_minutes and (not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelling() or not TASKS[f"{func_prefix}wait_until_odometer_stable"].cancelled()):
-                to_datetime = getTime()
-                from_datetime = to_datetime - datetime.timedelta(hours=24)
-                values = get_values(CONFIG['ev_car']['entity_ids']['odometer_entity_id'], from_datetime, to_datetime, float_type=True, convert_to=None, include_timestamps=True, error_state={})
-                
-                if not values or not isinstance(values, dict) or not values.items():
-                    _LOGGER.warning(f"No odometer values found in the last 24 hours")
-                    return
-                
-                values_sorted = sorted(values.items(), reverse=True)
-                if values_sorted:
-                    current_odometer = values_sorted[1][1]
-                    current_odometer_timestamp = values_sorted[1][0]
-                    if current_odometer_timestamp > last_odometer_timestamp:
-                        _LOGGER.info(f"Odometer stable at {current_odometer} now, no need to wait anymore")
-                        break
-                task.wait_until(timeout=60)
-        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-            _LOGGER.warning(f"Task was cancelled or timed out in wait_until_odometer_stable: {e} {type(e)}")
-        except Exception as e:
-            _LOGGER.error(f"Error in wait_until_odometer_stable: {e} {type(e)}")
-            
     def power_connected_trigger(value):
         func_name = "power_connected_trigger"
         func_prefix = f"{func_name}_"
@@ -11134,6 +11417,9 @@ if INITIALIZATION_COMPLETE:
             return
         
         if deactivate_script_enabled():
+            return
+        
+        if other_ev_connected():
             return
             
         try:
@@ -11217,6 +11503,9 @@ if INITIALIZATION_COMPLETE:
                 return
             
             if deactivate_script_enabled():
+                return
+            
+            if other_ev_connected():
                 return
             
             _LOGGER.info(f"Charger cable connected changed from {old_value} to {value}")
@@ -11467,10 +11756,14 @@ if INITIALIZATION_COMPLETE:
         try:
             TASKS[f'{func_prefix}reset_counter_entity_integration'] = task.create(reset_counter_entity_integration)
             done, pending = task.wait({TASKS[f'{func_prefix}reset_counter_entity_integration']})
-            
-            if CONFIG['notification']['update_available'] and not deactivate_script_enabled():
-                TASKS[f"{func_prefix}check_master_updates"] = task.create(check_master_updates)
-                done, pending = task.wait({TASKS[f"{func_prefix}check_master_updates"]})
+            if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
+                if CONFIG['notification']['update_available']:
+                    TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
+                else:
+                    TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
+                    done, pending = task.wait({TASKS[f"{func_prefix}update_release_options"]})
         except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
             _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
         except Exception as e:

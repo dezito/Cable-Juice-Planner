@@ -90,6 +90,7 @@ config:
       co2_entity_id: "Energi Data Service CO₂ entity_id"
       cable_connected_entity_id: "Якщо авто не має сутності 'кабель підключено', використовуйте цю (Підтримувані стани: {charger_supported_states})"
       start_stop_charging_entity_id: "Якщо ви використовуєте іншу інтеграцію ніж Easee (наприклад Monta)"
+      other_ev_using_this_charger_entity_ids: "Список інших автомобілів, що використовують цей зарядний пристрій, щоб уникнути конфліктів (Підтримувані стани: {ev_supported_states})"
     power_voltage: "**Обов’язково** Напруга мережі"
     charging_phases: "**Обов’язково** Доступні фази"
     charging_max_amp: "**Обов’язково** Максимальний струм заряджання (А)"
@@ -177,6 +178,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Виберіть реліз CJP"
+      description: "Виберіть реліз для оновлення"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -548,14 +555,19 @@ ui:
     error: "Помилка відновлення жорстких посилань"
 
   repo:
+    current: "Поточна версія"
+    latest: "Остання версія"
     no_updates_available_title: "Перевірка оновлень"
     no_updates_available: "Оновлень немає"
     new_update_available_title: "Доступне нове оновлення"
     new_update_available_changes: "Зміни"
     new_update_available_changes_behind: "відставання"
     update_error_check: "Помилка під час перевірки оновлень"
+    updated_from: "Оновлено з"
     updated_success: "Оновлення успішно завершено"
     update_error: "Помилка під час оновлення"
+    no_release_notes: "Немає доступних нотаток до релізу"
+    view_on_github: "Переглянути на GitHub"
 
   entity_unavailable:
     title: "Сутність недоступна"
@@ -720,6 +732,7 @@ ui:
 
   charge_if_needed:
     script_deactivated: "Вимкнено"
+    other_ev_connected: "Інший електромобіль підключено"
     no_charging_modes_active: "Немає активних правил\nЗаряджання {watt}Вт"
     charging_loss: "Обчислення втрат, заряд до {percentage}%"
     manual_charging: "Дозволено ручне заряджання {watt}Вт"

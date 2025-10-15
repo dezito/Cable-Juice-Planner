@@ -90,6 +90,7 @@ config:
       co2_entity_id: "Energi Data Service CO2 entity_id"
       cable_connected_entity_id: 'Hvis bilen ikke har en "kabel tilsluttet"-entitet, brug denne til at afgøre om bilen er forbundet (Understøttede tilstande: {charger_supported_states})'
       start_stop_charging_entity_id: "Hvis du bruger en anden integration end Easee til start/stop af opladning (fx Monta)"
+      other_ev_using_this_charger_entity_ids: "Liste over andre biler der bruger denne lader, bruges til at undgå konflikter (Understøttede tilstande: {ev_supported_states})"
     power_voltage: "**Påkrævet** Netspænding"
     charging_phases: "**Påkrævet** Tilgængelige faser for bilen"
     charging_max_amp: "**Påkrævet** Maks. ladestrøm (A) for bilen"
@@ -175,6 +176,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Vælg CJP udgivelse"
+      description: "Vælg den udgivelse at opgradere til"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -566,14 +573,19 @@ ui:
     error: "Fejl under genoprettelse af hardlinks"
 
   repo:
+    current: "Nuværende version"
+    latest: "Seneste version"
     no_updates_available_title: "Opdaterings tjek"
     no_updates_available: "Ingen opdateringer tilgængelige"
     new_update_available_title: "Ny opdatering tilgængelig"
     new_update_available_changes: "Ændringer"
     new_update_available_changes_behind: "bagud"
     update_error_check: "Fejl under opdateringstjek"
+    updated_from: "Opdateret fra"
     updated_success: "Opdatering gennemført succesfuldt"
     update_error: "Fejl under opdatering"
+    no_release_notes: "Ingen udgivelsesnoter tilgængelige"
+    view_on_github: "Se på GitHub"
 
   entity_unavailable:
     title: "Entity ikke tilgængelig"
@@ -739,6 +751,7 @@ ui:
 
   charge_if_needed:
     script_deactivated: "Deaktiveret"
+    other_ev_connected: "En anden elbil er forbundet"
     no_charging_modes_active: "Ingen laderegler aktiv\n Lader {watt}W"
     charging_loss: "Beregner ladetab, lader til {percentage}%"
     manual_charging: "Manuel ladning tilladt {watt}W"

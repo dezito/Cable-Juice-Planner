@@ -90,6 +90,7 @@ config:
       co2_entity_id: "Energi Data Service CO₂ entity_id"
       cable_connected_entity_id: "If the EV has no 'cable connected' entity, use this to detect connection (Supported states: {charger_supported_states})"
       start_stop_charging_entity_id: "If using another integration than Easee for start/stop (e.g., Monta)"
+      other_ev_using_this_charger_entity_ids: "List of other vehicles using this charger, used to avoid conflicts (Supported states: {ev_supported_states})"
     power_voltage: "**Required** Mains voltage"
     charging_phases: "**Required** Available charging phases"
     charging_max_amp: "**Required** Maximum charging current (A)"
@@ -177,6 +178,12 @@ config:
 
 # ---- entity ----
 entity:
+  # ---- input_select ----
+  input_select:
+    cjp_select_release:
+      name: "Select CJP release"
+      description: "Choose the release to upgrade to"
+
   # ---- input_button ----
   input_button:
     trip_reset:
@@ -563,14 +570,19 @@ ui:
     error: "Error recreating hardlinks"
 
   repo:
+    current: "Current version"
+    latest: "Latest version"
     no_updates_available_title: "Update check"
     no_updates_available: "No updates available"
     new_update_available_title: "New update available"
     new_update_available_changes: "Changes"
     new_update_available_changes_behind: "behind"
     update_error_check: "Error during update check"
+    updated_from: "Updated from"
     updated_success: "Update completed successfully"
     update_error: "Error during update"
+    no_release_notes: "No release notes available"
+    view_on_github: "View on GitHub"
 
   entity_unavailable:
     title: "Entity unavailable"
@@ -735,6 +747,7 @@ ui:
 
   charge_if_needed:
     script_deactivated: "Deactivated"
+    other_ev_connected: "Another EV is connected"
     no_charging_modes_active: "No charging rules active\nCharging {watt}W"
     charging_loss: "Calculating charging loss, charging to {percentage}%"
     manual_charging: "Manual charging allowed {watt}W"
