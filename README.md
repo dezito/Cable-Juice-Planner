@@ -171,7 +171,7 @@ curl -s https://raw.githubusercontent.com/dezito/Cable-Juice-Planner/master/scri
 
 > [!Note]
 >
-> Ved flere elbiler køres kommando ```ln -n Cable-Juice-Planner/pyscript/ev.py pyscript/ev2.py``` i Terminal eller SSH, dette laver en ny hardlink til ev.py, den nye prefiks vil være ev2
+> Ved flere elbiler køres kommando ```ln -n /config/Cable-Juice-Planner/pyscript/ev.py /config/pyscript/ev2.py``` i Terminal eller SSH, dette laver en ny hardlink til ev.py, den nye prefiks vil være ev2
 >
 > I "ev2_config.yaml" indsættes entity_id fra "ev_config.yaml", hvis du har solceller og 2 laderer.
 >
