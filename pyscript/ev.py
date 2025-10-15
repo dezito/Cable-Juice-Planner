@@ -10094,10 +10094,6 @@ def charge_if_needed():
             _LOGGER.info("Script deactivated")
             set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.script_deactivated')}")
             return
-
-        if other_ev_connected():
-            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
-            return
         
         charging_rule = None
         
@@ -10113,6 +10109,9 @@ def charge_if_needed():
         TASKS[f"{func_prefix}max_local_energy_available_remaining_period"] = task.create(max_local_energy_available_remaining_period)
         done, pending = task.wait({TASKS[f"{func_prefix}cheap_grid_charge_hours"], TASKS[f"{func_prefix}max_local_energy_available_remaining_period"]})
 
+        if other_ev_connected():
+            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
+            return
                 
         inverter_watt, inverter_watt_solar_only = TASKS[f"{func_prefix}max_local_energy_available_remaining_period"].result()
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
