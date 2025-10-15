@@ -90,6 +90,7 @@ config:
       co2_entity_id: "Energi Data Service CO₂ entity_id"
       cable_connected_entity_id: "Falls das EV keine „Kabel verbunden“-Entität bietet, diese zum Erkennen der Verbindung nutzen (Unterstützte Zustände: {charger_supported_states})"
       start_stop_charging_entity_id: "Falls eine andere Integration als Easee für Start/Stopp genutzt wird (z. B. Monta)"
+      other_ev_using_this_charger_entity_ids: "Liste anderer Fahrzeuge, die diesen Lader verwenden, um Konflikte zu vermeiden (Unterstützte Zustände: {ev_supported_states})"
     power_voltage: "**Erforderlich** Netzspannung"
     charging_phases: "**Erforderlich** Verfügbare Phasen"
     charging_max_amp: "**Erforderlich** Maximaler Ladestrom (A)"
@@ -727,6 +728,7 @@ ui:
 
   charge_if_needed:
     script_deactivated: "Deaktiviert"
+    other_ev_connected: "Ein anderes Elektrofahrzeug ist verbunden"
     no_charging_modes_active: "Keine Ladestrategie aktiv\nLaden {watt}W"
     charging_loss: "Ladeverlust-Messung, lade bis {percentage}%"
     manual_charging: "Manuelles Laden erlaubt {watt}W"

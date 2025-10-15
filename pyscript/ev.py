@@ -391,7 +391,8 @@ DEFAULT_CONFIG = {
             "dynamic_circuit_limit": "",
             "co2_entity_id": "",
             "cable_connected_entity_id": "",
-            "start_stop_charging_entity_id": ""
+            "start_stop_charging_entity_id": "",
+            "other_ev_using_this_charger_entity_ids": [],
         },
         "power_voltage": 240.0,
         "charging_phases": 3.0,
@@ -2603,7 +2604,24 @@ def notify_critical_change(cfg = {}, filename = None):
                 f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
                 f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
-                persistent_notification_id=f"{__name__}_{func_name}_powerwall_update_required"
+                persistent_notification_id=f"{__name__}_{func_name}_language_required"
+            )
+            
+        other_ev_using_this_charger_new_key = ["other_ev_using_this_charger_entity_ids"]
+        other_ev_using_this_charger_missing_key = check_nested_keys_exist(cfg, other_ev_using_this_charger_new_key)
+        
+        if other_ev_using_this_charger_missing_key:
+            _LOGGER.warning(f"Other EV using this charger configuration added and set to default: {other_ev_using_this_charger_missing_key}")
+            
+            fmt = {"name":__name__}
+            my_persistent_notification(
+                f"## {i18n.t('ui.notify_critical_change.important_header')}\n\n"
+                f"{i18n.t('ui.notify_critical_change.critical_change_message', **fmt)}\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_config_keys')}:\n - {'- '.join(keys_description(other_ev_using_this_charger_missing_key))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
+                title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
+                persistent_notification_id=f"{__name__}_{func_name}_other_ev_using_this_charger"
             )
             
     if filename == f"packages/{__name__}.yaml":
@@ -10043,6 +10061,21 @@ def charging_without_rule():
         CHARGING_NO_RULE_COUNT = 0
     return False
 
+def other_ev_connected():
+    func_name = "other_ev_connected"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    charger_status = get_state(CONFIG['charger']['entity_ids']['status_entity_id'], float_type=False, error_state="disconnected")
+    
+    if charger_status not in CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS + CHARGER_COMPLETED_STATUS:
+        return False
+    
+    for entity_id in CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
+        if get_state(entity_id, try_history=False, float_type=False, error_state="off") in EV_PLUGGED_STATES:
+            return True
+    
+    return False
+
 def current_hour_in_charge_hours():
     current_hour = reset_time_to_hour()
     for timestamp in CHARGE_HOURS:
@@ -10061,6 +10094,10 @@ def charge_if_needed():
         if deactivate_script_enabled():
             _LOGGER.info("Script deactivated")
             set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.script_deactivated')}")
+            return
+
+        if other_ev_connected():
+            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
             return
         
         charging_rule = None
@@ -11104,7 +11141,7 @@ if INITIALIZATION_COMPLETE:
             if deactivate_script_enabled():
                 return
             
-            if is_charging():
+            if is_charging() and not other_ev_connected():
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
                 
@@ -11177,6 +11214,9 @@ if INITIALIZATION_COMPLETE:
             return
         
         if deactivate_script_enabled():
+            return
+        
+        if other_ev_connected():
             return
         
         try:
@@ -11379,6 +11419,9 @@ if INITIALIZATION_COMPLETE:
         
         if deactivate_script_enabled():
             return
+        
+        if other_ev_connected():
+            return
             
         try:
             _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
@@ -11461,6 +11504,9 @@ if INITIALIZATION_COMPLETE:
                 return
             
             if deactivate_script_enabled():
+                return
+            
+            if other_ev_connected():
                 return
             
             _LOGGER.info(f"Charger cable connected changed from {old_value} to {value}")
