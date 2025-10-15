@@ -6213,9 +6213,24 @@ def cheap_grid_charge_hours():
         sub_func_name = "add_to_charge_hours"
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
+        min_charging_kwh_cron = 0.0
+        min_charging_kwh_ev = 0.0
+        
+        try:
+            min_charging_kwh_cron = CONFIG['cron_interval'] / 60 * MAX_KWH_CHARGING / 2
+        except:
+            pass
+        
+        try:
+            min_charging_kwh_ev = CONFIG['ev_car']['battery_size'] / 100 / 2
+        except:
+            pass
+        
         try:
             cost = 0.0
             kwh = MAX_KWH_CHARGING
+            min_charging_kwh = max(min(min_charging_kwh_cron, min_charging_kwh_ev), 0.2)
+            
             battery_level_added = False
                 
             price = float(price)
@@ -6224,7 +6239,6 @@ def cheap_grid_charge_hours():
             percentage_missed = hour.minute / 60
             kwh_missed = kwh * percentage_missed
             kwh -= kwh_missed
-
                 
             if battery_level:
                 if max_recommended_battery_level is None:
@@ -6232,8 +6246,8 @@ def cheap_grid_charge_hours():
                     
                 battery_level_diff = round(max_recommended_battery_level - (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)),2)
                 kwh_diff = round(percentage_to_kwh(battery_level_diff, include_charging_loss = True),2)
-                if (battery_level + kwh_to_percentage(kwh, include_charging_loss = True)) > max_recommended_battery_level:
-                    kwh -= abs(kwh_diff)
+                if kwh_diff < 0.0:
+                    kwh = max(kwh + kwh_diff, 0.0)
                 
             if kwh_available == True and hour in chargeHours:
                 kwh -= chargeHours[hour]['kWh']
@@ -6242,7 +6256,7 @@ def cheap_grid_charge_hours():
                 kwh_allowed = check_max_battery_level_allowed(check_max_charging_plan['day'], check_max_charging_plan['what_day'], check_max_charging_plan['battery_level_id'], max_recommended_battery_level, kwh_to_percentage(kwh, include_charging_loss = True))
                 kwh = kwh + kwh_allowed if kwh_allowed < 0.0 else kwh_allowed
             
-            if kwh > 0.5:
+            if kwh > min_charging_kwh:
                 if hour not in chargeHours:
                     chargeHours[hour] = {
                         "Cost": 0.0,
@@ -6251,7 +6265,7 @@ def cheap_grid_charge_hours():
                         "Price": round(price, 2),
                         "ChargingAmps": CONFIG['charger']['charging_max_amp']
                     }
-                
+                    
                 if (kwhNeeded - kwh) < 0.0:
                     kwh = kwhNeeded
                     kwhNeeded = 0.0
