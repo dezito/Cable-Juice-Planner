@@ -5714,7 +5714,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
             
-            if CONFIG['charger']['use_last_kwh_meter_from_history']:
+            if CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
                 if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
                     last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
                     if "end_charger_meter" in last_item[1]:
@@ -10094,10 +10094,6 @@ def charge_if_needed():
             _LOGGER.info("Script deactivated")
             set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.script_deactivated')}")
             return
-
-        if other_ev_connected():
-            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
-            return
         
         charging_rule = None
         
@@ -10113,6 +10109,9 @@ def charge_if_needed():
         TASKS[f"{func_prefix}max_local_energy_available_remaining_period"] = task.create(max_local_energy_available_remaining_period)
         done, pending = task.wait({TASKS[f"{func_prefix}cheap_grid_charge_hours"], TASKS[f"{func_prefix}max_local_energy_available_remaining_period"]})
 
+        if other_ev_connected():
+            set_charging_rule(f"⛔{i18n.t('ui.charge_if_needed.other_ev_connected')}")
+            return
                 
         inverter_watt, inverter_watt_solar_only = TASKS[f"{func_prefix}max_local_energy_available_remaining_period"].result()
         inverter_amps = calc_charging_amps(inverter_watt, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
@@ -11956,8 +11955,8 @@ if INITIALIZATION_COMPLETE:
         
         current_mod_time = get_file_modification_time(f"{__name__}_config.yaml")
         if CONFIG_LAST_MODIFIED != current_mod_time:
-            script_loaded__mod_datetime = datetime.fromtimestamp(CONFIG_LAST_MODIFIED).strftime('%Y-%m-%d %H:%M:%S')
-            current_config_mod_datetime = datetime.fromtimestamp(current_mod_time).strftime('%Y-%m-%d %H:%M:%S')
+            script_loaded__mod_datetime = datetime.datetime.fromtimestamp(CONFIG_LAST_MODIFIED).strftime('%Y-%m-%d %H:%M:%S')
+            current_config_mod_datetime = datetime.datetime.fromtimestamp(current_mod_time).strftime('%Y-%m-%d %H:%M:%S')
             _LOGGER.info(f"Config file has been modified since script start, reloading config to avoid overwriting changes made outside the script. Script loaded: {script_loaded__mod_datetime}, Current config: {current_config_mod_datetime}")
             
             TASKS[f'{func_prefix}load_yaml'] = task.create(load_yaml, f"{__name__}_config.yaml")
