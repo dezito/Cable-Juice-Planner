@@ -398,7 +398,6 @@ DEFAULT_CONFIG = {
         "charging_phases": 3.0,
         "charging_max_amp": 16.0,
         "charging_loss": -0.05,
-        "use_last_kwh_meter_from_history": True,
     },
     "cron_interval": 5,
     "database": {
