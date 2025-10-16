@@ -1343,7 +1343,7 @@ def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_ti
                 if current_state_timestamp > last_state_timestamp:
                     _LOGGER.info(f"{entity_id} state stable at {current_state} now, no need to wait anymore")
                     return True
-            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {now}")
+            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {getTime()}")
             task.wait_until(timeout=check_interval)
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
