@@ -2606,7 +2606,7 @@ def notify_critical_change(cfg = {}, filename = None):
                 persistent_notification_id=f"{__name__}_{func_name}_language_required"
             )
             
-        other_ev_using_this_charger_new_key = ["charger.other_ev_using_this_charger_entity_ids"]
+        other_ev_using_this_charger_new_key = ["charger.entity_ids.other_ev_using_this_charger_entity_ids"]
         other_ev_using_this_charger_missing_key = check_nested_keys_exist(cfg, other_ev_using_this_charger_new_key)
         
         if other_ev_using_this_charger_missing_key:
