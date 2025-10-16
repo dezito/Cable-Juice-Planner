@@ -1343,7 +1343,7 @@ def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_ti
                 if current_state_timestamp > last_state_timestamp:
                     _LOGGER.info(f"{entity_id} state stable at {current_state} now, no need to wait anymore")
                     return True
-            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {now}")
+            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {getTime()}")
             task.wait_until(timeout=check_interval)
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
@@ -5569,7 +5569,7 @@ async def charging_history(charging_data=None, charging_type=""):
         if not task_running or task_running.done():
             TASKS[func_name] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.exception(f"Failed to add to charging history queue: {e} {type(e)}")
+        _LOGGER.error(f"Failed to add to charging history queue: {e} {type(e)}")
         my_persistent_notification(
             f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} failed",
@@ -5593,7 +5593,7 @@ async def charging_history_worker():
         except (TypeError, AttributeError) as e:
             _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e} {type(e)}")
         except Exception as e:
-            _LOGGER.exception(f"Exception in charging_history_worker: {e} {type(e)}")
+            _LOGGER.error(f"Exception in charging_history_worker: {e} {type(e)}")
             my_persistent_notification(
                 f"Charging history queue failed: {e} {type(e)}",
                 f"{TITLE} Failed",
@@ -5775,7 +5775,21 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}")
+        error_message = f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}"
+        _LOGGER.error(error_message)
+        
+        debug = {
+            "Charge history": {
+                "table": format_debug_table({
+                    "charging_type": charging_type,
+                }),
+                "details": format_debug_details({
+                    "charging_data": charging_data,
+                    }),
+            },
+        }
+        
+        save_error_to_file(error_message, debug = debug, caller_function_name = f"{func_name}()")
         my_persistent_notification(
             f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} error",
@@ -6691,7 +6705,6 @@ def cheap_grid_charge_hours():
                                     
                                 charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
                                 add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
-                    _LOGGER.warning(f"End planning for day {day} kwh_needed_today {kwh_needed_today}kWh")
             except Exception as e:
                 _LOGGER.error(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
                 save_error_to_file(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
