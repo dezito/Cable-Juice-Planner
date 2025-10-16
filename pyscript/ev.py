@@ -5569,7 +5569,7 @@ async def charging_history(charging_data=None, charging_type=""):
         if not task_running or task_running.done():
             TASKS[func_name] = task.create(charging_history_worker)
     except Exception as e:
-        _LOGGER.exception(f"Failed to add to charging history queue: {e} {type(e)}")
+        _LOGGER.error(f"Failed to add to charging history queue: {e} {type(e)}")
         my_persistent_notification(
             f"Charging history queue failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} failed",
@@ -5593,7 +5593,7 @@ async def charging_history_worker():
         except (TypeError, AttributeError) as e:
             _LOGGER.error(f"TypeError or AttributeError in charging_history_worker: {e} {type(e)}")
         except Exception as e:
-            _LOGGER.exception(f"Exception in charging_history_worker: {e} {type(e)}")
+            _LOGGER.error(f"Exception in charging_history_worker: {e} {type(e)}")
             my_persistent_notification(
                 f"Charging history queue failed: {e} {type(e)}",
                 f"{TITLE} Failed",
@@ -5775,7 +5775,21 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        _LOGGER.exception(f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}")
+        error_message = f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}"
+        _LOGGER.error(error_message)
+        
+        debug = {
+            "Charge history": {
+                "table": format_debug_table({
+                    "charging_type": charging_type,
+                }),
+                "details": format_debug_details({
+                    "charging_data": charging_data,
+                    }),
+            },
+        }
+        
+        save_error_to_file(error_message, debug = debug, caller_function_name = f"{func_name}()")
         my_persistent_notification(
             f"Charging history failed with\ncharging_data: {charging_data},\ncharging_type: {charging_type},\nerror: {e} {type(e)}",
             f"{TITLE} error",
