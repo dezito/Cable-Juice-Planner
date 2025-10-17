@@ -5714,7 +5714,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
             
-            if CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
+            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
                 if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
                     last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
                     if "end_charger_meter" in last_item[1]:
