@@ -6318,7 +6318,7 @@ def cheap_grid_charge_hours():
                     kwh = kwhNeeded
                     kwhNeeded = 0.0
                 else:
-                    kwhNeeded = kwhNeeded - kwh
+                    kwhNeeded = round(kwhNeeded - kwh, 2)
                     
                 cost = kwh * price
                 totalCost = totalCost + cost
