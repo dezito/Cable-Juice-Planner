@@ -6715,6 +6715,8 @@ def cheap_grid_charge_hours():
                                         
                                     charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
                                     add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                        if round(kwh_needed_today, 1) > 0.0 and kwh_to_percentage(kwh_needed_today, include_charging_loss = True) > 0.0:
+                            _LOGGER.warning(f"Battery level above max recommended charge limit {get_max_recommended_charge_limit_battery_level()}%, could not fullfill needed kWh for day {day}, left kwh_needed_today {kwh_needed_today}kWh")
             except Exception as e:
                 _LOGGER.error(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
                 save_error_to_file(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
