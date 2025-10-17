@@ -5608,9 +5608,12 @@ async def _charging_history(charging_data = None, charging_type = ""):
     global CHARGING_HISTORY_DB, CURRENT_CHARGING_SESSION, TASKS
     
     def get_current_statistic(charging_ended = False):
-        start = CURRENT_CHARGING_SESSION['start']
-        charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
-                
+        start = CURRENT_CHARGING_SESSION.get('start', None)
+        charger_meter = get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=None)
+        
+        if start is None:
+            raise Exception("No current charging session start time, cannot update charging history")
+        
         if charger_meter in ENTITY_UNAVAILABLE_STATES:
             raise Exception(f"Charger meter entity {CONFIG['charger']['entity_ids']['kwh_meter_entity_id']} is not available, cannot update charging history")
         
@@ -5690,36 +5693,47 @@ async def _charging_history(charging_data = None, charging_type = ""):
                     continue
         
         
-        if charging_type != CURRENT_CHARGING_SESSION['charging_type']:
-            if CURRENT_CHARGING_SESSION['start']:
-                added_kwh, when = get_current_statistic(True)
-                charging_power_to_emulated_battery_level()
+        if CURRENT_CHARGING_SESSION['start'] is not None and charging_type != CURRENT_CHARGING_SESSION['charging_type']:
+            added_kwh, when = get_current_statistic(True)
+            charging_power_to_emulated_battery_level()
+            
+            #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
+            calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
+            
+            min_kwh = 0.1
+            
+            if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
+                _LOGGER.warning(f"Removing unfinished string added_kwh:{added_kwh} <= min_kwh:{min_kwh}: {CHARGING_HISTORY_DB[when]}")
+                del CHARGING_HISTORY_DB[when]
                 
-                #TODO calc_co2_emitted find a better place for this, chance of multiple run, when script reboot
-                calc_co2_emitted(minutesBetween(CURRENT_CHARGING_SESSION['start'], getTime(), error_value=getMinute()), added_kwh = added_kwh)
-                
-                min_kwh = 0.1
-                
-                if added_kwh <= min_kwh and f"{emoji_parse({'charging_error': True})}" not in CURRENT_CHARGING_SESSION['emoji']:
-                    _LOGGER.warning(f"Removing unfinished string added_kwh:{added_kwh} <= min_kwh:{min_kwh}: {CHARGING_HISTORY_DB[when]}")
-                    del CHARGING_HISTORY_DB[when]
-                    
-                update_entity = True
-                
-                reset_current_charging_session()
+            update_entity = True
+            
+            reset_current_charging_session()
         
-        if not CURRENT_CHARGING_SESSION['start'] and charging_data:
+        if CURRENT_CHARGING_SESSION['start'] is None and charging_data:
             start = getTime()
+            start_charger_meter = get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True, error_state=None)
+        
+            if start_charger_meter in ENTITY_UNAVAILABLE_STATES:
+                reset_current_charging_session()
+                raise Exception(f"Charger meter entity {CONFIG['charger']['entity_ids']['kwh_meter_entity_id']} is not available, cannot start charging session")
+            
+            start_charger_meter = float(start_charger_meter)
             CURRENT_CHARGING_SESSION['charging_type'] = charging_type
             CURRENT_CHARGING_SESSION['start'] = start
-            CURRENT_CHARGING_SESSION['start_charger_meter'] = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+            CURRENT_CHARGING_SESSION['start_charger_meter'] = start_charger_meter
             
-            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
+            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']: 
                 if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
-                    last_item = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0]
-                    if "end_charger_meter" in last_item[1]:
-                        CURRENT_CHARGING_SESSION['start_charger_meter'] = last_item[1]["end_charger_meter"]
+                    last_data = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0][1]
+                    
+                    if "end_charger_meter" in last_data and last_data["end_charger_meter"] is None:
+                        _LOGGER.warning(f"Missing end charger meter from last session, using charger meter value at start of current session")
+                    elif "end_charger_meter" in last_data and last_data["end_charger_meter"] is not None:
+                        CURRENT_CHARGING_SESSION['start_charger_meter'] = last_data["end_charger_meter"]
                         _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
+                    else:
+                        _LOGGER.warning(f"Missing end charger meter from last session, cannot use it for start of current session")
 
             CURRENT_CHARGING_SESSION['emoji'] = f"{emoji_parse(charging_data)}"
             CURRENT_CHARGING_SESSION['data'] = charging_data
@@ -5727,13 +5741,13 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CHARGING_HISTORY_DB[start] = {
                 "ended": ">",
                 "emoji": CURRENT_CHARGING_SESSION['emoji'],
-                "percentage": round(charging_data['battery_level'], 1),
-                "kWh": round(charging_data['kWh'], 3),
-                "cost": round(charging_data['Cost'], 3),
-                "unit": round(charging_data['Price'], 3),
+                "percentage": round(charging_data.get('battery_level', 0.0), 1),
+                "kWh": round(charging_data.get('kWh', 0.0), 3),
+                "cost": round(charging_data.get('Cost', 0.0), 3),
+                "unit": round(charging_data.get('Price', 0.0), 3),
                 "charging_session": CURRENT_CHARGING_SESSION,
-                "start_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
-                "end_charger_meter": CURRENT_CHARGING_SESSION['start_charger_meter'],
+                "start_charger_meter": start_charger_meter,
+                "end_charger_meter": start_charger_meter,
                 "charging_type": charging_type,
             }
             if CONFIG['ev_car']['entity_ids']['odometer_entity_id']:
@@ -5749,7 +5763,10 @@ async def _charging_history(charging_data = None, charging_type = ""):
             for i, when in enumerate(sorted(CHARGING_HISTORY_DB.keys(), reverse=True)):
                 if i > 3: break
                 
-                if CHARGING_HISTORY_DB[when]["ended"] == ">" and (CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True, 'solar': True})}" or CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True})}"):
+                if CHARGING_HISTORY_DB[when]["ended"] == ">" and (
+                    CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'solar': True})}" or
+                    CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True, 'solar': True})}" or
+                    CHARGING_HISTORY_DB[when]["emoji"] == f"{emoji_parse({'manual': True})}"):
                     added_kwh, when = get_current_statistic()
                     
                     charging_power_to_emulated_battery_level()
@@ -5775,7 +5792,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
             "session_removed": added_kwh <= 0.1 if 'added_kwh' in locals() else False
         }
     except Exception as e:
-        error_message = f"Error in {func_name} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}"
+        error_message = f"Error in {func_name} CURRENT_CHARGING_SESSION: {CURRENT_CHARGING_SESSION} charging_data: {charging_data}, charging_type: {charging_type}, error: {e} {type(e)}"
         _LOGGER.error(error_message)
         
         debug = {
