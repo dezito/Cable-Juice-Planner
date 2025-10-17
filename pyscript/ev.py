@@ -10348,6 +10348,9 @@ def set_charging_price(price):
         _LOGGER.info(f"TESTING not setting easee charging cost")
         return
     
+    if other_ev_connected():
+        return
+    
     integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
     try:
         if integration == "easee":
