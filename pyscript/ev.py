@@ -6680,31 +6680,31 @@ def cheap_grid_charge_hours():
                                 '''if round(sum(charging_plan[what_day][battery_level_id]), 0) >= get_max_recommended_charge_limit_battery_level() - 1.0:
                                     #Workaround for cold battery percentage: ex. 90% normal temp = 89% cold temp
                                     continue'''
-                            kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
-                            
-                            if timestamp in chargeHours and battery_level_added:
-                                remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
+                                kwh_needed_today, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(kwh_needed_today, totalCost, totalkWh, timestamp, price, None, None, kwh_available, sum(charging_plan[what_day][battery_level_id]), check_max_charging_plan={"day": day, "what_day": what_day, "battery_level_id": battery_level_id}, max_recommended_battery_level=max_recommended_charge_limit_battery_level, rules=charging_plan[day]['rules'])
                                 
-                                total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
-                                battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
-                                
-                                if battery_level_sum > 0.0:
-                                    if "trip" in charging_plan[day]['rules']:
-                                        cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
-                                        charging_plan[day]['trip_total_cost'] += cost_trip
-                                        
-                                    """if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
-                                        cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
-                                        charging_plan[day]['work_total_cost'] += cost_work"""
-                                        
-                                    for rule in charging_plan[day].get('rules', []):
-                                        if 'workday_preparation' in rule:
-                                            cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
-                                            charging_plan[day]['work_total_cost'] += cost_work
-                                            break
+                                if timestamp in chargeHours and battery_level_added:
+                                    remove_solar_prediction_from_charge_hours(timestamp, day, battery_level_added)
                                     
-                                charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
-                                add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
+                                    total_trip_battery_level_needed = charging_plan[day]['trip_battery_level_needed'] + charging_plan[day]['trip_battery_level_above_max']
+                                    battery_level_sum = total_trip_battery_level_needed + charging_plan[day]['work_battery_level_needed']
+                                    
+                                    if battery_level_sum > 0.0:
+                                        if "trip" in charging_plan[day]['rules']:
+                                            cost_trip = (total_trip_battery_level_needed / battery_level_sum) * cost_added
+                                            charging_plan[day]['trip_total_cost'] += cost_trip
+                                            
+                                        """if filter(lambda x: 'workday_preparation' in x, charging_plan[day]['rules']):
+                                            cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                            charging_plan[day]['work_total_cost'] += cost_work"""
+                                            
+                                        for rule in charging_plan[day].get('rules', []):
+                                            if 'workday_preparation' in rule:
+                                                cost_work = (charging_plan[day]['work_battery_level_needed'] / battery_level_sum) * cost_added
+                                                charging_plan[day]['work_total_cost'] += cost_work
+                                                break
+                                        
+                                    charging_sessions_id = add_charging_session_to_day(timestamp, what_day, battery_level_id)
+                                    add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added)
             except Exception as e:
                 _LOGGER.error(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
                 save_error_to_file(f"Error in scheduled_planner day:{day}: {e} {type(e)}")
