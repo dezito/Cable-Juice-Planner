@@ -4798,8 +4798,8 @@ def kwh_needed_for_charging(targetLevel=None, battery=None):
     targetLevel = targetLevel if targetLevel is not None else get_min_daily_battery_level()
     battery = battery if battery is not None else battery_level()
 
-    kwh = percentage_to_kwh(targetLevel - battery, include_charging_loss=True)
-    _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss kwh:{percentage_to_kwh(targetLevel - battery, include_charging_loss=True)}")
+    kwh = round(percentage_to_kwh(targetLevel - battery, include_charging_loss=True), 2)
+    _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss")
 
     return max(kwh, 0.0)
 
