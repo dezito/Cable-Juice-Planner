@@ -4637,6 +4637,7 @@ def drive_efficiency(state=None):
             PREHEATING = False
         elif state in EV_PLUGGED_STATES + CHARGER_READY_STATUS:
             if "reported" in LAST_DRIVE_EFFICIENCY_DATA and LAST_DRIVE_EFFICIENCY_DATA["reported"]:
+                _LOGGER.info(f"Drive already {state} reported as {LAST_DRIVE_EFFICIENCY_DATA}, ignoring")
                 return
             
             if not is_ev_configured():
@@ -6071,6 +6072,7 @@ def get_expensive_hours(day=0):
     
     return expensiveDict
 
+@benchmark_decorator()
 def cheap_grid_charge_hours():
     func_name = "cheap_grid_charge_hours"
     func_prefix = f"{func_name}_"
@@ -6739,7 +6741,7 @@ def cheap_grid_charge_hours():
                 
                 if need_recommended_full_charge:
                     _LOGGER.info(f"Days since last fully charged: {days_since_last_fully_charged}. Need full charge: {need_recommended_full_charge}")
-                    
+                #TODO fill_up take into account solar over production for the whole week, when not getting under min daily battery level
                 fill_up = fill_up_charging_enabled()# and charging_plan[day]['offday'] and day in fill_up_days.keys()
                 
                 if fill_up or need_recommended_full_charge:
@@ -8534,6 +8536,7 @@ def max_local_energy_available_remaining_period():
                     powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
                 if powerwall_battery_level < powerwall_reserved_battery_level and powerwall_charging_power > POWERWALL_CHARGING_TRIGGER and ready_to_charge():
+                    #TODO check if trigger false solar charging on forced powerwall charging
                     _LOGGER.info(f"Forcing powerwall to stop charging power with {powerwall_charging_power}W, because current_hour {current_hour} is not in powerwall_charging_timestamps")
                     powerwall_force_power += min(watts_available_from_local_energy_solar_only, powerwall_charging_consumption) #powerwall_charging_consumption
                     powerwall_forced_stop_charging = True
@@ -9513,6 +9516,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
     try:
         preheat_min_before = float(get_state(f"input_number.{__name__}_preheat_minutes_before", float_type=True, error_state=None))
         if preheat_min_before <= 0.0:
+            _LOGGER.warning(f"preheat_ev: input_number.{__name__}_preheat_minutes_before is {preheat_min_before}, not preheating car")
             return
     except Exception as e:
         _LOGGER.error(f"Cant preheat ev car input_number.{__name__}_preheat_minutes_before is {preheat_min_before}: {e} {type(e)}")
@@ -10108,6 +10112,7 @@ def current_hour_in_charge_hours():
                 return timestamp
     return False
 
+@benchmark_decorator()
 def charge_if_needed():
     func_name = "charge_if_needed"
     func_prefix = f"{func_name}_"
@@ -10664,7 +10669,7 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
 
     watts_available_from_local_energy, watts_from_local_energy, solar_watts_of_local_energy, powerwall_watts_of_local_energy = local_energy_available(period = minutes, include_local_energy_distribution = True, without_all_exclusion = True)
     
-    _LOGGER.debug(f"ev_watt:{ev_watt} watts_from_local_energy:{watts_from_local_energy} solar_watts_of_local_energy:{solar_watts_of_local_energy} powerwall_watts_of_local_energy:{powerwall_watts_of_local_energy}")
+    _LOGGER.info(f"ev_watt:{ev_watt} watts_available_from_local_energy:{watts_available_from_local_energy} watts_from_local_energy:{watts_from_local_energy} solar_watts_of_local_energy:{solar_watts_of_local_energy} powerwall_watts_of_local_energy:{powerwall_watts_of_local_energy}")
     if watts_from_local_energy > ev_watt:
         miscalculated_ratio = watts_from_local_energy / ev_watt if ev_watt > 0.0 else 0.0
         solar_watts_of_local_energy = solar_watts_of_local_energy * miscalculated_ratio
@@ -10674,7 +10679,7 @@ def calc_local_energy_kwh(period = 60, ev_kwh = None, solar_period_current_hour 
     solar_kwh_available = round(max(watts_from_local_energy, 0.0) / 1000, 3)
     solar_kwh_of_local_energy = round(solar_watts_of_local_energy / 1000, 3)
     powerwall_kwh_of_local_energy = round(powerwall_watts_of_local_energy / 1000, 3)
-    _LOGGER.debug(f"calc_solar_kwh called with period:{minutes} ev_kwh:{ev_kwh} solar_kwh_available:{solar_kwh_available} solar_kwh_of_local_energy:{solar_kwh_of_local_energy} powerwall_kwh_of_local_energy:{powerwall_kwh_of_local_energy}")
+    _LOGGER.info(f"calc_solar_kwh called with period:{minutes} ev_kwh:{ev_kwh} solar_kwh_available:{solar_kwh_available} solar_kwh_of_local_energy:{solar_kwh_of_local_energy} powerwall_kwh_of_local_energy:{powerwall_kwh_of_local_energy}")
 
     return round(min(solar_kwh_available, ev_kwh), 3), solar_kwh_of_local_energy, powerwall_kwh_of_local_energy
 
@@ -11414,10 +11419,11 @@ if INITIALIZATION_COMPLETE:
         try:
             task_cancel(func_prefix, task_remove=True, startswith=True)
             
+            _LOGGER.info(f"Power connected trigger with status {value}")
             if is_ev_configured():
                 TASKS[f"{func_prefix}wait_until_odometer_stable"] = task.create(wait_until_odometer_stable, func_prefix=func_prefix)
                 done, pending = task.wait({TASKS[f"{func_prefix}wait_until_odometer_stable"]})
-            
+            _LOGGER.info(f"Calculating drive efficiency due to power connected")
             TASKS[f"{func_prefix}drive_efficiency"] = task.create(drive_efficiency, str(value))
             TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
@@ -11581,6 +11587,22 @@ if INITIALIZATION_COMPLETE:
                 )
             finally:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
+        
+        @service(f"pyscript.{__name__}_plug_ev")
+        def plug_ev(trigger_type=None, trigger_id=None, **kwargs):
+            _LOGGER = globals()['_LOGGER'].getChild("plug_ev")
+            global PUBLIC_CHARGING_SESSION
+            randint = random.randint(10, 20)
+            PUBLIC_CHARGING_SESSION.append({"start_battery_level": randint})
+            _LOGGER.info(f"Simulating EV plugged in with start battery level {randint}%")
+            
+        
+        @service(f"pyscript.{__name__}_unplug_ev")
+        def unplug_ev(trigger_type=None, trigger_id=None, **kwargs):
+            _LOGGER = globals()['_LOGGER'].getChild("unplug_ev")
+            public_charging_session("unplugged")
+            _LOGGER.info(f"Simulating EV unplugged in with end {battery_level()}%")
+        
         
         @time_trigger("startup")
         def startup_public_charging_session_done(trigger_type=None, var_name=None, value=None, old_value=None):
