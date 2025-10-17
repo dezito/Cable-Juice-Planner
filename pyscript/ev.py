@@ -6425,7 +6425,7 @@ def cheap_grid_charge_hours():
             nonlocal func_name, sub_func_name
             sub_sub_func_name = "what_battery_level"
             _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
-            
+                        
             battery_level_id = "battery_level_at_midnight"
             max_recommended_charge_limit_battery_level = get_max_recommended_charge_limit_battery_level()
             return_fail_list = [False, max_recommended_charge_limit_battery_level]
@@ -6445,19 +6445,12 @@ def cheap_grid_charge_hours():
                 after_what_day_battery_level_after_work = max(sum(charging_plan[min(what_day + 1, 7)]['battery_level_after_work']), sum(charging_plan[min(what_day + 1, 7)]['battery_level_at_midnight']))
                 
                 if price >= 0.0:
-                    if charging_plan[what_day]['workday']:
-                        if hour < charging_plan[what_day]['work_goto']:
-                            if what_day_battery_level_before_work >= max_recommended_charge_limit_battery_level:
-                                _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}. {what_day_battery_level_before_work}% >= {max_recommended_charge_limit_battery_level}%")
-                                return return_fail_list
-                            battery_level_id = "battery_level_before_work"
-                        else:
-                            if what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
-                                _LOGGER.debug(f"Max battery level reached for day ({what_day}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
-                                return return_fail_list
-                            if what_day + 1 < 7 and after_what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
-                                _LOGGER.debug(f"Max battery level reached for next day ({what_day + 1}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
-                                return return_fail_list
+                    if charging_plan[what_day]['workday'] and hour < charging_plan[what_day]['work_goto']:
+                        battery_level_id = "battery_level_before_work"
+                        
+                        if what_day_battery_level_before_work >= max_recommended_charge_limit_battery_level:
+                            _LOGGER.debug(f"Max battery level reached for day ({what_day}) before work {hour} {price}. {what_day_battery_level_before_work}% >= {max_recommended_charge_limit_battery_level}%")
+                            return return_fail_list
                     else:
                         if what_day_battery_level_after_work >= max_recommended_charge_limit_battery_level:
                             _LOGGER.debug(f"Max battery level reached for day ({what_day}) at midnight {hour} {price}. {what_day_battery_level_after_work}% >= {max_recommended_charge_limit_battery_level}%")
