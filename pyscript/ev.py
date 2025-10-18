@@ -88,6 +88,7 @@ from utils import (
     limit_dict_size,
     contains_any,
     flatten_dict,
+    delete_flattened_key,
     check_next_24_hours_diff,
     time_window_minutes_left,
     time_window_minutes_left_from_datetime,
@@ -3108,17 +3109,23 @@ def init():
         }
         
         if deprecated_keys:
-            _LOGGER.warning(f"{file_path} contains deprecated settings:")
-            for key, value in deprecated_keys.items():
-                _LOGGER.warning(f"\t{key}: {value}")
-            _LOGGER.warning("Please remove them.")
-            my_persistent_notification(
-                f"{i18n.t('ui.init.deprecated_keys_in', file_path=file_path)}\n"
-                f"{i18n.t('ui.init.remove_these_keys')}:\n"
-                f"{'\n'.join(deprecated_keys.keys())}",
-                title=f"{TITLE} {i18n.t('ui.init.deprecated_keys_title')}",
-                persistent_notification_id=f"{__name__}_{func_name}_{file_path}_deprecated_keys"
-            )
+            if "config.yaml" in file_path:
+                _LOGGER.info(f"Removing deprecated keys from {file_path}:")
+                for key, value in deprecated_keys.items():
+                    _LOGGER.info(f"\tRemoving deprecated key: {key}")
+                    content = delete_flattened_key(content, key)
+            else:
+                _LOGGER.warning(f"{file_path} contains deprecated settings:")
+                for key, value in deprecated_keys.items():
+                    _LOGGER.warning(f"\t{key}: {value}")
+                _LOGGER.warning("Please remove them.")
+                my_persistent_notification(
+                    f"{i18n.t('ui.init.deprecated_keys_in', file_path=file_path)}\n"
+                    f"{i18n.t('ui.init.remove_these_keys')}:\n"
+                    f"{'\n'.join(deprecated_keys.keys())}",
+                    title=f"{TITLE} {i18n.t('ui.init.deprecated_keys_title')}",
+                    persistent_notification_id=f"{__name__}_{func_name}_{file_path}_deprecated_keys"
+                )
             
         if default_content != content and "packages" in file_path and not updated:
             content = default_content
