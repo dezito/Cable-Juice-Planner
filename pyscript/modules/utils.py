@@ -547,6 +547,25 @@ def flatten_dict(d, parent_key="", sep="."):
             items[new_key] = v
     return items
 
+def delete_flattened_key(config: dict, flattened_key: str) -> dict:
+    """
+    Deletes a nested key from a dict using a flattened key path (e.g. "charger.entity_ids.test_id").
+    Returns the updated config dict (same reference).
+    """
+    keys = flattened_key.split(".")
+    d = config
+
+    for key in keys[:-1]:
+        if not isinstance(d, dict) or key not in d:
+            return config  # Path not found, return unchanged
+        d = d[key]
+
+    last_key = keys[-1]
+    if isinstance(d, dict) and last_key in d:
+        del d[last_key]
+
+    return config
+
 def check_next_24_hours_diff(dict1, dict2):
     _LOGGER = globals()['_LOGGER'].getChild("check_next_24_hours_diff")
     
