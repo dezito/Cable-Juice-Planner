@@ -683,7 +683,8 @@ ui:
       plan_include_estimations: "Plan includes estimated grid costs, {work_overview_solar_text}battery levels"
       estimated_daily_charging: "Daily estimate {alternative_cost}£ {alternative_per_kwh}£/kWh<br>for {total_kwh}kWh difference {difference_cost}£"
       estimated_daily_charging_plan: "Charging overview (**Daily charging estimate**)"
-    solar_production_title: "Solar overproduction"
+    solar_production_title: "Excess solar production available"
+    no_solar_production: "No excess solar production available"
     last_scheduled: "Last scheduled"
 
   max_local_energy_available_remaining_period:

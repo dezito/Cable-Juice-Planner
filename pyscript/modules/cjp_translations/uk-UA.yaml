@@ -687,7 +687,8 @@ ui:
       plan_include_estimations: "План містить оціночні витрати мережі, {work_overview_solar_text}рівень батареї"
       estimated_daily_charging: "Денна оцінка {alternative_cost}₴ {alternative_per_kwh}₴/кВт·год<br>за різниці {total_kwh}кВт·год — {difference_cost}₴"
       estimated_daily_charging_plan: "Огляд заряджання (**Денна оцінка заряджання**)"
-    solar_production_title: "Надлишкова сонячна генерація"
+    solar_production_title: "Доступна надлишкова сонячна генерація"
+    no_solar_production: "Немає доступного надлишку сонячної генерації"
     last_scheduled: "Останнє планування"
 
   max_local_energy_available_remaining_period:

@@ -7825,7 +7825,7 @@ def cheap_grid_charge_hours():
         else:
             overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.no_upcoming_charging_planned')}**")
             
-            if work_overview and solar_over_production:
+            if work_overview and is_solar_configured():
                 overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.enough_solar_production')}**")
                 
             planning_basis_markdown()
@@ -7953,7 +7953,7 @@ def cheap_grid_charge_hours():
 
             overview.append("</details>\n")
             
-        if solar_over_production:
+        if is_solar_configured():
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
@@ -7963,26 +7963,30 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
-        if solar_over_production:
+        if is_solar_configured():
             overview.append("<center>\n")
-            overview.append(f"## 🌞 {i18n.t('ui.cheap_grid_charge_hours.solar_production_title')} ##")
             
-            overview.append(f"| {i18n.t('ui.common.time')} |  |  |  | % |  | kWh |")
-            overview.append("|---|---:|:---|---:|---:|---|---:|")
-            
-            for d in solar_over_production.values():
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['date'] = f"**{d['date']}**" if d['date'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
-                d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
+            if solar_over_production:
+                overview.append(f"## 🌞 {i18n.t('ui.cheap_grid_charge_hours.solar_production_title')} ##")
                 
-                if d['corrected']:
-                    d['emoji'] = emoji_parse({'solar_corrected': True})
+                overview.append(f"| {i18n.t('ui.common.time')} |  |  |  | % |  | kWh |")
+                overview.append("|---|---:|:---|---:|---:|---|---:|")
+                
+                for d in solar_over_production.values():
+                    d['day'] = f"**{d['day']}**" if d['day'] else ""
+                    d['date'] = f"**{d['date']}**" if d['date'] else ""
+                    d['when'] = f"**{d['when']}**" if d['when'] else ""
+                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                    d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
+                    d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
                     
-                overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
-
+                    if d['corrected']:
+                        d['emoji'] = emoji_parse({'solar_corrected': True})
+                        
+                    overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
+            else:
+                overview.append(f"### 🌞 {i18n.t('ui.cheap_grid_charge_hours.no_solar_production')} ##")
+                
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e} {type(e)}")
