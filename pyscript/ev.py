@@ -1033,11 +1033,15 @@ i18n = I18nCatalog(base_lang="en-GB")
 def welcome():
     func_name = "welcome"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    return f'''
--------------------------------------------------------------------
-🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
--------------------------------------------------------------------
-'''
+    
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
+    local_tag = ""
+    try:
+        local_tag = get_local_tag(repo_path)
+    except:
+        pass
+    
+    return f"🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py) {local_tag}"
 
 def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
     func_name = "task_wait_until"
@@ -1639,7 +1643,8 @@ def run_console_command_sync(cmd):
         result.kill()
         raise TimeoutError("Git command timed out after 15 seconds")
     except RuntimeError as e:
-        raise RuntimeError(f"Git command failed: {e} {type(e)}")
+        if "Git failed: fatal: detected dubious ownership in repository at" not in str(e):
+            raise RuntimeError(f"Git command failed: {e} {type(e)}")
     except Exception as e:
         raise RuntimeError(f"Unexpected error: {e} {type(e)}")
 
@@ -1700,7 +1705,9 @@ def get_local_tag(repo_path):
     """Return the current local Git tag or fallback to v0.0.0."""
     try:
         run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
-        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"]).strip()
+        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"])
+        tag = tag.strip() if tag else None
+        
         if not tag or tag.lower() == "none":
             return "v0.0.0"
         return tag
@@ -3149,7 +3156,10 @@ def init():
         return content
     
     set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
-    _LOGGER.info(welcome())
+    welcome_text = welcome()
+    _LOGGER.info("-" * len(welcome_text))
+    _LOGGER.info(welcome_text)
+    _LOGGER.info("-" * len(welcome_text))
     task.wait_until(timeout=1.0)
     try:
         set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
@@ -10993,8 +11003,8 @@ if INITIALIZATION_COMPLETE:
             solar_configured = i18n.t('ui.startup.configuration.configured') if is_solar_configured() else i18n.t('ui.startup.configuration.not_configured')
             powerwall_configured = i18n.t('ui.startup.configuration.configured') if is_powerwall_configured() else i18n.t('ui.startup.configuration.not_configured')
             
-            log_lines.append(welcome())
-            log_lines.append(f"📟{BASENAME} started")
+            log_lines.append(f"---")
+            log_lines.append(f"### {welcome()}")
             log_lines.append(f"")
             log_lines.append(f"**{i18n.t('ui.startup.configuration.header')}:**")
             log_lines.append(f"📟{i18n.t('ui.startup.configuration.charger')}: {charger_configured}")
