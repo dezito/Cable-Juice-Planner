@@ -3938,7 +3938,7 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
         sell_price = None
         using_text = "default"
         try:
-            sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+            sell_price = get_solar_sell_price()
             if sell_price == -1.0:
                 sell_price = average(KWH_AVG_PRICES_DB['history_sell'][getHour()][day_of_week])
                 using_text = "database average"
@@ -9123,7 +9123,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     global TASKS, SOLAR_PRODUCTION_AVAILABLE_DB, LOCAL_ENERGY_PREDICTION_DB
     
     def get_database_kwh(cloudiness: int | float, date: datetime.datetime) -> list:
-        nonlocal func_name
+        nonlocal func_name, sell_price
         sub_func_name = "get_database_kwh"
         _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}")
         
@@ -9150,7 +9150,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                 avg_power = max(average(power_list + power_list + power_list + power_one_down_list + power_one_up_list), 0.0)
                 avg_kwh = avg_power / 1000
                 
-                avg_sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
+                avg_sell_price = sell_price
                 
                 if avg_sell_price == -1.0:
                     avg_sell_price = average(KWH_AVG_PRICES_DB['history_sell'][hour][day_of_week])
@@ -9367,6 +9367,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         output[date] = total
         output_sell[date] = total_sell
 
+    sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) if is_solar_configured() else 0.0
     stop_prediction_before = 3
     days = 7
     today = getTimeStartOfDay()
