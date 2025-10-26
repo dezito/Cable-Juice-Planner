@@ -81,20 +81,18 @@ else
     BASENAME=$(basename "$SRC_FILE")
     DST_FILE="$CONFIG_PATH/pyscript/$BASENAME"
 
-    # Skip if already correctly hardlinked
     if [ -e "$DST_FILE" ] && [ "$(stat -c %i "$SRC_FILE")" = "$(stat -c %i "$DST_FILE")" ]; then
-      echo "✅ Already linked: $BASENAME"
-      continue
+      echo "ℹ️ Relinking: $BASENAME"
     fi
 
-    # Remove outdated file if not a hardlink
+    # Remove file if not a hardlink
     if [ -e "$DST_FILE" ]; then
-      echo "🧹 Removing outdated file: $DST_FILE"
+      echo "🧹 Removing file: $DST_FILE"
       rm -f "$DST_FILE"
     fi
 
     # Create new hardlink
-    ln "$SRC_FILE" "$DST_FILE"
+    ln -f "$REPO_PATH/pyscript/ev.py" "$DST_FILE"
     echo "🔗 Linked: $BASENAME"
   done
 fi
