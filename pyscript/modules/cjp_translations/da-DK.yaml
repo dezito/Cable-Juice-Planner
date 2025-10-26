@@ -706,7 +706,8 @@ ui:
       plan_include_estimations: "Afgangsplan inkludere estimeret udgifter fra nettet, {work_overview_solar_text}batteri niveau"
       estimated_daily_charging: "Skøn ved daglig opladning {alternative_cost}kr {alternative_per_kwh}kr/kWh<br>ved {total_kwh}kWh forskel {difference_cost}kr"
       estimated_daily_charging_plan: "Lade oversigt (**Dagligt opladningsskøn**)"
-    solar_production_title: "Solcelle over produktion"
+    solar_production_title: "Overskydende solproduktion tilgængelig"
+    no_solar_production: "Ingen overskydende solproduktion tilgængelig"
     last_scheduled: "Sidst planlagt"
 
   max_local_energy_available_remaining_period:

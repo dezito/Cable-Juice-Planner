@@ -691,7 +691,8 @@ ui:
       plan_include_estimations: "Plan zawiera szacowane koszty z sieci, {work_overview_solar_text}poziom baterii"
       estimated_daily_charging: "Szacunek dzienny {alternative_cost}zł {alternative_per_kwh}zł/kWh<br>przy {total_kwh}kWh różnicy {difference_cost}zł"
       estimated_daily_charging_plan: "Przegląd ładowania (**Dzienny szacunek ładowania**) "
-    solar_production_title: "Nadwyżka produkcji solarnej"
+    solar_production_title: "Dostępna nadwyżka produkcji słonecznej"
+    no_solar_production: "Brak dostępnej nadwyżki produkcji słonecznej"
     last_scheduled: "Ostatnio zaplanowano"
 
   max_local_energy_available_remaining_period:

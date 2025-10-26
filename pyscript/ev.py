@@ -1033,11 +1033,15 @@ i18n = I18nCatalog(base_lang="en-GB")
 def welcome():
     func_name = "welcome"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    return f'''
--------------------------------------------------------------------
-🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py)
--------------------------------------------------------------------
-'''
+    
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
+    local_tag = ""
+    try:
+        local_tag = get_local_tag(repo_path)
+    except:
+        pass
+    
+    return f"🚗Cable Juice Planner🔋🌞📅 (Script: {__name__}.py) {local_tag}"
 
 def task_wait_until(task_name, timeout=3.0, wait_period=1.0):
     func_name = "task_wait_until"
@@ -1639,7 +1643,8 @@ def run_console_command_sync(cmd):
         result.kill()
         raise TimeoutError("Git command timed out after 15 seconds")
     except RuntimeError as e:
-        raise RuntimeError(f"Git command failed: {e} {type(e)}")
+        if "Git failed: fatal: detected dubious ownership in repository at" not in str(e):
+            raise RuntimeError(f"Git command failed: {e} {type(e)}")
     except Exception as e:
         raise RuntimeError(f"Unexpected error: {e} {type(e)}")
 
@@ -1700,7 +1705,9 @@ def get_local_tag(repo_path):
     """Return the current local Git tag or fallback to v0.0.0."""
     try:
         run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
-        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"]).strip()
+        tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"])
+        tag = tag.strip() if tag else None
+        
         if not tag or tag.lower() == "none":
             return "v0.0.0"
         return tag
@@ -3149,7 +3156,10 @@ def init():
         return content
     
     set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
-    _LOGGER.info(welcome())
+    welcome_text = welcome()
+    _LOGGER.info("-" * len(welcome_text))
+    _LOGGER.info(welcome_text)
+    _LOGGER.info("-" * len(welcome_text))
     task.wait_until(timeout=1.0)
     try:
         set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
@@ -5730,15 +5740,18 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = start_charger_meter
             
-            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']: 
+            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
                 if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
                     last_data = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0][1]
                     
                     if "end_charger_meter" in last_data and last_data["end_charger_meter"] is None:
                         _LOGGER.warning(f"Missing end charger meter from last session, using charger meter value at start of current session")
                     elif "end_charger_meter" in last_data and last_data["end_charger_meter"] is not None:
-                        CURRENT_CHARGING_SESSION['start_charger_meter'] = last_data["end_charger_meter"]
-                        _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
+                        if start_charger_meter < last_data["end_charger_meter"]:
+                            _LOGGER.warning(f"Start charger meter {start_charger_meter} is less than end charger meter from last session {last_data['end_charger_meter']}, using charger meter value at start of current session")
+                        else:
+                            CURRENT_CHARGING_SESSION['start_charger_meter'] = last_data["end_charger_meter"]
+                            _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
                     else:
                         _LOGGER.warning(f"Missing end charger meter from last session, cannot use it for start of current session")
 
@@ -6583,7 +6596,7 @@ def cheap_grid_charge_hours():
                     
                     
                     #Workaround for cold weather
-                    if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
+                    if kwh_needed_today <= max((CONFIG['ev_car']['battery_size'] / 100), 0.3):
                         kwh_needed_today = 0.0
                     
                     while_count = 0
@@ -7825,7 +7838,7 @@ def cheap_grid_charge_hours():
         else:
             overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.no_upcoming_charging_planned')}**")
             
-            if work_overview and solar_over_production:
+            if work_overview and is_solar_configured():
                 overview.append(f"**{i18n.t('ui.cheap_grid_charge_hours.enough_solar_production')}**")
                 
             planning_basis_markdown()
@@ -7953,7 +7966,7 @@ def cheap_grid_charge_hours():
 
             overview.append("</details>\n")
             
-        if solar_over_production:
+        if is_solar_configured():
             overview.append("***")
             overview.append("</center>\n")
     except Exception as e:
@@ -7963,26 +7976,30 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     try:
-        if solar_over_production:
+        if is_solar_configured():
             overview.append("<center>\n")
-            overview.append(f"## 🌞 {i18n.t('ui.cheap_grid_charge_hours.solar_production_title')} ##")
             
-            overview.append(f"| {i18n.t('ui.common.time')} |  |  |  | % |  | kWh |")
-            overview.append("|---|---:|:---|---:|---:|---|---:|")
-            
-            for d in solar_over_production.values():
-                d['day'] = f"**{d['day']}**" if d['day'] else ""
-                d['date'] = f"**{d['date']}**" if d['date'] else ""
-                d['when'] = f"**{d['when']}**" if d['when'] else ""
-                d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
-                d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
-                d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
+            if solar_over_production:
+                overview.append(f"## 🌞 {i18n.t('ui.cheap_grid_charge_hours.solar_production_title')} ##")
                 
-                if d['corrected']:
-                    d['emoji'] = emoji_parse({'solar_corrected': True})
+                overview.append(f"| {i18n.t('ui.common.time')} |  |  |  | % |  | kWh |")
+                overview.append("|---|---:|:---|---:|---:|---|---:|")
+                
+                for d in solar_over_production.values():
+                    d['day'] = f"**{d['day']}**" if d['day'] else ""
+                    d['date'] = f"**{d['date']}**" if d['date'] else ""
+                    d['when'] = f"**{d['when']}**" if d['when'] else ""
+                    d['emoji'] = f"**{emoji_text_format(d['emoji'])}**" if d['emoji'] else ""
+                    d['percentage'] = f"**{round(d['percentage'], 1)}**" if d['percentage'] else "**0**"
+                    d['kWh'] = f"**{round(d['kWh'], 1)}**" if d['kWh'] else "**0.0**"
                     
-                overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
-
+                    if d['corrected']:
+                        d['emoji'] = emoji_parse({'solar_corrected': True})
+                        
+                    overview.append(f"| {d['day']} | {d['date']} | {d['when']} | {d['emoji']} | {d['percentage']} |  | {d['kWh']} |")
+            else:
+                overview.append(f"### 🌞 {i18n.t('ui.cheap_grid_charge_hours.no_solar_production')} ##")
+                
             overview.append("</center>\n")
     except Exception as e:
         _LOGGER.error(f"Failed to create solar over production overview: {e} {type(e)}")
@@ -10989,8 +11006,8 @@ if INITIALIZATION_COMPLETE:
             solar_configured = i18n.t('ui.startup.configuration.configured') if is_solar_configured() else i18n.t('ui.startup.configuration.not_configured')
             powerwall_configured = i18n.t('ui.startup.configuration.configured') if is_powerwall_configured() else i18n.t('ui.startup.configuration.not_configured')
             
-            log_lines.append(welcome())
-            log_lines.append(f"📟{BASENAME} started")
+            log_lines.append(f"---")
+            log_lines.append(f"### {welcome()}")
             log_lines.append(f"")
             log_lines.append(f"**{i18n.t('ui.startup.configuration.header')}:**")
             log_lines.append(f"📟{i18n.t('ui.startup.configuration.charger')}: {charger_configured}")

@@ -683,7 +683,8 @@ ui:
       plan_include_estimations: "Plan enthält geschätzte Netz-Kosten, {work_overview_solar_text}Batteriestände"
       estimated_daily_charging: "Tägliche Schätzung {alternative_cost}€ {alternative_per_kwh}€/kWh<br>bei {total_kwh}kWh Differenz {difference_cost}€"
       estimated_daily_charging_plan: "Ladeübersicht (**Tägliche Ladeschätzung**)"
-    solar_production_title: "Solar-Überproduktion"
+    solar_production_title: "Überschüssige Solarproduktion verfügbar"
+    no_solar_production: "Keine überschüssige Solarproduktion verfügbar"
     last_scheduled: "Zuletzt geplant"
 
   max_local_energy_available_remaining_period:
