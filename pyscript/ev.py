@@ -6596,7 +6596,7 @@ def cheap_grid_charge_hours():
                     
                     
                     #Workaround for cold weather
-                    if kwh_needed_today <= (CONFIG['ev_car']['battery_size'] / 100):
+                    if kwh_needed_today <= max((CONFIG['ev_car']['battery_size'] / 100), 0.3):
                         kwh_needed_today = 0.0
                     
                     while_count = 0
