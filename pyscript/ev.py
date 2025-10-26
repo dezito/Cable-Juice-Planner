@@ -5740,15 +5740,18 @@ async def _charging_history(charging_data = None, charging_type = ""):
             CURRENT_CHARGING_SESSION['start'] = start
             CURRENT_CHARGING_SESSION['start_charger_meter'] = start_charger_meter
             
-            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']: 
+            if not CONFIG['charger']['entity_ids']['other_ev_using_this_charger_entity_ids']:
                 if CHARGING_HISTORY_DB and len(CHARGING_HISTORY_DB) > 1:
                     last_data = sorted(CHARGING_HISTORY_DB.items(), key=lambda item: item[0], reverse=True)[0][1]
                     
                     if "end_charger_meter" in last_data and last_data["end_charger_meter"] is None:
                         _LOGGER.warning(f"Missing end charger meter from last session, using charger meter value at start of current session")
                     elif "end_charger_meter" in last_data and last_data["end_charger_meter"] is not None:
-                        CURRENT_CHARGING_SESSION['start_charger_meter'] = last_data["end_charger_meter"]
-                        _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
+                        if start_charger_meter < last_data["end_charger_meter"]:
+                            _LOGGER.warning(f"Start charger meter {start_charger_meter} is less than end charger meter from last session {last_data['end_charger_meter']}, using charger meter value at start of current session")
+                        else:
+                            CURRENT_CHARGING_SESSION['start_charger_meter'] = last_data["end_charger_meter"]
+                            _LOGGER.info(f"Using end charger meter from last session {CURRENT_CHARGING_SESSION['start_charger_meter']}")
                     else:
                         _LOGGER.warning(f"Missing end charger meter from last session, cannot use it for start of current session")
 
