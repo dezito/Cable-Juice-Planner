@@ -7653,8 +7653,8 @@ def cheap_grid_charge_hours():
         _LOGGER.error(f"Failed to create charging plan charging_hours attributes: {e} {type(e)}")
         _LOGGER.error(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
     
-    set_attr(f"sensor.ev_current_charging_rule.charging_plan", charging_plan_attr)
-    set_attr(f"sensor.ev_current_charging_rule.charging_hours", charging_hours_attr)
+    set_attr(f"sensor.{__name__}_current_charging_rule.charging_plan", charging_plan_attr)
+    set_attr(f"sensor.{__name__}_current_charging_rule.charging_hours", charging_hours_attr)
     
     old_charge_hours = deepcopy(CHARGE_HOURS)
     
