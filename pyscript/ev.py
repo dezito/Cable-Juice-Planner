@@ -11314,7 +11314,7 @@ if INITIALIZATION_COMPLETE:
                 "timestamp": getTime()
             })
             
-            if PUBLIC_CHARGING_SESSION[-1]["added_percentage"] < 0.0:
+            if PUBLIC_CHARGING_SESSION[-1]["added_percentage"] <= 0.0:
                 _LOGGER.warning(f"Public charging session: End battery level {PUBLIC_CHARGING_SESSION[-1]['end_battery_level']}% is less than start battery level {PUBLIC_CHARGING_SESSION[-1]['start_battery_level']}%")
                 
                 PUBLIC_CHARGING_SESSION.pop(-1)
