@@ -86,7 +86,9 @@ config:
       kwh_meter_entity_id: "**Påkrævet** Brug Riemann-sum integral-sensor (integrationsmetode: Venstre Riemann-sum), hvis laderens kWh-måler er langsom (fx Easee); ellers brug laderens livstids-kWh-måler"
       lifetime_kwh_meter_entity_id: "**Påkrævet** Alternativ til kwh_meter_entity_id, hvis du ikke vil bruge laderens livstids-kWh-måler"
       enabled_entity_id: "Tænd/sluk ladeenheden; bruges ikke til start/stop af opladning"
-      dynamic_circuit_limit: "Hvis ikke sat, skal charger.entity_ids.start_stop_charging_entity_id være sat"
+      dynamic_charger_limit_entity_id: "Styring af ampere ladegrænse for laderen, hvis charger.entity_ids.dynamic_charger_limit_entity_id eller charger.entity_ids.dynamic_circuit_limit_entity_id ikke er sat, skal charger.entity_ids.start_stop_charging_entity_id være sat (Understøttede integrationer: Easee)"
+      dynamic_circuit_limit_entity_id: "Master kredsløb fase ampere styring, hvis charger.entity_ids.dynamic_charger_limit_entity_id eller charger.entity_ids.dynamic_circuit_limit_entity_id ikke er sat, skal charger.entity_ids.start_stop_charging_entity_id være sat (Understøttede integrationer: Easee)"
+      master_charger_status_entity_id: "Hvis laderen er en slave i et multi-lade-setup, brug denne til at hente master charger status, understøtter kun 1 master pr. slave. Sæt charger.entity_ids.dynamic_circuit_limit_entity_id til masters kredsløb fase ampere styring entity (Understøttede integrationer: Easee)"
       co2_entity_id: "Energi Data Service CO2 entity_id"
       cable_connected_entity_id: 'Hvis bilen ikke har en "kabel tilsluttet"-entitet, brug denne til at afgøre om bilen er forbundet (Understøttede tilstande: {charger_supported_states})'
       start_stop_charging_entity_id: "Hvis du bruger en anden integration end Easee til start/stop af opladning (fx Monta)"
