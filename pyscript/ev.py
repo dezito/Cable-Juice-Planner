@@ -3208,7 +3208,7 @@ def init():
     
     
         #TODO Remove later: Notify about misconfiguration of dynamic charger/circuit limit
-        if (is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'])) or True:
+        if (is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'])):
             
             my_persistent_notification(
                 f"## Critical change in config:\n"
