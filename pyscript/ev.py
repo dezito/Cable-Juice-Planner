@@ -389,7 +389,9 @@ DEFAULT_CONFIG = {
             "kwh_meter_entity_id": "",
             "lifetime_kwh_meter_entity_id": "",
             "enabled_entity_id": "",
-            "dynamic_circuit_limit": "",
+            "dynamic_charger_limit_entity_id": "",
+            "dynamic_circuit_limit_entity_id": "",
+            "master_charger_status_entity_id": "",
             "co2_entity_id": "",
             "cable_connected_entity_id": "",
             "start_stop_charging_entity_id": "",
@@ -496,7 +498,8 @@ DEFAULT_CONFIG = {
 
 CONFIG_KEYS_RENAMING = {# Old path: New path (seperated by ".")
     "home.ignore_consumption_from_entity_id": "home.ignore_consumption_from_entity_ids",
-    "ev_car.daily_drive_distance": "ev_car.typical_daily_distance_non_working_day"
+    "ev_car.daily_drive_distance": "ev_car.typical_daily_distance_non_working_day",
+    "charger.entity_ids.dynamic_circuit_limit": "charger.entity_ids.dynamic_circuit_limit_entity_id"
 }
 
 COMMENT_DB_YAML = {}
@@ -2552,7 +2555,6 @@ def notify_critical_change(cfg = {}, filename = None):
 
         return index
 
-
     def keys_description(keys: List[str]) -> List[str]:
         """
         Return markdown blocks for each key:
@@ -2613,7 +2615,7 @@ def notify_critical_change(cfg = {}, filename = None):
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
                 persistent_notification_id=f"{__name__}_{func_name}_language_required"
             )
-            
+        
         other_ev_using_this_charger_new_key = ["charger.entity_ids.other_ev_using_this_charger_entity_ids"]
         other_ev_using_this_charger_missing_key = check_nested_keys_exist(cfg, other_ev_using_this_charger_new_key)
         
@@ -2629,6 +2631,38 @@ def notify_critical_change(cfg = {}, filename = None):
                 f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
                 title=f"{TITLE} {i18n.t('ui.notify_critical_change.title')}",
                 persistent_notification_id=f"{__name__}_{func_name}_other_ev_using_this_charger"
+            )
+            
+        dynamic_charger_limit_new_key = [
+            "charger.entity_ids.dynamic_charger_limit_entity_id",
+            "charger.entity_ids.master_charger_status_entity_id",
+            ]
+        dynamic_charger_limit_missing_key = check_nested_keys_exist(cfg, dynamic_charger_limit_new_key)
+        
+        if dynamic_charger_limit_missing_key:
+            _LOGGER.warning(f"Dynamic charger limit configuration added and set to default: {dynamic_charger_limit_missing_key}")
+            
+            fmt = {"name":__name__}
+            my_persistent_notification(
+                f"## Critical change in this version:\n"
+                f"If your using dynamic limits for Easee charger(s), please read carefully:\n\n"
+                f"Added support for master slave Easee charger setups,\n"
+                f"where one Easee charger controls the dynamic limit for multiple Easee chargers.\n\n"
+                f"### Multi-charger setups\n"
+                f"For the master Easee charger, set **charger.entity_ids.dynamic_charger_limit_entity_id** and **charger.entity_ids.dynamic_circuit_limit_entity_id**, as usual.\n\n"
+                f"For the slave Easee charger, set **charger.entity_ids.dynamic_circuit_limit_entity_id** to the masters dynamic circuit limit entity id.\n"
+                f"and set **charger.entity_ids.dynamic_charger_limit_entity_id** to the slave charger dynamic charger limit entity id.\n"
+                f"Also set **charger.entity_ids.master_charger_status_entity_id** to the master Easee status entity id.\n\n"
+                f"### Single charger setups\n"
+                f"If you are using only one Easee charger, and not a multi-charger setup,\n"
+                f"set **charger.entity_ids.dynamic_charger_limit_entity_id** to the entity id you are using for dynamic charger limit.\n\n"
+                f"and set **charger.entity_ids.dynamic_circuit_limit_entity_id** to the entity id you are using for dynamic circuit limit.\n\n"
+                f"Leave **charger.entity_ids.master_charger_status_entity_id** unset.\n\n"
+                f"### {i18n.t('ui.notify_critical_change.new_config_keys')}:\n - {'- '.join(keys_description(dynamic_charger_limit_missing_key))}\n\n"
+                f"**{i18n.t('ui.notify_critical_change.action')}:**\n"
+                f"{i18n.t('ui.notify_critical_change.update_config_file', **fmt)}\n",
+                title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
             )
             
     if filename == f"packages/{__name__}.yaml":
@@ -2783,7 +2817,6 @@ def localize_default_entities():
 
     for domain, entities in DEFAULT_ENTITIES.items():
         _visit_entities(domain, entities, _localize_attrs)
-        
 
 def load_language():
     func_name = "load_language"
@@ -3172,6 +3205,23 @@ def init():
         
         if not validate_config(CONFIG, DEFAULT_CONFIG):
             raise Exception(i18n.t('ui.init.config_validation_failed'))
+    
+    
+        #TODO Remove later: Notify about misconfiguration of dynamic charger/circuit limit
+        if (is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'])) or True:
+            
+            my_persistent_notification(
+                f"## Critical change in config:\n"
+                f"**charger.entity_ids.dynamic_circuit_limit_entity_id** is set,\n"
+                f"but **charger.entity_ids.dynamic_charger_limit_entity_id** is not set\n\n"
+                f"Please set **charger.entity_ids.dynamic_charger_limit_entity_id** or unset **charger.entity_ids.dynamic_circuit_limit_entity_id**\n\n"
+                f"If Easee charger is a slave, in a multi-charger setup,\n"
+                f"set **charger.entity_ids.master_charger_status_entity_id** to the master Easee status entity id\n"
+                f"and set **charger.entity_ids.dynamic_circuit_limit_entity_id** to the masters dynamic circuit limit entity id\n",
+                title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
+            #raise Exception(i18n.t('ui.init.config_validation_failed'))
         
         _LOGGER.info(f"{BASENAME} CONFIG loaded and validated")
         
@@ -8080,29 +8130,68 @@ def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
             log_lines.append(f"Max charging: {CONFIG['charger']['charging_max_amp']}A {CONFIG['charger']['charging_phases']} phase = {MAX_WATT_CHARGING}W")
         return "\n".join(log_lines)
     output = get_closest_key(power, powerDict, max_allowed=max_allowed)
-    return [output['phase'], output['amp'], output['watt']]
+    
+    phase_1 = 0
+    phase_2 = 0
+    phase_3 = 0
+    
+    if output['phase'] >= 1.0: phase_1 = output['amp']
+    if output['phase'] >= 2.0: phase_2 = output['amp']
+    if output['phase'] == 3.0: phase_3 = output['amp']
+    
+    return [phase_1, phase_2, phase_3, output['watt']]
 
-def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
+def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
+    func_name = "set_circuit_phase_limits"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']):
+        return
+    
+    try:
+        integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
+        
+        if is_entity_configured(CONFIG['charger']['entity_ids']['master_charger_status_entity_id']):
+            master_charger_status = get_state(CONFIG['charger']['entity_ids']['master_charger_status_entity_id'], float_type=False, error_state="connected")
+            
+            if master_charger_status in CHARGER_READY_STATUS + CHARGER_CHARGING_STATUS + CHARGER_COMPLETED_STATUS:
+                return
+        
+        if integration == "easee" and is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']):
+            if service.has_service(integration, "set_circuit_dynamic_limit"):
+                service.call(integration, "set_circuit_dynamic_limit", blocking=True,
+                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                    current_p1=phase_1,
+                                    current_p2=phase_2,
+                                    current_p3=phase_3,
+                                    time_to_live=60)
+            else:
+                raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
+        else:
+            raise(Exception(f"Charger brand is not Easee: {integration}"))
+
+    except Exception as e:
+        _LOGGER.warning(f"Cant set dynamic amps on circuit: {e} {type(e)}")
+        my_persistent_notification(
+            f"Cant set dynamic amps on circuit: {e}",
+            title=f"{TITLE} warning",
+            persistent_notification_id=f"{__name__}_{func_name}_dynamic"
+        )
+
+def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0):
     func_name = "set_charger_charging_amps"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     #Remember to add * before *calc_charging_amps(.......)..
     global CURRENT_CHARGING_AMPS
     
-    if phase is None:
-        phase = CONFIG['charger']['charging_phases']
-    if amps is None:
-        amps = CONFIG['charger']['charging_max_amp']
-    
     successful = False
-    phase_1 = 0
-    phase_2 = 0
-    phase_3 = 0
     
-    if phase >= 1.0: phase_1 = int(amps)
-    if phase >= 2.0: phase_2 = int(amps)
-    if phase == 3.0: phase_3 = int(amps)
+    phase_1 = int(phase_1)
+    phase_2 = int(phase_2)
+    phase_3 = int(phase_3)
     
-    if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
+    max_amp = max(phase_1, phase_2, phase_3)
+    
+    if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
         CURRENT_CHARGING_AMPS = [phase_1, phase_2, phase_3]
         return
     
@@ -8124,22 +8213,14 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             if not charger_id:
                 raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
             
-            if service.has_service(integration, "set_circuit_dynamic_limit"):
-                service.call(integration, "set_circuit_dynamic_limit", blocking=True,
-                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                    current_p1=phase_1,
-                                    current_p2=phase_2,
-                                    current_p3=phase_3,
-                                    time_to_live=60)
-            else:
-                raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
-            
-            if service.has_service(integration, "set_charger_dynamic_limit"):
-                service.call(integration, "set_charger_dynamic_limit", blocking=True,
-                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                    current=max(phase_1, phase_2, phase_3))
-            else:
-                raise Exception("Easee integration dont has service set_charger_dynamic_limit")
+            if is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
+                if service.has_service(integration, "set_charger_dynamic_limit"):
+                    service.call(integration, "set_charger_dynamic_limit", blocking=True,
+                                        charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                        current=max_amp,
+                                        time_to_live=60)
+                else:
+                    raise Exception("Easee integration dont has service set_charger_dynamic_limit")
         else:
             raise(Exception(f"Charger brand is not Easee: {integration}"))
         successful = True
@@ -8147,9 +8228,9 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
     except Exception as e:
         _LOGGER.warning(f"Cant set dynamic amps on charger: {e} {type(e)}")
-        _LOGGER.warning(f"Setting ev cars charging amps to {amps}")
+        _LOGGER.warning(f"Setting ev cars charging amps to {max(phase_1, phase_2, phase_3)}A")
         my_persistent_notification(
-            f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {amps}",
+            f"Cant set dynamic amps on charger: {e}\nSetting ev cars charging amps to {max(phase_1, phase_2, phase_3)}A",
             title=f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_{func_name}_dynamic"
         )
@@ -8160,20 +8241,12 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             if not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
                 raise Exception(f"Ev charging amps unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
             
-            max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
-            amps = min(amps, max_amps)
-            if phase_2 == 0 and phase_3 == 0:
-                amps = int(CONFIG['solar']['charging_single_phase_max_amp'])
-            else:
-                amps = int(CONFIG['charger']['charging_max_amp'])
-                
-            amps = min(amps, min([phase for phase in (phase_1, phase_2, phase_3) if phase > 0], default=0))
             successful = True
         
         except Exception as e_second:
             error_message = f"Cant set dynamic amps on charger: {e}\nCant set ev charging amps: {e_second}"
             _LOGGER.error(error_message)
-            save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
+            save_error_to_file(error_message, caller_function_name = f"{func_name}(charger_amps = {phase_1}/{phase_2}/{phase_3}, watt = {watt})")
             my_persistent_notification(
                 error_message,
                 title=f"{TITLE} error",
@@ -8185,15 +8258,18 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
             if not is_entity_available(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']):
                 raise Exception(f"Ev charging amps entity unavailable: {CONFIG['ev_car']['entity_ids']['charging_amps_entity_id']}")
             
-            max_amps = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
             current_amps = float(get_state(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], float_type=True, error_state=CONFIG['charger']['charging_max_amp']))
+            
             if current_amps == 0.0:
-                _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amps}")
-                ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amps)
+                ev_max_amp = float(get_attr(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], "max"))
+                max_amp = min(max_amp, ev_max_amp)
+                
+                _LOGGER.info(f"Ev charging amps was set to 0 amps, setting ev to max {max_amp}")
+                ev_send_command(CONFIG['ev_car']['entity_ids']['charging_amps_entity_id'], max_amp)
     except Exception as e:
         error_message = f"Cant set ev charging amps to {CONFIG['charger']['charging_max_amp']}: {e} {type(e)}"
         _LOGGER.warning(error_message)
-        save_error_to_file(error_message, caller_function_name = f"{func_name}(phase = {phase}, amps = {amps}, watt = {watt})")
+        save_error_to_file(error_message, caller_function_name = f"{func_name}(charger_amps = {phase_1}/{phase_2}/{phase_3}, watt = {watt})")
         my_persistent_notification(
             error_message,
             title=f"{TITLE} warning",
@@ -8203,7 +8279,7 @@ def set_charger_charging_amps(phase = None, amps = None, watt = 0.0):
     if successful:
         CURRENT_CHARGING_AMPS = [phase_1, phase_2, phase_3]
     else:
-        _LOGGER.warning(f"Cant set charger to phase:{phase} amps:{phase_1}/{phase_2}/{phase_3} watt:{watt}")
+        _LOGGER.warning(f"Cant set charger to amps:{phase_1}/{phase_2}/{phase_3} watt:{watt}")
 
 def power_from_ignored(from_time_stamp, to_time_stamp):
     func_name = "power_from_ignored"
@@ -9944,19 +10020,11 @@ def is_charging():
     if RESTARTING_CHARGER_COUNT == 0 and minutesBetween(getTime(), when, error_value=CONFIG['cron_interval'] + 5) <= CONFIG['cron_interval'] * 2:
         return
     
-    dynamic_circuit_limit = sum(CURRENT_CHARGING_AMPS)
     current_charging_amps = sum(CURRENT_CHARGING_AMPS)
+    dynamic_charger_limit_entity_id = sum(CURRENT_CHARGING_AMPS)
     
-    if "easee" == get_integration(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']) and is_entity_available(CONFIG['charger']['entity_ids']['dynamic_circuit_limit']):
-        charger_dynamic_circuit_limit = get_attr(CONFIG['charger']['entity_ids']['dynamic_circuit_limit'], error_state=None)
-        
-        try:
-            p1 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP1"])
-            p2 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP2"])
-            p3 = int(charger_dynamic_circuit_limit["state_dynamicCircuitCurrentP3"])
-            dynamic_circuit_limit = sum([p1, p2, p3])
-        except Exception as e:
-            _LOGGER.error(f"Cant get dynamic circuit limit from entity {CONFIG['charger']['entity_ids']['dynamic_circuit_limit']} where attr is {charger_dynamic_circuit_limit}: {e} {type(e)}")
+    if is_entity_available(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
+        dynamic_charger_limit_entity_id = get_state(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'], error_state=None)
     
     try:
         if RESTARTING_CHARGER:
@@ -9988,7 +10056,7 @@ def is_charging():
                 set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}")
                 raise Exception(f"Charging has not started even after restarting multiple times")
             elif RESTARTING_CHARGER_COUNT < 3:
-                if current_charging_amps != dynamic_circuit_limit:
+                if current_charging_amps != dynamic_charger_limit_entity_id:
                     set_charging_rule(f"⛔{i18n.t('ui.is_charging.charging_failed')}\n{i18n.t('ui.is_charging.charger_dynamic_failed')}")
                     raise Exception(f"Chargers dynamic circuit limit not set")
                 else:
@@ -10039,7 +10107,7 @@ def is_charging():
         )
             
     _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
-    _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_circuit_limit:{dynamic_circuit_limit}")
+    _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_charger_limit_entity_id:{dynamic_charger_limit_entity_id}")
 
 def charging_without_rule():
     func_name = "charging_without_rule"
@@ -10181,12 +10249,14 @@ def charge_if_needed():
         current_price = get_current_hour_price()
         
         charging_limit = min(range_to_battery_level(), get_max_recommended_charge_limit_battery_level())
-        amps = [3.0, 0.0]
+        
+        circuit_amps = inverter_amps if sum(inverter_amps) > 0.0 else [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+        charger_amps = [0.0, 0.0, 0.0]
                 
         '''if trip_planned:
-            inverter_amps[1] = 0.0'''
+            sum(inverter_amps) = 0.0'''
         
-        if inverter_amps[1] != 0.0:
+        if sum(inverter_amps) != 0.0:
             alsoCheapPower = ""
             charging_limit = get_max_recommended_charge_limit_battery_level()
             solar_using_grid_price = False
@@ -10197,25 +10267,32 @@ def charge_if_needed():
             if current_hour_in_charge_hours():
                 timestamp = current_hour_in_charge_hours()
                 if "half_min_avg_price" in CHARGE_HOURS[timestamp]:
-                    amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
+                    circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                    charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                     charging_limit = charging_limit if charging_limit > get_ultra_cheap_grid_charging_max_battery_level() else get_ultra_cheap_grid_charging_max_battery_level()
                     alsoCheapPower = " + Ultra cheap power"
                 elif "under_min_avg_price" in CHARGE_HOURS[timestamp]:
-                    amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
+                    circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                    charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                     charging_limit = charging_limit if charging_limit > get_very_cheap_grid_charging_max_battery_level() else get_very_cheap_grid_charging_max_battery_level()
                     alsoCheapPower = " + Cheap power"
                 else:
-                    amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
+                    circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                    charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                     charging_limit = round_up(battery_level() + CHARGE_HOURS[timestamp]['battery_level'])
                     alsoCheapPower = " + Grid Charging not enough solar production"
                 charging_limit = min(charging_limit, get_max_recommended_charge_limit_battery_level())
         
         if no_charging_modes_active():
             _LOGGER.info("No charging modes active, setting amps to max")
+            
             charging_limit = get_max_recommended_charge_limit_battery_level()
-            amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-            charging_rule = f"⛔{i18n.t('ui.charge_if_needed.no_charging_modes_active', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
-            charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(inverter_watt_solar_only)}, "deactivate")
+            
+            circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+            charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+            
+            charging_rule = f"⛔{i18n.t('ui.charge_if_needed.no_charging_modes_active', watt=int(sum(charger_amps) * CONFIG['charger']['power_voltage']))}"
+            charging_history({'Price': get_solar_sell_price() if sum(inverter_amps) != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(inverter_watt_solar_only)}, "deactivate")
         elif is_calculating_charging_loss():
             completed_battery_level = float(get_state(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], float_type=True, error_state=100.0)) if is_ev_configured() and is_entity_configured(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id']) else get_completed_battery_level()
             _LOGGER.info(f"Calculating charging loss {completed_battery_level}%")
@@ -10225,7 +10302,9 @@ def charge_if_needed():
                 charging_limit = get_max_recommended_charge_limit_battery_level()
                 
             charging_rule = f"{emoji_parse({'charging_loss': True})}{i18n.t('ui.charge_if_needed.charging_loss', percentage=completed_battery_level)}"
-            amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
+            
+            circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+            charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
             
             battery = round(completed_battery_level - battery_level(), 1)
             kwh = round(percentage_to_kwh(battery, include_charging_loss = True))
@@ -10235,15 +10314,20 @@ def charge_if_needed():
             charging_limit = get_max_recommended_charge_limit_battery_level()
             if not manual_charging_solar_enabled():
                 _LOGGER.info("Manual charging")
-                amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-                charging_rule = f"{emoji_parse({'manual': True})}{i18n.t('ui.charge_if_needed.manual_charging', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
+                
+                circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                
+                charging_rule = f"{emoji_parse({'manual': True})}{i18n.t('ui.charge_if_needed.manual_charging', watt=int(sum(charger_amps) * CONFIG['charger']['power_voltage']))}"
             else:
                 _LOGGER.info(f"Manual charging solar only")
-                amps = calc_charging_amps(inverter_watt_solar_only, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
-                charging_rule = f"{emoji_parse({'manual': True, "solar": True})}{i18n.t('ui.charge_if_needed.manual_charging_solar', watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))}"
                 
-            if amps[1] > 0.0:
-                charging_history({'Price': get_solar_sell_price() if inverter_amps[1] != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(inverter_watt_solar_only)}, "manual")
+                charger_amps = calc_charging_amps(inverter_watt_solar_only, max_allowed=CONFIG["solar"]["inverter_discharging_power_limit"])[:-1]  # Remove last element (watt)
+                circuit_amps = charger_amps
+                charging_rule = f"{emoji_parse({'manual': True, "solar": True})}{i18n.t('ui.charge_if_needed.manual_charging_solar', watt=int(sum(charger_amps) * CONFIG['charger']['power_voltage']))}"
+                
+            if sum(charger_amps) > 0.0:
+                charging_history({'Price': get_solar_sell_price() if sum(inverter_amps) != 0.0 else current_price, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'manual': True, 'solar': is_solar_production_available(inverter_watt_solar_only)}, "manual")
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
@@ -10255,8 +10339,12 @@ def charge_if_needed():
                 
                 battery_level_plus_charge = battery_level() + CHARGE_HOURS[timestamp]['battery_level']
                 max_level_today = CHARGE_HOURS['max_charging_level_today']
+                
                 charging_limit = min(round_up(max(battery_level_plus_charge, max_level_today, range_to_battery_level())), 100.0)
-                amps = [CONFIG['charger']['charging_phases'], CHARGE_HOURS[timestamp]['ChargingAmps']]
+                
+                circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                
                 '''_LOGGER.error(f"battery_level_plus_charge:{battery_level_plus_charge}")
                 _LOGGER.error(f"max_level_today:{max_level_today}")
                 _LOGGER.error(f"range_to_battery_level():{range_to_battery_level()}")
@@ -10274,16 +10362,20 @@ def charge_if_needed():
                     cost = round(current_price * kwh, 2)
                     charging_history({'Price': current_price, 'Cost': cost, 'kWh': kwh, 'battery_level': battery, 'low_battery': True, 'solar': is_solar_production_available(inverter_watt_solar_only), 'powerwall': is_powerwall_discharging(powerwall_discharge_watt)}, "low_battery")
                     charging_limit = get_min_daily_battery_level()
-                    amps = [CONFIG['charger']['charging_phases'], int(CONFIG['charger']['charging_max_amp'])]
+                    
+                    circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                    charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                    
                     charging_rule = f"{emoji_parse({'low_battery': True})}{i18n.t('ui.charge_if_needed.low_battery', percentage=get_min_daily_battery_level())}"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
-            elif solar_charging_enabled() and inverter_amps[1] != 0.0:
+            elif solar_charging_enabled() and sum(inverter_amps) != 0.0:
                 if battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
                     if CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(inverter_watt_solar_only):
                         charging_rule = i18n.t('ui.charge_if_needed.solar_production_but_expensive', price=round(get_solar_sell_price(), 2))
                         _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
-                        inverter_amps[1] = 0.0
-                        amps = inverter_amps
+                        
+                        inverter_amps = [0.0, 0.0, 0.0]
+                        charger_amps = inverter_amps
                     else:
                         if current_hour_in_charge_hours():
                             timestamp = current_hour_in_charge_hours()
@@ -10297,10 +10389,10 @@ def charge_if_needed():
                         powerwall_string = f"{emoji_parse({'powerwall': True})}{i18n.t('ui.charge_if_needed.powerwall')}" if is_powerwall_discharging(powerwall_discharge_watt) else ""
                         local_energy_string = " &".join([solar_string, powerwall_string]) if is_solar_production_available(inverter_watt_solar_only) and is_powerwall_discharging(powerwall_discharge_watt) else solar_string or powerwall_string
 
-                        amps = inverter_amps
-                        charging_rule = i18n.t('ui.charge_if_needed.local_energy_charging', local_energy=local_energy_string, watt=int(amps[0] * amps[1] * CONFIG['charger']['power_voltage']))
+                        charger_amps = inverter_amps
+                        charging_rule = i18n.t('ui.charge_if_needed.local_energy_charging', local_energy=local_energy_string, watt=int(sum(charger_amps) * CONFIG['charger']['power_voltage']))
                         
-                        _LOGGER.info(f"EV solar/powerwall charging at max {amps}{alsoCheapPower}")
+                        _LOGGER.info(f"EV solar/powerwall charging at max {charger_amps}{alsoCheapPower}")
                 else:
                     charging_rule = f"{emoji_parse({'solar': True})}{i18n.t('ui.charge_if_needed.local_energy_charging_not_needed', percentage=get_max_recommended_charge_limit_battery_level())}"
                     _LOGGER.info(f"EV solar charging not needed, battery over {get_max_recommended_charge_limit_battery_level()}%")
@@ -10317,7 +10409,7 @@ def charge_if_needed():
         if fill_up_charging_enabled():
             charging_limit = max(charging_limit, get_max_recommended_charge_limit_battery_level())
         
-        if amps[1] > 0.0:
+        if sum(charger_amps) > 0.0:
             ev_send_command(CONFIG['ev_car']['entity_ids']['charging_limit_entity_id'], verify_charge_limit(charging_limit))
             start_charging()
         else:
@@ -10325,7 +10417,9 @@ def charge_if_needed():
         
         if charging_rule:
             set_charging_rule(charging_rule)
-        set_charger_charging_amps(*amps)
+            
+        set_circuit_phase_limits(*circuit_amps)
+        set_charger_charging_amps(*charger_amps)
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.error(f"Task cancelled {e} ({type(e)})")
     except Exception as e:
@@ -10360,8 +10454,11 @@ def charge_if_needed():
         charging_history({'Price': 0.0, 'Cost': 0.0, 'kWh': 0.0, 'battery_level': 0.0, 'error': True}, "error")
         set_charging_rule(f"{emoji_parse({'error': True})}Fejl: Script deaktiveret, lader maks!!!")
         
-        amps = [3.0, CONFIG['charger']['charging_max_amp']]
-        set_charger_charging_amps(*amps)
+        circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+        charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+        
+        set_circuit_phase_limits(*circuit_amps)
+        set_charger_charging_amps(*charger_amps)
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
 
@@ -11152,8 +11249,11 @@ if INITIALIZATION_COMPLETE:
                         done, pending = task.wait({TASKS[f"{func_prefix}stop_current_charging_session"]})
                         
                         
-                        amps = [CONFIG['charger']['charging_phases'], CONFIG['charger']['charging_max_amp']]
-                        set_charger_charging_amps(*amps)
+                        circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                        charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
+                        
+                        set_circuit_phase_limits(*circuit_amps)
+                        set_charger_charging_amps(*charger_amps)
                         start_charging()
                     elif value == "off":
                         pass
