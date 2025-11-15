@@ -3221,7 +3221,7 @@ def init():
                 title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
-            #raise Exception(i18n.t('ui.init.config_validation_failed'))
+            raise Exception(i18n.t('ui.init.config_validation_failed'))
         
         _LOGGER.info(f"{BASENAME} CONFIG loaded and validated")
         
