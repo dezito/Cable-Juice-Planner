@@ -93,8 +93,12 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
                 start_time=start_time,
                 end_time=end_time,
                 entity_ids=[entity_id],
-                include_start_time_state=True,
-                significant_changes_only=False
+                filters = None,
+                include_start_time_state = True,
+                significant_changes_only = False,
+                minimal_response = False,
+                no_attributes = False,
+                compressed_state_format = False,
             )'''
             
         if entity_id in hist_data:
