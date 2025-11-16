@@ -2,9 +2,12 @@ import datetime
 import numpy as np
 
 from homeassistant.components.recorder import history as hass_history
+from homeassistant.components.recorder.statistics import statistics_during_period
 from homeassistant.core import HomeAssistant
 from homeassistant.components.recorder.util import session_scope
 from homeassistant.util import dt as dt_util
+
+from typing import Literal
 
 ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
 
@@ -58,6 +61,37 @@ def interpolate_sensor_data(sensor_data, from_datetime, to_datetime, num_points)
         _LOGGER.error(f"Error in interpolate_sensor_data: {e}")
 
     return interpolated_dict
+
+def fetch_statistics_data(hass: HomeAssistant, entity_id: str, start_time: datetime.datetime, end_time: datetime.datetime, state_type: Literal["max", "mean", "min"]):
+    _LOGGER = globals()['_LOGGER'].getChild("fetch_statistics_data")
+    
+    start_time = start_time.replace(minute=0, second=0, microsecond=0)
+    end_time = end_time.replace(minute=0, second=0, microsecond=0)
+    
+    if start_time == end_time:
+        end_time = start_time + datetime.timedelta(hours=1)
+    
+    start_utc = dt_util.as_utc(start_time)
+    end_utc = dt_util.as_utc(end_time)
+
+    stats = statistics_during_period(
+        hass=hass,
+        start_time=start_utc,
+        end_time=end_utc,
+        statistic_ids=[entity_id],
+        period="hour",           # "5minute", "day", "hour", "week", "month"
+        units=None,
+        types={state_type}
+    )
+    result = {}
+    
+    if entity_id in stats:
+        for entry in stats[entity_id]:
+            timestamp = datetime.datetime.fromtimestamp(entry["start"])
+            value = entry[state_type]
+            result[timestamp] = value
+            
+    return result
 
 def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime, end_time: datetime):
     _LOGGER = globals()['_LOGGER'].getChild("fetch_history_data")
@@ -173,6 +207,50 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
         
     return error_state
 
+def get_longterm_values(entity_id, from_datetime, to_datetime, state_type: Literal["max", "mean", "min"], convert_to=None, include_timestamps=False, error_state=None):
+    """
+    Fetches historical state values for a specified entity within a given datetime range
+    from the Home Assistant statistics API.
+    Parameters:
+    - entity_id (str): The entity ID to fetch historical values for.
+    - from_datetime (datetime): The start of the datetime range.
+    - to_datetime (datetime): The end of the datetime range.
+    - state_type (Literal["max", "mean", "min"]): The type of statistic to fetch.
+    - error_state: The value to return in case of an error.
+    Returns:
+    - A list of state values or the error state if an error occurs.
+    """
+    
+    _LOGGER = globals()['_LOGGER'].getChild("get_values")
+    from power_convert import power_convert
+    
+    from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
+    
+    states = {}
+    
+    try:
+        history_data = fetch_statistics_data(hass, entity_id, from_datetime, to_datetime, state_type)
+            
+        if isinstance(history_data, dict):
+            for ts, value in history_data.items():
+                try:
+                    if value not in ENTITY_UNAVAILABLE_STATES:
+                        value = value if convert_to is None else power_convert(value, entity_id, convert_to = convert_to)
+                        
+                        states[ts] = value
+                except:
+                    pass
+        
+        if states:
+            if include_timestamps:
+                return states
+
+            return list(states.values())
+    except Exception as e:
+        _LOGGER.error(f"Error in get_values for {entity_id} convert_to:{convert_to} error_state:{error_state} between {from_datetime} and {to_datetime} states:{states}: {e}")
+        
+    return error_state
+
 def get_min_value(entity_id, from_datetime, to_datetime, convert_to=None, error_state=None):
     """
     Fetches the minimum state value for a specified entity within a given datetime range
@@ -192,6 +270,12 @@ def get_min_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
     from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
     states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
+    longterm_states = get_longterm_values(entity_id, from_datetime, to_datetime, state_type="min", convert_to = convert_to, error_state=None)
+    
+    if states is not None and longterm_states is not None:
+        states.extend(longterm_states)
+    elif states is None and longterm_states is not None:
+        states = longterm_states
         
     try:
         if states:
@@ -224,6 +308,12 @@ def get_max_value(entity_id, from_datetime, to_datetime, convert_to=None, error_
     from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
     states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
+    longterm_states = get_longterm_values(entity_id, from_datetime, to_datetime, state_type="max", convert_to = convert_to, error_state=None)
+    
+    if states is not None and longterm_states is not None:
+        states.extend(longterm_states)
+    elif states is None and longterm_states is not None:
+        states = longterm_states
         
     try:
         if states:
@@ -256,6 +346,12 @@ def get_average_value(entity_id, from_datetime, to_datetime, convert_to=None, er
     from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
     states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
+    longterm_states = get_longterm_values(entity_id, from_datetime, to_datetime, state_type="mean", convert_to = convert_to, error_state=None)
+    
+    if states is not None and longterm_states is not None:
+        states.extend(longterm_states)
+    elif states is None and longterm_states is not None:
+        states = longterm_states
         
     try:
         if states:
@@ -289,6 +385,12 @@ def get_delta_value(entity_id, from_datetime, to_datetime, convert_to=None, erro
     from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
     
     states = get_values(entity_id, from_datetime, to_datetime, float_type=True, convert_to = convert_to, error_state=None)
+    longterm_states = get_longterm_values(entity_id, from_datetime, to_datetime, state_type="mean", convert_to = convert_to, error_state=None)
+    
+    if states is not None and longterm_states is not None:
+        states.extend(longterm_states)
+    elif states is None and longterm_states is not None:
+        states = longterm_states
         
     try:
         if states and isinstance(states, list):
