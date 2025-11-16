@@ -3202,10 +3202,6 @@ def init():
         
         task.wait_until(timeout=0.5)
         set_charging_rule(f"📟{i18n.t('ui.init.config_validation')}")
-        
-        if not validate_config(CONFIG, DEFAULT_CONFIG):
-            raise Exception(i18n.t('ui.init.config_validation_failed'))
-    
     
         #TODO Remove later: Notify about misconfiguration of dynamic charger/circuit limit
         if (is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']) and not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'])):
@@ -3221,6 +3217,9 @@ def init():
                 title=f"{TITLE} {i18n.t('ui.init.script_stopped')}",
                 persistent_notification_id=f"{__name__}_{func_name}_error"
             )
+            raise Exception(i18n.t('ui.init.config_validation_failed'))
+        
+        if not validate_config(CONFIG, DEFAULT_CONFIG):
             raise Exception(i18n.t('ui.init.config_validation_failed'))
         
         _LOGGER.info(f"{BASENAME} CONFIG loaded and validated")
