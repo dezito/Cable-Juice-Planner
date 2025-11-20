@@ -9695,10 +9695,8 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             _LOGGER.info("Preheating ev car")
             
             if outdoor_temp <= -1.0 or forecast_temp <= -1.0:
-                service.call("climate", "set_preset_mode", preset_mode="Defrost", blocking=True, entity_id=entity_id)
                 heating_type = i18n.t('ui.preheat_ev.thawing')
-            else:
-                service.call("climate", "turn_on", blocking=True, entity_id=entity_id)
+            service.call("climate", "turn_on", blocking=True, entity_id=entity_id)
                 
             drive_efficiency("preheat_start")
             notify_type = "preheat_start"
