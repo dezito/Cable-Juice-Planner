@@ -178,10 +178,6 @@ def get_values(entity_id, from_datetime, to_datetime, float_type=False, convert_
     try:
         history_data = fetch_history_data(hass, entity_id, from_datetime, to_datetime)
         
-
-        if "full_charge_recommended" in entity_id or "last_full_charge" in entity_id:
-            _LOGGER.debug(f"get_values history_data for {entity_id} between {from_datetime} and {to_datetime}: {history_data}")
-            
         if isinstance(history_data, dict):
             for ts, value in history_data.items():
                 try:
