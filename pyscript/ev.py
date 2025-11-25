@@ -8164,7 +8164,7 @@ def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
                                     current_p1=phase_1,
                                     current_p2=phase_2,
                                     current_p3=phase_3,
-                                    time_to_live=60)
+                                    time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
             else:
                 raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
         else:
@@ -8220,7 +8220,7 @@ def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0)
                     service.call(integration, "set_charger_dynamic_limit", blocking=True,
                                         charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
                                         current=max_amp,
-                                        time_to_live=60)
+                                        time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
                 else:
                     raise Exception("Easee integration dont has service set_charger_dynamic_limit")
         else:
