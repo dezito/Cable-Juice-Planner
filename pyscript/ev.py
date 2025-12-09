@@ -11693,6 +11693,10 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                    
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
+                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
                 
                 task_cancel("charge_if_needed", task_remove=True, timeout=5.0, wait_period=0.2, startswith=False, contains=True)
                 TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
@@ -11709,10 +11713,6 @@ if INITIALIZATION_COMPLETE:
                     task_cancel("power_connected_trigger", task_remove=True, contains=True)
                     TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                     done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
-                    
-                    set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
-                    set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
-                    set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
                 elif old_value in CHARGER_CHARGING_STATUS and value in CHARGER_COMPLETED_STATUS:
                     if not is_ev_configured() and CURRENT_CHARGING_SESSION['start']:
                         TASKS[f"{func_prefix}stop_current_charging_session"] = task.create(stop_current_charging_session)
