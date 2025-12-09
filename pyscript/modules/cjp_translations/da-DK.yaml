@@ -455,53 +455,53 @@ entity:
   # ---- binary_sensor ----
   binary_sensor:
     public_charging_session_done:
-      friendly_name: "Offentlig opladning afsluttet"
+      name: "Offentlig opladning afsluttet"
       description: "Marker at offentlig ladning er afsluttet og omkostning skal indtastes"
 
   # ---- sensor ----
   sensor:
     solar_over_production_current_hour:
-      friendly_name: "Solcelle produktion tilrådighed i nuværende time"
+      name: "Solcelle produktion tilrådighed i nuværende time"
       description: "Solcelle produktion til rådighed i nuværende time (watt)"
     solar_charged_percentage:
-      friendly_name: "Procentdel af opladning fra solceller"
+      name: "Procentdel af opladning fra solceller"
       description: "Procentdel af opladning der kommer fra solceller"
     drive_efficiency:
-      friendly_name: "Kørsel effektivitet"
+      name: "Kørsel effektivitet"
       description: "Kørsel effektivitet baseret på forvarmning, kørte km og strømforbrug"
     km_per_kwh:
-      friendly_name: "km/kWh"
+      name: "km/kWh"
       description: "Kilometer per kWh"
       unit_of_measurement: km/kWh
     estimated_range:
-      friendly_name: "Estimerede rækkevidde"
+      name: "Estimerede rækkevidde"
       description: "Estimerede rækkevidde baseret på nuværende batteriniveau og Exponential Moving Average (EMA)"
       unit_of_measurement: km
     drive_efficiency_last_battery_level:
-      friendly_name: "Batteriniveau ved sidste ladning"
+      name: "Batteriniveau ved sidste ladning"
       description: "Batteriniveau ved sidste ladning (%)"
     drive_efficiency_last_odometer:
-      friendly_name: "Kilometerstand ved sidste ladning"
+      name: "Kilometerstand ved sidste ladning"
       description: "Kilometerstand ved sidste ladning (km)"
       unit_of_measurement: km
     charge_very_cheap_battery_level:
-      friendly_name: "Mål ved meget billig strøm"
+      name: "Mål ved meget billig strøm"
       description: "Mål når prisen er under de sidste 14 dages billigste pris"
     charge_ultra_cheap_battery_level:
-      friendly_name: "Mål ved ekstremt billig strøm"
+      name: "Mål ved ekstremt billig strøm"
       description: "Mål når prisen er 25% under de sidste 14 dages billigste pris"
     kwh_cost_price:
-      friendly_name: "kWh elpris"
+      name: "kWh elpris"
       description: "kWh elpris inkl. refusion og solcelle salgspris"
       unit_of_measurement: kr/kWh
     current_charging_rule:
-      friendly_name: "Nuværende lade regel"
+      name: "Nuværende lade regel"
     emoji_description:
-      friendly_name: "Emoji forklaring"
+      name: "Emoji forklaring"
     overview:
-      friendly_name: "Oversigt"
+      name: "Oversigt"
     charging_history:
-      friendly_name: "Lade historik"
+      name: "Lade historik"
 
 # ---- ui ----
 ui:
@@ -649,6 +649,7 @@ ui:
 
   get_all_entities:
     all_entities: "Alle entiteter"
+    binary_sensors: "Binære sensorer"
     sensors: "Sensorer"
 
   emoji_description:
