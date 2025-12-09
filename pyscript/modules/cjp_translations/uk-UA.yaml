@@ -436,53 +436,53 @@ entity:
   # ---- binary_sensor ----
   binary_sensor:
     public_charging_session_done:
-      friendly_name: "Публічне заряджання завершено"
+      name: "Публічне заряджання завершено"
       description: "Позначте, що публічне заряджання завершено, і потрібно ввести вартість"
 
   # ---- sensor ----
   sensor:
     solar_over_production_current_hour:
-      friendly_name: "Доступна сонячна генерація за цю годину"
+      name: "Доступна сонячна генерація за цю годину"
       description: "Сонячна генерація, доступна в поточну годину (Вт)"
     solar_charged_percentage:
-      friendly_name: "Частка заряджання від сонця"
+      name: "Частка заряджання від сонця"
       description: "Відсоток заряджання від сонячної енергії"
     drive_efficiency:
-      friendly_name: "Ефективність поїздки"
+      name: "Ефективність поїздки"
       description: "Ефективність на основі прогріву, пробігу та споживання"
     km_per_kwh:
-      friendly_name: "км/кВт·год"
+      name: "км/кВт·год"
       description: "Кілометри на кВт·год"
       unit_of_measurement: км/кВт·год
     estimated_range:
-      friendly_name: "Оцінений пробіг"
+      name: "Оцінений пробіг"
       description: "Оцінений пробіг на основі рівня батареї та EMA"
       unit_of_measurement: км
     drive_efficiency_last_battery_level:
-      friendly_name: "Рівень батареї під час останньої зарядки"
+      name: "Рівень батареї під час останньої зарядки"
       description: "Рівень батареї при останньому заряджанні (%)"
     drive_efficiency_last_odometer:
-      friendly_name: "Пробіг при останньому заряджанні"
+      name: "Пробіг при останньому заряджанні"
       description: "Пробіг при останньому заряджанні (км)"
       unit_of_measurement: км
     charge_very_cheap_battery_level:
-      friendly_name: "Ціль при дуже дешевій енергії"
+      name: "Ціль при дуже дешевій енергії"
       description: "Ціль, коли ціна нижче найнижчої за останні 14 днів"
     charge_ultra_cheap_battery_level:
-      friendly_name: "Ціль при наддешевій енергії"
+      name: "Ціль при наддешевій енергії"
       description: "Ціль, коли ціна на 25% нижче найнижчої за останні 14 днів"
     kwh_cost_price:
-      friendly_name: "Вартість кВт·год"
+      name: "Вартість кВт·год"
       description: "Вартість електроенергії за кВт·год, включно з компенсацією та продажем сонця"
       unit_of_measurement: ₴/кВт·год
     current_charging_rule:
-      friendly_name: "Поточне правило заряджання"
+      name: "Поточне правило заряджання"
     emoji_description:
-      friendly_name: "Пояснення emoji"
+      name: "Пояснення emoji"
     overview:
-      friendly_name: "Огляд"
+      name: "Огляд"
     charging_history:
-      friendly_name: "Історія заряджання"
+      name: "Історія заряджання"
 
 # ---- ui ----
 ui:
@@ -630,6 +630,7 @@ ui:
 
   get_all_entities:
     all_entities: "Усі сутності"
+    binary_sensors: "Бінарні сенсори"
     sensors: "Датчики"
 
   emoji_description:

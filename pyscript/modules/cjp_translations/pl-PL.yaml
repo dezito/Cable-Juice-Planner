@@ -440,53 +440,53 @@ entity:
   # ---- binary_sensor ----
   binary_sensor:
     public_charging_session_done:
-      friendly_name: "Ładowanie publiczne zakończone"
+      name: "Ładowanie publiczne zakończone"
       description: "Zaznacz, że ładowanie publiczne zostało zakończone i koszt musi zostać wprowadzony"
 
   # ---- sensor ----
   sensor:
     solar_over_production_current_hour:
-      friendly_name: "Dostępna produkcja solarna w tej godzinie"
+      name: "Dostępna produkcja solarna w tej godzinie"
       description: "Produkcja solarna dostępna w bieżącej godzinie (waty)"
     solar_charged_percentage:
-      friendly_name: "Procent ładowania z solara"
+      name: "Procent ładowania z solara"
       description: "Procent ładowania pochodzący z energii słonecznej"
     drive_efficiency:
-      friendly_name: "Efektywność jazdy"
+      name: "Efektywność jazdy"
       description: "Efektywność oparta na podgrzewaniu, dystansie i zużyciu energii"
     km_per_kwh:
-      friendly_name: "km/kWh"
+      name: "km/kWh"
       description: "Kilometry na kWh"
       unit_of_measurement: km/kWh
     estimated_range:
-      friendly_name: "Szacowany zasięg"
+      name: "Szacowany zasięg"
       description: "Szacowany zasięg na podstawie stanu baterii i EMA"
       unit_of_measurement: km
     drive_efficiency_last_battery_level:
-      friendly_name: "Poziom baterii przy ostatnim ładowaniu"
+      name: "Poziom baterii przy ostatnim ładowaniu"
       description: "Poziom baterii podczas ostatniego ładowania (%)"
     drive_efficiency_last_odometer:
-      friendly_name: "Przebieg przy ostatnim ładowaniu"
+      name: "Przebieg przy ostatnim ładowaniu"
       description: "Przebieg podczas ostatniego ładowania (km)"
       unit_of_measurement: km
     charge_very_cheap_battery_level:
-      friendly_name: "Cel przy bardzo tanim prądzie"
+      name: "Cel przy bardzo tanim prądzie"
       description: "Cel gdy cena jest niższa niż najniższa z ostatnich 14 dni"
     charge_ultra_cheap_battery_level:
-      friendly_name: "Cel przy ekstremalnie tanim prądzie"
+      name: "Cel przy ekstremalnie tanim prądzie"
       description: "Cel gdy cena jest o 25% niższa niż najniższa z ostatnich 14 dni"
     kwh_cost_price:
-      friendly_name: "Cena kWh"
+      name: "Cena kWh"
       description: "Cena energii za kWh wraz z refundacją i sprzedażą solarów"
       unit_of_measurement: zł/kWh
     current_charging_rule:
-      friendly_name: "Aktywna reguła ładowania"
+      name: "Aktywna reguła ładowania"
     emoji_description:
-      friendly_name: "Opis emoji"
+      name: "Opis emoji"
     overview:
-      friendly_name: "Przegląd"
+      name: "Przegląd"
     charging_history:
-      friendly_name: "Historia ładowania"
+      name: "Historia ładowania"
 
 # ---- ui ----
 ui:
@@ -634,6 +634,7 @@ ui:
 
   get_all_entities:
     all_entities: "Wszystkie encje"
+    binary_sensors: "Czujniki binarne"
     sensors: "Sensory"
 
   emoji_description:

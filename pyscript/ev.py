@@ -946,70 +946,100 @@ DEFAULT_ENTITIES = {
             "has_time":True
         },
     },
-    "binary_sensor":[{
-        "platform":"template",
-        "sensors":{
-            f"{__name__}_public_charging_session_done":{
-                "icon_template": "mdi:ev-station",
-                "value_template":"unavailable"
-            }
+    "template": [
+        {
+            "binary_sensor": [
+                {
+                    "default_entity_id": f"binary_sensor.{__name__}_public_charging_session_done",
+                    "unique_id": f"{__name__}_public_charging_session_done",
+                    "icon": "mdi:ev-station",
+                    "state": "unavailable"
+                    }
+                ]
+            },
+        {
+            "sensor": [
+                {
+                    "default_entity_id": f"sensor.{__name__}_solar_over_production_current_hour",
+                    "unique_id": f"{__name__}_solar_over_production_current_hour",
+                    "unit_of_measurement": "W",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_solar_charged_percentage",
+                    "unique_id": f"{__name__}_solar_charged_percentage",
+                    "unit_of_measurement": "%",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_drive_efficiency",
+                    "unique_id": f"{__name__}_drive_efficiency",
+                    "unit_of_measurement": "%",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_km_per_kwh",
+                    "unique_id": f"{__name__}_km_per_kwh",
+                    "icon": "mdi:map-marker-distance",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_estimated_range",
+                    "unique_id": f"{__name__}_estimated_range",
+                    "icon": "mdi:map-marker-path",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_drive_efficiency_last_battery_level",
+                    "unique_id": f"{__name__}_drive_efficiency_last_battery_level",
+                    "unit_of_measurement": "%",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_drive_efficiency_last_odometer",
+                    "unique_id": f"{__name__}_drive_efficiency_last_odometer",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charge_very_cheap_battery_level",
+                    "unique_id": f"{__name__}_charge_very_cheap_battery_level",
+                    "unit_of_measurement": "%",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charge_ultra_cheap_battery_level",
+                    "unique_id": f"{__name__}_charge_ultra_cheap_battery_level",
+                    "unit_of_measurement": "%",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_kwh_cost_price",
+                    "unique_id": f"{__name__}_kwh_cost_price",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_current_charging_rule",
+                    "unique_id": f"{__name__}_current_charging_rule",
+                    "state": ""
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_emoji_description",
+                    "unique_id": f"{__name__}_emoji_description",
+                    "state": ""
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_overview",
+                    "unique_id": f"{__name__}_overview",
+                    "state": ""
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charging_history",
+                    "unique_id": f"{__name__}_charging_history",
+                    "state": ""
+                }
+            ]
         }
-    }],
-    "sensor":[{
-        "platform":"template",
-        "sensors":{
-            f"{__name__}_solar_over_production_current_hour":{
-                "unit_of_measurement":"W",
-                "value_template":"unavailable"
-            },
-            f"{__name__}_solar_charged_percentage":{
-                "unit_of_measurement":"%",
-                "value_template":"unavailable"
-            },
-            f"{__name__}_drive_efficiency":{
-                "unit_of_measurement":"%",
-                "value_template":"unavailable"
-            },
-            f"{__name__}_km_per_kwh":{
-                "value_template":"unavailable",
-                "icon_template":"mdi:map-marker-distance"
-            },
-            f"{__name__}_estimated_range":{
-                "value_template":"unavailable",
-                "icon_template":"mdi:map-marker-path"
-            },
-            f"{__name__}_drive_efficiency_last_battery_level":{
-                "unit_of_measurement":"%",
-                "value_template":"unavailable"
-            },
-            f"{__name__}_drive_efficiency_last_odometer":{
-                "value_template":"unavailable"
-            },
-            f"{__name__}_charge_very_cheap_battery_level":{
-                "value_template":"unavailable",
-                "unit_of_measurement":"%"
-            },
-            f"{__name__}_charge_ultra_cheap_battery_level":{
-                "value_template":"unavailable",
-                "unit_of_measurement":"%"
-            },
-            f"{__name__}_kwh_cost_price":{
-                "value_template":"unavailable"
-            },
-            f"{__name__}_current_charging_rule":{
-                "value_template":""
-            },
-            f"{__name__}_emoji_description":{
-                "value_template":"",
-            },
-            f"{__name__}_overview":{
-                "value_template":""
-            },
-            f"{__name__}_charging_history":{
-                "value_template":""
-            }
-        }
-    }]
+    ]
 }
 
 ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
@@ -2473,82 +2503,65 @@ def notify_critical_change(cfg = {}, filename = None):
         return missing_keys
     
     def flatten_default_entities_to_desc(default_entities: Dict[str, Any]) -> Dict[str, str]:
-        """
-        Build {entity_id: description} from DEFAULT_ENTITIES.
-        - Includes input_* and sensor(template)
-        - Overlays homeassistant.customize (if it has 'description')
-        - Uses only the 'description' field (no friendly_name, no other fallbacks)
-        - Works whether input_*/sensor keys are object_ids or already full ids.
-        """
         index: Dict[str, str] = {}
 
         def _full_id(domain: str, key: str) -> str:
-            # If key already looks like 'domain.object_id', keep as-is; else prefix.
             return key if "." in key else f"{domain}.{key}"
 
-        def add_input_like(domain: str, entities: Dict[str, Any]) -> None:
+        def add_new_template(template_list: Any) -> Dict[str, str]:
             dt: Dict[str, str] = {}
-            
-            for key, attrs in entities.items():
-                eid = _full_id(domain, key)
-                desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
-                dt[eid] = desc
-            
-            return dt
+            if not isinstance(template_list, list):
+                return dt
 
-        def add_template_binary_sensors(item: Dict[str, Any]) -> None:
-            dt: Dict[str, str] = {}
-            
-            binary_sensors = item.get("sensors", {})
-            
-            if isinstance(binary_sensors, dict):
-                for key, attrs in binary_sensors.items():
-                    eid = _full_id("binary_sensor", key)
-                    desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
-                    dt[eid] = desc
+            supported_domains = (
+                "binary_sensor",
+                "sensor",
+                "switch",
+                "number",
+                "select",
+            )
 
-        def add_template_sensors(item: Dict[str, Any]) -> None:
-            dt: Dict[str, str] = {}
-            
-            sensors = item.get("sensors", {})
-            
-            if isinstance(sensors, dict):
-                for key, attrs in sensors.items():
-                    eid = _full_id("sensor", key)
-                    desc = attrs["description"] if isinstance(attrs, dict) and "description" in attrs else ""
-                    dt[eid] = desc
-                    
+            for tmpl in template_list:
+                if not isinstance(tmpl, dict):
+                    continue
+
+                for domain in supported_domains:
+                    entities = tmpl.get(domain)
+                    if not isinstance(entities, list):
+                        continue
+
+                    for attrs in entities:
+                        if not isinstance(attrs, dict):
+                            continue
+
+                        key = (
+                            attrs.get("default_entity_id")
+                            or attrs.get("entity_id")
+                            or attrs.get("name")
+                        )
+                        if not key:
+                            continue
+
+                        eid = key if "." in key else _full_id(domain, key)
+
+                        desc = attrs.get("description", "")
+                        dt[eid] = desc
+
             return dt
 
         try:
-            # 1) input_* domains
-            for domain in ("input_boolean", "input_button", "input_number", "input_datetime"):
-                dom = default_entities.get(domain, {})
-                if isinstance(dom, dict):
-                    index.update(add_input_like(domain, dom))
+            template_list = default_entities.get("template", [])
+            index.update(add_new_template(template_list))
 
-            # 2) binary_sensors(template)
-            binary_sensors_list = default_entities.get("binary_sensors", [])
-            if isinstance(binary_sensors_list, list):
-                for item in binary_sensors_list:
-                    if isinstance(item, dict) and item.get("platform") == "template":
-                        index.update(add_template_binary_sensors(item))
-
-            # 3) sensor(template)
-            sensors_list = default_entities.get("sensor", [])
-            if isinstance(sensors_list, list):
-                for item in sensors_list:
-                    if isinstance(item, dict) and item.get("platform") == "template":
-                        index.update(add_template_sensors(item))
-
-            # 4) overlay homeassistant.customize (full ids expected)
             ha = default_entities.get("homeassistant", {})
             if isinstance(ha, dict):
                 customize = ha.get("customize", {})
                 if isinstance(customize, dict):
                     for full_id, attrs in customize.items():
-                        if isinstance(attrs, dict) and isinstance(attrs.get("description"), str):
-                            index[full_id] = attrs["description"]
+                        if isinstance(attrs, dict):
+                            desc = attrs.get("description")
+                            if isinstance(desc, str):
+                                index[full_id] = desc
 
         except Exception as e:
             _LOGGER.error(f"Error flattening default entities to description: {e} {type(e)}")
@@ -2758,7 +2771,8 @@ def localize_default_entities():
     global DEFAULT_ENTITIES
 
     domains = ("input_button", "input_boolean", "input_number", "input_datetime")
-    common_fields = ("friendly_name", "name", "description", "unit_of_measurement")
+
+    common_fields = ("name", "description", "unit_of_measurement")
     fmt = {"name": __name__}
 
     def _domain_and_suffix(domain_hint: str, key: str):
@@ -2766,57 +2780,114 @@ def localize_default_entities():
             dom, tail = key.split(".", 1)
         else:
             dom, tail = domain_hint, key
+
         prefix = f"{__name__}_"
         if tail.startswith(prefix):
             tail = tail[len(prefix):]
         return dom, tail
 
-    def _localize_attrs(dom: str, key: str, attrs: dict, fields: tuple = common_fields, ignore_fields: tuple = ()):
+    def _localize_attrs(dom: str, key: str, attrs: dict,
+                        fields: tuple = common_fields,
+                        ignore_fields: tuple = ()):
         _, suf = _domain_and_suffix(dom, key)
         base = f"entity.{dom}.{suf}"
-        
+
         if isinstance(fields, str):
             fields = (fields,)
         if isinstance(ignore_fields, str):
             ignore_fields = (ignore_fields,)
-                
+
         for field in fields:
-            if (field not in attrs and field not in ignore_fields):
+            if field in ignore_fields:
+                continue
+            if field not in attrs:
                 val = i18n.t(f"{base}.{field}", default="", **fmt)
                 if val:
                     attrs[field] = val
 
         for field, current in list(attrs.items()):
-            if isinstance(current, str):
-                val = i18n.t(f"{base}.{field}", default=current, **fmt)
-                if val and val != current:
-                    attrs[field] = val
-
+            if not isinstance(current, str):
+                continue
+            if field in ignore_fields:
+                continue
+            val = i18n.t(f"{base}.{field}", default=current, **fmt)
+            if val and val != current:
+                attrs[field] = val
 
     def _visit_entities(domain: str, entities, fn):
-        if domain == "homeassistant":
-            for full_eid, attrs in entities["customize"].items():
-                eff_dom, _ = _domain_and_suffix("unknown", full_eid)
-                fn(eff_dom, full_eid, attrs, common_fields, ignore_fields=("friendly_name", "name", "unit_of_measurement"))
-                
-        if domain == "binary_sensor":
-            for block in entities:
-                binary_sensors = block["sensors"]
-                for key, attrs in binary_sensors.items():
-                    fn("binary_sensor", key, attrs, common_fields, ignore_fields=("description",))
+        if domain == "homeassistant" and isinstance(entities, dict):
+            customize = entities.get("customize", {})
+            if isinstance(customize, dict):
+                for full_eid, attrs in customize.items():
+                    if not isinstance(attrs, dict):
+                        continue
+                    eff_dom, _ = _domain_and_suffix("unknown", full_eid)
                     
-        if domain == "sensor":
-            for block in entities:
-                sensors = block["sensors"]
-                for key, attrs in sensors.items():
-                    fn("sensor", key, attrs, common_fields, ignore_fields=("description",))
-                    
-        if domain in domains:
+                    fn(
+                        eff_dom,
+                        full_eid,
+                        attrs,
+                        fields=("description",),
+                        ignore_fields=(),
+                    )
+
+        if domain in domains and isinstance(entities, dict):
             for key, attrs in entities.items():
-                fn(domain, key, attrs, common_fields, ignore_fields=("description",))
+                if not isinstance(attrs, dict):
+                    continue
+                fn(
+                    domain,
+                    key,
+                    attrs,
+                    fields=("name", "unit_of_measurement"),
+                    ignore_fields=("description",),
+                )
+
+        if domain == "template" and isinstance(entities, list):
+            supported_domains = (
+                "binary_sensor",
+                "sensor",
+                "switch",
+                "number",
+                "select",
+            )
+
+            for block in entities:
+                if not isinstance(block, dict):
+                    continue
+
+                for tmpl_domain in supported_domains:
+                    ent_list = block.get(tmpl_domain)
+                    if not isinstance(ent_list, list):
+                        continue
+
+                    for ent in ent_list:
+                        if not isinstance(ent, dict):
+                            continue
+
+                        key = (
+                            ent.get("default_entity_id")
+                            or ent.get("entity_id")
+                            or ent.get("name")
+                        )
+                        if not key:
+                            continue
+
+                        fn(
+                            tmpl_domain,
+                            key,
+                            ent,
+                            fields=("name", "unit_of_measurement"),
+                            ignore_fields=("description"),
+                        )
 
     for domain, entities in DEFAULT_ENTITIES.items():
-        _visit_entities(domain, entities, _localize_attrs)
+        try:
+            _visit_entities(domain, entities, _localize_attrs)
+        except Exception as e:
+            _LOGGER.error(
+                f"Error localizing default entities for domain '{domain}': {e} {type(e)}"
+            )
 
 def load_language():
     func_name = "load_language"
@@ -3241,17 +3312,38 @@ def init():
                 DEFAULT_ENTITIES[entity_type] = {
                     key: value for key, value in DEFAULT_ENTITIES[entity_type].items() if "preheat" not in key or "public_charging_session" not in key
                 }
-
-            DEFAULT_ENTITIES['binary_sensor'][0]['sensors'] = {
-                key: value for key, value in DEFAULT_ENTITIES['binary_sensor'][0]['sensors'].items() if "public_charging_session" not in key
-            }
-
-            DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
-                key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "drive_efficiency" not in key or "drive_efficiency_last_battery_level" in key
-            }
+                
+            for i, domain in enumerate(DEFAULT_ENTITIES['template']):
+                if not isinstance(domain, dict):
+                    continue
+                
+                if "binary_sensor" in domain:
+                    binary_sensor_list = domain['binary_sensor']
                     
-            if f"{__name__}_km_per_kwh" in DEFAULT_ENTITIES['sensor'][0]['sensors']:
-                del DEFAULT_ENTITIES['sensor'][0]['sensors'][f'{__name__}_km_per_kwh']
+                    if not isinstance(binary_sensor_list, list):
+                        continue
+                    
+                    for n, entity_dict in enumerate(binary_sensor_list):
+                        if not isinstance(entity_dict, dict):
+                            continue
+                        
+                        if "public_charging_session" in entity_dict.get('default_entity_id', ''):
+                            DEFAULT_ENTITIES['template'][i]['binary_sensor'].pop(n)
+                
+                if "sensor" in domain:
+                    sensor_list = domain['sensor']
+                    
+                    if not isinstance(sensor_list, list):
+                        continue
+                    
+                    for n, entity_dict in enumerate(sensor_list):
+                        if not isinstance(entity_dict, dict):
+                            continue
+                        
+                        if ("drive_efficiency" in entity_dict.get('default_entity_id', '') or
+                            "drive_efficiency_last_battery_level" in entity_dict.get('default_entity_id', '') or
+                            "km_per_kwh" in entity_dict.get('default_entity_id', '')):
+                            DEFAULT_ENTITIES['template'][i]['sensor'].pop(n)
         
         if not is_solar_configured(CONFIG):
             keys_to_remove = [
@@ -3264,10 +3356,22 @@ def init():
                 DEFAULT_ENTITIES.get('input_boolean', {}).pop(key, None)
                 DEFAULT_ENTITIES.get('input_number', {}).pop(key, None)
 
-            if 'sensor' in DEFAULT_ENTITIES and isinstance(DEFAULT_ENTITIES['sensor'], list) and DEFAULT_ENTITIES['sensor']:
-                DEFAULT_ENTITIES['sensor'][0]['sensors'] = {
-                    key: value for key, value in DEFAULT_ENTITIES['sensor'][0]['sensors'].items() if "solar" not in key
-                }
+            for i, domain in enumerate(DEFAULT_ENTITIES['template']):
+                if not isinstance(domain, dict):
+                    continue
+                
+                if "sensor" in domain:
+                    sensor_list = domain['sensor']
+                    
+                    if not isinstance(sensor_list, list):
+                        continue
+                    
+                    for n, entity_dict in enumerate(sensor_list):
+                        if not isinstance(entity_dict, dict):
+                            continue
+                        
+                        if "solar" in entity_dict.get('default_entity_id', ''):
+                            DEFAULT_ENTITIES['template'][i]['sensor'].pop(n)
         
         if not is_powerwall_configured(CONFIG) and not CONFIG['home']['entity_ids']['powerwall_battery_level_entity_id']:
             keys_to_remove = [
@@ -3327,19 +3431,26 @@ def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
         if "homeassistant" in domain_name:
             continue
         
-        if domain_name == "binary_sensor":
-            yaml_card.append(f"  - type: entities\n    title: 🎚️ {i18n.t('ui.get_all_entities.binary_sensors')}\n    state_color: true\n    entities:\n")
-            for sensor_dict in sub_dict:
-                for entity_name in sensor_dict["sensors"].keys():
-                    yaml_card.append(f"    - {domain_name}.{entity_name}\n")
-                    entities.append(f"{domain_name}.{entity_name}")
-        
-        elif domain_name == "sensor":
-            yaml_card.append(f"  - type: entities\n    title: 📊 {i18n.t('ui.get_all_entities.sensors')}\n    state_color: true\n    entities:\n")
-            for sensor_dict in sub_dict:
-                for entity_name in sensor_dict["sensors"].keys():
-                    yaml_card.append(f"    - {domain_name}.{entity_name}\n")
-                    entities.append(f"{domain_name}.{entity_name}")
+        if domain_name == "template":
+            for template_dict in sub_dict:
+                if not isinstance(template_dict, dict):
+                    continue
+                
+                if "binary_sensor" in template_dict:
+                    yaml_card.append(f"  - type: entities\n    title: 🎚️ {i18n.t('ui.get_all_entities.binary_sensors')}\n    state_color: true\n    entities:\n")
+                    for sensor_dict in template_dict["binary_sensor"]:
+                        entity_name = sensor_dict.get("default_entity_id", None)
+                        if entity_name:
+                            yaml_card.append(f"    - {domain_name}.{entity_name}\n")
+                            entities.append(f"{domain_name}.{entity_name}")
+                
+                elif "sensor" in template_dict:
+                    yaml_card.append(f"  - type: entities\n    title: 📊 {i18n.t('ui.get_all_entities.sensors')}\n    state_color: true\n    entities:\n")
+                    for sensor_dict in template_dict["sensor"]:
+                        entity_name = sensor_dict.get("default_entity_id", None)
+                        if entity_name:
+                            yaml_card.append(f"    - {domain_name}.{entity_name}\n")
+                            entities.append(f"{domain_name}.{entity_name}")
         
         else:
             yaml_card.append(f"  - type: entities\n    title: 📦 {domain_name.capitalize()}\n    state_color: true\n    entities:\n")
@@ -3394,9 +3505,9 @@ def set_entity_friendlynames():
 
     for key, entry in CHARGING_TYPES.items():
         if "entity_name" in entry:
-            friendly_name = f"{entry['emoji']} {i18n.t(f'charging_type.{key}.description', default='No description')}"
-            _LOGGER.info(f"Setting sensor.{entry['entity_name']}.friendly_name: {friendly_name}")
-            set_attr(f"sensor.{entry['entity_name']}.friendly_name", friendly_name)
+            name = f"{entry['emoji']} {i18n.t(f'charging_type.{key}.description', default='No description')}"
+            _LOGGER.info(f"Setting sensor.{entry['entity_name']}.name: {name}")
+            set_attr(f"sensor.{entry['entity_name']}.name", name)
 
 def emoji_description():
     func_name = "emoji_description"

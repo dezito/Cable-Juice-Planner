@@ -432,53 +432,53 @@ entity:
   # ---- binary_sensor ----
   binary_sensor:
     public_charging_session_done:
-      friendly_name: "Public charging completed"
+      name: "Public charging completed"
       description: "Mark that the public charging session has ended and the cost must be entered"
 
   # ---- sensor ----
   sensor:
     solar_over_production_current_hour:
-      friendly_name: "Solar production available this hour"
+      name: "Solar production available this hour"
       description: "Solar production available in the current hour (watts)"
     solar_charged_percentage:
-      friendly_name: "Percentage charged from solar"
+      name: "Percentage charged from solar"
       description: "Share of charging provided by solar energy"
     drive_efficiency:
-      friendly_name: "Driving efficiency"
+      name: "Driving efficiency"
       description: "Efficiency based on preheating, distance driven and energy use"
     km_per_kwh:
-      friendly_name: "km/kWh"
+      name: "km/kWh"
       description: "Kilometres per kWh"
       unit_of_measurement: km/kWh
     estimated_range:
-      friendly_name: "Estimated range"
+      name: "Estimated range"
       description: "Estimated range based on current battery level and Exponential Moving Average (EMA)"
       unit_of_measurement: km
     drive_efficiency_last_battery_level:
-      friendly_name: "Battery level at last charge"
+      name: "Battery level at last charge"
       description: "Battery level at last charging (%)"
     drive_efficiency_last_odometer:
-      friendly_name: "Odometer at last charge"
+      name: "Odometer at last charge"
       description: "Odometer reading at last charging (km)"
       unit_of_measurement: km
     charge_very_cheap_battery_level:
-      friendly_name: "Target at very cheap electricity"
+      name: "Target at very cheap electricity"
       description: "Target when price is below the cheapest of the last 14 days"
     charge_ultra_cheap_battery_level:
-      friendly_name: "Target at ultra cheap electricity"
+      name: "Target at ultra cheap electricity"
       description: "Target when price is 25% below the cheapest of the last 14 days"
     kwh_cost_price:
-      friendly_name: "kWh electricity price"
+      name: "kWh electricity price"
       description: "Electricity price per kWh incl. refund and solar sell-back"
       unit_of_measurement: £/kWh
     current_charging_rule:
-      friendly_name: "Current charging rule"
+      name: "Current charging rule"
     emoji_description:
-      friendly_name: "Emoji explanation"
+      name: "Emoji explanation"
     overview:
-      friendly_name: "Overview"
+      name: "Overview"
     charging_history:
-      friendly_name: "Charging history"
+      name: "Charging history"
 
 # ---- ui ----
 ui:
@@ -626,6 +626,7 @@ ui:
 
   get_all_entities:
     all_entities: "All entities"
+    binary_sensors: "Binary sensors"
     sensors: "Sensors"
 
   emoji_description:
