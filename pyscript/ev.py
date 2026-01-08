@@ -5606,8 +5606,8 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             km_header = i18n.t('ui.common.distance_type').capitalize() if total['km']['total'] > 0.0 else ""
             km_kwh_header = f"{i18n.t('ui.common.distance_kwh')}<br>({i18n.t('ui.common.wh_distance')})" if total['km']['total'] > 0.0 else ""
             history.extend([
-                f"| {i18n.t('ui.charging_history_combine_and_set.month')} | {km_header} | {km_kwh_header} | kWh{solar_header} | {i18n.t('ui.common.price')} | {i18n.t('ui.common.valuta_kwh')}<br>({i18n.t('ui.common.valuta_distance')}) |",
-                "|:---:|:---:|:---:|:---:|:---:|:---:|"
+                f"| {i18n.t('ui.charging_history_combine_and_set.month')} | {km_header} | {km_kwh_header} | kWh{solar_header} | {i18n.t('ui.common.price')}<br>{i18n.t('ui.common.valuta_kwh')}<br>({i18n.t('ui.common.valuta_distance')}) |",
+                "|:---:|:---:|:---:|:---:|:---:|"
             ])
             
             datetime_keys = [key for key in total['cost'].keys() if isinstance(key, datetime.datetime)]
@@ -5623,13 +5623,13 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     solar_percentage = f"<br>({round(total_local_energy_percentage, 1)}%)"
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
-                unit_string = f"{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
+                unit_string = f"<br>{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
                 
                 background_color_start = "<font color=grey>" if i % 2 == 0 else ""
                 background_color_end = "</font>" if i % 2 == 0 else ""
                 
-                month_string = month.strftime("%B").lower()
-                history.append(f"| {background_color_start}{i18n.t(f'ui.calendar.month_names.{month_string}')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{kWh_from_local_energy}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{background_color_end} | {background_color_start}{unit_string}{background_color_end} |")
+                month_string = month.strftime("%b").lower()
+                history.append(f"| {background_color_start}{i18n.t(f'ui.calendar.month_names.{month_string}')}<br>{month.strftime('%Y')}{background_color_end} | {background_color_start}{total['km'][month][1]}{background_color_end} | {background_color_start}{total['km'][month][2]}{background_color_end} | {background_color_start}{round(total['kwh'][month],1)}{kWh_from_local_energy}{solar_percentage}{background_color_end} | {background_color_start}{round(total['cost'][month],2):.2f}{unit_string}{background_color_end} |")
                 i += 1
             
             total_local_energy = ""
@@ -5664,7 +5664,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             for month in sorted(datetime_keys):
                 procent_day = round(total['charging_kwh_day'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
                 procent_night = round(total['charging_kwh_night'][month] / total['kwh'][month] * 100.0, 1) if total['kwh'][month] > 0.0 else 0.0
-                month_string = month.strftime("%B").lower()
+                month_string = month.strftime("%b").lower()
                 history.append(f"| {i18n.t(f'ui.calendar.month_names.{month_string}')} {month.strftime('%Y')} | {round(total['charging_kwh_day'][month],1)} ({procent_day}%) | {round(total['charging_kwh_night'][month],1)} ({procent_night}%) |")
             
             procent_day = round(total['charging_kwh_day']["total"] / total['kwh']["total"] * 100.0, 1) if total['kwh']["total"] > 0.0 else 0.0
