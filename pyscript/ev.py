@@ -2285,6 +2285,9 @@ def create_integration_dict():
     def integration_lookup(entity_id):
         integration = get_integration(entity_id)
         
+        if integration is None and entity_id.split(".")[0] in ("input_number", "input_select", "input_boolean", "input_text", "input_datetime"):
+            integration = entity_id.split(".")[0]
+            
         if integration is None:
             return entity_id, None
         
