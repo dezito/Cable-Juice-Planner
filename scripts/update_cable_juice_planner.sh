@@ -37,6 +37,8 @@ git config --global --add safe.directory "$PWD"
 git fetch --tags >/dev/null 2>&1
 
 # --- Determine which tag to install ---
+command -v jq >/dev/null 2>&1 || { echo "❌ jq not found. Install jq or run in an environment with jq."; exit 1; }
+
 if [ "$TARGET_TAG" = "latest" ]; then
   TARGET_TAG=$(curl -s https://api.github.com/repos/dezito/Cable-Juice-Planner/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
 fi
@@ -73,7 +75,7 @@ link_tree "$REPO_DIR/Cable-Juice-Planner/scripts" "$REPO_DIR/scripts"
 echo "✅ All hardlinks created successfully."
 
 # --- Display release notes ---
-BODY=$(curl -s "https://api.github.com/repos/dezito/Cable-Juice-Planner/releases/tags/$TARGET_TAG" | jq -r '.body')
+BODY=$(curl -fsSL "https://api.github.com/repos/dezito/Cable-Juice-Planner/releases/tags/$TARGET_TAG" | jq -r '.body // empty')
 echo
 echo "📋 What's Changed in $TARGET_TAG:"
 echo "${BODY:-No release notes found.}"

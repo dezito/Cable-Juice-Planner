@@ -3010,7 +3010,7 @@ def validate_entities(config: dict, path: str = "") -> tuple[list[str], list[str
                         missing.append(eid_val)
                     else:
                         st = get_state(eid_val, try_history=False, error_state=None)
-                        _LOGGER.debug(f"Entity {eid_val} state: {st}")
+                        
                         if st in ENTITY_UNAVAILABLE_STATES:
                             unavailable.append(eid_val)
 
@@ -3027,7 +3027,6 @@ def validate_entities(config: dict, path: str = "") -> tuple[list[str], list[str
                         if ev not in known_entities:
                             missing.append(ev)
                         else:
-                            _LOGGER.debug(f"Entity {ev} state: {get_state(ev)}")
                             st = get_state(ev, try_history=False, error_state=None)
                             if st in ENTITY_UNAVAILABLE_STATES:
                                 unavailable.append(ev)
@@ -3120,7 +3119,7 @@ def init():
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml_{file_path}']})
         content = TASKS[f'{func_prefix}load_yaml_{file_path}'].result()
         
-        _LOGGER.debug(f"Loaded content from {file_path}:\n{pformat(content, width=200, compact=True)}")
+        _LOGGER.debug(f"Loaded content from {file_path}")
 
         if not content:
             set_charging_rule(f"📟{i18n.t('ui.init.error_loading', **fmt)}")
@@ -3997,7 +3996,6 @@ def get_tariffs(hour, day_of_week):
         }
         
     except Exception as e:
-        _LOGGER.debug(f"get_raw_price(hour = {hour}, day_of_week = {day_of_week}): {e} {type(e)}")
         return {
                 "transmissions_nettarif": 0.0,
                 "systemtarif": 0.0,
@@ -4252,7 +4250,6 @@ def distance_per_percentage():
             if ema == 0.0:
                 raise Exception(f"ema is invalid: {ema}")
             output = km_kwh_to_km_percentage(ema)
-            _LOGGER.debug(f"ema_km/kwh:{ema} km_kwh_to_km_percentage({ema})={output}")
         except Exception as e:
             _LOGGER.warning(f"Using default value 3.0: {e} {type(e)}")
     return output
@@ -4869,17 +4866,6 @@ def drive_efficiency(state=None):
                 cars_distance_per_percentage = round(battery_range() / battery_level(), 2)
                 efficiency = abs(round((distancePerPercentage / cars_distance_per_percentage) * 100.0, 2))
 
-                _LOGGER.debug(f"distancePerPercentage {kilometers} / {usedBattery} = {distancePerPercentage}")
-                _LOGGER.debug(f"distancePerkWh {kilometers} / {usedkWh} = {distancePerkWh}")
-                _LOGGER.debug(f"cars_distance_per_percentage {battery_range()} / {battery_level()} = {cars_distance_per_percentage}")
-                _LOGGER.debug(f"efficiency {kilometers} / {usedBattery} = {efficiency}")
-
-                _LOGGER.debug(
-                    f"battery_range(): {battery_range()} battery_level(): {battery_level()} "
-                    f"usedBattery: {usedBattery} kilometers: {kilometers} usedkWh: {usedkWh} "
-                    f"cars_distance_per_percentage: {cars_distance_per_percentage} distancePerkWh: {distancePerkWh} efficiency: {efficiency}%"
-                )
-
                 if kilometers <= 5.0 or usedBattery <= 2.0:
                     _LOGGER.warning(f"{kilometers} <= 5.0 or {usedBattery} usedBattery <= 2.0, ignoring drive")
                     return
@@ -4961,8 +4947,6 @@ def range_to_battery_level(extraRange=None, batteryBuffer=None, date=None):
             raise ValueError(f"extraRange should be a number, but got: {extraRange}")
 
         minRangeInBatteryLevel = round_up(calc_distance_to_battery_level(extraRange)) + batteryBuffer
-        _LOGGER.debug(f"extraRange: {extraRange}, minRangeInBatteryLevel: {minRangeInBatteryLevel}")
-
     except Exception as e:
         _LOGGER.error(
             f"Error calculating battery level - extraRange: {extraRange}, batteryBuffer: {batteryBuffer}, "
@@ -4979,7 +4963,6 @@ def kwh_needed_for_charging(targetLevel=None, battery=None):
     battery = battery if battery is not None else battery_level()
 
     kwh = round(percentage_to_kwh(targetLevel - battery, include_charging_loss=True), 2)
-    _LOGGER.debug(f"targetLevel:{targetLevel} battery:{battery} kwh:{kwh} without loss")
 
     return max(kwh, 0.0)
 
@@ -5920,7 +5903,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
 
             CURRENT_CHARGING_SESSION['emoji'] = f"{emoji_parse(charging_data)}"
             CURRENT_CHARGING_SESSION['data'] = charging_data
-            _LOGGER.debug(f"start:{start} charging_data:{charging_data} CURRENT_CHARGING_SESSION:{CURRENT_CHARGING_SESSION} emoji:{CURRENT_CHARGING_SESSION['emoji']}")
+            
             CHARGING_HISTORY_DB[start] = {
                 "ended": ">",
                 "emoji": CURRENT_CHARGING_SESSION['emoji'],
@@ -6748,15 +6731,10 @@ def cheap_grid_charge_hours():
                     if charging_plan[day]['trip']:
                         last_charging = min(charging_plan[day]['work_last_charging'], charging_plan[day]['trip_last_charging']) if charging_plan[day]['workday'] else charging_plan[day]['trip_last_charging']
                         next_departure = min(charging_plan[day]['work_goto'], charging_plan[day]['trip_goto']) if charging_plan[day]['workday'] else charging_plan[day]['trip_goto']
-                                        
-                    _LOGGER.debug(f"charging_plan[{day}]['work_goto'] {charging_plan[day]['work_goto']} / charging_plan[{day}]['trip_last_charging'] {charging_plan[day]['trip_last_charging']} / last_charging {last_charging}")
                     
                     kwh_needed_today = max(kwh_needed_for_charging(charging_plan[day]['work_battery_level_needed'] + get_min_daily_battery_level(), sum(charging_plan[day]['battery_level_before_work'])), 0.0)
                     charging_plan[day]['work_kwh_needed'] = kwh_needed_today
                     kwh_needed_today += charging_plan[day]['trip_kwh_needed']
-                    _LOGGER.debug(f"charging_plan[{day}]['work_battery_level_needed'] {charging_plan[day]['work_battery_level_needed']}")
-                    _LOGGER.debug(f"kwh_needed_today {kwh_needed_today}")
-                    
                     
                     #Workaround for cold weather
                     if kwh_needed_today <= max((CONFIG['ev_car']['battery_size'] / 100), 0.3):
@@ -7411,16 +7389,9 @@ def cheap_grid_charge_hours():
             for key in fill_up_days.keys():
                 fill_up_days[key] += kwh_needed_to_fill_up_share
             
-            _LOGGER.debug(f"charging_plan[{day}]['battery_level_before_work'] {charging_plan[day]['battery_level_before_work']} {sum(charging_plan[day]['battery_level_before_work'])}")
-            _LOGGER.debug(f"charging_plan[{day}]['battery_level_after_work'] {charging_plan[day]['battery_level_after_work']} {sum(charging_plan[day]['battery_level_after_work'])}")
-            _LOGGER.debug(f"solar_prediction[{day}] {charging_plan[day]['solar_prediction']}%")
-            _LOGGER.debug(f"charging_plan[{day}]['battery_level_at_midnight'] {charging_plan[day]['battery_level_at_midnight']} {sum(charging_plan[day]['battery_level_at_midnight'])}")
-            
             very_cheap_kwh_needed_today = kwh_needed_for_charging(get_very_cheap_grid_charging_max_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
             ultra_cheap_kwh_needed_today = kwh_needed_for_charging(get_ultra_cheap_grid_charging_max_battery_level(), sum(charging_plan[day]['battery_level_at_midnight']))
-            _LOGGER.debug(f"{sum(charging_plan[day]['battery_level_at_midnight'])}% very_cheap_kwh_needed_today {very_cheap_kwh_needed_today} / ultra_cheap_kwh_needed_today {ultra_cheap_kwh_needed_today}")
             
-
             TASKS[f"{func_prefix}scheduled_planner_{day}"] = task.create(scheduled_planner, day)
             done, pending = task.wait({TASKS[f"{func_prefix}scheduled_planner_{day}"]})
             
@@ -7752,9 +7723,6 @@ def cheap_grid_charge_hours():
         for key in key_list:
             if key in charging_plan[day]:
                 charging_plan[day][key] = [round(value, 3) for value in charging_plan[day][key]]
-
-    _LOGGER.debug(f"charging_plan:\n{pformat(charging_plan, width=200, compact=True)}")
-    _LOGGER.debug(f"chargeHours:\n{pformat(chargeHours, width=200, compact=True)}")
     
     charging_plan_attr = dict()
     charging_hours_attr = dict()
@@ -8627,7 +8595,7 @@ def local_energy_available(period=None, timeFrom=0, timeTo=None, solar_only=Fals
         if include_local_energy_distribution:
             solar_watts_of_local_energy = 0.0
             powerwall_watts_of_local_energy = 0.0
-            _LOGGER.debug(f"values: {values} watts_available_from_local_energy: {watts_available_from_local_energy} ev_used_consumption: {ev_used_consumption} solar_production: {solar_production} total_local_energy: {total_local_energy} powerwall_discharging_available: {powerwall_discharging_available}")
+            
             watts_from_local_energy = min(watts_available_from_local_energy, ev_used_consumption)
             
             if watts_from_local_energy > 0.0:
@@ -8741,8 +8709,6 @@ def max_local_energy_available_remaining_period():
             powerwall_forced_stop_charging = False
             
             if current_hour in powerwall_charging_timestamps:
-                _LOGGER.debug(f"current_hour in powerwall_charging_timestamps: {current_hour} for {period} minutes, powerwall charging is forced to {powerwall_charging_power}W")
-                
                 if powerwall_battery_level < powerwall_reserved_battery_level or (powerwall_max_charging_power(period=CONFIG['cron_interval']) > POWERWALL_CHARGING_TRIGGER and period != 59):
                     powerwall_force_power -= max(powerwall_charging_power, CONFIG["solar"]["powerwall_charging_power_limit"]) if powerwall_charging_power > POWERWALL_CHARGING_TRIGGER else CONFIG["solar"]["powerwall_charging_power_limit"]
             else:
@@ -8752,7 +8718,6 @@ def max_local_energy_available_remaining_period():
                     powerwall_forced_stop_charging = True
         
             if discharge_above_needed and powerwall_battery_level > powerwall_reserved_battery_level:
-                _LOGGER.debug(f"powerwall_discharging_available:{powerwall_discharging_available} < {CONFIG['solar']['powerwall_discharging_power'] / 2.0}: {powerwall_discharging_available < CONFIG['solar']['powerwall_discharging_power'] / 2.0}")
                 if powerwall_discharging_available < CONFIG["solar"]["powerwall_discharging_power"] / 2.0:
                     powerwall_force_power += max(CONFIG["solar"]["powerwall_discharging_power"] - powerwall_discharging_available, 0.0)
             
@@ -8828,8 +8793,6 @@ def max_local_energy_available_remaining_period():
             set_attr(f"sensor.{__name__}_solar_over_production_current_hour.total_local_energy", total_local_energy)
             
         set_attr(f"sensor.{__name__}_solar_over_production_current_hour.local_energy_available", watts_available_from_local_energy)
-            
-        _LOGGER.debug(f"Max local energy available remaining hour: {watt_available}W (predicted_solar_power:{predicted_solar_power} + allow_grid_charging_above_solar_available:{allow_grid_charging_above_solar_available} + extra_watt:{extra_watt})")
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.warning(f"Cancelled/timeout calculating max local energy available remaining hour: {e} {type(e)}")
         return
@@ -8934,8 +8897,7 @@ def get_forecast(forecast_dict = None, date = None):
                     break
     except Exception as e:
         _LOGGER.error(f"Cant get forecast for date {date} {e} {type(e)}")
-        
-    _LOGGER.debug(f"{date}: {forecast}")
+    
     return forecast
     
 def forecast_score(data):
@@ -8945,9 +8907,7 @@ def forecast_score(data):
     try:
         if "cloud_coverage" not in data or "uv_index" not in data or "temperature" not in data:
             if "condition" in data and "datetime" in data:
-                _LOGGER.debug(f"{data['datetime']}: Missing cloud_coverage, uv_index or temperature in data, using condition: {data['condition']} = {WEATHER_CONDITION_DICT[data['condition']]}")
                 return WEATHER_CONDITION_DICT[data["condition"]]
-            
             raise Exception("Missing required keys in data")
             
         normalized_cloud_coverage = (100 - data["cloud_coverage"]) / 100
@@ -9329,8 +9289,6 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                         power_one_down_list = reverse_list(get_list_values(get_closest_key(cloudiness - 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
                     if cloudiness <= 80:
                         power_one_up_list = reverse_list(get_list_values(get_closest_key(cloudiness + 20, SOLAR_PRODUCTION_AVAILABLE_DB[hour])))
-                           
-                _LOGGER.debug(f"{hour} cloudiness:{cloudiness}% power_list: average({average(power_list)})/ema({calculate_ema(power_list)})={power_list}\npower_one_down: average({average(power_one_down_list)})/ema({calculate_ema(power_one_down_list)})={power_one_down_list}\npower_one_up: average({average(power_one_up_list)})/ema({calculate_ema(power_one_up_list)})={power_one_up_list}")
                 
                 power_list = [calculate_ema(power_list)] if power_list else []
                 power_one_down_list = [calculate_ema(power_one_down_list)] if power_one_down_list else []
@@ -9700,7 +9658,6 @@ def trip_charging():
     if get_trip_homecoming_date_time() == resetDatetime(): return
      
     if is_trip_planned() and ev_power_connected():
-        _LOGGER.debug("trip_charging:True")
         return True
     
 def preheat_ev():#TODO Make it work on Tesla and Kia
@@ -9763,8 +9720,6 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
         next_drive = next_work_time
     else:
         next_drive = trip_date_time
-        
-    _LOGGER.debug(f"preheat {minutesBetween(now, next_drive, error_value=-1)} {preheat_min_before} {0 < minutesBetween(now, next_drive, error_value=-1) <= preheat_min_before}")
     
     if 0 < minutesBetween(now, next_drive, error_value=-1) <= preheat_min_before:
         if next_drive == trip_date_time:
@@ -9774,9 +9729,7 @@ def preheat_ev():#TODO Make it work on Tesla and Kia
             day_name = getDayOfWeekText(next_drive)
             if get_state(f"input_boolean.{__name__}_preheat_{day_name}") == "on":
                 preheat = True
-                
-    _LOGGER.debug(f"preheat {preheat} {get_state(CONFIG['ev_car']['entity_ids']['climate_entity_id'], error_state='unknown')} {service.has_service('climate', 'turn_on')}")
-
+    
     outdoor_temp = 0.0
     forecast_temp = 0.0
     heating_type = i18n.t('ui.preheat_ev.preheating')
@@ -10216,9 +10169,6 @@ def is_charging():
             always=True,
             persistent_notification=True
         )
-            
-    _LOGGER.debug(f"DEBUG: CHARGING_IS_BEGINNING:{CHARGING_IS_BEGINNING} RESTARTING_CHARGER:{RESTARTING_CHARGER} RESTARTING_CHARGER_COUNT:{RESTARTING_CHARGER_COUNT}")
-    _LOGGER.debug(f"DEBUG: charger_enabled:{charger_enabled} charger_status:{charger_status} current_charging_amps:{current_charging_amps} dynamic_charger_limit_entity_id:{dynamic_charger_limit_entity_id}")
 
 def charging_without_rule():
     func_name = "charging_without_rule"
@@ -10787,7 +10737,6 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         min_watt = (SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING) / 2 if in_between(getMinute(), 1, 58) else 0.0
         
         if (ev_used_consumption == 0.0 and not in_between(getMinute(), 1, 58)) or ev_used_consumption < min_watt:
-            _LOGGER.debug("Calculating ev cost, when ev not charging. For display only")
             ev_used_consumption = SOLAR_CHARGING_TRIGGER_ON if is_solar_configured() else MAX_WATT_CHARGING
         else:
             watts_from_local_energy = round(min(watts_from_local_energy, ev_used_consumption), 3)
@@ -10811,8 +10760,6 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_grid_share = 0.0
             ev_grid_cost = 0.0
-        _LOGGER.debug(f"grid_kwh_price: {grid_kwh_price}")
-        _LOGGER.debug(f"ev_grid_cost: ({ev_grid_watt}/{ev_used_consumption}={int(ev_grid_share*100)}%)*{grid_kwh_price} = {ev_grid_cost}")
         
         try:
             ev_solar_share = min(round(solar_watts_of_local_energy / ev_used_consumption, 2), 100.0)
@@ -10820,8 +10767,6 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_solar_share = 0.0
             ev_solar_cost = 0.0
-        _LOGGER.debug(f"solar_kwh_price: {solar_kwh_price}")
-        _LOGGER.debug(f"ev_solar_cost: ({solar_watts_of_local_energy}/{ev_used_consumption}={int(ev_solar_share*100)}%)*{solar_kwh_price} = {ev_solar_cost}")
         
         try:
             ev_powerwall_share = min(round(powerwall_watts_of_local_energy / ev_used_consumption, 2), 100.0)
@@ -10829,9 +10774,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         except:
             ev_powerwall_share = 0.0
             ev_powerwall_cost = 0.0
-        _LOGGER.debug(f"powerwall_kwh_price: {powerwall_kwh_price}")
-        _LOGGER.debug(f"ev_powerwall_cost: ({powerwall_watts_of_local_energy}/{ev_used_consumption}={int(ev_powerwall_share*100)}%)*{powerwall_kwh_price} = {ev_powerwall_cost}")
-
+        
         ev_total_price_kwh = round(ev_grid_cost + ev_solar_cost + ev_powerwall_cost, 3)
 
         if update_entities:
