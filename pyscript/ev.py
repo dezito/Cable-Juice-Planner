@@ -1704,6 +1704,10 @@ async def run_console_command(cmd):
 
 @service(f"pyscript.{__name__}_recreate_hardlinks")
 def recreate_hardlinks(trigger_type=None, trigger_id=None, **kwargs):
+    """yaml
+    name: "Cable Juice Planner: Recreate Hardlinks"
+    description: Recreate hardlinks for Cable Juice Planner data files.
+    """
     func_name = "recreate_hardlinks"
     task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -1784,7 +1788,10 @@ def build_combined_changelog(releases):
 
 @service(f"pyscript.{__name__}_check_release_updates")
 def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
-    """Check if newer releases are available and show combined changelog."""
+    """yaml
+    name: "Cable Juice Planner: Check release updates"
+    description: Check if newer releases are available and show combined changelog.
+    """
     func_name = "check_release_updates"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
@@ -1839,7 +1846,10 @@ def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
 
 @service(f"pyscript.{__name__}_update_repo")
 def update_repo(trigger_type=None, trigger_id=None, **kwargs):
-    """Update repo to selected or latest version and display changelog."""
+    """yaml
+    name: "Cable Juice Planner: Update repo"
+    description:  Update repo to selected or latest version and display changelog.
+    """
     func_name = "update_repo"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
@@ -1903,6 +1913,10 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
 
 @service(f"pyscript.{__name__}_debug_info")
 def debug_info(trigger_type=None, trigger_id=None, **kwargs):
+    """yaml
+    name: "Cable Juice Planner: Debug info"
+    description: Show debug information about the current runtime state.
+    """
     func_name = "debug_info"
     task.unique(func_name)
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -3423,6 +3437,10 @@ def init():
 
 @service(f"pyscript.{__name__}_all_entities")
 def get_all_entities(trigger_type=None, trigger_id=None, **kwargs):
+    """yaml
+    name: "Cable Juice Planner: Get All Entities"
+    description: Generates a list of all entities created by this integration and displays them in a persistent notification.
+    """
     func_name = "get_all_entities"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global DEFAULT_ENTITIES
@@ -11079,9 +11097,11 @@ if INITIALIZATION_COMPLETE:
         @service(f"pyscript.{__name__}_update_release_options")
         @state_trigger(f"input_select.cjp_select_release")
         def update_release_options(trigger_type=None, trigger_id=None, var_name=None, value=None, old_value=None, **kwargs):
-            """
-            Fetches all release tags from GitHub and updates an input_select
-            entity with them, so the user can pick a release manually.
+            """yaml
+            name: "Cable Juice Planner: Update Release Options"
+            description: >
+                Fetches all release tags from GitHub and updates an input_select
+                entity with them, so the user can pick a release manually.
             """
             func_name = "update_release_options"
             func_prefix = f"{func_name}_"
