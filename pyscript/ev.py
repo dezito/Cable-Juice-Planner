@@ -6911,7 +6911,7 @@ def cheap_grid_charge_hours():
             sub_sub_func_name = "unscheduled_planner"
             _LOGGER = globals()['_LOGGER'].getChild(f"{func_name}.{sub_func_name}.{sub_sub_func_name}")
             
-            nonlocal totalCost, totalkWh, charging_plan, chargeHours, sorted_by_cheapest_price, fill_up_days, last_charging
+            nonlocal totalCost, totalkWh, charging_plan, chargeHours, sorted_by_cheapest_price, fill_up_days, last_charging, very_cheap_kwh_needed_today, ultra_cheap_kwh_needed_today
             
             try:
                 need_recommended_full_charge = days_need_between_recommended_full_charge != 0 and days_since_last_fully_charged > days_need_between_recommended_full_charge and day == 1
