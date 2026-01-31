@@ -562,9 +562,9 @@ ui:
       sunday: "Søndag"
 
   tasks:
-    closing_progress: "Lukket tråde ned"
-    closed_done: "Lukket tråde ned - Færdig"
-    not_all_closed: "Ikke alle tråde blev lukket ned"
+    closing_progress: "Afslutter igangværende opgaver"
+    closed_done: "Alle opgaver er afsluttet"
+    not_all_closed: "Nogle opgaver kunne ikke afsluttes"
 
   # ---- prices ----
   get_hours_plan:

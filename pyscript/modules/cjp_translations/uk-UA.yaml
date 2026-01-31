@@ -544,9 +544,9 @@ ui:
       sunday: "Неділя"
 
   tasks:
-    closing_progress: "Закриття потоків"
-    closed_done: "Потоки закрито — готово"
-    not_all_closed: "Не всі потоки вдалося закрити"
+    closing_progress: "Завершення поточних завдань"
+    closed_done: "Усі завдання завершено"
+    not_all_closed: "Деякі завдання не вдалося завершити"
 
   # ---- prices ----
   get_hours_plan:
