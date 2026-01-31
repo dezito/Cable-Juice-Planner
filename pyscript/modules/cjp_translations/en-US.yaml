@@ -559,9 +559,9 @@ ui:
       sunday: "Sunday"
 
   tasks:
-    closing_progress: "Closing threads"
-    closed_done: "Threads closed - done"
-    not_all_closed: "Not all threads were closed"
+    closing_progress: "Closing ongoing tasks"
+    closed_done: "All tasks have been completed"
+    not_all_closed: "Some tasks could not be completed"
 
   # ---- prices ----
   get_hours_plan:

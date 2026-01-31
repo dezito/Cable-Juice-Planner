@@ -548,9 +548,9 @@ ui:
       sunday: "Niedziela"
 
   tasks:
-    closing_progress: "Zamykanie wątków"
-    closed_done: "Wątki zamknięte - zakończono"
-    not_all_closed: "Nie wszystkie wątki zostały zamknięte"
+    closing_progress: "Zamykanie trwających zadań"
+    closed_done: "Wszystkie zadania zostały zakończone"
+    not_all_closed: "Niektórych zadań nie udało się zakończyć"
 
   # ---- prices ----
   get_hours_plan:
