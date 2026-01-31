@@ -7691,7 +7691,7 @@ def cheap_grid_charge_hours():
         """except asyncio.exceptions.InvalidStateError as e:
             _LOGGER.info(f"InvalidStateError in future_charging: TASKS[f'{func_prefix}future_charging']={TASKS[f'{func_prefix}future_charging']} {e} {type(e)}")"""
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
-        _LOGGER.warning(f"Cancelled/Timeout/KeyError in future_charging: TASKS[f'{func_prefix}future_charging']={TASKS[f'{func_prefix}future_charging']} {e} {type(e)}")
+        _LOGGER.warning(f"Cancelled/Timeout/KeyError in future_charging: {e} {type(e)}")
         return
     except Exception as e:
         _LOGGER.error(f"Error in future_charging: {e} {type(e)}")
