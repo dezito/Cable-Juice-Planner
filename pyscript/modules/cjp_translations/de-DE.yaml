@@ -107,6 +107,8 @@ config:
     km_kwh_efficiency_db_data_to_save: "Ablagemenge"
     charging_history_db_data_to_save: "X Monate Historie vorhalten"
 
+  enable_diagnostic_file_log: "Aktiviert die diagnostische Datei-Protokollierung zur Fehlersuche.\nProtokolle werden in eine separate Datei mit automatischer Rotation geschrieben\n(2 MB pro Datei, 3 rotierte Dateien)."
+
   ev_car:
     entity_ids:
       wake_up_entity_id: "Wecken erzwingen (leer lassen bei Hyundai-Kia-Connect; dort eigener Wake-Service)"

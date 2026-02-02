@@ -20,6 +20,8 @@ try:
 except:
     benchmark_loaded = False
 
+from dual_logger import DualLogger
+
 from filesystem import (
     CONFIG_FOLDER,
     get_config_folder,
@@ -98,10 +100,17 @@ from utils import (
 
 import homeassistant.helpers.sun as sun
 
-from logging import getLogger
+import logging
+
 TITLE = f"Cable Juice Planner ({__name__}.py)"
 BASENAME = f"pyscript.{__name__}"
-_LOGGER = getLogger(BASENAME)
+
+try:
+    ha_logging_lvl = logging.getLogger("custom_components.pyscript").getEffectiveLevel()
+except:
+    ha_logging_lvl = logging.INFO
+
+_LOGGER = DualLogger(BASENAME, CONFIG_FOLDER, ha_forward_min_level=ha_logging_lvl)
 
 INITIALIZATION_COMPLETE = False
 TESTING = False
@@ -411,6 +420,7 @@ DEFAULT_CONFIG = {
         "km_kwh_efficiency_db_data_to_save": 15,
         "charging_history_db_data_to_save": 12
     },
+    "enable_diagnostic_file_log": False,
     "ev_car": {
         "entity_ids": {
             "wake_up_entity_id": "",
@@ -1786,6 +1796,126 @@ def build_combined_changelog(releases):
         items.append(section)
     return "\n\n".join(items)
 
+@service(f"pyscript.{__name__}_enable_diagnostic_file_logging")
+def enable_diagnostic_file_logging(logging=None):
+    """yaml
+    name: "Cable Juice Planner: Enable Diagnostic File Logging"
+    description: Enable or disable diagnostic file logging.
+    fields:
+        logging:
+            required: true
+            default: enable
+            example: enable
+            selector:
+                select:
+                    options:
+                    - enable
+                    - disable
+    """
+    _LOGGER = _LOGGER.getChild("enable_file_logging")
+    if logging == "enable":
+        _LOGGER.info("Enabling file logging")
+        globals()['_LOGGER'].enable_file_logging()
+        CONFIG['enable_diagnostic_file_log'] = True
+    else:
+        _LOGGER.info("Disabling file logging")
+        globals()['_LOGGER'].disable_file_logging()
+        CONFIG['enable_diagnostic_file_log'] = False
+
+@service(f"pyscript.{__name__}_set_file_log_level")
+def set_file_log_level(level=None):
+    """yaml
+    name: "Cable Juice Planner: Set file log level"
+    description: Set logging level for the pyscript file logger.
+    fields:
+        level:
+            description: Log level for file output
+            required: true
+            default: "INFO"
+            example: "INFO"
+            selector:
+                select:
+                    options:
+                    - DEBUG
+                    - INFO
+                    - WARNING
+                    - ERROR
+                    - CRITICAL
+    """
+    log = _LOGGER.getChild("set_file_log_level")
+    log.info("Setting FILE log level to %s", level)
+    _LOGGER.set_file_level(level)
+    log.warning("FILE log level is now %s", _LOGGER.get_file_level())
+    
+@service(f"pyscript.{__name__}_set_ha_log_level")
+def set_ha_log_level(level=None):
+    """yaml
+    name: "Cable Juice Planner: Set HA log level"
+    description: Set Home Assistant logger level for this pyscript module.
+    fields:
+        level:
+            description: Log level forwarded into Home Assistant logging
+            required: true
+            default: "INFO"
+            example: "INFO"
+            selector:
+                select:
+                    options:
+                    - DEBUG
+                    - INFO
+                    - WARNING
+                    - ERROR
+                    - CRITICAL
+    """
+    log = _LOGGER.getChild("set_ha_log_level")
+    log.info("Setting HA log level to %s", level)
+    _LOGGER.set_ha_level(level)
+    log.warning("HA log level is now %s", _LOGGER.get_ha_level())
+
+@service(f"pyscript.{__name__}_set_ha_forward_min_level")
+def set_ha_forward_min_level(level=None):
+    """yaml
+    name: "Cable Juice Planner: Set HA forward minimum level"
+    description: Minimum log level that will be forwarded to Home Assistant.
+    fields:
+        level:
+            description: Minimum level forwarded to HA
+            required: true
+            default: "INFO"
+            example: "INFO"
+            selector:
+                select:
+                    options:
+                    - DEBUG
+                    - INFO
+                    - WARNING
+                    - ERROR
+                    - CRITICAL
+    """
+    log = _LOGGER.getChild("set_ha_forward_min_level")
+    log.info("Setting HA forward-min level to %s", level)
+    _LOGGER.set_ha_forward_min_level(level)
+    log.warning(
+        "HA forward-min level is now %s",
+        _LOGGER.get_ha_forward_min_level(),
+    )
+
+@service(f"pyscript.{__name__}_get_log_levels")
+def get_log_levels():
+    """yaml
+    name: "Cable Juice Planner: Get logging levels"
+    description: Show current file/HA logging configuration.
+    """
+    log = _LOGGER.getChild("get_log_levels")
+    log.warning(
+        "Levels: file=%s ha=%s ha_forward_min=%s ha_root=%s",
+        _LOGGER.get_file_level(),
+        _LOGGER.get_ha_level(),
+        _LOGGER.get_ha_forward_min_level(),
+        _LOGGER.ha_effective_root_level(),
+    )
+
+
 @service(f"pyscript.{__name__}_check_release_updates")
 def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
     """yaml
@@ -3098,8 +3228,22 @@ def validation_procedure():
 def init():
     func_name = "init"
     func_prefix = f"{func_name}_"
-    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
+    
+    log_builder = []
+    
+    def log_messages():
+        nonlocal log_builder
+        for level, message in log_builder:
+            if level == "debug":
+                _LOGGER.debug(message)
+            elif level == "info":
+                _LOGGER.info(message)
+            elif level == "warning":
+                _LOGGER.warning(message)
+            elif level == "error":
+                _LOGGER.error(message)
+        log_builder = []
 
     def handle_yaml(file_path, default_content, key_renaming, comment_db, check_nested_keys=False, check_first_run=False, prompt_restart=False):
         """
@@ -3111,7 +3255,7 @@ def init():
             TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}'] = task.create(save_yaml, file_path, default_content, comment_db)
             done, pending = task.wait({TASKS[f'{func_prefix}not_exists_save_yaml_{file_path}']})
     
-            _LOGGER.info(f"File has been created: {file_path}")
+            log_builder.append(("info", f"File has been created: {file_path}"))
             if "config.yaml" in file_path:
                 my_persistent_notification(
                     f"{i18n.t('ui.init.file_created_message', **fmt)}\n\n"
@@ -3133,11 +3277,11 @@ def init():
         done, pending = task.wait({TASKS[f'{func_prefix}load_yaml_{file_path}']})
         content = TASKS[f'{func_prefix}load_yaml_{file_path}'].result()
         
-        _LOGGER.debug(f"Loaded content from {file_path}")
+        log_builder.append(("debug", f"Loaded content from {file_path}"))
 
         if not content:
             set_charging_rule(f"📟{i18n.t('ui.init.error_loading', **fmt)}")
-            _LOGGER.warning(f"Content of {file_path} is empty, reloading it")
+            log_builder.append(("warning", f"Content of {file_path} is empty, reloading it"))
             
             task.wait_until(timeout=5.0)
             
@@ -3156,6 +3300,7 @@ def init():
             i18n.set_lang(content.get("language", 'en-GB'))
             comment_db = build_comment_db_yaml()
             updated, content = update_dict_with_new_keys(content, default_content)
+            log_builder.append(("warning", f"Updated {file_path} with new keys: {updated}"))
         else:
             if not dicts_equal(content, default_content):
                 updated = True
@@ -3215,7 +3360,7 @@ def init():
                 
             if old_content != content:
                 for log_string in keys_renamed_log:
-                    _LOGGER.info(log_string)
+                    log_builder.append(("info", log_string))
                 
                 config_entity_title = i18n.t('ui.init.config_renamed_keys', file_path=file_path) if "config.yaml" in file_path else i18n.t('ui.init.config_entities_renamed', file_path=file_path)
                 my_persistent_notification(
@@ -3237,15 +3382,15 @@ def init():
         
         if deprecated_keys:
             if "config.yaml" in file_path:
-                _LOGGER.info(f"Removing deprecated keys from {file_path}:")
+                log_builder.append(("info", f"Removing deprecated keys from {file_path}:"))
                 for key, value in deprecated_keys.items():
-                    _LOGGER.info(f"\tRemoving deprecated key: {key}")
+                    log_builder.append(("info", f"\tRemoving deprecated key: {key}"))
                     content = delete_flattened_key(content, key)
             else:
-                _LOGGER.warning(f"{file_path} contains deprecated settings:")
+                log_builder.append(("warning", f"{file_path} contains deprecated settings:"))
                 for key, value in deprecated_keys.items():
-                    _LOGGER.warning(f"\t{key}: {value}")
-                _LOGGER.warning("Please remove them.")
+                    log_builder.append(("warning", f"\t{key}: {value}"))
+                log_builder.append(("warning", "Please remove them."))
                 my_persistent_notification(
                     f"{i18n.t('ui.init.deprecated_keys_in', file_path=file_path)}\n"
                     f"{i18n.t('ui.init.remove_these_keys')}:\n"
@@ -3277,15 +3422,27 @@ def init():
     
     set_charging_rule(f"📟{i18n.t('ui.init.script_starting')}")
     welcome_text = welcome()
-    _LOGGER.info("-" * len(welcome_text))
-    _LOGGER.info(welcome_text)
-    _LOGGER.info("-" * len(welcome_text))
+    
+    log_builder.append(("info", "-" * len(welcome_text)))
+    log_builder.append(("info", welcome_text))
+    log_builder.append(("info", "-" * len(welcome_text)))
+    
     task.wait_until(timeout=1.0)
     try:
         set_charging_rule(f"📟{i18n.t('ui.init.loading_config')}")
         
         CONFIG = handle_yaml(f"{__name__}_config.yaml", deepcopy(DEFAULT_CONFIG), deepcopy(CONFIG_KEYS_RENAMING), deepcopy(COMMENT_DB_YAML), check_first_run=True, prompt_restart=False)
         CONFIG_LAST_MODIFIED = get_file_modification_time(f"{__name__}_config.yaml")
+        
+        if CONFIG.get('enable_diagnostic_file_log', False):
+            log_builder.append(("info", "Enabling diagnostic file logging as per configuration"))
+            globals()['_LOGGER'].enable_file_logging()
+        else:
+            log_builder.append(("info", "Diagnostic file logging is disabled as per configuration"))
+            
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+        log_messages()
         
         task.wait_until(timeout=0.5)
         set_charging_rule(f"📟{i18n.t('ui.init.config_validation')}")
@@ -3419,9 +3576,11 @@ def init():
         
         INITIALIZATION_COMPLETE = True
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        log_messages()
         _LOGGER.warning(f"Task cancelled or timeout: {e} {type(e)}")
         return
     except Exception as e:
+        log_messages()
         _LOGGER.error(e)
         INITIALIZATION_COMPLETE = False
         set_charging_rule(f"⛔{i18n.t('ui.init.script_stopped')}.\n{i18n.t('ui.init.check_log')}:\n{e} {type(e)}")
