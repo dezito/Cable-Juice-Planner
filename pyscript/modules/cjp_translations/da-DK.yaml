@@ -107,6 +107,8 @@ config:
     km_kwh_efficiency_db_data_to_save: "Mængde der gemmes"
     charging_history_db_data_to_save: "Gem X måneder tilbage"
 
+  enable_diagnostic_file_log: "Aktiverer diagnostisk fil-logging til fejlfinding.\nLogger skrives til separat fil med automatisk rotation\n(2 MB pr. fil, 3 roterede filer)."
+
   ev_car:
     entity_ids:
       wake_up_entity_id: "Tving vækning (lad stå tomt hvis du bruger Hyundai-Kia-Connect, hvor wake-up-service bruges i stedet)"

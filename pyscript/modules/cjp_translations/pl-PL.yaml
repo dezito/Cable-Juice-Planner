@@ -107,6 +107,8 @@ config:
     km_kwh_efficiency_db_data_to_save: "Przechowywana ilość"
     charging_history_db_data_to_save: "Przechowuj X miesięcy historii ładowania"
 
+  enable_diagnostic_file_log: "Włącza diagnostyczne logowanie do pliku w celu debugowania.\nLogi są zapisywane do osobnego pliku z automatyczną rotacją\n(2 MB na plik, 3 rotowane pliki)."
+
   ev_car:
     entity_ids:
       wake_up_entity_id: "Wymuś wybudzenie (pozostaw puste jeśli używasz Hyundai-Kia-Connect z własnym serwisem wake-up)"
