@@ -8465,26 +8465,25 @@ def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0)
         return
     
     try:
-        integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
+        integration = get_integration(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'])
             
-        if not is_entity_available(CONFIG['charger']['entity_ids']['status_entity_id']):
-            raise Exception(f"Ev charger integration ({integration}) unavailable: {CONFIG['charger']['entity_ids']['status_entity_id']}")
+        if not is_entity_available(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
+            raise Exception(f"Ev charger integration ({integration}) unavailable: {CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']}")
         
         if integration == "easee":
             charger_id = get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id", error_state=None)
             if not charger_id:
                 raise Exception(f"No charger id found for {CONFIG['charger']['entity_ids']['status_entity_id']} return id: {str(charger_id)}")
             
-            if is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
-                if service.has_service(integration, "set_charger_dynamic_limit"):
-                    service.call(integration, "set_charger_dynamic_limit", blocking=True,
-                                        charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
-                                        current=max_amp,
-                                        time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
-                else:
-                    raise Exception("Easee integration dont has service set_charger_dynamic_limit")
+            if service.has_service(integration, "set_charger_dynamic_limit"):
+                service.call(integration, "set_charger_dynamic_limit", blocking=True,
+                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                    current=max_amp,
+                                    time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
+            else:
+                raise Exception("Easee integration dont has service set_charger_dynamic_limit")
         else:
-            raise(Exception(f"Charger brand is not Easee: {integration}"))
+            send_command(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'], max_amp, force = False)
         successful = True
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
