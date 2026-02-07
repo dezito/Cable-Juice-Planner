@@ -8361,6 +8361,10 @@ def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
             "watt": 0.0
             }
     
+    if max_allowed is not None and minWatt > max_allowed:
+        _LOGGER.warning(f"Max allowed watt {max_allowed} is lower than minimum watt in powerDict {minWatt}, setting max allowed to {minWatt}")
+        max_allowed = minWatt
+    
     if report:
         log_lines = []
         if is_solar_configured():
