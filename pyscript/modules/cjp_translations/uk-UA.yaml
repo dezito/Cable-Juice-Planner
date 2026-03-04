@@ -131,6 +131,7 @@ config:
     very_cheap_grid_charging_max_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
     ultra_cheap_grid_charging_max_battery_level: "**Обов’язково** Може бути змінено через WebGUI"
     typical_daily_distance_non_working_day: "**Обов’язково** Може бути змінено через WebGUI"
+    last_charging_hour_before_departure_buffer: "**Обов’язково** Кількість годин до виїзду, коли заряджання має бути завершене. Якщо енергії недостатньо, буде заплановано додаткове заряджання."
 
   forecast:
     entity_ids:

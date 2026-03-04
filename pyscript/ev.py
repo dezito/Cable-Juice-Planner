@@ -451,6 +451,7 @@ DEFAULT_CONFIG = {
         "workday_distance_needed_friday": 50.0,
         "workday_distance_needed_saturday": 50.0,
         "workday_distance_needed_sunday": 50.0,
+        "last_charging_hour_before_departure_buffer": 2,
     },
     "first_run": True,
     "forecast": {
@@ -7707,7 +7708,9 @@ def cheap_grid_charge_hours():
                 charging_plan[day]['work_goto'] = work_goto
                 charging_plan[day]['work_homecoming'] = end_of_day_datetime.replace(hour=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').hour, minute=get_state(f'input_datetime.{__name__}_workday_homecoming_{day_text}').minute, second=0)
                 
-                hours_before = max(1, min(2, hoursBetween(now, charging_plan[day]['work_goto'])))
+                hour_buffer = int(CONFIG['ev_car']['last_charging_hour_before_departure_buffer']) if isinstance(CONFIG['ev_car']['last_charging_hour_before_departure_buffer'], (float, int)) else 2
+                hours_before = max(1, min(hour_buffer, hoursBetween(now, charging_plan[day]['work_goto'])))
+                
                 charging_plan[day]['work_last_charging'] = reset_time_to_hour(work_goto) - datetime.timedelta(hours=hours_before)
                 
                 charging_plan[day]['work_range_needed'] = get_entity_daily_distance(day_text = day_text)
@@ -7732,8 +7735,9 @@ def cheap_grid_charge_hours():
             diff = minutesBetween(now, charging_plan[day]['trip_goto'])
             if day == 0 and ready_to_charge() and in_between(diff, CHARGING_ALLOWED_AFTER_GOTO_TIME, 0):
                 charging_plan[day]['trip_goto'] = charging_plan[day]['trip_goto'] + datetime.timedelta(hours=1)
-                
-            hours_before = max(1, min(2, hoursBetween(now, charging_plan[day]['trip_goto'])))
+            
+            hour_buffer = int(CONFIG['ev_car']['last_charging_hour_before_departure_buffer']) if isinstance(CONFIG['ev_car']['last_charging_hour_before_departure_buffer'], (float, int)) else 2
+            hours_before = max(1, min(hour_buffer, hoursBetween(now, charging_plan[day]['trip_goto'])))
             
             charging_plan[day]['trip_last_charging'] = reset_time_to_hour(charging_plan[day]['trip_goto']) - datetime.timedelta(hours=hours_before)
             charging_plan[day]['rules'].append("trip")
