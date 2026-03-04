@@ -1,4 +1,11 @@
+# Required: lovelace-card-mod (https://github.com/thomasloven/lovelace-card-mod)
+
 type: markdown
+card_mod:
+  style: |
+    ha-card {
+      --markdown-table-border-color: transparent
+    }
 content: "{{ states.sensor.ev_charging_history.attributes.history }}"
 grid_options:
   columns: full
