@@ -1,10 +1,16 @@
 # Required: HACS integration (https://hacs.xyz/)
 # Required: lovelace-mushroom (https://github.com/piitaya/lovelace-mushroom)
 # Required: stack-in-card (https://github.com/custom-cards/stack-in-card)
+# Required: lovelace-card-mod (https://github.com/thomasloven/lovelace-card-mod)
 
 type: vertical-stack
 cards:
   - type: markdown
+    card_mod:
+      style: |
+        ha-card {
+          --markdown-table-border-color: transparent
+        }
     content: '{{ states.sensor.ev_overview.attributes.overview }}'
     view_layout:
       position: sidebar
