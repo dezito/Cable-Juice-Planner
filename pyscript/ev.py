@@ -129,6 +129,7 @@ CHARGING_IS_BEGINNING = False
 RESTARTING_CHARGER = False
 RESTARTING_CHARGER_COUNT = 0
 CURRENT_CHARGING_AMPS = [0, 0, 0]
+CURRENT_CIRCUIT_AMPS = [0, 0, 0]
 
 CHARGING_LOSS_CAR_BEGIN_KWH = 0.0
 CHARGING_LOSS_CAR_BEGIN_BATTERY_LEVEL = 0.0
@@ -1600,6 +1601,7 @@ def get_debug_info_sections():
         "Charging Plan & Price Logic": {
             "table": format_debug_table({
                 "CURRENT_CHARGING_AMPS": CURRENT_CHARGING_AMPS,
+                "CURRENT_CIRCUIT_AMPS": CURRENT_CIRCUIT_AMPS,
             }),
             "details": format_debug_details({
                 "CHARGING_PLAN": CHARGING_PLAN,
@@ -8407,8 +8409,19 @@ def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
 def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
     func_name = "set_circuit_phase_limits"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global CURRENT_CIRCUIT_AMPS
+    
     if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']):
         return
+    
+    circuit_changed = False
+    
+    phase_1 = int(phase_1)
+    phase_2 = int(phase_2)
+    phase_3 = int(phase_3)
+    
+    if CURRENT_CIRCUIT_AMPS != [phase_1, phase_2, phase_3]:
+        circuit_changed = True
     
     try:
         integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
@@ -8429,6 +8442,11 @@ def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
                                     time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
             else:
                 raise Exception("Easee integration dont has service set_circuit_dynamic_limit")
+            
+            if circuit_changed:
+                CURRENT_CIRCUIT_AMPS = [phase_1, phase_2, phase_3]
+                _LOGGER.info(f"Waiting 30 seconds for circuit limit to update before setting charger amps")
+                task.wait_until(timeout=30)
         else:
             raise(Exception(f"Charger brand is not Easee: {integration}"))
 
