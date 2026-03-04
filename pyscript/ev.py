@@ -7668,8 +7668,6 @@ def cheap_grid_charge_hours():
             "offday_battery_level_needed": 0.0,
             "offday_kwh_needed": 0.0,
             "offday_total_cost": 0.0,
-            "work_last_charging": None,
-            "work_total_cost": 0.0,
             "workday": False,
             "work_range_needed": 0.0,
             "work_battery_level_needed": 0.0,
