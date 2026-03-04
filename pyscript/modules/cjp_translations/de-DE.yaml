@@ -131,6 +131,7 @@ config:
     very_cheap_grid_charging_max_battery_level: "**Erforderlich** Auch via WebGUI änderbar"
     ultra_cheap_grid_charging_max_battery_level: "**Erforderlich** Auch via WebGUI änderbar"
     typical_daily_distance_non_working_day: "**Erforderlich** Auch via WebGUI änderbar"
+    last_charging_hour_before_departure_buffer: "**Erforderlich** Stunden vor der Abfahrt, zu denen das Laden abgeschlossen sein muss. Fehlt Energie, wird zusätzliche Ladung geplant."
 
   forecast:
     entity_ids:
