@@ -490,6 +490,21 @@ entity:
       name: "Przegląd"
     charging_history:
       name: "Historia ładowania"
+    charger_phase_1_amps:
+      name: "CJP ładowarka faza 1 ampery"
+      description: "Natężenie prądu w amperach na fazie 1, do użycia w własnych automatyzacjach"
+
+    charger_phase_2_amps:
+      name: "CJP ładowarka faza 2 ampery"
+      description: "Natężenie prądu w amperach na fazie 2, do użycia w własnych automatyzacjach"
+
+    charger_phase_3_amps:
+      name: "CJP ładowarka faza 3 ampery"
+      description: "Natężenie prądu w amperach na fazie 3, do użycia w własnych automatyzacjach"
+
+    charging_watts:
+      name: "CJP moc ładowania w watach"
+      description: "Moc ładowania w watach, do użycia w własnych automatyzacjach"
 
 # ---- ui ----
 ui:

@@ -482,6 +482,21 @@ entity:
       name: "Übersicht"
     charging_history:
       name: "Lade­historie"
+    charger_phase_1_amps:
+      name: "CJP Ladegerät Phase 1 Ampere"
+      description: "Stromstärke in Ampere auf Phase 1, zur Verwendung in eigenen Automationen"
+
+    charger_phase_2_amps:
+      name: "CJP Ladegerät Phase 2 Ampere"
+      description: "Stromstärke in Ampere auf Phase 2, zur Verwendung in eigenen Automationen"
+
+    charger_phase_3_amps:
+      name: "CJP Ladegerät Phase 3 Ampere"
+      description: "Stromstärke in Ampere auf Phase 3, zur Verwendung in eigenen Automationen"
+
+    charging_watts:
+      name: "CJP Ladeleistung Watt"
+      description: "Ladeleistung in Watt, zur Verwendung in eigenen Automationen"
 
 # ---- ui ----
 ui:

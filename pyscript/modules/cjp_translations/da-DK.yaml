@@ -505,6 +505,18 @@ entity:
       name: "Oversigt"
     charging_history:
       name: "Lade historik"
+    charger_phase_1_amps:
+      name: "CJP lader fase 1 ampere"
+      description: "Strømstyrke i ampere på fase 1, til brug med egne automationer"
+    charger_phase_2_amps:
+      name: "CJP lader fase 2 ampere"
+      description: "Strømstyrke i ampere på fase 2, til brug med egne automationer"
+    charger_phase_3_amps:
+      name: "CJP lader fase 3 ampere"
+      description: "Strømstyrke i ampere på fase 3, til brug med egne automationer"
+    charging_watts:
+      name: "CJP lader watt"
+      description: "Ladeeffekt i watt, til brug med egne automationer"
 
 # ---- ui ----
 ui:
