@@ -482,6 +482,21 @@ entity:
       name: "Overview"
     charging_history:
       name: "Charging history"
+    charger_phase_1_amps:
+      name: "CJP charger phase 1 amps"
+      description: "Current in amps on phase 1, for use in custom automations"
+
+    charger_phase_2_amps:
+      name: "CJP charger phase 2 amps"
+      description: "Current in amps on phase 2, for use in custom automations"
+
+    charger_phase_3_amps:
+      name: "CJP charger phase 3 amps"
+      description: "Current in amps on phase 3, for use in custom automations"
+
+    charging_watts:
+      name: "CJP charging watts"
+      description: "Charging power in watts, for use in custom automations"
 
 # ---- ui ----
 ui:

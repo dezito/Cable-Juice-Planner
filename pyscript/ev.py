@@ -1048,7 +1048,32 @@ DEFAULT_ENTITIES = {
                     "default_entity_id": f"sensor.{__name__}_charging_history",
                     "unique_id": f"{__name__}_charging_history",
                     "state": ""
-                }
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charger_phase_1_amps",
+                    "unique_id": f"{__name__}_charger_phase_1_amps",
+                    "icon": "mdi:numeric-1-box",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charger_phase_2_amps",
+                    "unique_id": f"{__name__}_charger_phase_2_amps",
+                    "icon": "mdi:numeric-2-box",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charger_phase_3_amps",
+                    "unique_id": f"{__name__}_charger_phase_3_amps",
+                    "icon": "mdi:numeric-3-box",
+                    "state": "unavailable"
+                },
+                {
+                    "default_entity_id": f"sensor.{__name__}_charging_watts",
+                    "unique_id": f"{__name__}_charging_watts",
+                    "icon": "mdi:ev-station",
+                    "unit_of_measurement": "W",
+                    "state": "unavailable"
+                },
             ]
         }
     ]
@@ -8406,6 +8431,16 @@ def calc_charging_amps(power = 0.0, max_allowed = None, report = False):
     
     return [phase_1, phase_2, phase_3, output['watt']]
 
+def set_sensor_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0):
+    func_name = "set_sensor_charging_amps"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
+    set_state(f"sensor.{__name__}_charger_phase_1_amps", phase_1)
+    set_state(f"sensor.{__name__}_charger_phase_2_amps", phase_2)
+    set_state(f"sensor.{__name__}_charger_phase_3_amps", phase_3)
+    set_state(f"sensor.{__name__}_charging_watts", watt)
+    
+
 def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
     func_name = "set_circuit_phase_limits"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -8473,11 +8508,14 @@ def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0)
     
     max_amp = max(phase_1, phase_2, phase_3)
     
+    watt = sum([phase_1, phase_2, phase_3]) * CONFIG['charger']['power_voltage']
+    
+    set_sensor_charging_amps(phase_1, phase_2, phase_3, watt)
+    
     if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id']):
         CURRENT_CHARGING_AMPS = [phase_1, phase_2, phase_3]
         return
     
-    watt = sum([phase_1, phase_2, phase_3]) * CONFIG['charger']['power_voltage']
         
     if TESTING:
         CURRENT_CHARGING_AMPS = [phase_1, phase_2, phase_3]
@@ -8503,7 +8541,8 @@ def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0)
             else:
                 raise Exception("Easee integration dont has service set_charger_dynamic_limit")
         else:
-            send_command(CONFIG['charger']['entity_ids']['dynamic_charger_limit_entity_id'], max_amp, force = False)
+            raise(Exception(f"Charger brand is not Easee: {integration}"))
+        
         successful = True
         
         _LOGGER.info(f"Setting chargers({charger_id}) charging amps to {phase_1}/{phase_2}/{phase_3} watt:{watt}")
