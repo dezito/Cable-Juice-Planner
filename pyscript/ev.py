@@ -491,8 +491,8 @@ DEFAULT_CONFIG = {
             "production_entity_id": "",
             "forecast_entity_id": ""
         },
-        "solarpower_use_before_minutes": 60,
-        "max_to_current_hour": True,
+        "solarpower_use_before_minutes": 15,
+        "max_to_current_hour": False,
         "allow_grid_charging_above_solar_available": -100.0,
         "charging_single_phase_min_amp": 6.0,
         "charging_single_phase_max_amp": 16.0,
@@ -8887,6 +8887,8 @@ def max_local_energy_available_remaining_period():
                 return minute % usage_period
             
             period = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
+    elif CONFIG['solar']['solarpower_use_before_minutes'] == 0:
+        period = CONFIG['cron_interval']
     
     random_int = random.randint(0, 10000)
     task_names = {
