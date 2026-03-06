@@ -491,8 +491,8 @@ DEFAULT_CONFIG = {
             "production_entity_id": "",
             "forecast_entity_id": ""
         },
-        "solarpower_use_before_minutes": 60,
-        "max_to_current_hour": True,
+        "solarpower_use_before_minutes": 15,
+        "max_to_current_hour": False,
         "allow_grid_charging_above_solar_available": -100.0,
         "charging_single_phase_min_amp": 6.0,
         "charging_single_phase_max_amp": 16.0,
