@@ -8454,9 +8454,16 @@ def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
     phase_3 = int(phase_3)
     
     new_phases = [phase_1, phase_2, phase_3]
-    
-    old_active = sum(1 for p in CURRENT_CIRCUIT_AMPS if p != 0)
-    new_active = sum(1 for p in new_phases if p != 0)
+
+    old_active = 0
+    for p in CURRENT_CIRCUIT_AMPS:
+        if p != 0:
+            old_active += 1
+
+    new_active = 0
+    for p in new_phases:
+        if p != 0:
+            new_active += 1
 
     circuit_changed = old_active != new_active
     
