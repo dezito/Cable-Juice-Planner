@@ -8448,15 +8448,17 @@ def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
     
     if not is_entity_configured(CONFIG['charger']['entity_ids']['dynamic_circuit_limit_entity_id']):
         return
-    
-    circuit_changed = False
-    
+        
     phase_1 = int(phase_1)
     phase_2 = int(phase_2)
     phase_3 = int(phase_3)
     
-    if CURRENT_CIRCUIT_AMPS != [phase_1, phase_2, phase_3]:
-        circuit_changed = True
+    new_phases = [phase_1, phase_2, phase_3]
+    
+    old_active = sum(1 for p in CURRENT_CIRCUIT_AMPS if p != 0)
+    new_active = sum(1 for p in new_phases if p != 0)
+
+    circuit_changed = old_active != new_active
     
     try:
         integration = get_integration(CONFIG['charger']['entity_ids']['status_entity_id'])
