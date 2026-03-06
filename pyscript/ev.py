@@ -8887,6 +8887,8 @@ def max_local_energy_available_remaining_period():
                 return minute % usage_period
             
             period = map_minute(getMinute(), CONFIG['solar']['solarpower_use_before_minutes'])
+    elif CONFIG['solar']['solarpower_use_before_minutes'] == 0:
+        period = CONFIG['cron_interval']
     
     random_int = random.randint(0, 10000)
     task_names = {
