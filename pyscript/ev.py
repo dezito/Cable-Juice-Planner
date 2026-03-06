@@ -8994,9 +8994,12 @@ def max_local_energy_available_remaining_period():
 
         multiple = 1.0
         
+        min_cron_intervals = 3
+        intervals_use_before = CONFIG['solar']['solarpower_use_before_minutes'] / CONFIG['cron_interval']
+        
         if CONFIG['solar']['max_to_current_hour']:
             multiple = 1 + (getMinute() / 60)
-        elif CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
+        elif intervals_use_before > min_cron_intervals and CONFIG['solar']['solarpower_use_before_minutes'] > CONFIG['cron_interval']:
             max_multiple = 1 - (CONFIG['cron_interval'] / CONFIG['solar']['solarpower_use_before_minutes'])
             #multiple = time_window_linear_weight(period, CONFIG['solar']['solarpower_use_before_minutes'], max_multiple) #Linear weighting
             #multiple = time_window_parabolic_weight(period, CONFIG['solar']['solarpower_use_before_minutes'] / 2.0, max_multiple, curve_ratio=0.5) #Parabolic weighting
