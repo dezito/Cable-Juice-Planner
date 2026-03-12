@@ -16,6 +16,8 @@ BASENAME = f"pyscript.modules.{__name__}"
 _LOGGER = getLogger(BASENAME)
 
 def timestamps_correction(from_datetime, to_datetime):
+    _LOGGER = globals()['_LOGGER'].getChild("timestamps_correction")
+    
     try:
         from_time = min(from_datetime, to_datetime)
         to_time = max(from_datetime, to_datetime)
@@ -26,8 +28,13 @@ def timestamps_correction(from_datetime, to_datetime):
         
     return from_time, to_time
 
-def interpolate_sensor_data(sensor_data, from_datetime, to_datetime, num_points):
+def interpolate_data(sensor_data, from_datetime, to_datetime, num_points):
+    _LOGGER = globals()['_LOGGER'].getChild("interpolate_data")
+    
     interpolated_dict = {}
+    
+    from_datetime = from_datetime if isinstance(from_datetime, (int, float)) else datetime.datetime.timestamp(from_datetime)
+    to_datetime = to_datetime if isinstance(to_datetime, (int, float)) else datetime.datetime.timestamp(to_datetime)
     
     try:
         sorted_data = sorted(sensor_data.items())
@@ -36,12 +43,14 @@ def interpolate_sensor_data(sensor_data, from_datetime, to_datetime, num_points)
         non_numeric_data = {}
 
         for timestamp, value in sorted_data:
+            timestamp = timestamp if isinstance(timestamp, (int, float)) else datetime.datetime.timestamp(timestamp)
+            
             try:
                 float_value = float(value)
                 numeric_data.append((timestamp, float_value))
             except ValueError:
                 non_numeric_data[timestamp] = value
-
+        
         if numeric_data:
             existing_timestamps, existing_values = zip(*numeric_data)
             
@@ -58,38 +67,46 @@ def interpolate_sensor_data(sensor_data, from_datetime, to_datetime, num_points)
                 ts = datetime.datetime.fromtimestamp(ts)
             interpolated_dict[ts] = val
     except Exception as e:
-        _LOGGER.error(f"Error in interpolate_sensor_data: {e}")
+        _LOGGER.error(f"Error in interpolate_data: {e}")
 
     return interpolated_dict
 
 def fetch_statistics_data(hass: HomeAssistant, entity_id: str, start_time: datetime.datetime, end_time: datetime.datetime, state_type: Literal["max", "mean", "min"]):
     _LOGGER = globals()['_LOGGER'].getChild("fetch_statistics_data")
     
-    start_time = start_time.replace(minute=0, second=0, microsecond=0)
-    end_time = end_time.replace(minute=0, second=0, microsecond=0)
-    
-    if start_time == end_time:
-        end_time = start_time + datetime.timedelta(hours=1)
-    
-    start_utc = dt_util.as_utc(start_time)
-    end_utc = dt_util.as_utc(end_time)
-
-    stats = statistics_during_period(
-        hass=hass,
-        start_time=start_utc,
-        end_time=end_utc,
-        statistic_ids=[entity_id],
-        period="hour",           # "5minute", "day", "hour", "week", "month"
-        units=None,
-        types={state_type}
-    )
     result = {}
     
-    if entity_id in stats:
-        for entry in stats[entity_id]:
-            timestamp = datetime.datetime.fromtimestamp(entry["start"])
-            value = entry[state_type]
-            result[timestamp] = value
+    try:
+        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+        end_time = end_time.replace(minute=0, second=0, microsecond=0)
+        
+        if start_time == end_time:
+            end_time = start_time + datetime.timedelta(hours=1)
+        
+        start_utc = dt_util.as_utc(start_time)
+        end_utc = dt_util.as_utc(end_time)
+
+        stats = statistics_during_period(
+            hass=hass,
+            start_time=start_utc,
+            end_time=end_utc,
+            statistic_ids=[entity_id],
+            period="hour",           # "5minute", "day", "hour", "week", "month"
+            units=None,
+            types={state_type}
+        )
+        
+        if entity_id in stats:
+            for entry in stats[entity_id]:
+                timestamp = entry["start"]
+                value = entry[state_type]
+                result[timestamp] = value
+            
+            result = interpolate_data(result, start_utc, end_utc, 100)
+        else:
+            _LOGGER.debug(f"No data found for entity_id: {entity_id}")
+    except Exception as e:
+        _LOGGER.error(f"Error in fetch_statistics_data for {entity_id} between {start_time} and {end_time}: {e}")
             
     return result
 
@@ -144,9 +161,7 @@ def fetch_history_data(hass: HomeAssistant, entity_id: str, start_time: datetime
                 except Exception as e:
                     _LOGGER.error(f"Error in fetch_history_data: {e}")
             
-            start_timestamp = datetime.datetime.timestamp(start_time)
-            end_timestamp = datetime.datetime.timestamp(end_time)
-            state_dict = interpolate_sensor_data(entity_state_dict, start_timestamp, end_timestamp, 100)
+            state_dict = interpolate_data(entity_state_dict, start_time, end_time, 100)
         else:
             _LOGGER.debug(f"No data found for entity_id: {entity_id}")
     except Exception as e:
@@ -217,7 +232,7 @@ def get_longterm_values(entity_id, from_datetime, to_datetime, state_type: Liter
     - A list of state values or the error state if an error occurs.
     """
     
-    _LOGGER = globals()['_LOGGER'].getChild("get_values")
+    _LOGGER = globals()['_LOGGER'].getChild("get_longterm_values")
     from power_convert import power_convert
     
     from_datetime, to_datetime = timestamps_correction(from_datetime, to_datetime)
@@ -243,7 +258,7 @@ def get_longterm_values(entity_id, from_datetime, to_datetime, state_type: Liter
 
             return list(states.values())
     except Exception as e:
-        _LOGGER.error(f"Error in get_values for {entity_id} convert_to:{convert_to} error_state:{error_state} between {from_datetime} and {to_datetime} states:{states}: {e}")
+        _LOGGER.error(f"Error in get_longterm_values for {entity_id} convert_to:{convert_to} error_state:{error_state} between {from_datetime} and {to_datetime} states:{states}: {e}")
         
     return error_state
 
@@ -352,7 +367,6 @@ def get_average_value(entity_id, from_datetime, to_datetime, convert_to=None, er
     try:
         if states:
             avg_value = sum(states) / len(states)
-            avg_value = avg_value
             _LOGGER.debug(f"The average value of {entity_id} between {from_datetime} and {to_datetime} is {avg_value}")
             return avg_value
         else:
