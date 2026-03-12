@@ -161,6 +161,7 @@ def get_specific_values(values, positive_only = False, negative_only = False):
                 continue
             
             if (negative_only and value > 0.0) or (positive_only and value < 0.0):
+                return_list.append(0.0)
                 continue
             
             return_list.append(value)
