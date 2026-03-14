@@ -8038,7 +8038,7 @@ def cheap_grid_charge_hours():
                 overview.append(f"| **☀️ {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.solar_share')}** | **{round(battery_level_expenses_solar_percentage_report,0):.0f}% {round(percentage_to_kwh(battery_level_expenses_solar_percentage_report), 1)} kWh** |")
                 
             overview.append(f"| **💰 {i18n.t('ui.common.expense')}** | **{round(battery_level_expenses_report, 2):.2f} {i18n.t('ui.common.valuta')}** |")
-            overview.append(f"| **🧮 {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.unit_price')}** | {round(percentage_to_kwh(battery_level_expenses_unit_report, include_charging_loss=True), 2):.2f} {i18n.t('ui.common.valuta_percentage')} **{round(battery_level_expenses_unit_report, 2):.2f} {i18n.t('ui.common.valuta_kwh')}** |")
+            overview.append(f"| **🧮 {i18n.t('ui.cheap_grid_charge_hours.battery_level_expenses.unit_price')}** | {round(percentage_to_kwh(battery_level_expenses_unit_report, include_charging_loss=True), 2):.2f} {i18n.t('ui.common.valuta_percentage')}<br>**{round(battery_level_expenses_unit_report, 2):.2f} {i18n.t('ui.common.valuta_kwh')}** |")
             overview.append("</center>\n")
             overview.append("***")
     except Exception as e:
