@@ -5840,7 +5840,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             unit_price = round(total['cost']["total"] / total['kwh']["total"],2) if total['kwh']["total"] > 0.0 else 0.0
             unit_string = f"{unit_price:.2f}<br>({round(total['cost']["total"] / total['km']['total'],2):.2f})" if total['km']['total'] > 0.0 else f"{unit_price:.2f}"
             
-            history.append(f"| **{i18n.t('ui.common.total')}** | {total_km} | {efficiency_label} | **{round(total['kwh']['total'], 1)}**{total_local_energy} | **{round(total['cost']['total'], 2):.2f}** | **{unit_string}** |")
+            history.append(f"| **{i18n.t('ui.common.total')}** | {total_km} | {efficiency_label} | **{round(total['kwh']['total'], 1)}**{total_local_energy} | **{round(total['cost']['total'], 2):.2f}<br>{unit_string}** |")
             
             if estimated_values_used:
                 history.append(f"\n##### ~ = {i18n.t('ui.charging_history_combine_and_set.estimated_distance')}\n")
