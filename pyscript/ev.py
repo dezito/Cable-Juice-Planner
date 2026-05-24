@@ -6366,12 +6366,12 @@ def get_hour_prices(update_prices = False):
             if "raw_today" not in power_prices_attr:
                 raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             elif len(power_prices_attr['raw_today']) < 23: #Summer and winter time compensation
-                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_today len({len(power_prices_attr['raw_today'])})")
+                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_today len({len(power_prices_attr['raw_today'])}) should be at least 23")
 
             if "forecast" not in power_prices_attr:
                 raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
             elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
-                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, forecast len({len(power_prices_attr['forecast'])})")
+                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, forecast len({len(power_prices_attr['forecast'])}) should be at least 100")
 
             if not all_prices_loaded:
                 raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
@@ -6413,7 +6413,7 @@ def get_hour_prices(update_prices = False):
                         
                 if missing_hours:
                     missing_hours = dict(sorted(missing_hours.items()))
-                    _LOGGER.info(f"Using following offline prices: {missing_hours}")
+                    _LOGGER.debug(f"Using following offline prices: {missing_hours}")
                     
                     LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours
                     
