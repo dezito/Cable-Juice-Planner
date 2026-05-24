@@ -11433,18 +11433,18 @@ if INITIALIZATION_COMPLETE:
             set_charging_rule(f"📟{i18n.t('ui.startup.loading_db')}")
             log_lines.append(f"📟{i18n.t('ui.startup.loading_db')}")
             
-            TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
             TASKS[f"{func_prefix}load_power_values_db"] = task.create(load_power_values_db)
             TASKS[f"{func_prefix}load_solar_available_db"] = task.create(load_solar_available_db)
             TASKS[f"{func_prefix}load_kwh_prices"] = task.create(load_kwh_prices)
             TASKS[f"{func_prefix}load_drive_efficiency"] = task.create(load_drive_efficiency)
             TASKS[f"{func_prefix}load_km_kwh_efficiency"] = task.create(load_km_kwh_efficiency)
-            done, pending = task.wait({TASKS[f"{func_prefix}update_grid_prices"], TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
+            done, pending = task.wait({TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
             
             log_lines.append(f"📟{i18n.t('ui.startup.loading_history')}")
             
+            TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
             TASKS[f"{func_prefix}load_charging_history"] = task.create(load_charging_history)
-            done, pending = task.wait({TASKS[f"{func_prefix}load_charging_history"]})
+            done, pending = task.wait({TASKS[f"{func_prefix}update_grid_prices"], TASKS[f"{func_prefix}load_charging_history"]})
             
             log_lines.append(f"📟{i18n.t('ui.startup.almost_ready')}")
             
