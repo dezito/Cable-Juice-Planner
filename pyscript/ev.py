@@ -2153,7 +2153,7 @@ def save_error_to_file(error_message, debug=None, caller_function_name = None):
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global TASKS
-    
+    return
     def convert_tuples_to_lists(obj):
         if isinstance(obj, tuple):
             return list(obj)
