@@ -51,7 +51,7 @@ def get_state(entity_id=None, try_history=True, float_type=False, error_state="u
             output = float(output) if output not in ENTITY_UNAVAILABLE_STATES else error_state
     except Exception as e:
         if entity_id == "":
-            entity_id == None
+            entity_id = None
         _LOGGER.error(f"Can't get state for {entity_id}, output is {output}\n{e}")
         return error_state
     
@@ -82,8 +82,8 @@ def get_attr(entity_id=None, attr=None, error_state="unknown"):
         return state.getattr(entity_id)[attr]
     except Exception as e:
         if entity_id == "":
-            entity_id == None
-        _LOGGER.error(f"Can't get attribute for {entity_id}['{attr}'], output is {output}\n{e}")
+            entity_id = None
+        _LOGGER.error(f"Can't get attribute for {entity_id}['{attr}']\n{e}")
         return error_state
 
 def set_state(entity_id=None, new_state=None, error_state="unknown"):
@@ -148,7 +148,7 @@ def set_state(entity_id=None, new_state=None, error_state="unknown"):
             state.set(entity_id, new_state)
     except Exception as e:
         if entity_id == "":
-            entity_id == None
+            entity_id = None
         _LOGGER.error(f"Can't set state for {entity_id} with new state {new_state} {e}")
         try:
             state.set(entity_id, error_state)
@@ -176,7 +176,7 @@ def set_attr(entity_id=None, attr=None):
         return True
     except Exception as e:
         if entity_id == "":
-            entity_id == None
+            entity_id = None
         _LOGGER.error(f"Can't set attribute for {entity_id} with {attr}\n{e}")
     
 def get_manufacturer(entity_id):
