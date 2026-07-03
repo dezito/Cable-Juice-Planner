@@ -141,6 +141,8 @@ CHARGING_ALLOWED_AFTER_GOTO_TIME = -120 #Negative value in minutes
 CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
 
+FORECAST_TYPE = "ema"
+
 PUBLIC_CHARGING_SESSION = []
 
 POWERWALL_CHARGING_TEXT = ""
@@ -520,6 +522,7 @@ DEFAULT_ENTITIES = {
     "homeassistant": {
         "customize": {
             f"input_select.cjp_select_release": {},
+            f"input_select.{__name__}_forecast_type": {},
             f"input_button.{__name__}_trip_reset": {},
             f"input_button.{__name__}_enforce_planning": {},
             f"input_button.{__name__}_restart_script": {},
@@ -610,6 +613,15 @@ DEFAULT_ENTITIES = {
                 "latest",
                 ],
             "initial":"latest",
+            "icon":"mdi:form-select"
+        },
+        f"{__name__}_forecast_type":{
+            "options":[
+                "Average",
+                "EMA (Exponential Moving Average)",
+                "Trend",
+                ],
+            "initial":"EMA (Exponential Moving Average)",
             "icon":"mdi:form-select"
         },
     },
@@ -1606,6 +1618,7 @@ def get_debug_info_sections():
                 "POWERWALL_CONFIGURED": POWERWALL_CONFIGURED,
                 "EV_CONFIGURED": EV_CONFIGURED,
                 "CONFIG_LAST_MODIFIED": datetime.datetime.fromtimestamp(CONFIG_LAST_MODIFIED) if isinstance(CONFIG_LAST_MODIFIED, (float, int)) else CONFIG_LAST_MODIFIED,
+                "FORECAST_TYPE": FORECAST_TYPE,
             }),
             "details": format_debug_details({"CONFIG": CONFIG}),
         },
@@ -4122,6 +4135,16 @@ def get_public_charging_session_done():
         _LOGGER.error(f"binary_sensor.{__name__}_public_charging_session_done is not set to a value: {e} {type(e)}")
     return True if state == "on" else False
     
+def get_forecast_type():
+    global FORECAST_TYPE
+    forecast_type = get_state(f"input_select.{__name__}_forecast_type", error_state="ema").split(" ")[0].lower()
+    
+    if forecast_type in ("average", "ema", "trend"):
+        FORECAST_TYPE = forecast_type
+        return forecast_type
+    
+    FORECAST_TYPE = "ema"
+    return "ema"
 
 def is_trip_planned():
     if (not is_entity_available(f"input_number.{__name__}_trip_charge_procent") or
@@ -4439,6 +4462,8 @@ def distance_per_percentage():
     func_name = "distance_per_percentage"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
+    global FORECAST_TYPE
+    
     output = 3.0
     
     if not is_ev_configured():
@@ -4448,13 +4473,21 @@ def distance_per_percentage():
             _LOGGER.error(e)
     else:
         try:
+            calc = 0.0
+            
             if KM_KWH_EFFICIENCY_DB == {}:
                 raise Exception("No data yet")
-            ema = round(calculate_ema(reverse_list(get_list_values(KM_KWH_EFFICIENCY_DB))),2)
-            #ema = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
-            if ema == 0.0:
-                raise Exception(f"ema is invalid: {ema}")
-            output = km_kwh_to_km_percentage(ema)
+            if FORECAST_TYPE == "ema":
+                calc = round(calculate_ema(reverse_list(get_list_values(KM_KWH_EFFICIENCY_DB))),2)
+            elif FORECAST_TYPE == "average":
+                calc = round(average(get_list_values(KM_KWH_EFFICIENCY_DB)),2)
+            elif FORECAST_TYPE == "trend":
+                calc = round(calculate_trend(reverse_list(get_list_values(KM_KWH_EFFICIENCY_DB))),2)
+            
+            if calc == 0.0:
+                raise Exception(f"calc is invalid: {calc}")
+            
+            output = km_kwh_to_km_percentage(calc)
         except Exception as e:
             _LOGGER.warning(f"Using default value 3.0: {e} {type(e)}")
     return output
@@ -4741,7 +4774,8 @@ def set_state_drive_efficiency():
         
         set_state(f"sensor.{__name__}_drive_efficiency", drive_efficiency_values[0])
         set_attr(f"sensor.{__name__}_drive_efficiency.ema", float(calculate_ema(reverse_list(drive_efficiency_values))))
-        set_attr(f"sensor.{__name__}_drive_efficiency.mean", float(average(drive_efficiency_values)))
+        set_attr(f"sensor.{__name__}_drive_efficiency.average", float(average(drive_efficiency_values)))
+        set_attr(f"sensor.{__name__}_drive_efficiency.trend", float(calculate_trend(reverse_list(drive_efficiency_values))))
         
         for item in get_attr(f"sensor.{__name__}_drive_efficiency", error_state={}):
             if "date" in item:
@@ -4818,7 +4852,11 @@ def set_state_km_kwh_efficiency():
             
             km_kwh_mean = round(float(average(km_kwh_efficiency)), 2)
             wh_km_mean = round(1000 / km_kwh_mean, 2)
-            set_attr(f"sensor.{__name__}_km_per_kwh.mean", f"{km_kwh_mean:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_mean:.2f} {i18n.t('ui.common.wh_distance')}")
+            set_attr(f"sensor.{__name__}_km_per_kwh.average", f"{km_kwh_mean:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_mean:.2f} {i18n.t('ui.common.wh_distance')}")
+            
+            km_kwh_trend = round(float(calculate_trend(reverse_list(km_kwh_efficiency))), 2)
+            wh_km_trend = round(1000 / km_kwh_trend, 2)
+            set_attr(f"sensor.{__name__}_km_per_kwh.trend", f"{km_kwh_trend:.2f} {i18n.t('ui.common.distance_kwh')} - {wh_km_trend:.2f} {i18n.t('ui.common.wh_distance')}")
 
         existing_attributes = get_attr(f"sensor.{__name__}_km_per_kwh", error_state={})
         for item in existing_attributes:
@@ -5444,7 +5482,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
             km_per_kwh = float(get_state(f"sensor.{__name__}_km_per_kwh", float_type=True, error_state=0.0))
             
             try:
-                km_per_kwh = get_attr(f"sensor.{__name__}_km_per_kwh", "mean", error_state=None)
+                km_per_kwh = get_attr(f"sensor.{__name__}_km_per_kwh", "average", error_state=None)
                 km_per_kwh = float(km_per_kwh.split(" ")[0])
             except (TypeError, AttributeError, ValueError):
                 pass
@@ -6446,7 +6484,7 @@ def cheap_grid_charge_hours():
     func_name = "cheap_grid_charge_hours"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global CHARGING_PLAN, CHARGE_HOURS, TASKS
+    global LOCAL_ENERGY_PREDICTION_DB, CHARGING_PLAN, CHARGE_HOURS, TASKS, FORECAST_TYPE
     
     if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
         _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
@@ -6457,7 +6495,24 @@ def cheap_grid_charge_hours():
         )
         return
     
-    grid_prices = deepcopy(LAST_SUCCESSFUL_GRID_PRICES)
+    try:
+        TASKS[f"{func_prefix}get_forecast_type"] = task.create(get_forecast_type)
+        TASKS[f"{func_prefix}current_battery_level_expenses"] = task.create(current_battery_level_expenses)
+        TASKS[f"{func_prefix}local_energy_prediction"] = task.create(local_energy_prediction)
+        done, pending = task.wait({TASKS[f"{func_prefix}get_forecast_type"], TASKS[f"{func_prefix}current_battery_level_expenses"], TASKS[f"{func_prefix}local_energy_prediction"]})
+        
+        energy_prediction = TASKS[f"{func_prefix}local_energy_prediction"].result()
+    except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+        _LOGGER.warning(f"Cancelled/Timeout/KeyError in cheap_grid_charge_hours: {e} {type(e)}")
+        return
+    except Exception as e:
+        _LOGGER.error(f"Error in cheap_grid_charge_hours: {e} {type(e)}")
+        raise Exception(f"Error in cheap_grid_charge_hours: {e} {type(e)}")
+    finally:
+        task_cancel(func_prefix, task_remove=True, startswith=True)
+    
+    grid_prices = deepcopy(get_hour_prices())
+    sorted_by_cheapest_price = sorted(grid_prices.items(), key=lambda kv: (kv[1], kv[0]))
     energy_prediction_db = deepcopy(LOCAL_ENERGY_PREDICTION_DB)
     battery_expenses = deepcopy(BATTERY_LEVEL_EXPENSES)
     last_drive_efficiency = deepcopy(LAST_DRIVE_EFFICIENCY_DATA)
@@ -6477,13 +6532,6 @@ def cheap_grid_charge_hours():
     charging_plan = {
         "workday_in_week": False
     }
-    
-    hour_prices = get_hour_prices()
-
-    sorted_by_cheapest_price = sorted(hour_prices.items(), key=lambda kv: (kv[1], kv[0]))
-    
-    reset_current_battery_level_expenses()
-    current_battery_level_expenses()
     
     def change_timestamp_with_minutes(timestamp: datetime.datetime):
         nonlocal func_name
@@ -6732,7 +6780,7 @@ def cheap_grid_charge_hours():
         ultra_cheap_price = False
         
         try:
-            lowest_values = sorted(hour_prices.values())[:CONFIG['database']['kwh_avg_prices_db_data_to_save']]
+            lowest_values = sorted(grid_prices.values())[:CONFIG['database']['kwh_avg_prices_db_data_to_save']]
             average_price = round(average(lowest_values), 3)
             if round(price, 3) <= average_price:
                 very_cheap_price = True
@@ -6782,8 +6830,7 @@ def cheap_grid_charge_hours():
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error_{day}_timestamp_{timestamp}"
             )
-                
-    
+             
     def future_charging(totalCost, totalkWh):
         nonlocal func_name
         sub_func_name = "future_charging"
@@ -6803,7 +6850,7 @@ def cheap_grid_charge_hours():
             
             try:
                 if what_day < 0:
-                    _LOGGER.warning(f"Error in hour_prices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
+                    _LOGGER.warning(f"Error in grid_prices: {hour} is before current time {getTime()} continue to next cheapest hour/price")
                     return return_fail_list
                 
                 total_trip_battery_level_needed = charging_plan[day]["trip_battery_level_needed"] + charging_plan[day]["trip_battery_level_above_max"]
@@ -7628,10 +7675,8 @@ def cheap_grid_charge_hours():
     trip_range = get_trip_range() if get_trip_range() != 0.0 and trip_planned else None
     trip_target_level = get_trip_target_level() if get_trip_target_level() != 0.0 and trip_planned else None
     
-    local_energy_prediction_output = local_energy_prediction()
-    
-    solar_kwh_prediction = local_energy_prediction_output[0]
-    solar_price_prediction = local_energy_prediction_output[1]
+    solar_kwh_prediction = energy_prediction[0]
+    solar_price_prediction = energy_prediction[1]
     
     total_kwh_from_solar_available = solar_kwh_prediction['today']
     total_solar_price = [solar_price_prediction['today']]
@@ -7794,9 +7839,9 @@ def cheap_grid_charge_hours():
                     
                     try:
                         hour_in_chargeHours, kwh_available = kwh_available_in_hour(timestamp)
-                        very_cheap_price, ultra_cheap_price = cheap_price_check(hour_prices[timestamp])
+                        very_cheap_price, ultra_cheap_price = cheap_price_check(grid_prices[timestamp])
                         
-                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, timestamp, hour_prices[timestamp], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
+                        trip_kwh_needed, totalCost, totalkWh, battery_level_added, cost_added = add_to_charge_hours(trip_kwh_needed, totalCost, totalkWh, timestamp, grid_prices[timestamp], very_cheap_price, ultra_cheap_price, kwh_available, max_recommended_battery_level, None, trip_target_level, ['trip'])
                         kwh_added = percentage_to_kwh(battery_level_added, include_charging_loss=False)
                         charging_plan[day]['trip_kwh_needed'] += kwh_added
                         charging_plan[day]["trip_total_cost"] += chargeHours[timestamp]["Cost"]

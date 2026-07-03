@@ -186,6 +186,9 @@ entity:
     cjp_select_release:
       name: "Vælg CJP udgivelse"
       description: "Vælg den udgivelse at opgradere til"
+    forecast_type:
+      name: "Vælg prognose type"
+      description: "Vælg prognose type (EMA, gennemsnit eller trend)"
 
   # ---- input_button ----
   input_button:
