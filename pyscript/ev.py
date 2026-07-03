@@ -1475,8 +1475,8 @@ def get_color(price, price_levels):
 def get_hours_plan():
     output = []
     
-    if "prices" in LAST_SUCCESSFUL_GRID_PRICES:
-        prices = LAST_SUCCESSFUL_GRID_PRICES["prices"]
+    if "prices" in get_hour_prices():
+        prices = get_hour_prices()["prices"]
         if not prices:
             return output
 
@@ -9609,7 +9609,7 @@ def get_solar_kwh_forecast():
             for data in site_attr:
                 date = data['period_start'].replace(tzinfo=None)
                 
-                if date not in hour_prices:
+                if date not in grid_prices:
                     continue
                 
                 watt = round(data['pv_estimate'] * 1000.0, 0)
@@ -9624,7 +9624,7 @@ def get_solar_kwh_forecast():
                 systemtarif = tariff_dict["systemtarif"]
                 tariff_sum = tariff_dict["tariff_sum"]
                 
-                price = hour_prices[date]
+                price = grid_prices[date]
                 raw_price = price - tariff_sum
                 
                 sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
@@ -9645,7 +9645,7 @@ def get_solar_kwh_forecast():
     
     forecast = {}
     
-    hour_prices = get_hour_prices()
+    grid_prices = get_hour_prices()
                         
     energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
     energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
