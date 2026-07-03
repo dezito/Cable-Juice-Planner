@@ -188,6 +188,9 @@ entity:
     cjp_select_release:
       name: "Виберіть реліз CJP"
       description: "Виберіть реліз для оновлення"
+    forecast_type:
+      name: "Виберіть тип прогнозу"
+      description: "Виберіть тип прогнозу (EMA, середнє або тренд)"
 
   # ---- input_button ----
   input_button:

@@ -188,6 +188,9 @@ entity:
     cjp_select_release:
       name: "Wybierz wydanie CJP"
       description: "Wybierz wydanie, do którego chcesz zaktualizować"
+    forecast_type:
+      name: "Wybierz typ prognozy"
+      description: "Wybierz typ prognozy (EMA, średnia lub trend)"
 
   # ---- input_button ----
   input_button:

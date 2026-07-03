@@ -188,6 +188,9 @@ entity:
     cjp_select_release:
       name: "Select CJP release"
       description: "Choose the release to upgrade to"
+    forecast_type:
+      name: "Select forecast type"
+      description: "Select forecast type (EMA, average or trend)"
 
   # ---- input_button ----
   input_button:
