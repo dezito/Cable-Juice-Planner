@@ -2672,6 +2672,8 @@ def restart_script():
     func_name = "restart_script"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
+    shutdown()
+    
     _LOGGER.info("Restarting script")
     set_charging_rule(f"📟{i18n.t('ui.restart_script.message')}")
     if service.has_service("pyscript", "reload"):
@@ -12625,4 +12627,5 @@ if INITIALIZATION_COMPLETE:
 def restart(trigger_type=None, var_name=None, value=None, old_value=None):
     func_name = "restart"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    
     restart_script()
