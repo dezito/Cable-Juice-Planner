@@ -5073,7 +5073,6 @@ def drive_efficiency(state=None):
                     last_battery_level = get_max_recommended_charge_limit_battery_level() - battery_level()
                     _LOGGER.warning(f"Last battery level is 0.0, recalculating from current battery level ({get_max_recommended_charge_limit_battery_level()} - {battery_level()} = {last_battery_level})")
                     
-                reset_current_battery_level_expenses()
                 current_battery_level_expenses()
                 
                 usedBattery = last_battery_level - battery_level()
@@ -6229,7 +6228,7 @@ async def _charging_history(charging_data = None, charging_type = ""):
 def stop_current_charging_session():
     charging_history(None, "")
 
-def reset_current_battery_level_expenses():
+def current_battery_level_expenses():
     global BATTERY_LEVEL_EXPENSES
     
     BATTERY_LEVEL_EXPENSES = {
@@ -6239,10 +6238,7 @@ def reset_current_battery_level_expenses():
         "battery_level_expenses_cost": 0.0,
         "battery_level_expenses_unit": None,
     }
-
-def current_battery_level_expenses():
-    global BATTERY_LEVEL_EXPENSES
-        
+    
     try:
         current_battery_level = battery_level()# - max(get_min_daily_battery_level(), get_min_trip_battery_level())
         
