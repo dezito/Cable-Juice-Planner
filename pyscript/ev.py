@@ -9853,7 +9853,8 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
                     forecast = get_forecast(forecast_dict, loop_datetime)
                     cloudiness = forecast_score(forecast) if forecast is not None else None
                     
-                    current_hour_factor = 1.0 if from_hour != current_hour else abs((getMinute() / 60.0) - 1)
+                    current_hour_factor = abs((getMinute() / 60.0) - 1) if day == 0 and hour == current_hour else 1.0
+                        
                     is_away = (
                         (work_last_charging and in_between(loop_datetime, work_last_charging, end_work))
                         or (trip_last_charging and in_between(loop_datetime, trip_last_charging, end_trip))
