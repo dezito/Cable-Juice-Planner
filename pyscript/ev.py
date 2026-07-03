@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import hashlib
 import json
 import random
 import string
@@ -121,6 +122,7 @@ SOLAR_CONFIGURED = None
 POWERWALL_CONFIGURED = None
 EV_CONFIGURED = None
 
+LAST_HASH_RESULTS = {}
 LAST_SUCCESSFUL_GRID_PRICES = {
     "using_offline_prices": False
 }
@@ -1690,7 +1692,9 @@ def get_debug_info_sections():
                 "RESTARTING_CHARGER": RESTARTING_CHARGER,
                 "RESTARTING_CHARGER_COUNT": RESTARTING_CHARGER_COUNT,
             }),
-            "details": None,
+            "details": format_debug_details({
+                "LAST_HASH_RESULTS": LAST_HASH_RESULTS
+            }),
         },
         "Task Runtime State": {
             "table": format_debug_table({
@@ -6479,8 +6483,112 @@ def get_expensive_hours(day=0):
             countExpensive += 1
     
     return expensiveDict
+    
+def get_hash_dict():
+    global LAST_HASH_RESULTS, BATTERY_LEVEL_EXPENSES, LAST_DRIVE_EFFICIENCY_DATA, LAST_SUCCESSFUL_GRID_PRICES, LOCAL_ENERGY_PREDICTION_DB
+    
+    return {
+        "CURRENT_HOUR": reset_time_to_hour(),
+        #"LOCAL_ENERGY_PREDICTION_DB": deepcopy(LOCAL_ENERGY_PREDICTION_DB),
+        "LAST_DRIVE_EFFICIENCY_DATA": deepcopy(LAST_DRIVE_EFFICIENCY_DATA),
+        "LAST_SUCCESSFUL_GRID_PRICES": deepcopy(LAST_SUCCESSFUL_GRID_PRICES),
+        "BATTERY_LEVEL": battery_level(),
+        "BATTERY_LEVEL_EXPENSES": deepcopy(BATTERY_LEVEL_EXPENSES),
+        "SETTINGS": (
+            is_ev_home(),
+            is_calculating_charging_loss(),
+            get_min_daily_battery_level(),
+            get_min_trip_battery_level(),
+            get_min_charge_limit_battery_level(),
+            get_max_recommended_charge_limit_battery_level(),
+            get_very_cheap_grid_charging_max_battery_level(),
+            get_ultra_cheap_grid_charging_max_battery_level(),
+            get_powerwall_discharge_above_needed(),
+            get_powerwall_battery_level(),
+            get_ev_charge_after_powerwall_battery_level(),
+            get_completed_battery_level(),
+            get_estimated_total_range(),
+            get_trip_date_time(),
+            get_trip_homecoming_date_time(),
+            get_trip_range(),
+            get_trip_target_level(),
+            get_public_charging_session_done(),
+            is_trip_planned(),
+            fill_up_charging_enabled(),
+            workplan_charging_enabled(),
+            solar_charging_enabled(),
+            manual_charging_enabled(),
+            manual_charging_solar_enabled(),
+        ),
+    }
+    
+def make_hashable_snapshot(data):
+    def normalize_for_hash_key(key):
+        if isinstance(key, (datetime.datetime, datetime.date, datetime.time)):
+            return key.isoformat()
 
-def cheap_grid_charge_hours():
+        return str(key)
+    
+    def normalize_for_hash(obj):
+        if isinstance(obj, dict):
+            return {
+                normalize_for_hash_key(key): normalize_for_hash(value)
+                for key, value in obj.items()
+            }
+
+        if isinstance(obj, list):
+            return [normalize_for_hash(value) for value in obj]
+        elif isinstance(obj, tuple):
+            return [normalize_for_hash(value) for value in obj]
+        elif isinstance(obj, set):
+            return sorted(normalize_for_hash(value) for value in obj)
+        elif isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+            return obj.isoformat()
+
+        return obj
+    
+    normalized_data = normalize_for_hash(data)
+
+    json_data = json.dumps(
+        normalized_data,
+        sort_keys=True,
+        default=str,
+        separators=(",", ":")
+    )
+
+    return hashlib.blake2b(json_data.encode(), digest_size=16).hexdigest()
+
+@benchmark_decorator()
+def save_hashable_snapshot():
+    func_name = "save_hashable_snapshot"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global LAST_HASH_RESULTS
+    
+    for key, item in get_hash_dict().items():
+        LAST_HASH_RESULTS[key] = make_hashable_snapshot(item)
+
+@benchmark_decorator()
+def should_skip_calculation():
+    func_name = "should_skip_calculation"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global LAST_HASH_RESULTS
+    skip_calculation = True
+    
+    for key, item in get_hash_dict().items():
+        if key not in LAST_HASH_RESULTS:
+            skip_calculation = False
+            continue
+        
+        item_hash = make_hashable_snapshot(item)
+        
+        if item_hash != LAST_HASH_RESULTS[key]:
+            skip_calculation = False
+            _LOGGER.info(f"Hash snapshot changed for {key}: {LAST_HASH_RESULTS[key]} != {item_hash}")
+    
+    return skip_calculation
+
+@benchmark_decorator()
+def cheap_grid_charge_hours(force_recalculate = False):
     func_name = "cheap_grid_charge_hours"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -6510,6 +6618,10 @@ def cheap_grid_charge_hours():
         raise Exception(f"Error in cheap_grid_charge_hours: {e} {type(e)}")
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
+        
+    if should_skip_calculation() and not force_recalculate:
+        _LOGGER.error("Hash is the same, skipping calculation")
+        return
     
     grid_prices = deepcopy(get_hour_prices())
     sorted_by_cheapest_price = sorted(grid_prices.items(), key=lambda kv: (kv[1], kv[0]))
@@ -8396,6 +8508,8 @@ def cheap_grid_charge_hours():
         set_attr(f"sensor.{__name__}_overview.overview", "\n".join(overview))
     else:
         set_attr(f"sensor.{__name__}_overview.overview", "Ingen data")
+        
+    save_hashable_snapshot()
     
     return chargeHours
 
@@ -10562,7 +10676,7 @@ def current_hour_in_charge_hours():
                 return timestamp
     return False
 
-def charge_if_needed():
+def charge_if_needed(force_recalculate=False):
     func_name = "charge_if_needed"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -10584,7 +10698,7 @@ def charge_if_needed():
                 _LOGGER.info(f"Trip date {trip_date_time} exceeded by an hour. Reseting trip settings")
                 trip_reset()
         
-        TASKS[f"{func_prefix}cheap_grid_charge_hours"] = task.create(cheap_grid_charge_hours)
+        TASKS[f"{func_prefix}cheap_grid_charge_hours"] = task.create(cheap_grid_charge_hours, force_recalculate)
         TASKS[f"{func_prefix}max_local_energy_available_remaining_period"] = task.create(max_local_energy_available_remaining_period)
         done, pending = task.wait({TASKS[f"{func_prefix}cheap_grid_charge_hours"], TASKS[f"{func_prefix}max_local_energy_available_remaining_period"]})
 
@@ -11625,9 +11739,7 @@ if INITIALIZATION_COMPLETE:
                     _LOGGER.error(f"Error in {func_name} for {var_name}: {e} {type(e)}")
                 finally:
                     task_cancel(func_prefix, task_remove=True, startswith=True)
-                
-                    
-                
+    
     @time_trigger(f"cron(0/{CONFIG['cron_interval']} * * * *)")
     @state_trigger(f"input_button.{__name__}_enforce_planning")
     @state_trigger(f"input_boolean.{__name__}_allow_manual_charging_now")
@@ -11649,9 +11761,13 @@ if INITIALIZATION_COMPLETE:
             if is_charging() and not other_ev_connected():
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"]})
-                
+            
+            force_recalculate = False
+            if var_name == f"input_button.{__name__}_enforce_planning":
+                force_recalculate = True
+            
             task_cancel("charge_if_needed", task_remove=True, contains=True)
-            TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
+            TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed, force_recalculate=force_recalculate)
             TASKS[f"{func_prefix}is_battery_fully_charged"] = task.create(is_battery_fully_charged)
             TASKS[f"{func_prefix}set_estimated_range"] = task.create(set_estimated_range)
             done, pending = task.wait({TASKS[f"{func_prefix}charge_if_needed"], TASKS[f"{func_prefix}is_battery_fully_charged"], TASKS[f"{func_prefix}set_estimated_range"]})
