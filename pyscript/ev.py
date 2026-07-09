@@ -11552,7 +11552,243 @@ if INITIALIZATION_COMPLETE:
                 )
             finally:
                 task_cancel(func_prefix, task_remove=True, timeout=5.0, startswith=True)
+
+    @service(f"pyscript.{__name__}_manual_add_public_charging_session", supports_response = "only")
+    def manual_add_public_charging_session(
+        charging_session_start: datetime.datetime,
+        battery_level_begin: int = None,
+        battery_level_end: int = None,
+        battery_level_added: int = None,
+        battery_kwh_added: float = None,
+        total_charging_cost: float = None,
+        include_charging_loss: bool = False,
+        add_to_history: bool = False
+    ):
+        """yaml
+        name: "Cable Juice Planner: Manual Add Public Charging Session"
+        description: >
+            Manually add a public charging session to the charging history database.
+            Cant be undone, so be careful. Use at least \"Battery Level Begin\" and \"Battery Level End\" or \"Battery Level Added\" or \"Battery kWh Added\" to calculate the added energy.
+            Test run without adding to history by setting \"Add to History\" to false.
+        fields:
+            charging_session_start:
+                name: Charging Session Start
+                description: The start time of the charging session.
+                required: true
+                selector:
+                    datetime:
+            use_battery_level_start_end:
+                name: Use begin and end battery levels
+                description: Set the battery level at the start and end of the charging session.
+                collapsed: true
+                required: false
+                fields:
+                    battery_level_begin:
+                        name: Battery Level Begin
+                        description: Initial battery level at the start of the charging session.
+                        example: 20
+                        selector:
+                            number:
+                                min: 0
+                                max: 100
+                                step: 1
+                                unit_of_measurement: "%"
+                    battery_level_end:
+                        name: Battery Level End
+                        description: Final battery level at the end of the charging session.
+                        example: 80
+                        selector:
+                            number:
+                                min: 0
+                                max: 100
+                                step: 1
+                                unit_of_measurement: "%"
+            use_battery_level_added:
+                name: Use battery level added
+                description: Set the amount of energy added to the battery in percentage.
+                collapsed: true
+                required: false
+                fields:
+                    battery_level_added:
+                        name: Battery Level Added
+                        description: Amount of energy added to the battery in percentage.
+                        example: 10
+                        selector:
+                            number:
+                                min: 0
+                                max: 100
+                                step: 1
+                                unit_of_measurement: "%"
+            use_battery_kwh_added:
+                name: Use kWh added
+                description: Set the amount of energy added to the battery in kWh.
+                collapsed: true
+                required: false
+                fields:
+                    battery_kwh_added:
+                        name: Battery kWh Added
+                        description: Amount of energy added to the battery in kWh.
+                        example: 10.5
+                        selector:
+                            number:
+                                min: 0.0
+                                unit_of_measurement: "kWh"
+                                mode: box
+            total_charging_cost:
+                name: Total Charging Cost
+                description: Total cost of the charging session in your local currency.
+                example: 110.5
+                required: true
+                selector:
+                    number:
+                        min: 0.0
+                        mode: box
+            include_charging_loss:
+                name: Include Charging Loss
+                description: Whether to include charging loss in the calculations. If true, the added energy will be adjusted to account for charging inefficiencies.
+                default: true
+                required: true
+                selector:
+                    boolean: {}
+            add_to_history:
+                name: Add to History
+                description: Whether to add the charging session to the history database. If false, the function will return the calculated results without saving them.
+                default: false
+                required: true
+                selector:
+                    boolean: {}
+        """
+        _LOGGER = globals()['_LOGGER'].getChild("manual_add_public_charging_session")
+        global CHARGING_HISTORY_DB
+        
+        try:
+            if charging_session_start is None:
+                raise ValueError("\"Charging Session Start\" is required.")
+            
+            charging_session_start = toDateTime(charging_session_start)
+            
+            if not isinstance(charging_session_start, datetime.datetime):
+                raise ValueError("\"Charging Session Start\" must be a datetime object.")
+            
+            consumption_used = None
+            added_percentage = None
+            added_kwh = None
+            
+            if battery_level_begin is None and battery_level_end is None and battery_level_added is None and battery_kwh_added is None:
+                raise ValueError("Use at least \"Battery Level Begin\" and \"Battery Level End\" or \"Battery Level Added\" or \"Battery kWh Added\" to calculate the added energy.")
+            else:
+                if battery_kwh_added is not None:
+                    if not isinstance(battery_kwh_added, (int, float)):
+                        raise ValueError("\"Battery kWh Added\" must be a number.")
+                    
+                    if battery_kwh_added <= 0:
+                        raise ValueError("\"Battery kWh Added\" must be greater than 0.")
+                    
+                    consumption_used = "Battery kWh Added"
+                    added_percentage = kwh_to_percentage(float(battery_kwh_added), include_charging_loss=include_charging_loss)
+                    added_kwh = float(battery_kwh_added)
+                    
+                elif battery_level_added is not None:
+                    if not isinstance(battery_level_added, (int, float)):
+                        raise ValueError("\"Battery Level Added\" must be a number.")
+                    
+                    if battery_level_added <= 0:
+                        raise ValueError("\"Battery Level Added\" must be greater than 0.")
+                    
+                    consumption_used = "Battery Level Added"
+                    added_percentage = float(battery_level_added)
+                    added_kwh = percentage_to_kwh(added_percentage, include_charging_loss=include_charging_loss)
+                    
+                elif battery_level_begin is not None or battery_level_end is not None:
+                    if battery_level_begin is not None and battery_level_end is None:
+                        raise ValueError("\"Battery Level End\" is required when \"Battery Level Begin\" is provided.")
+                    elif battery_level_begin is None and battery_level_end is not None:
+                        raise ValueError("\"Battery Level Begin\" is required when \"Battery Level End\" is provided.")
+                    
+                    if not isinstance(battery_level_begin, (int, float)) or not isinstance(battery_level_end, (int, float)):
+                        raise ValueError("\"Battery Level Begin\" and \"Battery Level End\" must be numbers.")
+                    
+                    if battery_level_end <= battery_level_begin:
+                        raise ValueError("\"Battery Level End\" must be greater than \"Battery Level Begin\".")
+                    
+                    consumption_used = "Battery Level Begin/End"
+                    added_percentage = battery_level_end - battery_level_begin
+                    
+                    if added_percentage <= 0:
+                        raise ValueError("\"Added Percentage\" must be greater than 0.")
+                    
+                    added_kwh = percentage_to_kwh(added_percentage, include_charging_loss=include_charging_loss)
+                    
+                else:
+                    raise ValueError("Invalid combination of battery level parameters provided.")
                 
+            if added_percentage is None or added_kwh is None:
+                raise ValueError("Could not calculate added percentage or kWh. Please check the provided battery level parameters.")
+                
+            if total_charging_cost is None:
+                raise ValueError("\"Total Charging Cost\" is required.")
+            
+            if not isinstance(total_charging_cost, (int, float)):
+                raise ValueError("\"Total Charging Cost\" must be a number.")
+            
+            if total_charging_cost <= 0:
+                raise ValueError("\"Total Charging Cost\" must be greater than 0.")
+            
+            total_charging_cost = float(total_charging_cost)
+            kwh_cost = total_charging_cost / added_kwh if added_kwh > 0 else 0.0
+            
+            if not add_to_history:
+                return {
+                    "status": "success",
+                    "message": "Public charging session results. Nothing was added to history.",
+                    "data": {
+                        "Charging Session Start": charging_session_start,
+                        "Consumption Used": consumption_used,
+                        "Added Percentage": round(added_percentage, 1),
+                        "Added kWh": round(added_kwh, 3),
+                        "kWh Cost": round(kwh_cost, 3),
+                        "Total Charging Cost": round(total_charging_cost, 3)
+                    }
+                }
+            
+            charger_meter = float(get_state(CONFIG['charger']['entity_ids']['kwh_meter_entity_id'], float_type=True))
+            CHARGING_HISTORY_DB[charging_session_start] = {
+                "percentage": round(added_percentage, 1),
+                "kWh": round(added_kwh, 3),
+                "kWh_from_public": round(added_kwh, 3),
+                "kWh_from_local_energy": 0.0,
+                "solar_kwh_of_local_energy": 0.0,
+                "powerwall_kwh_of_local_energy": 0.0,
+                "cost": round(total_charging_cost, 3),
+                "public_cost": round(total_charging_cost, 3),
+                "unit": round(kwh_cost, 3),
+                "emoji": emoji_parse({'public_charging': True}),
+                "start_charger_meter": charger_meter,
+                "end_charger_meter": charger_meter,
+                "ended": f"{charging_session_start.strftime('%H:%M')}",
+                "charging_type": "public_charging"
+            }
+            charging_history_combine_and_set()
+            
+            return {
+                "status": "success",
+                "message": "Public charging session added successfully to history.",
+                "data": {
+                    "Charging Session Start": charging_session_start,
+                    "Consumption Used": consumption_used,
+                    "Added Percentage": round(added_percentage, 1),
+                    "Added kWh": round(added_kwh, 3),
+                    "kWh Cost": round(kwh_cost, 3),
+                    "Total Charging Cost": round(total_charging_cost, 3)
+                }
+            }
+        except Exception as e:
+            _LOGGER.error(f"Error in manual_add_public_charging_session: {e}")
+            return {
+                "status": "error",
+                "message": f"{e}"
+            }
+    
     @benchmark_decorator()
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
