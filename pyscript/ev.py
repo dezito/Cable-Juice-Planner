@@ -4416,34 +4416,33 @@ def get_powerwall_kwh_price(kwh = None):
     kwh_price_list = []
     
     try:
-        for i in range(CONFIG['database']['power_values_db_data_to_save']):
-            for hour in range(1, 24):
-                loop_timestamp = reset_time_to_hour(timestamp) - datetime.timedelta(hours=hour)
-                
-                data = POWER_VALUES_DB.setdefault(loop_timestamp.hour, {})
-                
-                if not is_valid(data, ["power_consumption_without_all_exclusion", "powerwall_charging_consumption", "powerwall_discharging_consumption", "solar_production"]):
-                    continue
-                
-                power_consumption_without_all_exclusion_data = data["power_consumption_without_all_exclusion"]
-                powerwall_charging_consumption_data = data["powerwall_charging_consumption"]
-                solar_production_data = data["solar_production"]
-                
-                power_consumption_without_all_exclusion = get_data_timestamp(power_consumption_without_all_exclusion_data, loop_timestamp) / 1000.0
-                powerwall_charging_consumption = get_data_timestamp(powerwall_charging_consumption_data, loop_timestamp) / 1000.0
-                solar_production = get_data_timestamp(solar_production_data, loop_timestamp) / 1000.0
-                
-                if None in (power_consumption_without_all_exclusion,
-                            powerwall_charging_consumption,
-                            solar_production):
-                    continue
-                
-                solar_available_production = max(solar_production - power_consumption_without_all_exclusion, 0.0)
-                if powerwall_charging_consumption > 0.0  and sum(powerwall_kwh) < kwh:
-                    kwh_price = KWH_AVG_PRICES_DB['history_sell'][hour][getDayOfWeek(loop_timestamp)][i] if solar_available_production > 0 else KWH_AVG_PRICES_DB['history'][hour][getDayOfWeek(loop_timestamp)][i]
-                    kwh_price_list.append(round(kwh_price, 3))
-                    powerwall_kwh.append(round(powerwall_charging_consumption, 3))
-                    powerwall_total_cost.append(round(powerwall_charging_consumption * kwh_price, 3))
+        for hour in range(1, 24):
+            loop_timestamp = reset_time_to_hour(timestamp) - datetime.timedelta(hours=hour)
+            
+            data = POWER_VALUES_DB.setdefault(loop_timestamp.hour, {})
+            
+            if not is_valid(data, ["power_consumption_without_all_exclusion", "powerwall_charging_consumption", "powerwall_discharging_consumption", "solar_production"]):
+                continue
+            
+            power_consumption_without_all_exclusion_data = data["power_consumption_without_all_exclusion"]
+            powerwall_charging_consumption_data = data["powerwall_charging_consumption"]
+            solar_production_data = data["solar_production"]
+            
+            power_consumption_without_all_exclusion = get_data_timestamp(power_consumption_without_all_exclusion_data, loop_timestamp) / 1000.0
+            powerwall_charging_consumption = get_data_timestamp(powerwall_charging_consumption_data, loop_timestamp) / 1000.0
+            solar_production = get_data_timestamp(solar_production_data, loop_timestamp) / 1000.0
+            
+            if None in (power_consumption_without_all_exclusion,
+                        powerwall_charging_consumption,
+                        solar_production):
+                continue
+            
+            solar_available_production = max(solar_production - power_consumption_without_all_exclusion, 0.0)
+            if powerwall_charging_consumption > 0.0  and sum(powerwall_kwh) < kwh:
+                kwh_price = get_forecast_value(KWH_AVG_PRICES_DB['history_sell'][hour][getDayOfWeek(loop_timestamp)]) if solar_available_production > 0 else get_forecast_value(KWH_AVG_PRICES_DB['history'][hour][getDayOfWeek(loop_timestamp)])
+                kwh_price_list.append(round(kwh_price, 3))
+                powerwall_kwh.append(round(powerwall_charging_consumption, 3))
+                powerwall_total_cost.append(round(powerwall_charging_consumption * kwh_price, 3))
     except Exception as e:
         _LOGGER.error(f"Error getting powerwall kWh price: {e} {type(e)}")
         return get_solar_sell_price()
@@ -4453,7 +4452,7 @@ def get_powerwall_kwh_price(kwh = None):
             "powerwall_kwh": powerwall_kwh,
             "powerwall_total_cost": powerwall_total_cost,
             "kwh_price_list": kwh_price_list,
-            "kr_per_kwh": round(sum(powerwall_total_cost) / sum(powerwall_kwh), 3) if sum(powerwall_kwh) > 0.0 else 0.0
+            "kr_per_kwh": round(average(powerwall_total_cost), 3) if sum(powerwall_kwh) > 0.0 else 0.0
         }
         
     powerwall_kwh = sum(powerwall_kwh)
@@ -7602,7 +7601,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                     kwh_needed_today_alternative -= kwh_solar_alternative
                     
                     if kwh_solar_alternative > 0.0:
-                        solar_price = sum(charging_plan[day_before]['solar_cost_prediction']) / sum(charging_plan[day_before]['solar_kwh_prediction'])
+                        solar_price = average(charging_plan[day_before]['solar_cost_prediction'])
                         
                         sunrise = get_sun_events(charging_plan[day]['start_of_day'])['sunrise']
                         charge_hours_alternative[sunrise] = {
