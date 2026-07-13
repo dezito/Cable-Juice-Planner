@@ -39,7 +39,8 @@ from hass_manager import (
     get_manufacturer,
     get_identifiers,
     get_integration,
-    reload_integration)
+    reload_integration,
+    get_sun_events,)
 from history import (
     get_values,
     get_average_value,
@@ -98,8 +99,6 @@ from utils import (
     time_window_linear_weight,
     time_window_parabolic_weight,
     time_window_gaussian_weight)
-
-import homeassistant.helpers.sun as sun
 
 import logging
 
@@ -4216,7 +4215,7 @@ def no_charging_modes_active():
         or manual_charging_enabled()
         or manual_charging_solar_enabled()
     )
-    
+
 def get_tariffs(hour, day_of_week):
     func_name = "get_tariffs"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -4269,9 +4268,10 @@ def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False
             if sell_price != -1.0:
                 return sell_price
             
-            location = sun.get_astral_location(hass)
-            sunrise = location[0].sunrise(getTime()).replace(tzinfo=None).hour
-            sunset = location[0].sunset(getTime()).replace(tzinfo=None).hour
+            sun_events = get_sun_events()
+            sunrise = sun_events["sunrise"].hour
+            sunset = sun_events["sunset"].hour
+                
             sell_price_list = []
             
             for hour in range(sunrise, sunset):
@@ -7604,8 +7604,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                     if kwh_solar_alternative > 0.0:
                         solar_price = sum(charging_plan[day_before]['solar_cost_prediction']) / sum(charging_plan[day_before]['solar_kwh_prediction'])
                         
-                        location = sun.get_astral_location(hass)
-                        sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
+                        sunrise = get_sun_events(charging_plan[day]['start_of_day'])['sunrise']
                         charge_hours_alternative[sunrise] = {
                             "emoji": emoji_parse({'solar': True}),
                             "day": f"{day} {charging_plan[day]['day_text']}",
@@ -7655,10 +7654,10 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 if solar_charging_enabled() and sum(charging_plan[day]['solar_prediction']) > 0.0:
                     date = date_to_string(date = charging_plan[day]['start_of_day'], format = "%d/%m")
                     
-                    location = sun.get_astral_location(hass)
-                    sunrise = location[0].sunrise(charging_plan[day]['start_of_day']).replace(tzinfo=None)
+                    sun_events = get_sun_events(charging_plan[day]['start_of_day'])
+                    sunrise = sun_events["sunrise"]
                     sunrise_text = f"{emoji_parse({'sunrise': True})}{date_to_string(date = sunrise, format = '%H:%M')}"
-                    sunset = location[0].sunset(charging_plan[day]['start_of_day']).replace(tzinfo=None)
+                    sunset = sun_events["sunset"]
                     sunset_text = f"{emoji_parse({'sunset': True})}{date_to_string(date = sunset, format = '%H:%M')}"
                     
                     timeperiod = []
@@ -9953,10 +9952,9 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
         return output, output_sell
     
     try:
-        now = getTime()
-        location = sun.get_astral_location(hass)
-        sunrise = location[0].sunrise(now).replace(tzinfo=None).hour
-        sunset = location[0].sunset(now).replace(tzinfo=None).hour
+        sun_events = get_sun_events()
+        sunrise = sun_events["sunrise"].hour
+        sunset = sun_events["sunset"].hour
     except Exception as e:
         _LOGGER.error(f"Cant get sunrise/sunset: {e} {type(e)}")
         return output, output_sell
