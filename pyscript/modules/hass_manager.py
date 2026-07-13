@@ -1,7 +1,11 @@
 from dateutil import parser
 
+import astral.sun
+import homeassistant.helpers.sun as hass_sun
+
 import homeassistant.helpers.device as device_helper
 
+from mytime import getTime
 from history import get_last_value
 
 ENTITY_UNAVAILABLE_STATES = (None, "unavailable", "unknown")
@@ -218,6 +222,40 @@ def get_integration(entity_id):
         integration = None
     return integration
 
+def get_sun_events(dt=None):
+    _LOGGER = globals()['_LOGGER'].getChild("get_sun_events")
+    
+    dt = dt or getTime()
+        
+    try:
+        try:
+            astral_observer = hass_sun.get_astral_observer(hass)
+            return {
+                "dawn": astral.sun.dawn(astral_observer, dt).astimezone().replace(tzinfo=None),
+                "sunrise": astral.sun.sunrise(astral_observer, dt).astimezone().replace(tzinfo=None),
+                "noon": astral.sun.noon(astral_observer, dt).astimezone().replace(tzinfo=None),
+                "sunset": astral.sun.sunset(astral_observer, dt).astimezone().replace(tzinfo=None),
+                "midnight": astral.sun.midnight(astral_observer, dt).astimezone().replace(tzinfo=None)
+            }
+        except AttributeError as e:
+            location = hass_sun.get_astral_location(hass)
+            return {
+                "dawn": location[0].dawn(dt).replace(tzinfo=None),
+                "sunrise": location[0].sunrise(dt).replace(tzinfo=None),
+                "noon": location[0].noon(dt).replace(tzinfo=None),
+                "sunset": location[0].sunset(dt).replace(tzinfo=None),
+                "midnight": location[0].midnight(dt).replace(tzinfo=None)
+            }
+    except Exception as e:
+        _LOGGER.error(f"Can't get sun events: {e}")
+    
+    return {
+        "dawn": None,
+        "sunrise": None,
+        "noon": None,
+        "sunset": None,
+        "midnight": None,
+    }
 
 def reload_integration(entity_id=None):
     _LOGGER = globals()['_LOGGER'].getChild("reload_integration")
