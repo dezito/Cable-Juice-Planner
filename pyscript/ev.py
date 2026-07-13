@@ -4144,6 +4144,9 @@ def get_public_charging_session_done():
     func_name = "get_public_charging_session_done"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
+    if not is_ev_configured():
+        return False
+    
     state = "unknown"
     try:
         state = get_state(f"binary_sensor.{__name__}_public_charging_session_done", error_state="unknown")
