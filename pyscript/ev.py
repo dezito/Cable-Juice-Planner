@@ -4059,9 +4059,20 @@ def get_estimated_total_range():
     
     estimated_total_range = 0.0
     try:
-        estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
+        if is_ev_configured():
+            calc = get_forecast_value(KM_KWH_EFFICIENCY_DB)
+            
+            if calc == 0.0:
+                raise Exception(f"calc is invalid: {calc}")
+            
+            estimated_total_range = km_kwh_to_km_percentage(calc) * 100.0
+        else:
+            try:
+                estimated_total_range = float(get_state(f"input_number.{__name__}_estimated_total_range", float_type=True))
+            except Exception as e:
+                _LOGGER.error(f"input_number.{__name__}_estimated_total_range is not set to a total range: {e} {type(e)}")
     except Exception as e:
-        _LOGGER.error(f"input_number.{__name__}_estimated_total_range is not set to a total range: {e} {type(e)}")
+        _LOGGER.warning(f"Using default estimated total range 0.0: {e} {type(e)}")
         
     return estimated_total_range
 
