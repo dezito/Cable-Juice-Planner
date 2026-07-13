@@ -26,4 +26,4 @@ __all__ = ["datetime_to_unix", "getTimestampSeconds", "getTimestampMinutes", "ge
            "getTimeMinusSeconds", "getTimeMinusMinutes", "getTimeMinusHours", "getTimeMinusDays", "getTimeMinusMonths", "getTimeMinusYears",
            "monthsBetween", "daysBetween", "hoursBetween", "minutesBetween", "secondsBetween",
            "getSecond", "getMinute", "getHour", "getDay", "getTimeStartOfDay", "getTimeEndOfDay", "getDayOfWeek", "getDayOfWeekText", "getMonth", "getMonthFirstDay", "getMonthLastDay",
-           "getYear", "date_to_string", "toDateTime", "resetDatetime", "reset_time_to_hour"]
+           "getYear", "date_to_string", "toDateTime", "resetDatetime", "reset_time_to_hour", "is_day", "add_months"]
