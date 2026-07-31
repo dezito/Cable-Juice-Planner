@@ -7963,7 +7963,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 
                 if (charging_plan[day]['workday'] and
                 ((charging_plan[day]['trip_last_charging'] < charging_plan[day]['work_homecoming'] and charging_plan[day]['trip_last_charging'] > charging_plan[day]['work_last_charging']) or
-                (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level - 1))):
+                (getTime() > charging_plan[day]['work_last_charging'] and battery_level() < max_recommended_battery_level))):
                     charging_plan[day]['trip_last_charging'] = max(charging_plan[day]['work_last_charging'], reset_time_to_hour())
                     last_charging = charging_plan[day]['trip_last_charging']
 
@@ -10866,7 +10866,7 @@ def charge_if_needed(force_recalculate=False):
                     charging_rule = f"{emoji_parse({'low_battery': True})}{i18n.t('ui.charge_if_needed.low_battery', percentage=get_min_daily_battery_level())}"
                     _LOGGER.info(f"Charging because of under <{get_min_daily_battery_level()}%")
             elif solar_charging_enabled() and sum(inverter_amps) != 0.0:
-                if battery_level() < (get_max_recommended_charge_limit_battery_level() - 1.0):
+                if battery_level() < get_max_recommended_charge_limit_battery_level():
                     if CONFIG["solar"]["enable_selling_during_expensive_hours"] and solar_using_grid_price and currentHour in CHARGE_HOURS['expensive_hours'] and is_solar_production_available(inverter_watt_solar_only):
                         charging_rule = i18n.t('ui.charge_if_needed.solar_production_but_expensive', price=round(get_solar_sell_price(), 2))
                         _LOGGER.info(f"Ignoring solar overproduction, because of expensive hour")
