@@ -4172,6 +4172,11 @@ def get_forecast_value(data: list = None) -> float:
     global FORECAST_TYPE
     
     calc = 0.0
+    
+    if not data or not isinstance(data, list) or len(data) == 0:
+        _LOGGER.debug(f"Data is empty or invalid: {data}, returning 0.0")
+        return calc
+    
     if FORECAST_TYPE == "ema":
         calc = round(calculate_ema(reverse_list(get_list_values(data))),2)
     elif FORECAST_TYPE == "average":
@@ -9698,7 +9703,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
     func_name = "local_energy_prediction"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS, SOLAR_PRODUCTION_AVAILABLE_DB, LOCAL_ENERGY_PREDICTION_DB
+    global TASKS, KWH_AVG_PRICES_DB, SOLAR_PRODUCTION_AVAILABLE_DB, LOCAL_ENERGY_PREDICTION_DB
     
     def get_database_kwh(cloudiness: int | float, date: datetime.datetime) -> list:
         nonlocal func_name, sell_price
@@ -9713,7 +9718,7 @@ def local_energy_prediction(powerwall_charging_timestamps = False):
             power_one_down_list = []
             power_one_up_list = []
             if type(power_list) == list:
-                forecast_value = get_forecast_value(power_list)
+                forecast_value = get_forecast_value(power_list) if power_list else 0.0
                 
                 if len(power_list) <= 6 or forecast_value <= 1000.0:
                     if cloudiness >= 20:
