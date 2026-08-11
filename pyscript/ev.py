@@ -5881,7 +5881,7 @@ def charging_history_combine_and_set(get_ending_byte_size=False):
                     solar_percentage = f"<br>({round(total_local_energy_percentage, 1)}%)"
                     
                 unit_price = round(total['cost'][month] / total['kwh'][month],2) if total['kwh'][month] > 0.0 else 0.0
-                unit_string = f"<br>{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"{unit_price:.2f}"
+                unit_string = f"<br>{unit_price:.2f}<br>({round(total['cost'][month] / total['km'][month][0], 2):.2f})" if total['km'][month][0] > 0.0 else f"<br>{unit_price:.2f}"
                 
                 background_color_start = "<font color=grey>" if i % 2 == 0 else ""
                 background_color_end = "</font>" if i % 2 == 0 else ""
