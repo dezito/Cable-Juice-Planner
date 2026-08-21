@@ -12267,9 +12267,6 @@ if INITIALIZATION_COMPLETE:
         try:
             task_cancel(func_prefix, task_remove=True, startswith=True)
             
-            if is_ev_configured():
-                TASKS[f"{func_prefix}wait_until_odometer_stable"] = task.create(wait_until_odometer_stable, func_prefix=func_prefix)
-                done, pending = task.wait({TASKS[f"{func_prefix}wait_until_odometer_stable"]})
             TASKS[f"{func_prefix}drive_efficiency"] = task.create(drive_efficiency, str(value))
             TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"] = task.create(notify_battery_under_daily_battery_level)
             done, pending = task.wait({TASKS[f"{func_prefix}drive_efficiency"], TASKS[f"{func_prefix}notify_battery_under_daily_battery_level"]})
@@ -12308,13 +12305,16 @@ if INITIALIZATION_COMPLETE:
                 TASKS[f"{func_prefix}notify_set_battery_level"] = task.create(notify_set_battery_level)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"], TASKS[f"{func_prefix}notify_set_battery_level"]})
                 
+                if is_ev_configured():
+                    TASKS[f"{func_prefix}wait_until_odometer_stable"] = task.create(wait_until_odometer_stable, func_prefix=func_prefix)
+                    done, pending = task.wait({TASKS[f"{func_prefix}wait_until_odometer_stable"]})
+                    
                 if not is_ev_home():
                     return
-                
-                if is_ev_configured():
-                    task_cancel("power_connected_trigger", task_remove=True, contains=True)
-                    TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
-                    done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
+                #if is_ev_configured():
+                task_cancel("power_connected_trigger", task_remove=True, contains=True)
+                TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
+                done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
                     
                 set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
                 set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
