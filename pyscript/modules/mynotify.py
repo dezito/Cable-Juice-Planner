@@ -78,8 +78,14 @@ def my_notify(message = None, title = "", data = {}, notify_list = [], admin_onl
                                             title=title,
                                             message=message,
                                             data=data)
+                elif service.has_service("notify", "send_message") and entity_id in state.names(domain="notify"):
+                    service.call("notify", "send_message", blocking=True,
+                                            title=title,
+                                            message=message,
+                                            entity_id=entity_id
+                                            )
                 else:
-                    _LOGGER.warning(f"Notify service dont have notify.{entity_id} Message:'{message}' not send")
+                    _LOGGER.warning(f"Notify service dont have notify.{entity_id}. Message:'{message}' not send")
             except Exception as e:
                 _LOGGER.error(f"Error in service call notify.{entity_id}: {e}")
                 
