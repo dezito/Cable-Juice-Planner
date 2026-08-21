@@ -155,7 +155,7 @@ config:
     efficiency_on_cable_plug_in: "Powiadom o ostatniej efektywności jazdy po podłączeniu kabla"
     update_available: "Powiadom o północy i przy starcie skryptu jeśli dostępna jest aktualizacja"
     preheating: "Powiadom o rozpoczęciu/zatrzymaniu podgrzewania"
-  notify_list: "Lista użytkowników do powiadomień"
+  notify_list: "Lista użytkowników, którzy mają otrzymywać powiadomienia.\nDla powiadomień interaktywnych użyj notify.mobile_app_<your_device_id_here> https://companion.home-assistant.io/docs/notifications/actionable-notifications"
 
   prices:
     entity_ids:

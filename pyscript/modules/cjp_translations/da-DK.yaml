@@ -153,7 +153,7 @@ config:
     efficiency_on_cable_plug_in: "Notifikation om seneste køre-effektivitet ved tilslutning af ladekabel"
     update_available: "Notifikation ved midnat og ved script-start hvis en ny version er tilgængelig"
     preheating: "Notifikation ved start/stop af forvarmning"
-  notify_list: "Liste over brugere der skal have notifikationer"
+  notify_list: "Liste over brugere der skal have notifikationer.\nFor interaktive notifikationer brug notify.mobile_app_<your_device_id_here> https://companion.home-assistant.io/docs/notifications/actionable-notifications"
 
   prices:
     entity_ids:

@@ -155,7 +155,7 @@ config:
     efficiency_on_cable_plug_in: "Notify last drive efficiency on cable plug-in"
     update_available: "Notify at midnight/startup if update available"
     preheating: "Notify on preheating start/stop"
-  notify_list: "List of users to notify"
+  notify_list: "List of users who should receive notifications.\nFor actionable notifications, use notify.mobile_app_<your_device_id_here> https://companion.home-assistant.io/docs/notifications/actionable-notifications"
 
   prices:
     entity_ids:

@@ -155,7 +155,7 @@ config:
     efficiency_on_cable_plug_in: "Benachrichtigung: Effizienz der letzten Fahrt beim Einstecken des Kabels"
     update_available: "Benachrichtigung um Mitternacht/Start, wenn ein Update verfügbar ist"
     preheating: "Benachrichtigung bei Start/Stopp Vorheizen"
-  notify_list: "Liste der zu benachrichtigenden Nutzer"
+  notify_list: "Liste der Benutzer, die Benachrichtigungen erhalten sollen.\nFür interaktive Benachrichtigungen verwende notify.mobile_app_<your_device_id_here> https://companion.home-assistant.io/docs/notifications/actionable-notifications"
 
   prices:
     entity_ids:
