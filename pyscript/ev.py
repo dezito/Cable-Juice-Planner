@@ -10691,10 +10691,10 @@ def other_ev_connected():
     return False
 
 def current_hour_in_charge_hours():
-    current_hour = reset_time_to_hour()
+    current_hour = getTime().hour
     for timestamp in CHARGE_HOURS:
         if isinstance(timestamp, datetime.datetime):
-            if reset_time_to_hour(timestamp) == current_hour:
+            if timestamp.hour == current_hour:
                 return timestamp
     return False
 
@@ -10752,6 +10752,7 @@ def charge_if_needed(force_recalculate=False):
                 
         '''if trip_planned:
             sum(inverter_amps) = 0.0'''
+        charge_hour = current_hour_in_charge_hours()
         
         if sum(inverter_amps) != 0.0:
             alsoCheapPower = ""
@@ -10761,8 +10762,8 @@ def charge_if_needed(force_recalculate=False):
             if is_solar_configured():
                 solar_using_grid_price = True if float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price'])) == -1.0 else False
             
-            if current_hour_in_charge_hours():
-                timestamp = current_hour_in_charge_hours()
+            if charge_hour:
+                timestamp = charge_hour
                 if "half_min_avg_price" in CHARGE_HOURS[timestamp]:
                     circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                     charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
@@ -10828,8 +10829,8 @@ def charge_if_needed(force_recalculate=False):
             else:
                 stop_current_charging_session()
         elif ready_to_charge():
-            if current_hour_in_charge_hours():
-                timestamp = current_hour_in_charge_hours()
+            if charge_hour:
+                timestamp = charge_hour
                 CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(inverter_watt_solar_only)
                 CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                 charging_history(CHARGE_HOURS[timestamp], "planned")
@@ -10874,8 +10875,8 @@ def charge_if_needed(force_recalculate=False):
                         inverter_amps = [0.0, 0.0, 0.0]
                         charger_amps = inverter_amps
                     else:
-                        if current_hour_in_charge_hours():
-                            timestamp = current_hour_in_charge_hours()
+                        if charge_hour:
+                            timestamp = charge_hour
                             CHARGE_HOURS[timestamp]['solar'] = is_solar_production_available(inverter_watt_solar_only)
                             CHARGE_HOURS[timestamp]['powerwall'] = is_powerwall_discharging(powerwall_discharge_watt)
                             charging_history(CHARGE_HOURS[timestamp], "planned")
