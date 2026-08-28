@@ -10691,10 +10691,10 @@ def other_ev_connected():
     return False
 
 def current_hour_in_charge_hours():
-    current_hour = getTime().hour
+    current_hour = reset_time_to_hour()
     for timestamp in CHARGE_HOURS:
         if isinstance(timestamp, datetime.datetime):
-            if timestamp.hour == current_hour:
+            if reset_time_to_hour(timestamp) == current_hour:
                 return timestamp
     return False
 
