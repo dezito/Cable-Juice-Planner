@@ -6452,7 +6452,10 @@ def get_hour_prices(update_prices = False):
         else:
             _LOGGER.warning(f"Cant get all online prices, using database: {e} {type(e)}")
 
+            LAST_SUCCESSFUL_GRID_PRICES["last_update"] = getTime()
+            LAST_SUCCESSFUL_GRID_PRICES["prices"] = hour_prices
             LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] = True
+            
             missing_hours = {}
             try:
                 if "history" not in KWH_AVG_PRICES_DB:
@@ -8305,7 +8308,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 
                 planning_basis_markdown()
                 
-            if "using_offline_prices" in grid_prices and grid_prices['using_offline_prices']:
+            if LAST_SUCCESSFUL_GRID_PRICES.get('using_offline_prices', False):
                 def _build_header(n_pairs=4):
                     heads, aligns = [], []
                     for _ in range(n_pairs):
@@ -8327,7 +8330,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 overview.append(f"\n\n<details><summary><b>{i18n.t('ui.cheap_grid_charge_hours.offline_prices')}!!!</b></summary>\n")
 
                 by_day = defaultdict(list)
-                for ts, price in sorted(grid_prices["missing_hours"].items(), key=lambda kv: kv[0]):
+                for ts, price in sorted(LAST_SUCCESSFUL_GRID_PRICES["missing_hours"].items(), key=lambda kv: kv[0]):
                     by_day[ts.date()].append((ts.strftime("%H:%M"), f"{price:.2f}{i18n.t('ui.common.valuta')}"))
                     
                 N_PAIRS = 4
