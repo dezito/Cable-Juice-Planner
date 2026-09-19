@@ -6458,6 +6458,9 @@ def get_hour_prices(update_prices = False):
             
             missing_hours = {}
             try:
+                if len(KWH_AVG_PRICES_DB) == 0:
+                    load_kwh_prices()
+                    
                 if "history" not in KWH_AVG_PRICES_DB:
                     raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
                 
