@@ -1117,10 +1117,9 @@ def welcome():
     func_name = "welcome"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     
-    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
     local_tag = ""
     try:
-        local_tag = get_local_tag(repo_path)
+        local_tag = get_local_tag()
     except:
         pass
     
@@ -1792,14 +1791,17 @@ def get_github_releases(repo_owner="dezito", repo_name="Cable-Juice-Planner"):
         raise ValueError(f"Unexpected GitHub API format: {type(data)}")
     return data
 
-def get_local_tag(repo_path):
+def get_local_tag():
     """Return the current local Git tag or fallback to v0.0.0."""
+    
+    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
+    
     try:
         run_console_command(["git", "-C", repo_path, "fetch", "--tags"])
         tag = run_console_command_sync(["git", "-C", repo_path, "describe", "--tags", "--abbrev=0"])
-        tag = tag.strip() if tag else None
+        tag = tag.strip().lower() if tag else None
         
-        if not tag or tag.lower() == "none":
+        if not tag or tag == "none":
             return "v0.0.0"
         return tag
     except Exception as e:
@@ -1808,21 +1810,61 @@ def get_local_tag(repo_path):
 
 def get_newer_releases(releases, local_tag, target_tag=None):
     """
-    Return all releases newer than the local tag (up to target tag if given).
-    Newest → Oldest.
+    Return releases between local_tag and target_tag.
+
+    - local_tag is excluded
+    - target_tag is included
+    - If target_tag is None, return everything newer than local_tag
+    - Result follows the direction from local_tag -> target_tag
     """
-    newer = []
-    for rel in reverse_list(releases):
-        tag = rel.get("tag_name", "").strip()
-        _LOGGER.info(f"Checking release tag: {tag}")
-        if tag == local_tag:
-            continue
-        newer.append(rel)
-        if target_tag and tag == target_tag:
-            break
-    if not newer:
-        newer = releases
-    return newer
+    func_name = "get_newer_releases"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    local_tag = local_tag.strip().lower()
+    target_tag = target_tag.strip().lower() if target_tag else None
+
+    tags = [
+        rel.get("tag_name", "").strip().lower()
+        for rel in releases
+    ]
+
+    _LOGGER.info(f"local_tag: {local_tag}")
+    _LOGGER.info(f"target_tag: {target_tag}")
+
+    try:
+        local_index = tags.index(local_tag)
+    except ValueError:
+        _LOGGER.warning(f"Local tag not found: {local_tag}")
+        return []
+
+    # No target = everything newer than local
+    if target_tag is None:
+        return releases[:local_index]
+
+    try:
+        target_index = tags.index(target_tag)
+    except ValueError:
+        _LOGGER.warning(f"Target tag not found: {target_tag}")
+        return []
+
+    # Target is newer than local
+    if target_index < local_index:
+        result = releases[target_index:local_index]
+
+    # Target is older than local
+    elif target_index > local_index:
+        result = releases[local_index + 1:target_index + 1]
+
+    # Same version
+    else:
+        result = []
+
+    _LOGGER.info(
+        f"Found {len(result)} releases between "
+        f"{local_tag} and {target_tag}"
+    )
+
+    return result
 
 def build_combined_changelog(releases):
     """Combine multiple GitHub release notes into a Markdown-formatted changelog (newest first)."""
@@ -1969,24 +2011,23 @@ def check_release_updates(trigger_type=None, trigger_id=None, **kwargs):
     func_name = "check_release_updates"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
-    repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip().lower()
     try:
         releases = get_github_releases()
-        local_tag = get_local_tag(repo_path)
+        local_tag = get_local_tag()
 
-        if not selected_version or selected_version.lower() == "latest":
+        if not selected_version or selected_version == "latest":
             target_release = releases[0]
         else:
             target_release = None
             for r in releases:
-                if r.get("tag_name", "") == selected_version:
+                if r.get("tag_name", "").strip().lower() == selected_version:
                     target_release = r
                     break
             if not target_release:
                 raise ValueError(f"Release '{selected_version}' not found")
         
-        target_tag = target_release.get("tag_name", "").strip()
+        target_tag = target_release.get("tag_name", "").strip().lower()
         _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
 
         if local_tag == target_tag:
@@ -2028,23 +2069,23 @@ def update_repo(trigger_type=None, trigger_id=None, **kwargs):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
     repo_path = f"{CONFIG_FOLDER}/Cable-Juice-Planner"
-    selected_version = get_state("input_select.cjp_select_release", error_state="").strip()
+    selected_version = get_state("input_select.cjp_select_release", error_state="").strip().lower()
     try:
         releases = get_github_releases()
-        local_tag = get_local_tag(repo_path)
+        local_tag = get_local_tag()
 
-        if not selected_version or selected_version.lower() == "latest":
+        if not selected_version or selected_version == "latest":
             target_release = releases[0]
         else:
             target_release = None
             for r in releases:
-                if r.get("tag_name", "") == selected_version:
+                if r.get("tag_name", "").strip().lower() == selected_version:
                     target_release = r
                     break
             if not target_release:
                 raise ValueError(f"Release '{selected_version}' not found")
 
-        target_tag = target_release.get("tag_name", "").strip()
+        target_tag = target_release.get("tag_name", "").strip().lower()
         _LOGGER.info(f"Local: {local_tag} | Target: {target_tag}")
 
         if local_tag == target_tag:
