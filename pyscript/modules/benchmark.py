@@ -22,15 +22,19 @@ def end_benchmark(section):
     else:
         _LOGGER.warn(f"Benchmarking for section '{section}' was not started.")
 
-def benchmark_decorator(repeats=None):
+def benchmark_decorator(repeats=None, filename=None):
     if repeats is None:
         repeats = 1
         
     def decorator(func):
+        func_name = f"{f'{filename}.' if filename else ''}{func.get_name()}"
         def wrapper(*args, **kwargs):
-            _LOGGER = globals()['_LOGGER'].getChild(f"benchmark_decorator_average => {func.get_name()}")
+            _LOGGER = globals()['_LOGGER'].getChild(f"benchmark_decorator_average => {func_name}")
             times = []
             result = None
+            
+            _LOGGER.warn(f"Starting benchmark for function '{func_name}' with {repeats} repeats.")
+            
             for i in range(repeats):
                 start_time = perf_counter()
                 result = func(*args, **kwargs)

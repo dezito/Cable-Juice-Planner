@@ -2107,12 +2107,11 @@ def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_ti
     
     remove_task_when_done = False
     
-    if not is_ev_configured():
-        return True
-    
     if entity_id is None:
         _LOGGER.error("No entity_id provided")
         return False
+    
+    domain = entity_id.split('.')[0]
     
     if isinstance(task_prefix, str) and isinstance(task_name, str):
         full_task_name = f"{task_prefix}{task_name}"
@@ -2152,7 +2151,7 @@ def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_ti
         start_time = getTime()
         
         if minutesBetween(last_state_timestamp, start_time) < updated_within_minutes:
-            _LOGGER.info(f"{entity_id} state up to date {int(last_state)} {last_state_timestamp}, no need to wait")
+            _LOGGER.debug(f"{entity_id} state up to date {int(last_state)} {last_state_timestamp}, no need to wait")
             return True
         
         while _conditions():
@@ -2168,10 +2167,14 @@ def wait_for_entity_update(entity_id=None, updated_within_minutes=5, max_wait_ti
             if values_sorted:
                 current_state = values_sorted[1][1]
                 current_state_timestamp = values_sorted[1][0]
-                if current_state_timestamp > last_state_timestamp:
+                if domain == "input_number":
+                    if isinstance(current_state, (int, float)) and int(current_state) > 0:
+                        _LOGGER.debug(f"{entity_id} state updated to {current_state} now, no need to wait anymore")
+                        return True
+                elif current_state_timestamp > last_state_timestamp:
                     _LOGGER.info(f"{entity_id} state stable at {current_state} now, no need to wait anymore")
                     return True
-            _LOGGER.info(f"Waiting for {entity_id} to update, last state {int(last_state)} at {last_state_timestamp}, now {getTime()}")
+            _LOGGER.info(f"Waiting for {entity_id} to update, last state {last_state} at {last_state_timestamp}, now {getTime()}")
             task.wait_until(timeout=check_interval)
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
@@ -3096,7 +3099,15 @@ def is_ev_configured(cfg = None):
 def is_entity_configured(entity):
     func_name = "is_entity_configured"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    if entity is None or entity == "":
+    if isinstance(entity, str):
+        entity = entity.strip()
+        if entity is None or entity == "":
+            return False
+    elif isinstance(entity, list):
+        if len(entity) == 0:
+            return False
+    else:
+        _LOGGER.warning(f"Invalid entity type: entity {entity} {type(entity)}")
         return False
     return True
 
@@ -4009,6 +4020,7 @@ def validate_entities(config: dict, path: str = "") -> tuple[list[str], list[str
 
 def validation_procedure():
     func_name = "validation_procedure"
+    func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CONFIG
     
@@ -4035,7 +4047,28 @@ def validation_procedure():
     if unavailable_entity_ids:
         _LOGGER.warning(f"Some configured entity IDs are unavailable, checking again in 2 min: {unavailable_entity_ids}")
         set_charging_rule(f"📟{i18n.t('ui.validation_procedure.entity_unavailable_try_again')}")
-        task.wait_until(timeout=120)
+
+        task_set = set()
+        try:
+            for entity_id in unavailable_entity_ids:
+                
+                task_name = f"{func_prefix}_{entity_id}"
+                TASKS[task_name] = task.create(wait_for_entity_update, entity_id=entity_id, updated_within_minutes=2, max_wait_time_minutes=2, check_interval=5.0)
+                TASKS[task_name].set_name(task_name)
+                task_set.add(TASKS[task_name])
+                
+            done, pending = task.wait(task_set)
+        except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
+            _LOGGER.warning(f"Task was cancelled or timed out in {func_name}: {e} {type(e)}")
+        except Exception as e:
+            _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
+            my_persistent_notification(
+                f"Error in {func_name}: {e} {type(e)}",
+                title=f"{TITLE} error",
+                persistent_notification_id=f"{__name__}_{func_name}_error"
+            )
+        finally:
+            task_cancel(func_prefix, startswith=True)
         
         _, unavailable_entity_ids = validate_entities(CONFIG)
         if unavailable_entity_ids:
@@ -4053,6 +4086,7 @@ def validation_procedure():
 def init():
     func_name = "init"
     func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global CONFIG, CONFIG_LAST_MODIFIED, DEFAULT_ENTITIES, INITIALIZATION_COMPLETE, COMMENT_DB_YAML, TESTING
     
     log_builder = []
@@ -4261,11 +4295,9 @@ def init():
         
         if CONFIG.get('enable_diagnostic_file_log', False):
             log_builder.append(("info", "Enabling diagnostic file logging as per configuration"))
-            globals()['_LOGGER'].enable_file_logging()
+            _LOGGER.enable_file_logging()
         else:
             log_builder.append(("info", "Diagnostic file logging is disabled as per configuration"))
-            
-        _LOGGER = globals()['_LOGGER'].getChild(func_name)
 
         log_messages()
         
@@ -7323,7 +7355,6 @@ def save_hashable_snapshot():
     for key, item in get_hash_dict().items():
         LAST_HASH_RESULTS[key] = make_hashable_snapshot(item)
 
-@benchmark_decorator()
 def should_skip_calculation():
     func_name = "should_skip_calculation"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -7343,7 +7374,7 @@ def should_skip_calculation():
     
     return skip_calculation
 
-@benchmark_decorator()
+@benchmark_decorator(filename=__name__)
 def cheap_grid_charge_hours(force_recalculate = False):
     func_name = "cheap_grid_charge_hours"
     func_prefix = f"{func_name}_"
@@ -7698,7 +7729,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 title=f"{TITLE} error",
                 persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error_{day}_timestamp_{timestamp}"
             )
-             
+    @benchmark_decorator(filename=f"{__name__}.{func_name}")
     def future_charging(totalCost, totalkWh):
         nonlocal func_name
         sub_func_name = "future_charging"
@@ -12266,6 +12297,7 @@ if INITIALIZATION_COMPLETE:
             try:
                 
                 if trigger_type == "state":
+                    _LOGGER.warning(f"check_release_updates triggered by update_release_options")
                     TASKS[f'{func_prefix}check_release_updates'] = task.create(check_release_updates)
                     done, pending = task.wait({TASKS[f'{func_prefix}check_release_updates']})
                     return
@@ -12546,7 +12578,7 @@ if INITIALIZATION_COMPLETE:
                 "message": f"{e}"
             }
     
-    @benchmark_decorator()
+    @benchmark_decorator(filename=__name__)
     @time_trigger("startup")
     def startup(trigger_type=None, var_name=None, value=None, old_value=None):
         func_name = "startup"
@@ -12638,6 +12670,7 @@ if INITIALIZATION_COMPLETE:
             
             if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
                 if CONFIG['notification']['update_available']:
+                    _LOGGER.warning(f"check_release_updates triggered by startup")
                     TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
                     TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
                     done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
@@ -13373,6 +13406,7 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f'{func_prefix}reset_counter_entity_integration']})
             if DEFAULT_ENTITIES.get("input_select", {}).get("cjp_select_release", {}):
                 if CONFIG['notification']['update_available']:
+                    _LOGGER.warning(f"check_release_updates triggered by cron_new_day")
                     TASKS[f"{func_prefix}check_release_updates"] = task.create(check_release_updates)
                     TASKS[f"{func_prefix}update_release_options"] = task.create(update_release_options)
                     done, pending = task.wait({TASKS[f"{func_prefix}check_release_updates"], TASKS[f"{func_prefix}update_release_options"]})
