@@ -159,7 +159,19 @@ config:
 
   prices:
     entity_ids:
-      power_prices_entity_id: "**Erforderlich** Energi Data Service Preis-Entität"
+      energidataservice_buy_entity_id: "**Einen oder mehrere Anbieter auswählen** Energi Data Service Preis-entity_id"
+      energidataservice_sell_entity_id: "**Optional** Energi Data Service Verkaufs-entity_id"
+      stromligning_buy_current_price: "**Einen oder mehrere Anbieter auswählen** Strømligning aktueller Kaufpreis"
+      stromligning_buy_forecasts: "**Einen oder mehrere Anbieter auswählen** Strømligning Kaufpreisprognosen"
+      stromligning_buy_tomorrow_available: "**Einen oder mehrere Anbieter auswählen** Strømligning Kaufpreise für morgen verfügbar"
+      stromligning_sell_current_price: "**Optional** Strømligning aktueller Verkaufspreis"
+      stromligning_sell_distribution: "**Einen oder mehrere Anbieter auswählen** Strømligning Verkauf Netzentgelt"
+      stromligning_sell_electricity_tax: "**Einen oder mehrere Anbieter auswählen** Strømligning Verkauf Stromsteuer"
+      stromligning_sell_forecasts: "**Optional** Strømligning Verkaufspreisprognosen"
+      stromligning_sell_nettariff: "**Einen oder mehrere Anbieter auswählen** Strømligning Verkauf Netztarif"
+      stromligning_sell_surcharge: "**Einen oder mehrere Anbieter auswählen** Strømligning Verkauf Aufschlag auf Spotpreis"
+      stromligning_sell_systemtariff: "**Einen oder mehrere Anbieter auswählen** Strømligning Verkauf Systemtarif"
+      stromligning_sell_tomorrow_available: "**Optional** Strømligning Verkaufspreise für morgen"
     refund: "Rückerstattungsbetrag (Staat/Anbieter)"
 
   solar:
