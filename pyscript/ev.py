@@ -125,6 +125,9 @@ LAST_HASH_RESULTS = {}
 LAST_SUCCESSFUL_GRID_PRICES = {
     "using_offline_prices": False
 }
+LAST_SUCCESSFUL_SELL_PRICES = {
+    "using_offline_prices": False
+}
 
 CHARGING_IS_BEGINNING = False
 RESTARTING_CHARGER = False
@@ -138,6 +141,8 @@ CHARGING_LOSS_CHARGER_BEGIN_KWH = 0.0
 CHARGING_LOSS_CHARGING_COMPLETED = False
 
 CHARGING_ALLOWED_AFTER_GOTO_TIME = -120 #Negative value in minutes
+
+PRICE_ADDER_DAY_BETWEEN_DIVIDER = 30
 
 CHARGING_NO_RULE_COUNT = 0
 ERROR_COUNT = 0
@@ -213,12 +218,6 @@ COLOR_THRESHOLDS = [
     ("price10", "#C81919"),
     ("price11", "#C800C8"),
 ]
-
-SOLAR_SELL_TARIFF = {
-    "energinets_network_tariff": 0.0030,
-    "energinets_balance_tariff": 0.0024,
-    "solar_production_seller_cut": 0.01
-}
 
 CHARGING_HISTORY_QUEUE = asyncio.Queue()
 CHARGING_HISTORY_QUEUE_LAST_RESULT = {}
@@ -485,9 +484,24 @@ DEFAULT_CONFIG = {
     "notify_list": [],
     "prices": {
         "entity_ids": {
-            "power_prices_entity_id": ""
+            "energidataservice_buy_entity_id": "",
+            "energidataservice_sell_entity_id": "",
+            
+            "stromligning_buy_current_price": "",
+            "stromligning_buy_tomorrow_available": "",
+            "stromligning_buy_forecasts": "",
+            
+            "stromligning_sell_current_price": "",
+            "stromligning_sell_tomorrow_available": "",
+            "stromligning_sell_forecasts": "",
+            "stromligning_sell_distribution": "",
+            "stromligning_sell_electricity_tax": "",
+            "stromligning_sell_nettariff": "",
+            "stromligning_sell_systemtariff": "",
+            "stromligning_sell_surcharge": "",
         },
-        "refund": 0.0
+        "refund": 0.0,
+        "sell_fee": 0.3
     },
     "solar": {
         "entity_ids": {
@@ -514,7 +528,8 @@ DEFAULT_CONFIG = {
 CONFIG_KEYS_RENAMING = {# Old path: New path (seperated by ".")
     "home.ignore_consumption_from_entity_id": "home.ignore_consumption_from_entity_ids",
     "ev_car.daily_drive_distance": "ev_car.typical_daily_distance_non_working_day",
-    "charger.entity_ids.dynamic_circuit_limit": "charger.entity_ids.dynamic_circuit_limit_entity_id"
+    "charger.entity_ids.dynamic_circuit_limit": "charger.entity_ids.dynamic_circuit_limit_entity_id",
+    "prices.entity_ids.power_prices_entity_id": "prices.entity_ids.energidataservice_buy_entity_id"
 }
 
 COMMENT_DB_YAML = {}
@@ -1112,6 +1127,732 @@ ENTITIES_RENAMING = {# Old path: New path (seperated by ".")
 }
 
 i18n = I18nCatalog(base_lang="en-GB")
+PRICE_PROVIDER = None
+
+class PriceProvider:
+    func_name = "PriceProvider"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    @staticmethod
+    def create(config):
+        entity_ids = config.get("prices", {}).get("entity_ids", {})
+        providers = []
+
+        if entity_ids.get("stromligning_buy_current_price"):
+            provider = StromligningPriceProvider()
+            provider.setup(config)
+            providers.append(provider)
+
+        if entity_ids.get("energidataservice_buy_entity_id"):
+            provider = EnergiDataServicePriceProvider()
+            provider.setup(config)
+            providers.append(provider)
+
+        if not providers:
+            raise ValueError("No supported price provider configured")
+
+        provider = CombinedPriceProvider()
+        provider.setup(config, providers)
+        return provider
+
+class BasePriceProvider:
+    func_name = "BasePriceProvider"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    def setup(self, config):
+        self.config = config
+        prices_config = config.get("prices", {})
+
+        self.entity_ids = prices_config.get("entity_ids", {})
+        self.refund = abs(prices_config.get("refund", 0.0))
+        self.sell_fee = abs(prices_config.get("sell_fee", 0.0))
+        self.sell_configured = False
+
+        self.buy_real_prices = {}
+        self.buy_forecast_prices = {}
+        self.sell_real_prices = {}
+        self.sell_forecast_prices = {}
+        self.sell_price_details = {}
+
+    def normalize_timestamp(self, timestamp):
+        if isinstance(timestamp, datetime.datetime):
+            return timestamp.replace(tzinfo=None)
+
+        return timestamp
+
+    def get_price_at_timestamp(self, prices, timestamp):
+        if not prices:
+            return None
+
+        timestamp = self.normalize_timestamp(timestamp)
+        valid_timestamps = []
+
+        for price_timestamp in prices:
+            price_timestamp = self.normalize_timestamp(price_timestamp)
+
+            if price_timestamp.date() == timestamp.date() and price_timestamp <= timestamp:
+                valid_timestamps.append(price_timestamp)
+
+        if not valid_timestamps:
+            return None
+
+        price_timestamp = max(valid_timestamps)
+
+        return {
+            "price_timestamp": price_timestamp,
+            "price": prices[price_timestamp]
+        }
+
+    def update_prices(self):
+        self.sell_price_details = {}
+
+        self.buy_real_prices = self._load_buy_real_prices()
+        self.buy_forecast_prices = self._load_buy_forecast_prices()
+        self.sell_real_prices = self._load_sell_real_prices()
+        self.sell_forecast_prices = self._load_sell_forecast_prices()
+
+    def get_buy_real_prices(self):
+        return self.buy_real_prices
+
+    def get_buy_forecast_prices(self):
+        return self.buy_forecast_prices
+
+    def get_sell_real_prices(self):
+        return self.sell_real_prices
+
+    def get_sell_forecast_prices(self):
+        return self.sell_forecast_prices
+
+    def get_buy_prices(self):
+        prices = self.buy_real_prices.copy()
+
+        for timestamp, price in self.buy_forecast_prices.items():
+            if timestamp not in prices:
+                prices[timestamp] = price
+
+        return dict(sorted(prices.items()))
+
+    def get_sell_prices(self):
+        prices = self.sell_real_prices.copy()
+
+        for timestamp, price in self.sell_forecast_prices.items():
+            if timestamp not in prices:
+                prices[timestamp] = price
+
+        return dict(sorted(prices.items()))
+
+    def _load_buy_real_prices(self):
+        raise NotImplementedError
+
+    def _load_buy_forecast_prices(self):
+        return {}
+
+    def _load_sell_real_prices(self):
+        raise NotImplementedError
+
+    def _load_sell_forecast_prices(self):
+        return {}
+
+    def get_sell_price(self, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime()
+
+        timestamp = self.normalize_timestamp(timestamp)
+        result = self.get_price_at_timestamp(self.get_sell_prices(), timestamp)
+
+        if result is None:
+            raise Exception(f"No sell price available for {timestamp}")
+
+        price_timestamp = result["price_timestamp"]
+        details = self.sell_price_details.get(price_timestamp)
+
+        if details is None:
+            return {
+                "price": result["price"],
+                "details": {
+                    "price_timestamp": price_timestamp,
+                    "solar_sell_price": result["price"]
+                }
+            }
+
+        return {
+            "price": result["price"],
+            "details": details.copy()
+        }
+
+    def get_tariffs(self, hour, day_of_week, timestamp=None):
+        raise NotImplementedError
+
+    def calculate_sell_price(self, timestamp, price):
+        timestamp = self.normalize_timestamp(timestamp)
+        day_of_week = getDayOfWeek(timestamp)
+        tariff_dict = self.get_tariffs(timestamp.hour, day_of_week, timestamp=timestamp)
+
+        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
+        systemtarif = tariff_dict["systemtarif"]
+        elafgift = tariff_dict["elafgift"]
+        tariffs = tariff_dict["tariffs"]
+        surcharge = tariff_dict["surcharge"]
+        tariff_sum = tariff_dict["tariff_sum"]
+
+        raw_price = price - tariff_sum
+
+        sell_tariffs = sum((
+            self.sell_fee,
+            transmissions_nettarif,
+            systemtarif
+        ))
+
+        sell_price = round(raw_price + sell_tariffs, 2)
+
+        self.sell_price_details[timestamp] = {
+            "price": price,
+            "price_timestamp": timestamp,
+            "transmissions_nettarif": transmissions_nettarif,
+            "systemtarif": systemtarif,
+            "elafgift": elafgift,
+            "tariffs": tariffs,
+            "surcharge": surcharge,
+            "tariff_sum": tariff_sum,
+            "raw_price": raw_price,
+            "sell_fee": self.sell_fee,
+            "sell_tariffs": sell_tariffs,
+            "solar_sell_price": sell_price
+        }
+
+        return sell_price
+
+    def _get_periods_in_hour(self, prices, timestamp):
+        timestamp = self.normalize_timestamp(timestamp)
+        hour_start = timestamp.replace(minute=0, second=0, microsecond=0)
+        hour_end = hour_start + datetime.timedelta(hours=1)
+
+        periods = 0
+
+        for price_timestamp in prices:
+            price_timestamp = self.normalize_timestamp(price_timestamp)
+
+            if hour_start <= price_timestamp < hour_end:
+                periods += 1
+
+        return periods
+
+class CombinedPriceProvider(BasePriceProvider):
+    func_name = "CombinedPriceProvider"
+    func_prefix = f"{func_name}_"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    def setup(self, config, providers):
+        BasePriceProvider.setup(self, config)
+
+        self.providers = providers
+        self.buy_prices = {}
+        self.sell_prices = {}
+        self.buy_real_prices = {}
+        self.sell_real_prices = {}
+        self.buy_price_sources = {}
+        self.sell_price_sources = {}
+        self.sell_price_details = {}
+        self.last_update = None
+
+    def update_prices(self):
+        for provider in self.providers:
+            try:
+                provider.update_prices()
+            except Exception as e:
+                self._LOGGER.warning(f"Can't update prices from {provider.func_name}: {e} {type(e)}")
+
+        buy_prices, buy_real_prices, buy_sources, _ = self._get_combined_prices(
+            "get_buy_real_prices",
+            "get_buy_forecast_prices",
+            sell_prices=False
+        )
+
+        sell_prices, sell_real_prices, sell_sources, sell_price_details = self._get_combined_prices(
+            "get_sell_real_prices",
+            "get_sell_forecast_prices",
+            sell_prices=True
+        )
+
+        self.buy_prices = buy_prices
+        self.sell_prices = sell_prices
+        self.buy_real_prices = buy_real_prices
+        self.sell_real_prices = sell_real_prices
+        self.buy_price_sources = buy_sources
+        self.sell_price_sources = sell_sources
+        self.sell_price_details = sell_price_details
+        self.last_update = getTime()
+
+    def _get_combined_prices(self, real_method, forecast_method, sell_prices=False):
+        prices = {}
+        real_prices = {}
+        sources = {}
+        details = {}
+
+        for provider in self.providers:
+            try:
+                provider_prices = getattr(provider, real_method)()
+
+                for timestamp, price in provider_prices.items():
+                    timestamp = self.normalize_timestamp(timestamp)
+
+                    if timestamp not in prices:
+                        price = round(price, 2)
+
+                        prices[timestamp] = price
+                        real_prices[timestamp] = price
+                        sources[timestamp] = f"{provider.source_name}:real"
+
+                        if sell_prices and timestamp in provider.sell_price_details:
+                            details[timestamp] = provider.sell_price_details[timestamp].copy()
+
+            except Exception as e:
+                self._LOGGER.warning(f"Can't get real prices from {provider.func_name}: {e} {type(e)}")
+
+        for provider in self.providers:
+            try:
+                provider_prices = getattr(provider, forecast_method)()
+
+                for timestamp, price in provider_prices.items():
+                    timestamp = self.normalize_timestamp(timestamp)
+
+                    if timestamp not in prices:
+                        prices[timestamp] = round(price, 2)
+                        sources[timestamp] = f"{provider.source_name}:forecast"
+
+                        if sell_prices and timestamp in provider.sell_price_details:
+                            details[timestamp] = provider.sell_price_details[timestamp].copy()
+
+            except Exception as e:
+                self._LOGGER.warning(f"Can't get forecast prices from {provider.func_name}: {e} {type(e)}")
+
+        if not prices:
+            raise Exception("No prices available from configured price providers")
+
+        return (
+            dict(sorted(prices.items())),
+            dict(sorted(real_prices.items())),
+            dict(sorted(sources.items())),
+            dict(sorted(details.items()))
+        )
+
+    def get_buy_prices(self):
+        return self.buy_prices
+
+    def get_sell_prices(self):
+        return self.sell_prices
+
+    def get_buy_real_prices(self):
+        return self.buy_real_prices
+
+    def get_sell_real_prices(self):
+        return self.sell_real_prices
+
+    def get_sell_price(self, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime()
+
+        timestamp = self.normalize_timestamp(timestamp)
+        result = self.get_price_at_timestamp(self.sell_prices, timestamp)
+
+        if result is None:
+            raise Exception(f"No sell price available for {timestamp}")
+
+        price_timestamp = result["price_timestamp"]
+        details = self.sell_price_details.get(price_timestamp)
+
+        if details is None:
+            return {
+                "price": result["price"],
+                "details": {
+                    "price_timestamp": price_timestamp,
+                    "solar_sell_price": result["price"]
+                }
+            }
+
+        return {
+            "price": result["price"],
+            "details": details.copy()
+        }
+
+    def buy_prices_available(self):
+        return bool(self.buy_prices)
+
+    def get_buy_price_entity_id(self):
+        entities = []
+
+        for provider in self.providers:
+            entity_id = provider.get_buy_price_entity_id()
+
+            if entity_id:
+                entities.append(entity_id)
+
+        return ", ".join(entities)
+
+    def get_tariffs(self, hour, day_of_week, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime().replace(hour=hour, minute=0, second=0, microsecond=0)
+
+        timestamp = self.normalize_timestamp(timestamp)
+        result = self.get_price_at_timestamp(self.sell_price_details, timestamp)
+
+        if result is not None:
+            details = result["price"]
+
+            return {
+                "transmissions_nettarif": details.get("transmissions_nettarif", 0.0),
+                "systemtarif": details.get("systemtarif", 0.0),
+                "elafgift": details.get("elafgift", 0.0),
+                "tariffs": details.get("tariffs", 0.0),
+                "surcharge": details.get("surcharge", 0.0),
+                "tariff_sum": details.get("tariff_sum", 0.0)
+            }
+
+        return {
+            "transmissions_nettarif": 0.0,
+            "systemtarif": 0.0,
+            "elafgift": 0.0,
+            "tariffs": 0.0,
+            "surcharge": 0.0,
+            "tariff_sum": 0.0
+        }
+
+    def get_buy_periods_in_hour(self, timestamp):
+        periods = self._get_periods_in_hour(self.buy_real_prices, timestamp)
+
+        if periods > 0:
+            return periods
+
+        return 1
+
+    def get_sell_periods_in_hour(self, timestamp):
+        periods = self._get_periods_in_hour(self.sell_real_prices, timestamp)
+
+        if periods > 0:
+            return periods
+
+        return 1
+
+class EnergiDataServicePriceProvider(BasePriceProvider):
+    func_name = "EnergiDataServicePriceProvider"
+    func_prefix = f"{func_name}_"
+    source_name = "energidataservice"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    def setup(self, config):
+        BasePriceProvider.setup(self, config)
+
+        self.buy_entity_id = self.entity_ids.get("energidataservice_buy_entity_id", "")
+        self.sell_entity_id = self.entity_ids.get("energidataservice_sell_entity_id", "") or self.buy_entity_id
+        self.sell_configured = bool(self.entity_ids.get("energidataservice_sell_entity_id", ""))
+
+    def buy_prices_available(self):
+        return self.buy_entity_id in state.names()
+
+    def get_buy_price_entity_id(self):
+        return self.buy_entity_id
+
+    def _load_buy_real_prices(self):
+        return self._get_real_prices(self.buy_entity_id)
+
+    def _load_buy_forecast_prices(self):
+        return self._get_forecast_prices(self.buy_entity_id)
+
+    def _load_sell_real_prices(self):
+        prices = self._get_real_prices(self.sell_entity_id)
+
+        for timestamp, price in prices.items():
+            prices[timestamp] = self.calculate_sell_price(timestamp, price)
+
+        return prices
+
+    def _load_sell_forecast_prices(self):
+        prices = self._get_forecast_prices(self.sell_entity_id)
+
+        for timestamp, price in prices.items():
+            prices[timestamp] = self.calculate_sell_price(timestamp, price)
+
+        return prices
+
+    def _get_real_prices(self, entity_id):
+        current_hour = self.normalize_timestamp(reset_time_to_hour(getTime()))
+        prices = {}
+
+        if entity_id not in state.names(domain="sensor"):
+            raise Exception(f"{entity_id} not loaded")
+
+        attr = get_attr(entity_id, error_state={})
+
+        for raw in attr.get("raw_today", []):
+            hour_string = "hour" if "hour" in raw else "time"
+            timestamp = self.normalize_timestamp(toDateTime(raw[hour_string]))
+            price = raw["price"]
+
+            if isinstance(timestamp, datetime.datetime) and isinstance(price, (int, float)) and daysBetween(current_hour, timestamp) == 0:
+                prices[timestamp] = price
+
+        if attr.get("tomorrow_valid"):
+            for raw in attr.get("raw_tomorrow", []):
+                hour_string = "hour" if "hour" in raw else "time"
+                timestamp = self.normalize_timestamp(toDateTime(raw[hour_string]))
+                price = raw["price"]
+
+                if isinstance(timestamp, datetime.datetime) and isinstance(price, (int, float)):
+                    prices[timestamp] = price
+
+        return dict(sorted(prices.items()))
+
+    def _get_forecast_prices(self, entity_id):
+        current_hour = self.normalize_timestamp(reset_time_to_hour(getTime()))
+        prices = {}
+
+        if entity_id not in state.names(domain="sensor"):
+            raise Exception(f"{entity_id} not loaded")
+
+        attr = get_attr(entity_id, error_state={})
+
+        for raw in attr.get("forecast", []):
+            hour_string = "hour" if "hour" in raw else "time"
+            timestamp = self.normalize_timestamp(toDateTime(raw[hour_string]))
+            price = raw["price"]
+
+            if isinstance(timestamp, datetime.datetime) and isinstance(price, (int, float)) and daysBetween(current_hour, timestamp) > 0:
+                price += daysBetween(current_hour, timestamp) / PRICE_ADDER_DAY_BETWEEN_DIVIDER
+                prices[timestamp] = price
+
+        return dict(sorted(prices.items()))
+
+    def get_tariffs(self, hour, day_of_week, timestamp=None):
+        func_name = "get_tariffs"
+        _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+        try:
+            if self.sell_entity_id not in state.names(domain="sensor"):
+                raise Exception(f"{self.sell_entity_id} not loaded")
+
+            power_prices_attr = get_attr(self.sell_entity_id, error_state={})
+
+            if "tariffs" not in power_prices_attr:
+                return {
+                    "transmissions_nettarif": 0.0,
+                    "systemtarif": 0.0,
+                    "elafgift": 0.0,
+                    "tariffs": 0.0,
+                    "surcharge": 0.0,
+                    "tariff_sum": 0.0
+                }
+
+            attr = power_prices_attr["tariffs"]
+
+            transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
+            systemtarif = attr["additional_tariffs"]["systemtarif"]
+            elafgift = attr["additional_tariffs"]["elafgift"]
+            tariffs = attr["tariffs"][str(hour)]
+            tariff_sum = sum([
+                transmissions_nettarif,
+                systemtarif,
+                elafgift,
+                tariffs
+            ])
+
+            return {
+                "transmissions_nettarif": transmissions_nettarif,
+                "systemtarif": systemtarif,
+                "elafgift": elafgift,
+                "tariffs": tariffs,
+                "surcharge": 0.0,
+                "tariff_sum": tariff_sum
+            }
+
+        except Exception as e:
+            _LOGGER.debug(f"get_tariffs(hour = {hour}, day_of_week = {day_of_week}): {e} {type(e)}")
+
+            return {
+                "transmissions_nettarif": 0.0,
+                "systemtarif": 0.0,
+                "elafgift": 0.0,
+                "tariffs": 0.0,
+                "surcharge": 0.0,
+                "tariff_sum": 0.0
+            }
+
+class StromligningPriceProvider(BasePriceProvider):
+    func_name = "StromligningPriceProvider"
+    func_prefix = f"{func_name}_"
+    source_name = "stromligning"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+
+    def setup(self, config):
+        BasePriceProvider.setup(self, config)
+
+        self.buy_current_price = self.entity_ids.get("stromligning_buy_current_price", "")
+        self.buy_tomorrow_available = self.entity_ids.get("stromligning_buy_tomorrow_available", "")
+        self.buy_forecasts = self.entity_ids.get("stromligning_buy_forecasts", "")
+
+        self.sell_current_price = self.entity_ids.get("stromligning_sell_current_price", "")
+        self.sell_tomorrow_available = self.entity_ids.get("stromligning_sell_tomorrow_available", "")
+        self.sell_forecasts = self.entity_ids.get("stromligning_sell_forecasts", "")
+        self.sell_configured = bool(self.sell_current_price)
+
+        self.sell_distribution = self.entity_ids.get("stromligning_sell_distribution", "")
+        self.sell_electricity_tax = self.entity_ids.get("stromligning_sell_electricity_tax", "")
+        self.sell_nettariff = self.entity_ids.get("stromligning_sell_nettariff", "")
+        self.sell_systemtariff = self.entity_ids.get("stromligning_sell_systemtariff", "")
+        self.sell_surcharge = self.entity_ids.get("stromligning_sell_surcharge", "")
+
+    def buy_prices_available(self):
+        return self.buy_current_price in state.names()
+
+    def get_buy_price_entity_id(self):
+        return self.buy_current_price
+
+    def _load_buy_real_prices(self):
+        return self._get_real_prices(self.buy_current_price, self.buy_tomorrow_available)
+
+    def _load_buy_forecast_prices(self):
+        return self._get_forecast_prices(self.buy_forecasts, self.buy_tomorrow_available)
+
+    def _load_sell_real_prices(self):
+        prices = self._get_real_prices(self.sell_current_price, self.sell_tomorrow_available)
+
+        for timestamp, price in prices.items():
+            prices[timestamp] = self.calculate_sell_price(timestamp, price)
+
+        return prices
+
+    def _load_sell_forecast_prices(self):
+        prices = self._get_forecast_prices(self.sell_forecasts, self.sell_tomorrow_available)
+
+        for timestamp, price in prices.items():
+            prices[timestamp] = self.calculate_sell_price(timestamp, price)
+
+        return prices
+
+    def _get_real_prices(self, current_entity_id, tomorrow_entity_id):
+        current_hour = self.normalize_timestamp(reset_time_to_hour(getTime()))
+        prices = {}
+
+        self._add_prices_from_entity(prices, current_entity_id, current_hour, forecast=False)
+
+        if tomorrow_entity_id and tomorrow_entity_id in state.names():
+            attr = get_attr(tomorrow_entity_id, error_state={})
+            forecast_data = attr.get("forecast_data", False)
+
+            if not forecast_data:
+                self._add_prices_from_entity(prices, tomorrow_entity_id, current_hour, forecast=False)
+
+        return dict(sorted(prices.items()))
+
+    def _get_forecast_prices(self, forecast_entity_id, tomorrow_entity_id=None):
+        current_hour = self.normalize_timestamp(reset_time_to_hour(getTime()))
+        prices = {}
+
+        if tomorrow_entity_id and tomorrow_entity_id in state.names():
+            attr = get_attr(tomorrow_entity_id, error_state={})
+            forecast_data = attr.get("forecast_data", False)
+
+            if forecast_data:
+                self._add_prices_from_entity(prices, tomorrow_entity_id, current_hour, forecast=True)
+
+        self._add_prices_from_entity(prices, forecast_entity_id, current_hour, forecast=True)
+
+        return dict(sorted(prices.items()))
+
+    def _add_prices_from_entity(self, prices, entity_id, current_hour, forecast=False):
+        if not entity_id:
+            return
+
+        if entity_id not in state.names():
+            raise Exception(f"{entity_id} not loaded")
+
+        attr = get_attr(entity_id, error_state={})
+
+        if "prices" not in attr:
+            raise Exception(f"prices not in {entity_id} attributes")
+
+        for raw in attr["prices"]:
+            timestamp = self.normalize_timestamp(toDateTime(raw.get("start")))
+            price = raw.get("price")
+
+            if not isinstance(timestamp, datetime.datetime) or not isinstance(price, (int, float)):
+                continue
+
+            if timestamp in prices:
+                continue
+
+            if forecast:
+                price += daysBetween(current_hour, timestamp) / PRICE_ADDER_DAY_BETWEEN_DIVIDER
+
+            prices[timestamp] = price
+
+    def get_tariffs(self, hour, day_of_week, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime().replace(hour=hour, minute=0, second=0, microsecond=0)
+
+        timestamp = self.normalize_timestamp(timestamp)
+
+        transmissions_nettarif = self._get_distribution_price(timestamp)
+        systemtarif = self._get_entity_state(self.sell_systemtariff)
+        elafgift = self._get_entity_state(self.sell_electricity_tax)
+        tariffs = self._get_entity_state(self.sell_nettariff)
+        surcharge = self._get_entity_state(self.sell_surcharge)
+
+        tariff_sum = sum((
+            transmissions_nettarif,
+            systemtarif,
+            elafgift,
+            tariffs,
+            surcharge
+        ))
+
+        return {
+            "transmissions_nettarif": transmissions_nettarif,
+            "systemtarif": systemtarif,
+            "elafgift": elafgift,
+            "tariffs": tariffs,
+            "surcharge": surcharge,
+            "tariff_sum": tariff_sum
+        }
+
+    def _get_distribution_price(self, timestamp):
+        timestamp = self.normalize_timestamp(timestamp)
+
+        if self.sell_distribution not in state.names():
+            return 0.0
+
+        attr = get_attr(self.sell_distribution, error_state={})
+        prices = {}
+
+        for raw in attr.get("prices", []):
+            price_timestamp = self.normalize_timestamp(toDateTime(raw.get("start")))
+            price = raw.get("price")
+
+            if isinstance(price_timestamp, datetime.datetime) and isinstance(price, (int, float)):
+                prices[price_timestamp] = price
+
+        result = self.get_price_at_timestamp(prices, timestamp)
+
+        if result is not None:
+            return result["price"]
+
+        return 0.0
+
+    def _get_entity_state(self, entity_id):
+        if not entity_id:
+            return 0.0
+
+        if entity_id not in state.names():
+            return 0.0
+
+        value = get_state(entity_id, float_type=True, error_state=None)
+
+        if isinstance(value, (int, float)):
+            return value
+
+        return 0.0
+
 
 def welcome():
     func_name = "welcome"
@@ -1473,8 +2214,8 @@ def get_color(price, price_levels):
 def get_hours_plan():
     output = []
     
-    if "prices" in get_hour_prices():
-        prices = get_hour_prices()["prices"]
+    if "prices" in get_grid_prices():
+        prices = get_grid_prices()["prices"]
         if not prices:
             return output
 
@@ -1645,6 +2386,7 @@ def get_debug_info_sections():
                 "CHARGING_PLAN": CHARGING_PLAN,
                 "CHARGE_HOURS": CHARGE_HOURS,
                 "LAST_SUCCESSFUL_GRID_PRICES": LAST_SUCCESSFUL_GRID_PRICES,
+                "LAST_SUCCESSFUL_SELL_PRICES": LAST_SUCCESSFUL_SELL_PRICES,
             }),
         },
         "Charging Expenses": {
@@ -1704,10 +2446,6 @@ def get_debug_info_sections():
         "Driving Efficiency": {
             "table": None,
             "details": format_debug_details({"LAST_DRIVE_EFFICIENCY_DATA": LAST_DRIVE_EFFICIENCY_DATA}),
-        },
-        "Tariff Settings": {
-            "table": None,
-            "details": format_debug_details({"SOLAR_SELL_TARIFF": SOLAR_SELL_TARIFF}),
         },
         "Solar & Powerwall Thresholds": {
             "table": format_debug_table({
@@ -4276,151 +5014,143 @@ def no_charging_modes_active():
         or manual_charging_solar_enabled()
     )
 
-def get_tariffs(hour, day_of_week):
-    func_name = "get_tariffs"
-    _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    
-    try:
-        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
-        
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
-        
-        if "tariffs" not in power_prices_attr:
-            raise Exception(f"tariffs not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']}")
-        
-        attr = power_prices_attr["tariffs"]
-        transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-        systemtarif = attr["additional_tariffs"]["systemtarif"]
-        elafgift = attr["additional_tariffs"]["elafgift"]
-        tariffs = attr["tariffs"][str(hour)]
-        tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-        
-        return {
-            "transmissions_nettarif": transmissions_nettarif,
-            "systemtarif": systemtarif,
-            "elafgift": elafgift,
-            "tariffs": tariffs,
-            "tariff_sum": tariff_sum
-        }
-        
-    except Exception as e:
-        return {
-                "transmissions_nettarif": 0.0,
-                "systemtarif": 0.0,
-                "elafgift": 0.0,
-                "tariffs": 0.0,
-                "tariff_sum": 0.0
-            }
-
 def get_solar_sell_price(set_entity_attr=False, get_avg_offline_sell_price=False):
     func_name = "get_solar_sell_price"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    
-    if not is_solar_configured(): return 0.0
-    
+
+    if not is_solar_configured():
+        return 0.0
+
     day_of_week = getDayOfWeek()
+
     try:
         sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
         entity_price = sell_price
-        
+
         if get_avg_offline_sell_price:
             if sell_price != -1.0:
                 return sell_price
-            
+
             sun_events = get_sun_events()
             sunrise = sun_events["sunrise"].hour
             sunset = sun_events["sunset"].hour
-                
             sell_price_list = []
-            
+
             for hour in range(sunrise, sunset):
                 sell_price_list.append(get_forecast_value(KWH_AVG_PRICES_DB['history_sell'][hour][day_of_week]))
-                
+
             return average(sell_price_list)
-        
-        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
-        
-        price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
-        
-        tariff_dict = get_tariffs(getHour(), day_of_week)
-        transmissions_nettarif = tariff_dict["transmissions_nettarif"]
-        systemtarif = tariff_dict["systemtarif"]
-        elafgift = tariff_dict["elafgift"]
-        tariffs = tariff_dict["tariffs"]
-        
-        tariff_sum = tariff_dict["tariff_sum"]
-        raw_price = price - tariff_sum
-        
-        energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
-        energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
-        solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
-        
-        sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-        solar_sell_price = raw_price - sell_tariffs
-        
+
+        sell_data = PRICE_PROVIDER.get_sell_price(getTime())
+        solar_sell_price = sell_data["price"]
+        details = sell_data.get("details", {})
+
         if sell_price == -1.0:
             sell_price = round(solar_sell_price, 3)
-        
+
         if set_entity_attr:
-            attr_list = ["price", "transmissions_nettarif", "systemtarif", "elafgift", "tariffs", "tariff_sum", "raw_price", "sell_tariffs_overview", "transmissions_nettarif_", "systemtarif_", "energinets_network_tariff_", "energinets_balance_tariff_", "solar_production_seller_cut_", "sell_tariffs", "solar_sell_price", "fixed_sell_price"]
+            price = details.get("price", 0.0)
+            transmissions_nettarif = details.get("transmissions_nettarif", 0.0)
+            systemtarif = details.get("systemtarif", 0.0)
+            elafgift = details.get("elafgift", 0.0)
+            tariffs = details.get("tariffs", 0.0)
+            surcharge = details.get("surcharge", 0.0)
+            tariff_sum = details.get("tariff_sum", 0.0)
+            raw_price = details.get("raw_price", price)
+            sell_tariffs = details.get("sell_tariffs", solar_sell_price - raw_price)
+
+            attr_list = [
+                "price",
+                "price_timestamp",
+                "transmissions_nettarif",
+                "systemtarif",
+                "elafgift",
+                "tariffs",
+                "surcharge",
+                "tariff_sum",
+                "raw_price",
+                "sell_tariffs_overview",
+                "transmissions_nettarif_",
+                "systemtarif_",
+                "sell_fee",
+                "sell_tariffs",
+                "solar_sell_price",
+                "fixed_sell_price"
+            ]
+
             entity_attr = get_attr(f"sensor.{__name__}_kwh_cost_price", error_state={})
+
             for item in attr_list:
                 if item in entity_attr:
                     state.delete(f"sensor.{__name__}_kwh_cost_price.{item}")
-                
+
             set_attr(f"sensor.{__name__}_kwh_cost_price.price", f"{price:.3f} {i18n.t('ui.common.valuta_kwh')}")
+
+            if "price_timestamp" in details:
+                set_attr(f"sensor.{__name__}_kwh_cost_price.price_timestamp", str(details["price_timestamp"]))
+
             set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif", f"{transmissions_nettarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif", f"{systemtarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.elafgift", f"{elafgift:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.tariffs", f"{tariffs:.3f} {i18n.t('ui.common.valuta_kwh')}")
+            set_attr(f"sensor.{__name__}_kwh_cost_price.surcharge", f"{surcharge:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.tariff_sum", f"{tariff_sum:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs_overview", "")
             set_attr(f"sensor.{__name__}_kwh_cost_price.transmissions_nettarif_", f"{transmissions_nettarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.systemtarif_", f"{systemtarif:.3f} {i18n.t('ui.common.valuta_kwh')}")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_network_tariff_", f"{energinets_network_tariff:.4f} {i18n.t('ui.common.valuta_kwh')}")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.energinets_balance_tariff_", f"{energinets_balance_tariff:.4f} {i18n.t('ui.common.valuta_kwh')}")
-            set_attr(f"sensor.{__name__}_kwh_cost_price.solar_production_seller_cut_", f"{solar_production_seller_cut:.4f} {i18n.t('ui.common.valuta_kwh')}")
+
+            if "sell_fee" in details:
+                set_attr(f"sensor.{__name__}_kwh_cost_price.sell_fee", f"{details['sell_fee']:.3f} {i18n.t('ui.common.valuta_kwh')}")
+
             set_attr(f"sensor.{__name__}_kwh_cost_price.sell_tariffs", f"{sell_tariffs:.3f} {i18n.t('ui.common.valuta_kwh')}")
             set_attr(f"sensor.{__name__}_kwh_cost_price.solar_sell_price", f"{solar_sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
+
             LOCAL_ENERGY_PRICES['solar_kwh_price'] = {
                 "price": round(price, 3),
                 "transmissions_nettarif": round(transmissions_nettarif, 3),
                 "systemtarif": round(systemtarif, 3),
                 "elafgift": round(elafgift, 3),
                 "tariffs": round(tariffs, 3),
+                "surcharge": round(surcharge, 3),
                 "tariff_sum": round(tariff_sum, 3),
                 "raw_price": round(raw_price, 3),
                 "sell_tariffs_overview": "",
                 "transmissions_nettarif_": round(transmissions_nettarif, 3),
                 "systemtarif_": round(systemtarif, 3),
-                "energinets_network_tariff_": round(energinets_network_tariff, 4),
-                "energinets_balance_tariff_": round(energinets_balance_tariff, 4),
-                "solar_production_seller_cut_": round(solar_production_seller_cut, 4),
                 "sell_tariffs": round(sell_tariffs, 3),
                 "solar_sell_price": round(solar_sell_price, 3)
             }
+
+            if "price_timestamp" in details:
+                LOCAL_ENERGY_PRICES['solar_kwh_price']['price_timestamp'] = details["price_timestamp"]
+
+            if "sell_fee" in details:
+                LOCAL_ENERGY_PRICES['solar_kwh_price']['sell_fee'] = round(details["sell_fee"], 3)
+
             if entity_price >= 0.0:
                 set_attr(f"sensor.{__name__}_kwh_cost_price.fixed_sell_price", f"{sell_price:.3f} {i18n.t('ui.common.valuta_kwh')}")
                 LOCAL_ENERGY_PRICES['solar_kwh_price']['fixed_sell_price'] = sell_price
+
     except Exception as e:
         sell_price = None
         using_text = "default"
+
         try:
-            sell_price = get_solar_sell_price()
+            sell_price = float(get_state(f"input_number.{__name__}_solar_sell_fixed_price", float_type=True, error_state=CONFIG['solar']['production_price']))
+
             if sell_price == -1.0:
                 sell_price = get_forecast_value(KWH_AVG_PRICES_DB['history_sell'][getHour()][day_of_week])
                 using_text = "database forecast"
-        except Exception as e:
+
+        except Exception:
             pass
-        
+
         if sell_price is None:
             sell_price = max(CONFIG['solar']['production_price'], 0.0)
-            
+
         _LOGGER.error(f"Cant get solar sell price using {using_text} {sell_price}: {e} {type(e)}")
-        
+
     return sell_price
 
 def get_refund():
@@ -6355,18 +7085,28 @@ def current_battery_level_expenses():
 
     return BATTERY_LEVEL_EXPENSES
 
-def update_grid_prices():
+
+def update_grid_prices(initial_run=False):
     func_name = "update_grid_prices"
     func_prefix = f"{func_name}_"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS
-        
+    global TASKS, PRICE_PROVIDER
+
     try:
-        TASKS[f"{func_prefix}"] = task.create(get_hour_prices, update_prices = True)
-        done, pending = task.wait({TASKS[f"{func_prefix}"]})
+        PRICE_PROVIDER.update_prices()
+
+        TASKS[f"{func_prefix}get_grid_prices"] = task.create(get_grid_prices, update_prices=True)
+        TASKS[f"{func_prefix}get_sell_prices"] = task.create(get_sell_prices, update_prices=True)
+        done, pending = task.wait({TASKS[f"{func_prefix}get_grid_prices"], TASKS[f"{func_prefix}get_sell_prices"]})
+
+        if not initial_run:
+            TASKS[f"{func_prefix}append_kwh_prices"] = task.create(append_kwh_prices)
+            done, pending = task.wait({TASKS[f"{func_prefix}append_kwh_prices"]})
+
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.warning(f"Task for updating grid prices was cancelled or timed out: {e} {type(e)}")
         return
+
     except Exception as e:
         _LOGGER.error(f"Error in {func_name}: {e} {type(e)}")
         my_persistent_notification(
@@ -6374,168 +7114,116 @@ def update_grid_prices():
             title=f"{TITLE} error",
             persistent_notification_id=f"{__name__}_{func_name}_error"
         )
+
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
 
-def get_hour_prices(update_prices = False):
-    #TODO See development in hourly prices variation, if 15 min interval is better, than 1 hour average
+def get_hour_prices(update_prices=False, sell_prices=False):
     func_name = "get_hour_prices"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global TASKS, LAST_SUCCESSFUL_GRID_PRICES
-    
+    global TASKS, LAST_SUCCESSFUL_GRID_PRICES, LAST_SUCCESSFUL_SELL_PRICES, PRICE_PROVIDER
+
     now = getTime()
     current_hour = reset_time_to_hour(now)
-    
     hour_prices = {}
-    price_adder_day_between_divider = 30
-    
+
+    database = LAST_SUCCESSFUL_GRID_PRICES if not sell_prices else LAST_SUCCESSFUL_SELL_PRICES
+    local_database_type = "history" if not sell_prices else "history_sell"
+
     try:
-        all_prices_loaded = True
-        
-        if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-            raise Exception(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not loaded")
-        
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
-            
-        if ("prices" in LAST_SUCCESSFUL_GRID_PRICES and
-            LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] is False and
-            update_prices is False):
-            if "update_grid_prices" in TASKS and not TASKS["update_grid_prices"].done():
-                _LOGGER.warning("Waiting for update_grid_prices to complete")
-                task_wait_until("update_grid_prices", timeout=120)
-            
-            hour_prices = deepcopy(LAST_SUCCESSFUL_GRID_PRICES["prices"])
+        if (
+            "prices" in database
+            and database.get("using_offline_prices") is False
+            and update_prices is False
+        ):
+            task_name = f"update_{local_database_type}_prices"
+
+            if task_name in TASKS and not TASKS[task_name].done():
+                _LOGGER.warning(f"Waiting for {task_name} to complete")
+                task_wait_until(task_name, timeout=120)
+
+            hour_prices = deepcopy(database["prices"])
+
         else:
-            if "raw_today" in power_prices_attr:
-                for raw in power_prices_attr['raw_today']:
-                    hour_string = "hour" if "hour" in raw else "time"
-                    
-                    raw[hour_string] = toDateTime(raw[hour_string])
-                    
-                    if (isinstance(raw[hour_string], datetime.datetime) and
-                        isinstance(raw['price'], (int, float)) and
-                        daysBetween(current_hour, raw[hour_string]) == 0):
-                        hour = reset_time_to_hour(raw[hour_string])
-                        
-                        if hour not in hour_prices:
-                            hour_prices[hour] = []
-                            
-                        hour_prices[hour].append(raw['price'])
-                    else:
-                        all_prices_loaded = False
-                        
-            if "forecast" in power_prices_attr:
-                for raw in power_prices_attr['forecast']:
-                    hour_string = "hour" if "hour" in raw else "time"
-                    
-                    raw[hour_string] = toDateTime(raw[hour_string])
-                    
-                    if (isinstance(raw[hour_string], datetime.datetime) and
-                        isinstance(raw['price'], (int, float)) and
-                        daysBetween(current_hour, raw[hour_string]) > 0):
-                        hour = reset_time_to_hour(raw[hour_string])
-                        
-                        if hour not in hour_prices:
-                            hour_prices[hour] = []
-                            
-                        hour_prices[hour].append(raw['price'] + (daysBetween(current_hour, hour) / price_adder_day_between_divider))
-                    else:
-                        all_prices_loaded = False
-
-            if "tomorrow_valid" in power_prices_attr:
-                if power_prices_attr['tomorrow_valid']:
-                    if "raw_tomorrow" not in power_prices_attr or len(power_prices_attr['raw_tomorrow']) < 23: #Summer and winter time compensation
-                        _LOGGER.warning(f"Raw_tomorrow not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_tomorrow len({len(power_prices_attr['raw_tomorrow'])})")
-                    else:
-                        for raw in power_prices_attr['raw_tomorrow']:
-                            hour_string = "hour" if "hour" in raw else "time"
-                    
-                            raw[hour_string] = toDateTime(raw[hour_string])
-                            
-                            if (isinstance(raw[hour_string], datetime.datetime) and
-                                isinstance(raw['price'], (int, float)) and
-                                daysBetween(current_hour, raw[hour_string]) == 1):
-                                hour = reset_time_to_hour(raw[hour_string])
-                                
-                                if hour not in hour_prices:
-                                    hour_prices[hour] = []
-                                    
-                                hour_prices[hour].append(raw['price'])
-                            else:
-                                all_prices_loaded = False
-                                    
-            for hour in hour_prices:
-                if isinstance(hour_prices[hour], list):
-                    hour_prices[hour] = round(average(hour_prices[hour]) - get_refund(), 2)
-            
-            if "raw_today" not in power_prices_attr:
-                raise Exception(f"Real prices not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-            elif len(power_prices_attr['raw_today']) < 23: #Summer and winter time compensation
-                raise Exception(f"Not all real prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, raw_today len({len(power_prices_attr['raw_today'])}) should be at least 23")
-
-            if "forecast" not in power_prices_attr:
-                raise Exception(f"Forecast not in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
-            elif len(power_prices_attr['forecast']) < 100: #Full forecast length is 142
-                raise Exception(f"Not all forecast prices in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, forecast len({len(power_prices_attr['forecast'])}) should be at least 100")
-
-            if not all_prices_loaded:
-                raise Exception(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes")
+            if sell_prices:
+                hour_prices = PRICE_PROVIDER.get_sell_prices()
+                sources = PRICE_PROVIDER.sell_price_sources
             else:
-                LAST_SUCCESSFUL_GRID_PRICES.pop("missing_hours", None)
-                
-                LAST_SUCCESSFUL_GRID_PRICES["last_update"] = getTime()
-                LAST_SUCCESSFUL_GRID_PRICES["prices"] = hour_prices
-                LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] = False
-    except Exception as e:
-        if "last_update" in LAST_SUCCESSFUL_GRID_PRICES and minutesBetween(LAST_SUCCESSFUL_GRID_PRICES["last_update"], now) <= 120:
-            hour_prices = deepcopy(LAST_SUCCESSFUL_GRID_PRICES["prices"])
-            _LOGGER.warning(f"Not all prices loaded in {CONFIG['prices']['entity_ids']['power_prices_entity_id']} attributes, using last successful")
-        else:
-            _LOGGER.warning(f"Cant get all online prices, using database: {e} {type(e)}")
+                hour_prices = PRICE_PROVIDER.get_buy_prices()
+                sources = PRICE_PROVIDER.buy_price_sources
 
-            LAST_SUCCESSFUL_GRID_PRICES["last_update"] = getTime()
-            LAST_SUCCESSFUL_GRID_PRICES["prices"] = hour_prices
-            LAST_SUCCESSFUL_GRID_PRICES['using_offline_prices'] = True
-            
+            if not hour_prices:
+                raise Exception(f"No {'sell' if sell_prices else 'grid'} prices returned from {type(PRICE_PROVIDER).__name__}")
+
+            database.pop("missing_hours", None)
+            database["last_update"] = now
+            database["prices"] = deepcopy(hour_prices)
+            database["sources"] = deepcopy(sources)
+            database["using_offline_prices"] = False
+
+    except Exception as e:
+        if "last_update" in database and minutesBetween(database["last_update"], now) <= 120:
+            hour_prices = deepcopy(database["prices"])
+            _LOGGER.warning(f"Can't get online {'sell' if sell_prices else 'grid'} prices, using last successful: {e} {type(e)}")
+
+        else:
+            _LOGGER.warning(f"Can't get online {'sell' if sell_prices else 'grid'} prices from {type(PRICE_PROVIDER).__name__}, using database: {e} {type(e)}")
+
+            database["last_update"] = now
+            database["using_offline_prices"] = True
+
             missing_hours = {}
+
             try:
                 if len(KWH_AVG_PRICES_DB) == 0:
                     load_kwh_prices()
-                    
-                if "history" not in KWH_AVG_PRICES_DB:
-                    raise Exception(f"Missing history in KWH_AVG_PRICES_DB")
-                
+
+                if local_database_type not in KWH_AVG_PRICES_DB:
+                    raise Exception(f"Missing {local_database_type} in KWH_AVG_PRICES_DB")
+
                 for h in range(24):
                     for d in range(7):
-                        if d not in KWH_AVG_PRICES_DB['history'][h]:
+                        if d not in KWH_AVG_PRICES_DB[local_database_type][h]:
                             raise Exception(f"Missing hour {h} and day of week {d} in KWH_AVG_PRICES_DB")
 
                         timestamp = reset_time_to_hour(current_hour.replace(hour=h)) + datetime.timedelta(days=d)
                         timestamp = timestamp.replace(tzinfo=None)
-                        
+
                         if timestamp in hour_prices:
                             continue
-                        
-                        forecast_price = get_forecast_value(KWH_AVG_PRICES_DB['history'][h][d]) # Refund is already included in KWH_AVG_PRICES_DB
-                        price = round(forecast_price + (daysBetween(current_hour, timestamp) / price_adder_day_between_divider), 2)
-                        
+
+                        forecast_price = get_forecast_value(KWH_AVG_PRICES_DB[local_database_type][h][d])
+                        price = round(forecast_price + (daysBetween(current_hour, timestamp) / PRICE_ADDER_DAY_BETWEEN_DIVIDER), 2)
+
                         missing_hours[timestamp] = price
                         hour_prices[timestamp] = price
-                        
+                        database.setdefault("sources", {})[timestamp] = "offline"
+
                 if missing_hours:
                     missing_hours = dict(sorted(missing_hours.items()))
                     _LOGGER.debug(f"Using following offline prices: {missing_hours}")
-                    
-                    LAST_SUCCESSFUL_GRID_PRICES["missing_hours"] = missing_hours
-                    
-            except Exception as e:
-                error_message = f"Cant get offline prices: {e} {type(e)}"
+                    database["missing_hours"] = missing_hours
+
+                database["prices"] = deepcopy(hour_prices)
+
+            except Exception as ex:
+                error_message = f"Can't get offline prices: {ex} {type(ex)}"
                 _LOGGER.error(error_message)
-                save_error_to_file(error_message, caller_function_name = f"{func_name}()")
-                my_persistent_notification(f"Kan ikke hente offline priser: {e} {type(e)}", f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error")
-                raise Exception(f"Offline prices error: {e} {type(e)}")
-            
+                save_error_to_file(error_message, caller_function_name=f"{func_name}()")
+                my_persistent_notification(
+                    error_message,
+                    f"{TITLE} error",
+                    persistent_notification_id=f"{__name__}_{func_name}_offline_prices_error"
+                )
+                raise Exception(f"Offline prices error: {ex} {type(ex)}")
+
     return hour_prices
+
+def get_grid_prices(update_prices=False):
+    return get_hour_prices(update_prices=update_prices)
+
+def get_sell_prices(update_prices=False):
+    return get_hour_prices(update_prices=update_prices, sell_prices=True)
 
 def get_expensive_hours(day=0):
     countExpensive = 0
@@ -6543,7 +7231,7 @@ def get_expensive_hours(day=0):
     
     day_timestamp = getTime().date() + datetime.timedelta(days=day)
     
-    for timestamp, price in sorted(get_hour_prices().items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
+    for timestamp, price in sorted(get_grid_prices().items(), key=lambda kv: (kv[1],kv[0]), reverse=True):
         if timestamp.date() == day_timestamp:
             if countExpensive < 4:
                 expensiveDict[timestamp] = price
@@ -6627,7 +7315,6 @@ def make_hashable_snapshot(data):
 
     return hashlib.blake2b(json_data.encode(), digest_size=16).hexdigest()
 
-@benchmark_decorator()
 def save_hashable_snapshot():
     func_name = "save_hashable_snapshot"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
@@ -6663,10 +7350,11 @@ def cheap_grid_charge_hours(force_recalculate = False):
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
     global LOCAL_ENERGY_PREDICTION_DB, CHARGING_PLAN, CHARGE_HOURS, TASKS, FORECAST_TYPE
     
-    if CONFIG['prices']['entity_ids']['power_prices_entity_id'] not in state.names(domain="sensor"):
-        _LOGGER.error(f"{CONFIG['prices']['entity_ids']['power_prices_entity_id']} not in entities")
+    if not PRICE_PROVIDER.buy_prices_available():
+        entity_id = PRICE_PROVIDER.get_buy_price_entity_id()
+        _LOGGER.error(f"{entity_id} not in entities")
         my_persistent_notification(
-            i18n.t("ui.cheap_grid_charge_hours.entity_not_in_domain", entity=CONFIG['prices']['entity_ids']['power_prices_entity_id']),
+            i18n.t("ui.cheap_grid_charge_hours.entity_not_in_domain", entity=entity_id),
             title=f"{TITLE} warning",
             persistent_notification_id=f"{__name__}_{func_name}_real_prices_not_found"
         )
@@ -6692,7 +7380,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
         _LOGGER.error("Hash is the same, skipping calculation")
         return
     
-    grid_prices = deepcopy(get_hour_prices())
+    grid_prices = deepcopy(get_grid_prices())
     sorted_by_cheapest_price = sorted(grid_prices.items(), key=lambda kv: (kv[1], kv[0]))
     energy_prediction_db = deepcopy(LOCAL_ENERGY_PREDICTION_DB)
     battery_expenses = deepcopy(BATTERY_LEVEL_EXPENSES)
@@ -6750,7 +7438,6 @@ def cheap_grid_charge_hours(force_recalculate = False):
         
         return timestamp.replace(minute=max(work_minute, trip_minute, 0))
         
-    
     def available_for_charging_prediction(timestamp: datetime.datetime, trip_datetime = None, trip_homecoming_datetime = None):
         nonlocal func_name
         sub_func_name = "available_for_charging_prediction"
@@ -6806,7 +7493,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_error"
             )
         return [hour_in_chargeHours, kwh_available]
-
+    
     def check_max_battery_level_allowed(day, what_day, battery_level_id, max_recommended_battery_level, battery_level_to_added):
         nonlocal func_name
         sub_func_name = "check_max_battery_level_allowed"
@@ -6855,7 +7542,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
             )
             
         return percentage_to_kwh(battery_level_to_added, include_charging_loss = True)
-
+    
     def add_to_charge_hours(kwhNeeded, totalCost, totalkWh, hour, price, very_cheap_price, ultra_cheap_price, kwh_available, battery_level = None, check_max_charging_plan={"day": None, "what_day": None, "battery_level_id": None}, max_recommended_battery_level = None, rules = []):
         nonlocal func_name
         sub_func_name = "add_to_charge_hours"
@@ -6951,7 +7638,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
             )
 
         return [kwhNeeded, totalCost, totalkWh, battery_level_added, cost]
-
+    
     def cheap_price_check(price):
         nonlocal func_name
         sub_func_name = "cheap_price_check"
@@ -7089,7 +7776,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 raise Exception(f"Error in {sub_sub_func_name} what_day:{what_day} hour:{hour} battery_level_id:{battery_level_id}: {e} {type(e)}")
                 
             return charging_sessions_id
-                                
+        
         def add_charging_to_days(day, what_day, charging_sessions_id, battery_level_added):
             nonlocal func_name, sub_func_name
             sub_sub_func_name = "add_charging_to_days"
@@ -7453,7 +8140,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                 
                 save_error_to_file(error_message, debug = debug, caller_function_name = f"{func_name}().{sub_func_name}().fill_up_or_need_recommended_full_charge")
                 my_persistent_notification(error_message, f"{TITLE} error", persistent_notification_id=f"{__name__}_{func_name}_{sub_func_name}_fill_up_or_need_recommended_full_charge_error_{getTime().strftime('%Y%m%d%H%M%S')}")
-            
+        
         def departure_planner(day):
             nonlocal func_name, sub_func_name
             sub_sub_func_name = "departure_planner"
@@ -7708,7 +8395,7 @@ def cheap_grid_charge_hours(force_recalculate = False):
                                 break
             except Exception as e:
                 _LOGGER.warning(f"Cant create alternative charging estimate for day {day}: {e} {type(e)}")
-            
+        
         def solar_prediction_planner(day):
             nonlocal func_name, sub_func_name
             sub_sub_func_name = "solar_prediction_planner"
@@ -9677,7 +10364,7 @@ def get_solar_kwh_forecast():
             for data in site_attr:
                 date = data['period_start'].replace(tzinfo=None)
                 
-                if date not in grid_prices:
+                if date not in hour_prices:
                     continue
                 
                 watt = round(data['pv_estimate'] * 1000.0, 0)
@@ -9685,17 +10372,9 @@ def get_solar_kwh_forecast():
                 available = max(watt - power_consumption_without_all_exclusion, 0.0)
                 available_kwh = round(available / 1000.0, 3)
                 
-                day_of_week = getDayOfWeek(date)
-                tariff_dict = get_tariffs(date.hour, day_of_week)
-                transmissions_nettarif = tariff_dict["transmissions_nettarif"]
-                systemtarif = tariff_dict["systemtarif"]
-                tariff_sum = tariff_dict["tariff_sum"]
+                price = hour_prices[date]
                 
-                price = grid_prices[date]
-                raw_price = price - tariff_sum
-                
-                sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-                sell_price = raw_price - sell_tariffs
+                sell_price = PRICE_PROVIDER.calculate_sell_price(date, price)
                 
                 forecast[date] = (available_kwh, sell_price)
         except Exception as e:
@@ -9712,11 +10391,7 @@ def get_solar_kwh_forecast():
     
     forecast = {}
     
-    grid_prices = get_hour_prices()
-                        
-    energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
-    energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
-    solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
+    hour_prices = get_sell_prices()
     
     integration = get_integration(CONFIG['solar']['entity_ids']['forecast_entity_id'])
     
@@ -11436,77 +12111,88 @@ def save_kwh_prices():
 def append_kwh_prices():
     func_name = "append_kwh_prices"
     _LOGGER = globals()['_LOGGER'].getChild(func_name)
-    global KWH_AVG_PRICES_DB
-    
+    global KWH_AVG_PRICES_DB, PRICE_PROVIDER
+
     if len(KWH_AVG_PRICES_DB) == 0:
         load_kwh_prices()
-    
-    if CONFIG['prices']['entity_ids']['power_prices_entity_id'] in state.names(domain="sensor"):
-        power_prices_attr = get_attr(CONFIG['prices']['entity_ids']['power_prices_entity_id'], error_state={})
-        
-        if "today" not in power_prices_attr:
-            _LOGGER.error(f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute")
-            my_persistent_notification(
-                f"Power prices entity {CONFIG['prices']['entity_ids']['power_prices_entity_id']} does not have 'today' attribute",
-                title=f"{TITLE} error",
-                persistent_notification_id=f"{__name__}_{func_name}_no_today_attr"
-            )
+
+    last_save = KWH_AVG_PRICES_DB.get("last_save", None)
+    if isinstance(last_save, datetime.datetime):
+        if last_save.date() == getTime().date():
+            _LOGGER.info("KWH avg prices already updated today, skipping append")
             return
-        
-        today = power_prices_attr["today"]
-        
-        max_price = max(today) - get_refund()
-        mean_price = round(average(today), 3) - get_refund()
-        min_price = min(today) - get_refund()
-        
+
+    try:
+        grid_prices = get_grid_prices()
+        sell_prices = get_sell_prices() if is_solar_configured() else {}
+
+        today = getTime().date()
+        day_of_week = getDayOfWeek()
         max_length = CONFIG['database']['kwh_avg_prices_db_data_to_save']
-        
+        refund = PRICE_PROVIDER.refund
+
+        today_grid_prices = {}
+        today_sell_prices = {}
+
+        for timestamp, price in grid_prices.items():
+            if timestamp.date() == today:
+                today_grid_prices[timestamp.hour] = price
+
+        if is_solar_configured():
+            for timestamp, price in sell_prices.items():
+                if timestamp.date() == today:
+                    today_sell_prices[timestamp.hour] = price
+
+        if len(today_grid_prices) < 23:
+            _LOGGER.warning(f"Missing some hours in today's power prices, not saving to database. Added hours: {len(today_grid_prices)}")
+            return
+
+        if is_solar_configured() and len(today_sell_prices) < 23:
+            _LOGGER.warning(f"Missing some hours in today's sell prices, not saving to database. Added hours: {len(today_sell_prices)}")
+            return
+
+        prices = [price - refund for price in today_grid_prices.values()]
+
+        max_price = max(prices)
+        mean_price = round(average(prices), 3)
+        min_price = min(prices)
+
         KWH_AVG_PRICES_DB['max'].insert(0, max_price)
         KWH_AVG_PRICES_DB['mean'].insert(0, mean_price)
         KWH_AVG_PRICES_DB['min'].insert(0, min_price)
+
         KWH_AVG_PRICES_DB['max'] = KWH_AVG_PRICES_DB['max'][:max_length]
         KWH_AVG_PRICES_DB['mean'] = KWH_AVG_PRICES_DB['mean'][:max_length]
         KWH_AVG_PRICES_DB['min'] = KWH_AVG_PRICES_DB['min'][:max_length]
-    
-        transmissions_nettarif = 0.0
-        systemtarif = 0.0
-        elafgift = 0.0
-        
-        if "tariffs" in power_prices_attr:
-            attr = power_prices_attr["tariffs"]
-            transmissions_nettarif = attr["additional_tariffs"]["transmissions_nettarif"]
-            systemtarif = attr["additional_tariffs"]["systemtarif"]
-            elafgift = attr["additional_tariffs"]["elafgift"]
-            
-        day_of_week = getDayOfWeek()
-        
-        for h in range(24):
-            KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, today[h] - get_refund())
-            KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
-            
-            if is_solar_configured():
-                tariffs = 0.0
-                
-                if "tariffs" in power_prices_attr:
-                    tariffs = attr["tariffs"][str(h)]
-                    
-                tariff_sum = sum([transmissions_nettarif, systemtarif, elafgift, tariffs])
-                raw_price = today[h] - tariff_sum
 
-                energinets_network_tariff = SOLAR_SELL_TARIFF["energinets_network_tariff"]
-                energinets_balance_tariff = SOLAR_SELL_TARIFF["energinets_balance_tariff"]
-                solar_production_seller_cut = SOLAR_SELL_TARIFF["solar_production_seller_cut"]
-                
-                sell_tariffs = sum((solar_production_seller_cut, energinets_network_tariff, energinets_balance_tariff, transmissions_nettarif, systemtarif))
-                sell_price = raw_price - sell_tariffs
-                    
-                sell_price = round(sell_price, 3)
-                KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, sell_price)
+        added = 0
+
+        for h in range(24):
+            if h not in today_grid_prices:
+                continue
+
+            grid_price = today_grid_prices[h] - refund
+
+            KWH_AVG_PRICES_DB['history'][h][day_of_week].insert(0, grid_price)
+            KWH_AVG_PRICES_DB['history'][h][day_of_week] = KWH_AVG_PRICES_DB['history'][h][day_of_week][:max_length]
+
+            if is_solar_configured() and h in today_sell_prices:
+                KWH_AVG_PRICES_DB['history_sell'][h][day_of_week].insert(0, round(today_sell_prices[h], 3))
                 KWH_AVG_PRICES_DB['history_sell'][h][day_of_week] = KWH_AVG_PRICES_DB['history_sell'][h][day_of_week][:max_length]
-        
+
+            added += 1
+
+        if added < 23:
+            _LOGGER.warning(f"Missing some hours in today's power prices, not saving to database. Added hours: {added}")
+            return
+
+        KWH_AVG_PRICES_DB['last_save'] = getTime()
+
         save_kwh_prices()
-        
         set_low_forecast_price()
+
+    except Exception as e:
+        _LOGGER.error(f"Can't append KWH avg prices: {e} {type(e)}")
 
 def set_low_forecast_price():
     price = round(get_forecast_value(KWH_AVG_PRICES_DB['min']), 3)
@@ -11866,7 +12552,7 @@ if INITIALIZATION_COMPLETE:
         func_name = "startup"
         func_prefix = f"{func_name}_"
         _LOGGER = globals()['_LOGGER'].getChild(func_name)
-        global TASKS
+        global TASKS, PRICE_PROVIDER
         
         log_lines = []
         try:
@@ -11906,6 +12592,8 @@ if INITIALIZATION_COMPLETE:
             done, pending = task.wait({TASKS[f"{func_prefix}load_power_values_db"], TASKS[f"{func_prefix}load_solar_available_db"], TASKS[f"{func_prefix}load_kwh_prices"], TASKS[f"{func_prefix}load_drive_efficiency"], TASKS[f"{func_prefix}load_km_kwh_efficiency"]})
             
             log_lines.append(f"📟{i18n.t('ui.startup.loading_history')}")
+            
+            PRICE_PROVIDER = PriceProvider.create(CONFIG)
             
             TASKS[f"{func_prefix}update_grid_prices"] = task.create(update_grid_prices)
             TASKS[f"{func_prefix}load_charging_history"] = task.create(load_charging_history)
