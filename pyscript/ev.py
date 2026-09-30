@@ -1255,6 +1255,18 @@ class BasePriceProvider:
     def _load_sell_forecast_prices(self):
         return {}
 
+    def get_buy_price(self, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime()
+
+        timestamp = self.normalize_timestamp(timestamp)
+        result = self.get_price_at_timestamp(self.get_buy_real_prices(), timestamp)
+
+        if result is None:
+            raise Exception(f"No real buy price available for {timestamp}")
+
+        return result["price"]
+
     def get_sell_price(self, timestamp=None):
         if timestamp is None:
             timestamp = getTime()
@@ -1449,6 +1461,18 @@ class CombinedPriceProvider(BasePriceProvider):
 
     def get_sell_real_prices(self):
         return self.sell_real_prices
+
+    def get_buy_price(self, timestamp=None):
+        if timestamp is None:
+            timestamp = getTime()
+
+        timestamp = self.normalize_timestamp(timestamp)
+        result = self.get_price_at_timestamp(self.buy_real_prices, timestamp)
+
+        if result is None:
+            raise Exception(f"No real buy price available for {timestamp}")
+
+        return result["price"]
 
     def get_sell_price(self, timestamp=None):
         if timestamp is None:
@@ -11952,7 +11976,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
         ev_grid_watt =  round(max(ev_used_consumption - watts_from_local_energy, 0.0), 3)
         
         TASKS[task_names[f"{func_prefix}get_refund"]] = task.create(get_refund)
-        TASKS[task_names[f"{func_prefix}grid_kwh_price"]] = task.create(get_state, CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True, error_state=0.0)
+        TASKS[task_names[f"{func_prefix}grid_kwh_price"]] = task.create(PRICE_PROVIDER.get_buy_price)
         TASKS[task_names[f"{func_prefix}solar_kwh_price"]] = task.create(get_solar_sell_price, set_entity_attr=update_entities)
         TASKS[task_names[f"{func_prefix}powerwall_kwh_price"]] = task.create(get_powerwall_kwh_price)
         done, pending = task.wait({TASKS[task_names[f"{func_prefix}get_refund"]], TASKS[task_names[f"{func_prefix}grid_kwh_price"]], TASKS[task_names[f"{func_prefix}solar_kwh_price"]], TASKS[task_names[f"{func_prefix}powerwall_kwh_price"]]})
@@ -11990,7 +12014,7 @@ def calc_kwh_price(period = 60, update_entities = False, solar_period_current_ho
             set_state(f"sensor.{__name__}_kwh_cost_price", ev_total_price_kwh)
 
             if not is_solar_configured():
-                raw_price = get_state(CONFIG['prices']['entity_ids']['power_prices_entity_id'], float_type=True)
+                raw_price = PRICE_PROVIDER.get_buy_price()
                 price = raw_price - refund
                 set_attr(f"sensor.{__name__}_kwh_cost_price.raw_price", f"{raw_price:.2f} {i18n.t('ui.common.valuta_kwh')}")
                 set_attr(f"sensor.{__name__}_kwh_cost_price.refund", f"{refund:.2f} {i18n.t('ui.common.valuta_kwh')}")
