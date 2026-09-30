@@ -9384,7 +9384,22 @@ def set_sensor_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0):
     set_state(f"sensor.{__name__}_charger_phase_2_amps", phase_2)
     set_state(f"sensor.{__name__}_charger_phase_3_amps", phase_3)
     set_state(f"sensor.{__name__}_charging_watts", watt)
+
+def set_charger_phase_limits(circuit_amps=[CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases']), charger_amps=[CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])):
+    func_name = "set_charger_phase_limits"
+    _LOGGER = globals()['_LOGGER'].getChild(func_name)
+    global CURRENT_CHARGING_AMPS
     
+    for entity_id in CONFIG['charger']['entity_ids'].values():
+        if not is_entity_configured(entity_id):
+            continue
+        
+        if not is_entity_available(entity_id):
+            _LOGGER.warning(f"Entity {entity_id} is not available, restarting integration to try to fix it")
+            reload_entity_integration(entity_id)
+    
+    set_circuit_phase_limits(*circuit_amps)
+    set_charger_charging_amps(*charger_amps)
 
 def set_circuit_phase_limits(phase_1 = 0, phase_2 = 0, phase_3 = 0):
     func_name = "set_circuit_phase_limits"
@@ -9489,7 +9504,7 @@ def set_charger_charging_amps(phase_1 = 0, phase_2 = 0, phase_3 = 0, watt = 0.0)
             
             if service.has_service(integration, "set_charger_dynamic_limit"):
                 service.call(integration, "set_charger_dynamic_limit", blocking=True,
-                                    charger_id=get_attr(CONFIG['charger']['entity_ids']['status_entity_id'], "id"),
+                                    charger_id=charger_id,
                                     current=max_amp,
                                     time_to_live=0) #Temperary removed 60 min time to live due to issue in Easee integration
             else:
@@ -11668,9 +11683,11 @@ def charge_if_needed(force_recalculate=False):
         
         if charging_rule:
             set_charging_rule(charging_rule)
-            
-        set_circuit_phase_limits(*circuit_amps)
-        set_charger_charging_amps(*charger_amps)
+        
+        set_charger_phase_limits(circuit_amps, charger_amps)
+        
+        #set_circuit_phase_limits(*circuit_amps)
+        #set_charger_charging_amps(*charger_amps)
     except (asyncio.CancelledError, asyncio.TimeoutError, KeyError) as e:
         _LOGGER.error(f"Task cancelled {e} ({type(e)})")
     except Exception as e:
@@ -11708,8 +11725,9 @@ def charge_if_needed(force_recalculate=False):
         circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
         charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
         
-        set_circuit_phase_limits(*circuit_amps)
-        set_charger_charging_amps(*charger_amps)
+        set_charger_phase_limits(circuit_amps, charger_amps)
+        #set_circuit_phase_limits(*circuit_amps)
+        #set_charger_charging_amps(*charger_amps)
     finally:
         task_cancel(func_prefix, task_remove=True, startswith=True)
 
@@ -12747,8 +12765,9 @@ if INITIALIZATION_COMPLETE:
                         circuit_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                         charger_amps = [CONFIG['charger']['charging_max_amp']] * int(CONFIG['charger']['charging_phases'])
                         
-                        set_circuit_phase_limits(*circuit_amps)
-                        set_charger_charging_amps(*charger_amps)
+                        set_charger_phase_limits(circuit_amps, charger_amps)
+                        #set_circuit_phase_limits(*circuit_amps)
+                        #set_charger_charging_amps(*charger_amps)
                         start_charging()
                     elif value == "off":
                         pass
