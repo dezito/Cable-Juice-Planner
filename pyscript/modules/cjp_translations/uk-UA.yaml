@@ -159,7 +159,19 @@ config:
 
   prices:
     entity_ids:
-      power_prices_entity_id: "**Обов’язково** Сутність ціни енергії (Energi Data Service)"
+      energidataservice_buy_entity_id: "**Виберіть одного або кількох постачальників** Energi Data Service entity_id ціни"
+      energidataservice_sell_entity_id: "**Необов’язково** Energi Data Service entity_id ціни продажу"
+      stromligning_buy_current_price: "**Виберіть одного або кількох постачальників** Strømligning поточна ціна купівлі"
+      stromligning_buy_forecasts: "**Виберіть одного або кількох постачальників** Strømligning прогнози цін купівлі"
+      stromligning_buy_tomorrow_available: "**Виберіть одного або кількох постачальників** Strømligning ціни купівлі на завтра доступні"
+      stromligning_sell_current_price: "**Необов’язково** Strømligning поточна ціна продажу"
+      stromligning_sell_distribution: "**Виберіть одного або кількох постачальників** Strømligning продаж тариф на розподіл"
+      stromligning_sell_electricity_tax: "**Виберіть одного або кількох постачальників** Strømligning продаж податок на електроенергію"
+      stromligning_sell_forecasts: "**Необов’язково** Strømligning прогнози цін продажу"
+      stromligning_sell_nettariff: "**Виберіть одного або кількох постачальників** Strømligning продаж мережевий тариф"
+      stromligning_sell_surcharge: "**Виберіть одного або кількох постачальників** Strømligning продаж надбавка до спотової ціни"
+      stromligning_sell_systemtariff: "**Виберіть одного або кількох постачальників** Strømligning продаж системний тариф"
+      stromligning_sell_tomorrow_available: "**Необов’язково** Strømligning ціни продажу на завтра"
     refund: "Сума компенсації від держави/постачальника"
 
   solar:
