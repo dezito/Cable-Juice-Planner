@@ -13041,10 +13041,14 @@ if INITIALIZATION_COMPLETE:
                 task_cancel(func_prefix, task_remove=True, startswith=True)
         else:
             _LOGGER.warning(f"Public charging session: Invalid entity_state transition from {entity_state} with {PUBLIC_CHARGING_SESSION}, get_public_charging_session_done()={get_public_charging_session_done()}")
-            
+    
     def wait_until_odometer_stable(func_prefix=None):
         func_name = "wait_until_odometer_stable"
-        return wait_for_entity_update(entity_id=CONFIG['ev_car']['entity_ids']['odometer_entity_id'], updated_within_minutes=5, max_wait_time_minutes=30, check_interval=5.0, float_type=True, task_prefix=func_prefix if func_prefix else "", task_name=func_name)
+        return wait_for_entity_update(entity_id=CONFIG['ev_car']['entity_ids']['odometer_entity_id'], updated_within_minutes=5, max_wait_time_minutes=30, check_interval=5.0, float_type=True, task_prefix=func_prefix, task_name=func_name)
+        
+    def wait_until_battery_level_input(func_prefix=None):
+        func_name = "wait_until_battery_level_input"
+        return wait_for_entity_update(entity_id=f"input_number.{__name__}_battery_level", updated_within_minutes=5, max_wait_time_minutes=30, check_interval=5.0, float_type=True, task_prefix=func_prefix, task_name=func_name)
         
     def power_connected_trigger(value):
         func_name = "power_connected_trigger"
@@ -13089,6 +13093,10 @@ if INITIALIZATION_COMPLETE:
         try:
             _LOGGER.info(f"Charger port status changed from {old_value} to {value}")
             if value in CHARGER_READY_STATUS and old_value in CHARGER_NOT_READY_STATUS:
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
+                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
+                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
+                
                 TASKS[f"{func_prefix}wake_up_ev"] = task.create(wake_up_ev)
                 TASKS[f"{func_prefix}notify_set_battery_level"] = task.create(notify_set_battery_level)
                 done, pending = task.wait({TASKS[f"{func_prefix}wake_up_ev"], TASKS[f"{func_prefix}notify_set_battery_level"]})
@@ -13096,6 +13104,9 @@ if INITIALIZATION_COMPLETE:
                 if is_ev_configured():
                     TASKS[f"{func_prefix}wait_until_odometer_stable"] = task.create(wait_until_odometer_stable, func_prefix=func_prefix)
                     done, pending = task.wait({TASKS[f"{func_prefix}wait_until_odometer_stable"]})
+                else:
+                    TASKS[f"{func_prefix}wait_until_battery_level_input"] = task.create(wait_until_battery_level_input, func_prefix=func_prefix)
+                    done, pending = task.wait({TASKS[f"{func_prefix}wait_until_battery_level_input"]})
                     
                 if not is_ev_home():
                     return
@@ -13103,10 +13114,6 @@ if INITIALIZATION_COMPLETE:
                 task_cancel("power_connected_trigger", task_remove=True, contains=True)
                 TASKS[f"{func_prefix}power_connected_trigger"] = task.create(power_connected_trigger, value)
                 done, pending = task.wait({TASKS[f"{func_prefix}power_connected_trigger"]})
-                    
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_now", "off")
-                set_state(f"input_boolean.{__name__}_allow_manual_charging_solar", "off")
-                set_state(f"input_boolean.{__name__}_forced_charging_daily_battery_level", "off")
                 
                 task_cancel("charge_if_needed", task_remove=True, timeout=5.0, wait_period=0.2, startswith=False, contains=True)
                 TASKS[f"{func_prefix}charge_if_needed"] = task.create(charge_if_needed)
