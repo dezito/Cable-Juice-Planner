@@ -152,3 +152,26 @@ def secondsBetween(start: datetime, end: datetime, precise: bool=False, error_va
     except Exception:
         _LOGGER.error(f"Error in secondsBetween with start {start} ({type(start)}) and end {end} ({type(end)})")
         return error_value
+    
+def hourIn(timestamp: datetime, data: (list, tuple, dict)) -> bool:
+    """
+    Check if the hour of the given timestamp is present in the provided data.
+    Parameters:
+    - timestamp (datetime): The datetime object to check.
+    - data (list, tuple, dict): The collection of hours to check against.
+      If a dict is provided, only the keys are considered.
+    Returns:
+    - bool: True if the hour of the timestamp is in the data, False otherwise.
+    """
+    hour = timestamp.hour
+    if isinstance(data, dict):
+        for key in data.keys():
+            if hour == key.hour:
+                return True
+    elif isinstance(data, (list, tuple)):
+        for item in data:
+            if hour == item.hour:
+                return True
+    else:
+        raise Exception(f"Unsupported data type: {type(data)}")
+    return False
